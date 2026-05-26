@@ -32657,90 +32657,711 @@
         }
 
         else if (cleanId === 'capacity_heatmap') {
+          // Inject self-contained premium stylesheet if not present
+          if (!document.getElementById('heatmap-unified-styles')) {
+            const style = document.createElement('style');
+            style.id = 'heatmap-unified-styles';
+            style.innerHTML = `
+              .heatmap-table-container {
+                overflow-x: auto;
+                border-radius: var(--radius-lg);
+                border: 1px solid var(--color-border-faint);
+                background: var(--color-surface);
+              }
+              .heatmap-cell {
+                position: relative;
+                padding: 12px 10px !important;
+                text-align: center;
+                font-size: 11px;
+                font-weight: 800;
+                cursor: pointer;
+                border-right: 1px solid var(--color-border-faint);
+                border-bottom: 1px solid var(--color-border-faint);
+                transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+              }
+              .heatmap-cell:hover {
+                transform: scale(1.08) translateZ(0);
+                box-shadow: var(--shadow-lg) !important;
+                z-index: 10 !important;
+                border-radius: var(--radius-md) !important;
+              }
+              .heatmap-member-sticky {
+                position: sticky;
+                left: 0;
+                z-index: 2;
+                background: var(--color-surface) !important;
+                border-right: 2px solid var(--color-border) !important;
+                min-width: 240px;
+                max-width: 240px;
+                width: 240px;
+                box-shadow: 4px 0 8px -4px rgba(0,0,0,0.08);
+              }
+              .heatmap-header-sticky-left {
+                position: sticky;
+                left: 0;
+                z-index: 3;
+                background: var(--color-surface-2) !important;
+                border-right: 2px solid var(--color-border) !important;
+                box-shadow: 4px 0 8px -4px rgba(0,0,0,0.08);
+              }
+              .heatmap-week-header {
+                min-width: 85px;
+                text-align: center;
+                vertical-align: middle;
+                border-bottom: 2px solid var(--color-border);
+                border-left: 1px solid var(--color-border-faint);
+                padding: 12px 6px !important;
+              }
+              .heatmap-week-header.today {
+                background: rgba(99, 102, 241, 0.08) !important;
+                border-left: 2px solid var(--color-primary) !important;
+                border-right: 2px solid var(--color-primary) !important;
+              }
+              .heatmap-cell.today-col {
+                border-left: 2px solid rgba(99, 102, 241, 0.15) !important;
+                border-right: 2px solid rgba(99, 102, 241, 0.15) !important;
+              }
+              .heatmap-cell-leave {
+                background-image: repeating-linear-gradient(45deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.05) 6px, rgba(245, 158, 11, 0.12) 6px, rgba(245, 158, 11, 0.12) 12px) !important;
+              }
+              .heatmap-totals-row {
+                background: var(--color-surface-2) !important;
+                font-weight: 800;
+                border-top: 2px solid var(--color-border);
+              }
+              .heatmap-totals-row td {
+                border-bottom: none !important;
+              }
+              .heatmap-modal-backdrop {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.4);
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                animation: heatmap-fade-in 0.2s ease-out;
+              }
+              .heatmap-modal-container {
+                width: 720px;
+                max-width: 90vw;
+                background: var(--color-surface);
+                border: 1px solid var(--color-border);
+                border-radius: 20px;
+                box-shadow: 0 24px 80px rgba(0,0,0,0.25);
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                animation: heatmap-scale-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+              }
+              @keyframes heatmap-fade-in {
+                from { opacity: 0; }
+                to { opacity: 1; }
+              }
+              @keyframes heatmap-scale-up {
+                from { transform: scale(0.95); opacity: 0; }
+                to { transform: scale(1); opacity: 1; }
+              }
+              .heatmap-btn-group {
+                display: flex;
+                background: var(--color-surface-3);
+                padding: 3px;
+                border-radius: 10px;
+                border: 1px solid var(--color-border-faint);
+              }
+              .heatmap-btn-group button {
+                background: transparent;
+                border: none;
+                padding: 6px 12px;
+                font-size: 11px;
+                font-weight: 700;
+                color: var(--color-text-muted);
+                border-radius: 8px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+              }
+              .heatmap-btn-group button.active {
+                background: var(--color-surface);
+                color: var(--color-text);
+                box-shadow: var(--shadow-sm);
+              }
+              .heatmap-search-container {
+                position: relative;
+                display: flex;
+                align-items: center;
+              }
+              .heatmap-search-input {
+                width: 180px;
+                padding: 6px 12px 6px 30px;
+                font-size: 12px;
+                border-radius: 8px;
+                border: 1px solid var(--color-border);
+                background: var(--color-surface-2);
+                color: var(--color-text);
+                transition: all 0.2s;
+              }
+              .heatmap-search-input:focus {
+                width: 220px;
+                border-color: var(--color-primary);
+                background: var(--color-surface);
+                outline: none;
+                box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+              }
+            `;
+            document.head.appendChild(style);
+          }
+
           const heatId = 'res-heatmap';
-          const heatCard = mkCC('Capacity Heatmap', '12-week resource allocation', heatId, '', 'standard', "<b>Temporal Capacity Forecasting:</b> A 12-week predictive model showing team availability.", 'View Explanation', 'grid');
+          const heatCard = mkCC('Capacity Heatmap', '12-week resource allocation', heatId, '', 'standard', "<b>Temporal Capacity Forecasting:</b> A dynamic predictive model showing team availability, leaves, and peak allocation bottlenecks.", 'View Explanation', 'grid');
           heatCard.style.gridColumn = '1 / -1';
           widgetWrapper.appendChild(heatCard);
 
           const heatBody = heatCard.querySelector('.cb');
-          heatBody.style.overflowX = 'auto';
-          heatBody.style.padding = '12px';
+          heatBody.style.padding = '16px';
+          heatBody.style.display = 'flex';
+          heatBody.style.flexDirection = 'column';
+          heatBody.style.gap = '16px';
 
-          const weeks = [];
-          const now = new Date();
-          const day = now.getDay() || 7;
-          const monday = new Date(now); monday.setDate(now.getDate() - day + 1);
-
-          for (let i = 0; i < 12; i++) {
-            const d = new Date(monday); d.setDate(monday.getDate() + i * 7);
-            const wNum = getWeekNumber(d);
-            weeks.push({ date: d, label: `W${wNum}\n${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` });
+          // Initialize local state
+          if (!window._heatmapState) {
+            window._heatmapState = {
+              rangeWeeks: 12,
+              displayMode: 'percent',
+              searchQuery: '',
+              onlyOverloaded: false
+            };
           }
+          const state = window._heatmapState;
 
-          let heatHtml = `<table class="task-tbl glass-table" style="min-width:1000px;border-collapse:collapse;border:1px solid var(--color-border-faint);border-radius:var(--radius-lg);overflow:hidden">
-            <thead>
-              <tr style="background:rgba(var(--color-surface-2-rgb, 243, 244, 246), 0.65); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-bottom:2px solid var(--color-border)">
-                <th style="width:220px;padding:14px;text-align:left;border-bottom:2px solid var(--color-border)"><div class="thin" style="font-weight:800">Member</div></th>`;
-          weeks.forEach(w => {
-            heatHtml += `<th style="text-align:center;padding:10px;border-bottom:2px solid var(--color-border);border-left:1px solid var(--color-border-faint)">
-              <div class="thin" style="justify-content:center;text-align:center;font-size:10px;line-height:1.2;font-weight:800">${w.label.replace('\n', '<br>')}</div>
-            </th>`;
-          });
-          heatHtml += `</tr></thead><tbody>`;
+          // Standard capacity scaling calculations based on configured effort units
+          const weeklyCapacity = P.settings.effortUnit === 'hrs' ? (P.settings.hoursPerWeek || 40) : (P.settings.effortUnit === 'months' ? (P.settings.workDays || 5) / 20 : (P.settings.workDays || 5));
+          const dailyCapacity = weeklyCapacity / (P.settings.workDays || 5);
+          const uShort = P.settings.effortUnit === 'hrs' ? 'h' : P.settings.effortUnit === 'months' ? 'mo' : 'd';
 
-          const standardCap = 5;
-          if (!P.members || !P.members.length) {
-            heatHtml += `<tr><td colspan="${weeks.length + 1}" style="padding:40px;text-align:center;color:var(--color-text-faint)">No team members found in project state.</td></tr>`;
-          } else {
-            P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').forEach((m, idx) => {
-              const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-              heatHtml += `<tr>
-                <td style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-right:2px solid var(--color-border);border-bottom:1px solid var(--color-border-faint);background:var(--color-surface);font-weight:700">
-                  <div style="width:30px;height:30px;border-radius:50%;background:${CC[idx % CC.length]};color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;box-shadow:var(--shadow-sm)">${initials}</div>
-                  <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">
-                    <div style="font-weight:800;font-size:13px;color:var(--color-text)">${esc(m.name)}</div>
-                    <div style="font-size:10px;color:var(--color-text-faint);font-weight:600">${esc(m.role || 'Member')}</div>
+          function drawHeatmap() {
+            const weeks = [];
+            const now = new Date();
+            const day = now.getDay() || 7;
+            const monday = new Date(now); monday.setDate(now.getDate() - day + 1);
+
+            for (let i = 0; i < state.rangeWeeks; i++) {
+              const d = new Date(monday); d.setDate(monday.getDate() + i * 7);
+              const wNum = getWeekNumber(d);
+              weeks.push({ date: d, label: `W${wNum}`, dateStr: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), wNum });
+            }
+
+            const isTodayWeek = (weekStart, weekEnd) => {
+              const today = new Date();
+              return today >= weekStart && today <= weekEnd;
+            };
+
+            // Filter members based on search queries and alert states
+            const activeMembers = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed');
+            const filteredMembers = activeMembers.filter(m => {
+              if (state.searchQuery) {
+                const q = state.searchQuery.toLowerCase();
+                const matchesName = m.name.toLowerCase().includes(q);
+                const matchesRole = (m.role || '').toLowerCase().includes(q);
+                if (!matchesName && !matchesRole) return false;
+              }
+              if (state.onlyOverloaded) {
+                return weeks.some(w => {
+                  const weekStart = new Date(w.date), weekEnd = new Date(w.date); weekEnd.setDate(weekEnd.getDate() + 6);
+                  const tks = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) >= weekStart && new Date(t.dueDate) <= weekEnd);
+                  const effort = tks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+                  let leaveDays = 0;
+                  (m.plannedLeaves || []).forEach(l => {
+                    const ls = new Date(l.from), le = new Date(l.to);
+                    const overlapS = new Date(Math.max(weekStart, ls));
+                    const overlapE = new Date(Math.min(weekEnd, le));
+                    if (overlapS <= overlapE) leaveDays += (Math.ceil((overlapE - overlapS) / 864e5) + 1);
+                  });
+                  leaveDays = Math.min(leaveDays, P.settings.workDays || 5);
+                  const weekCap = Math.max(0, weeklyCapacity - (leaveDays * dailyCapacity));
+                  return effort > weekCap && weekCap > 0;
+                });
+              }
+              return true;
+            });
+
+            // 1. Build Controls Bar
+            let controlsHtml = `
+              <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; padding-bottom:4px">
+                <div style="display:flex; flex-wrap:wrap; align-items:center; gap:12px">
+                  <!-- Timeframe button group -->
+                  <div class="heatmap-btn-group" title="Select Timeline Range">
+                    <button class="${state.rangeWeeks === 4 ? 'active' : ''}" onclick="window._heatmapState.rangeWeeks = 4; window._refreshHeatmap()">4 Weeks</button>
+                    <button class="${state.rangeWeeks === 8 ? 'active' : ''}" onclick="window._heatmapState.rangeWeeks = 8; window._refreshHeatmap()">8 Weeks</button>
+                    <button class="${state.rangeWeeks === 12 ? 'active' : ''}" onclick="window._heatmapState.rangeWeeks = 12; window._refreshHeatmap()">12 Weeks</button>
                   </div>
-                </td>`;
+
+                  <!-- Display mode button group -->
+                  <div class="heatmap-btn-group" title="Select Cell Content Mode">
+                    <button class="${state.displayMode === 'percent' ? 'active' : ''}" onclick="window._heatmapState.displayMode = 'percent'; window._refreshHeatmap()">Utilization (%)</button>
+                    <button class="${state.displayMode === 'effort' ? 'active' : ''}" onclick="window._heatmapState.displayMode = 'effort'; window._refreshHeatmap()">Effort (${uShort})</button>
+                  </div>
+                </div>
+
+                <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap">
+                  <!-- Overload Filter Checkbox -->
+                  <label style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--color-text-muted); cursor:pointer; user-select:none">
+                    <input type="checkbox" ${state.onlyOverloaded ? 'checked' : ''} onchange="window._heatmapState.onlyOverloaded = this.checked; window._refreshHeatmap()" style="accent-color:var(--color-primary); width:14px; height:14px">
+                    <span>Show Overloaded Only</span>
+                  </label>
+
+                  <!-- Search Member/Role -->
+                  <div class="heatmap-search-container">
+                    <i data-lucide="search" style="position:absolute; left:10px; width:12px; height:12px; color:var(--color-text-faint)"></i>
+                    <input type="text" class="heatmap-search-input" placeholder="Search team member..." value="${esc(state.searchQuery)}" oninput="window._heatmapState.searchQuery = this.value; window._refreshHeatmapDelayed()">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Legend and Info Bar -->
+              <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; font-size:11px; padding:10px 14px; background:var(--color-surface-2); border-radius:10px; border:1px solid var(--color-border-faint)">
+                <div style="display:flex; align-items:center; gap:6px; color:var(--color-text-muted)">
+                  <i data-lucide="info" style="width:12px; height:12px; color:var(--color-primary)"></i>
+                  <span>Capacity modeled at <b>${weeklyCapacity.toFixed(1)}${uShort}/week</b> per active member. Leaves dynamically subtract capacity.</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:16px">
+                  <div style="display:flex; align-items:center; gap:6px">
+                    <div style="width:12px; height:12px; border-radius:3px; background:var(--color-surface); border:1px solid var(--color-border-faint)"></div>
+                    <span style="color:var(--color-text-faint)">0% Load</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:6px">
+                    <div style="width:12px; height:12px; border-radius:3px; background:rgba(99, 102, 241, 0.06); border:1px solid rgba(99, 102, 241, 0.1)"></div>
+                    <span style="color:var(--color-text-muted)">&lt;50% Load</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:6px">
+                    <div style="width:12px; height:12px; border-radius:3px; background:rgba(99, 102, 241, 0.16); border:1px solid rgba(99, 102, 241, 0.25)"></div>
+                    <span style="color:var(--color-text-muted)">50-80% Load</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:6px">
+                    <div style="width:12px; height:12px; border-radius:3px; background:linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.35)); border:1px solid rgba(245, 158, 11, 0.4)"></div>
+                    <span style="color:var(--color-text-muted)">80-100% Load</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:6px">
+                    <div style="width:12px; height:12px; border-radius:3px; background:linear-gradient(135deg, rgba(239, 68, 68, 0.85), rgba(244, 63, 94, 0.95))"></div>
+                    <span style="color:var(--color-text-muted)">&gt;100% Overload</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:6px">
+                    <div style="width:12px; height:12px; border-radius:3px; background:repeating-linear-gradient(45deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.05) 4px, rgba(245, 158, 11, 0.12) 4px, rgba(245, 158, 11, 0.12) 8px)"></div>
+                    <span style="color:var(--color-text-muted)">🌴 Leaves</span>
+                  </div>
+                </div>
+              </div>
+            `;
+
+            // 2. Build grid table
+            let tableHtml = `
+              <div class="heatmap-table-container custom-scroll">
+                <table style="width:100%; border-collapse:collapse; min-width:850px">
+                  <thead>
+                    <tr style="background:var(--color-surface-2)">
+                      <th class="heatmap-header-sticky-left" style="width:240px; padding:14px; text-align:left; border-bottom:2px solid var(--color-border)"><div class="thin" style="font-weight:800; color:var(--color-text-muted)">Resource / Team Role</div></th>
+            `;
+
+            weeks.forEach(w => {
+              const isToday = isTodayWeek(w.date, new Date(w.date.getTime() + 6 * 864e5));
+              tableHtml += `
+                <th class="heatmap-week-header ${isToday ? 'today' : ''}">
+                  <div style="display:flex; flex-direction:column; align-items:center; line-height:1.2">
+                    <span style="font-size:11px; font-weight:800; color:${isToday ? 'var(--color-primary)' : 'var(--color-text)'}">${w.label}</span>
+                    <span style="font-size:9px; font-weight:600; color:var(--color-text-faint); margin-top:2px">${w.dateStr}</span>
+                    ${isToday ? `<span style="font-size:8px; font-weight:800; background:var(--color-primary); color:white; padding:1px 4px; border-radius:4px; margin-top:4px; text-transform:uppercase; letter-spacing:0.05em">Today</span>` : ''}
+                  </div>
+                </th>
+              `;
+            });
+
+            tableHtml += `</tr></thead><tbody>`;
+
+            if (!filteredMembers.length) {
+              tableHtml += `<tr><td colspan="${weeks.length + 1}" style="padding:40px; text-align:center; color:var(--color-text-faint); font-weight:600">No resources found matching the criteria.</td></tr>`;
+            } else {
+              filteredMembers.forEach((m, mIdx) => {
+                const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+                const avatarBg = CC[mIdx % CC.length];
+
+                // Calculate average load percentage for visible weeks
+                let totalEffortVisible = 0;
+                let totalCapVisible = 0;
+
+                weeks.forEach(w => {
+                  const weekStart = new Date(w.date), weekEnd = new Date(w.date); weekEnd.setDate(weekEnd.getDate() + 6);
+                  const tks = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) >= weekStart && new Date(t.dueDate) <= weekEnd);
+                  totalEffortVisible += tks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+
+                  let leaveDays = 0;
+                  (m.plannedLeaves || []).forEach(l => {
+                    const ls = new Date(l.from), le = new Date(l.to);
+                    const overlapS = new Date(Math.max(weekStart, ls));
+                    const overlapE = new Date(Math.min(weekEnd, le));
+                    if (overlapS <= overlapE) leaveDays += (Math.ceil((overlapE - overlapS) / 864e5) + 1);
+                  });
+                  leaveDays = Math.min(leaveDays, P.settings.workDays || 5);
+                  totalCapVisible += Math.max(0, weeklyCapacity - (leaveDays * dailyCapacity));
+                });
+
+                const avgLoad = totalCapVisible > 0 ? (totalEffortVisible / totalCapVisible) * 100 : 0;
+                const avgLoadColor = avgLoad > 100 ? '#ef4444' : avgLoad > 80 ? '#f59e0b' : 'var(--color-primary)';
+
+                tableHtml += `
+                  <tr style="border-bottom:1px solid var(--color-border-faint)">
+                    <td class="heatmap-member-sticky" style="display:flex; align-items:center; gap:10px; padding:12px 14px">
+                      <div style="width:34px; height:34px; border-radius:50%; background:${avatarBg}22; color:${avatarBg}; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; border:1px solid ${avatarBg}55; box-shadow:var(--shadow-sm); flex-shrink:0">${initials}</div>
+                      <div style="flex:1; min-width:0">
+                        <div style="font-weight:800; font-size:13px; color:var(--color-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(m.name)}</div>
+                        <div style="font-size:10px; color:var(--color-text-faint); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(m.role || 'Member')}</div>
+                      </div>
+                      <div style="font-size:9px; font-weight:800; color:${avgLoadColor}; background:${avgLoadColor}12; border:1px solid ${avgLoadColor}33; padding:2px 6px; border-radius:6px; white-space:nowrap" title="Average utilization over selected timeline">
+                        ${Math.round(avgLoad)}%
+                      </div>
+                    </td>
+                `;
+
+                weeks.forEach(w => {
+                  const weekStart = new Date(w.date), weekEnd = new Date(w.date); weekEnd.setDate(weekEnd.getDate() + 6);
+                  const isToday = isTodayWeek(w.date, new Date(w.date.getTime() + 6 * 864e5));
+                  const tks = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) >= weekStart && new Date(t.dueDate) <= weekEnd);
+                  const effort = tks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+
+                  let leaveDays = 0;
+                  (m.plannedLeaves || []).forEach(l => {
+                    const ls = new Date(l.from), le = new Date(l.to);
+                    const overlapS = new Date(Math.max(weekStart, ls));
+                    const overlapE = new Date(Math.min(weekEnd, le));
+                    if (overlapS <= overlapE) leaveDays += (Math.ceil((overlapE - overlapS) / 864e5) + 1);
+                  });
+                  leaveDays = Math.min(leaveDays, P.settings.workDays || 5);
+                  const weekCap = Math.max(0, weeklyCapacity - (leaveDays * dailyCapacity));
+
+                  let loadPct = 0;
+                  if (weekCap > 0) {
+                    loadPct = (effort / weekCap) * 100;
+                  } else if (effort > 0) {
+                    loadPct = 999; 
+                  }
+
+                  let bg = 'var(--color-surface)';
+                  let color = 'var(--color-text-faint)';
+                  let borderStyle = 'none';
+                  let blurEffect = 'none';
+
+                  if (loadPct > 100) {
+                    bg = 'linear-gradient(135deg, rgba(239, 68, 68, 0.88), rgba(244, 63, 94, 0.92))';
+                    color = '#fff';
+                    blurEffect = 'blur(6px)';
+                  } else if (loadPct > 80) {
+                    bg = 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.35))';
+                    color = 'var(--color-text)';
+                    borderStyle = '1px solid rgba(245, 158, 11, 0.4)';
+                  } else if (loadPct > 50) {
+                    bg = 'rgba(99, 102, 241, 0.16)';
+                    color = 'var(--color-text)';
+                    borderStyle = '1px solid rgba(99, 102, 241, 0.25)';
+                  } else if (loadPct > 0) {
+                    bg = 'rgba(99, 102, 241, 0.06)';
+                    color = 'var(--color-text-muted)';
+                    borderStyle = '1px solid rgba(99, 102, 241, 0.1)';
+                  }
+
+                  const hasLeave = leaveDays > 0;
+                  let cellClasses = 'heatmap-cell';
+                  if (hasLeave) cellClasses += ' heatmap-cell-leave';
+                  if (isToday) cellClasses += ' today-col';
+
+                  // Dynamic title tooltip
+                  let tooltip = `${m.name} | ${w.label} (${w.dateStr})\n\n`;
+                  tooltip += `• Load: ${Math.round(loadPct)}%\n`;
+                  tooltip += `• Effort: ${effort.toFixed(1)}${uShort} assigned\n`;
+                  tooltip += `• Weekly Capacity: ${weekCap.toFixed(1)}${uShort} (Base: ${weeklyCapacity.toFixed(1)}${uShort})\n`;
+                  if (hasLeave) {
+                    tooltip += `• Planned Leave: ${leaveDays.toFixed(1)} days (🌴)\n`;
+                  }
+                  tooltip += `• Task Count: ${tks.length} pending\n`;
+                  if (tks.length > 0) {
+                    tooltip += `\nTasks Due:\n` + tks.map(t => `  - [${t.priority}] ${t.title} (${t.estEffort}${uShort})`).join('\n');
+                  }
+                  tooltip += `\n\n👉 Click cell to view detailed breakdown & edit tasks!`;
+
+                  let displayVal = '—';
+                  if (effort > 0) {
+                    if (state.displayMode === 'percent') {
+                      displayVal = `${Math.round(loadPct)}%`;
+                    } else {
+                      displayVal = `${effort.toFixed(1)}${uShort}`;
+                    }
+                  }
+
+                  let leafIcon = '';
+                  if (hasLeave) {
+                    leafIcon = `<span style="font-size:10px; margin-left:4px; filter:drop-shadow(0 1px 1px rgba(0,0,0,0.15))" title="Planned Leave: ${leaveDays} days">🌴</span>`;
+                  }
+
+                  const startIso = weekStart.toISOString();
+                  const endIso = weekEnd.toISOString();
+
+                  tableHtml += `
+                    <td onclick="window._openHeatmapDrilldown('${m.name}', '${startIso}', '${endIso}')" 
+                        class="${cellClasses}" 
+                        title="${esc(tooltip)}" 
+                        style="background:${bg}; color:${color}; backdrop-filter:${blurEffect}; -webkit-backdrop-filter:${blurEffect}; border:${borderStyle}; border-right:1px solid var(--color-border-faint); border-bottom:1px solid var(--color-border-faint)">
+                      <div style="display:flex; align-items:center; justify-content:center">
+                        <span style="font-size:11px; font-weight:800">${displayVal}</span>
+                        ${leafIcon}
+                      </div>
+                    </td>
+                  `;
+                });
+
+                tableHtml += `</tr>`;
+              });
+
+              // Bottom sticky Totals / Team aggregates row
+              tableHtml += `
+                <tr class="heatmap-totals-row">
+                  <td class="heatmap-member-sticky heatmap-totals-row" style="padding:14px; border-right:2px solid var(--color-border)">
+                    <div style="display:flex; align-items:center; gap:8px">
+                      <div style="width:30px; height:30px; border-radius:8px; background:rgba(99,102,241,0.12); color:var(--color-primary); display:flex; align-items:center; justify-content:center; font-size:12px"><i data-lucide="sigma" style="width:14px; height:14px"></i></div>
+                      <div>
+                        <div style="font-weight:900; font-size:12px; color:var(--color-text)">Team Total Effort</div>
+                        <div style="font-size:9px; color:var(--color-text-faint); font-weight:600">Total assigned / Avg load</div>
+                      </div>
+                    </div>
+                  </td>
+              `;
 
               weeks.forEach(w => {
                 const weekStart = new Date(w.date), weekEnd = new Date(w.date); weekEnd.setDate(weekEnd.getDate() + 6);
-                const tks = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) >= weekStart && new Date(t.dueDate) <= weekEnd);
-                const effort = tks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+                let weekEffortTotal = 0;
+                let weekCapTotal = 0;
 
-                let leaveDays = 0;
-                (m.plannedLeaves || []).forEach(l => {
-                  const ls = new Date(l.from), le = new Date(l.to);
-                  const overlapS = new Date(Math.max(weekStart, ls));
-                  const overlapE = new Date(Math.min(weekEnd, le));
-                  if (overlapS <= overlapE) leaveDays += (Math.ceil((overlapE - overlapS) / 864e5) + 1);
+                activeMembers.forEach(m => {
+                  const tks = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) >= weekStart && new Date(t.dueDate) <= weekEnd);
+                  weekEffortTotal += tks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+
+                  let leaveDays = 0;
+                  (m.plannedLeaves || []).forEach(l => {
+                    const ls = new Date(l.from), le = new Date(l.to);
+                    const overlapS = new Date(Math.max(weekStart, ls));
+                    const overlapE = new Date(Math.min(weekEnd, le));
+                    if (overlapS <= overlapE) leaveDays += (Math.ceil((overlapE - overlapS) / 864e5) + 1);
+                  });
+                  leaveDays = Math.min(leaveDays, P.settings.workDays || 5);
+                  weekCapTotal += Math.max(0, weeklyCapacity - (leaveDays * dailyCapacity));
                 });
-                const weekCap = Math.max(0, standardCap - leaveDays);
 
-                let bg = 'var(--color-surface)', color = 'var(--color-text-faint)', icon = '', bl = 'none', borderSt = '';
-                if (effort > weekCap && weekCap > 0) {
-                  bg = 'linear-gradient(135deg, rgba(239, 68, 68, 0.88), rgba(248, 113, 113, 0.88))'; color = '#fff'; bl = 'blur(6px)';
-                } else if (effort > 0) {
-                  const ratio = Math.min(1, effort / standardCap);
-                  if (ratio > 0.8) {
-                    bg = 'linear-gradient(135deg, rgba(99, 102, 241, 0.88), rgba(129, 140, 248, 0.88))'; color = '#fff'; bl = 'blur(6px)';
-                  } else if (ratio > 0.4) {
-                    bg = 'rgba(99, 102, 241, 0.16)'; color = 'var(--color-text)'; bl = 'blur(4px)'; borderSt = '1px solid rgba(99, 102, 241, 0.25)';
-                  } else {
-                    bg = 'rgba(99, 102, 241, 0.08)'; color = 'var(--color-text-muted)'; borderSt = '1px solid rgba(99, 102, 241, 0.1)';
-                  }
-                }
-                if (leaveDays > 0) icon = '<span title="On Leave" style="margin-left:4px;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.2))">🌴</span>';
+                const teamAvgLoad = weekCapTotal > 0 ? (weekEffortTotal / weekCapTotal) * 100 : 0;
+                const teamAvgColor = teamAvgLoad > 100 ? 'var(--red)' : teamAvgLoad > 80 ? 'var(--amber)' : 'var(--color-text-muted)';
+                const isToday = isTodayWeek(w.date, new Date(w.date.getTime() + 6 * 864e5));
 
-                const title = `${m.name}: ${effort.toFixed(1)}d / ${weekCap.toFixed(1)}d cap`;
-                heatHtml += `<td onclick="filterToWeek('${m.name}', '${weekStart.toISOString()}', '${weekEnd.toISOString()}')" title="${title}" class="heatmap-cell" style="background:${bg};color:${color};backdrop-filter:${bl};-webkit-backdrop-filter:${bl};text-align:center;font-size:11px;font-weight:800;cursor:pointer;border-right:1px solid var(--color-border-faint);border-bottom:1px solid var(--color-border-faint);border:${borderSt || 'none'};transition:all var(--tr-spring)">${effort > 0 ? effort.toFixed(1) + 'd' : '—'}${icon}</td>`;
+                tableHtml += `
+                  <td class="${isToday ? 'today-col' : ''}" style="text-align:center; padding:12px 10px; border-right:1px solid var(--color-border-faint); border-top:2px solid var(--color-border)">
+                    <div style="font-size:11px; font-weight:900; color:var(--color-text)">${weekEffortTotal.toFixed(1)}${uShort}</div>
+                    <div style="font-size:9px; font-weight:700; color:${teamAvgColor}; margin-top:2px">${Math.round(teamAvgLoad)}% load</div>
+                  </td>
+                `;
               });
-              heatHtml += '</tr>';
-            });
+
+              tableHtml += `</tr>`;
+            }
+
+            tableHtml += `</tbody></table></div>`;
+
+            // Assemble into body container
+            heatBody.innerHTML = controlsHtml + tableHtml;
+
+            // Trigger Lucide icons inside body
+            if (window.lucide) {
+              lucide.createIcons({ target: heatBody });
+            }
           }
-          heatHtml += `</tbody></table>`;
-          heatBody.innerHTML = heatHtml;
-          if (window.lucide) lucide.createIcons(heatCard);
+
+          // Register redraw hooks
+          window._refreshHeatmap = function() {
+            drawHeatmap();
+          };
+
+          let searchTimeout = null;
+          window._refreshHeatmapDelayed = function() {
+            if (searchTimeout) clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+              drawHeatmap();
+            }, 250);
+          };
+
+          // R-2. Build click-to-drill-down details modal dynamically
+          window._openHeatmapDrilldown = function(memberName, startIso, endIso) {
+            const member = P.members.find(m => m.name === memberName);
+            if (!member) return;
+
+            const weekStart = new Date(startIso), weekEnd = new Date(endIso);
+            const tks = P.tasks.filter(t => t.assignee === memberName && t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) >= weekStart && new Date(t.dueDate) <= weekEnd);
+            const effort = tks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+
+            let leaveDays = 0;
+            const weekLeaves = [];
+            (member.plannedLeaves || []).forEach(l => {
+              const ls = new Date(l.from), le = new Date(l.to);
+              const overlapS = new Date(Math.max(weekStart, ls));
+              const overlapE = new Date(Math.min(weekEnd, le));
+              if (overlapS <= overlapE) {
+                const days = (Math.ceil((overlapE - overlapS) / 864e5) + 1);
+                leaveDays += days;
+                weekLeaves.push({ from: l.from, to: l.to, reason: l.reason || 'General Leave', days });
+              }
+            });
+            leaveDays = Math.min(leaveDays, P.settings.workDays || 5);
+            const weekCap = Math.max(0, weeklyCapacity - (leaveDays * dailyCapacity));
+            const pct = weekCap > 0 ? (effort / weekCap) * 100 : (effort > 0 ? 999 : 0);
+
+            const pctColor = pct > 100 ? 'var(--red)' : pct > 80 ? 'var(--amber)' : 'var(--color-primary)';
+            const statusLabel = pct > 100 ? '🔴 Overloaded' : pct > 80 ? '🟡 High Capacity' : pct > 0 ? '🔵 Healthy Load' : '⚪ Available';
+
+            let rowsHtml = '';
+            if (!tks.length) {
+              rowsHtml = `
+                <div style="text-align:center; padding:32px; background:var(--color-surface-2); border-radius:12px; border:1px dashed var(--color-border)">
+                  <div style="font-size:24px; margin-bottom:8px">✨</div>
+                  <div style="font-weight:700; font-size:13px; color:var(--color-text-muted)">No Active Tasks Scheduled</div>
+                  <div style="font-size:11px; color:var(--color-text-faint); margin-top:2px">No pending tasks are due for this resource in this week.</div>
+                </div>
+              `;
+            } else {
+              tks.forEach(t => {
+                const pColor = t.priority === 'Critical' ? 'var(--red)' : t.priority === 'High' ? 'var(--amber)' : t.priority === 'Medium' ? 'var(--color-primary)' : 'var(--color-text-muted)';
+                const pBg = t.priority === 'Critical' ? 'rgba(239,68,68,0.1)' : t.priority === 'High' ? 'rgba(245,158,11,0.1)' : t.priority === 'Medium' ? 'rgba(99,102,241,0.1)' : 'var(--color-surface-3)';
+                
+                rowsHtml += `
+                  <div onclick="window._closeHeatmapDrilldown(); openFlyout('${t.id}', 'edit')" 
+                       class="card-glow-hover"
+                       style="padding:14px; background:var(--color-surface-2); border-radius:12px; border:1px solid var(--color-border-faint); display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; cursor:pointer; transition:all 0.2s">
+                    <div style="display:flex; flex-direction:column; gap:4px; min-width:0; flex:1">
+                      <div style="font-weight:800; font-size:13px; color:var(--color-text); display:flex; align-items:center; gap:8px">
+                        <span style="font-family:var(--mono); color:var(--color-text-faint)">#${t.id}</span>
+                        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(t.title)}</span>
+                      </div>
+                      <div style="font-size:11px; color:var(--color-text-muted); display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+                        <span>Status: <b style="color:var(--color-primary)">${esc(t.status)}</b></span>
+                        <span style="color:var(--color-border)">|</span>
+                        <span>Due: <b>${t.dueDate}</b></span>
+                      </div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:10px; flex-shrink:0; margin-left:12px">
+                      <span style="font-size:10px; font-weight:800; color:${pColor}; background:${pBg}; border:1px solid ${pColor}33; padding:2px 8px; border-radius:8px">${t.priority}</span>
+                      <span style="font-family:var(--mono); font-size:13px; font-weight:900; color:var(--color-text)">${(parseFloat(t.estEffort) || 0).toFixed(1)}${uShort}</span>
+                    </div>
+                  </div>
+                `;
+              });
+            }
+
+            let leavesHtml = '';
+            if (weekLeaves.length) {
+              leavesHtml += `
+                <div style="margin-bottom:20px; padding:12px 16px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2); border-radius:12px">
+                  <div style="font-size:11px; font-weight:800; color:var(--amber); text-transform:uppercase; letter-spacing:0.05em; display:flex; align-items:center; gap:6px; margin-bottom:8px">
+                    <span>🌴 Planned Leave in this Week</span>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:6px">
+              `;
+              weekLeaves.forEach(l => {
+                leavesHtml += `
+                  <div style="font-size:12px; color:var(--color-text); display:flex; justify-content:space-between; align-items:center">
+                    <span><b>${l.reason}</b> <span style="font-size:10px; color:var(--color-text-faint)">(${l.from} to ${l.to})</span></span>
+                    <span style="font-weight:700; color:var(--amber)">-${l.days} days cap</span>
+                  </div>
+                `;
+              });
+              leavesHtml += `</div></div>`;
+            }
+
+            const wNum = getWeekNumber(weekStart);
+            const dateRangeLabel = `${weekStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${weekEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+            const initials = member.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+            const initialsColor = CC[activeMembers.indexOf(member) >= 0 ? activeMembers.indexOf(member) % CC.length : 0];
+
+            const modalHtml = `
+              <div class="heatmap-modal-backdrop" id="heatmap-modal-backdrop" onclick="window._closeHeatmapDrilldown()">
+                <div class="heatmap-modal-container" onclick="event.stopPropagation()">
+                  <div style="padding:20px 24px; background:var(--color-surface-2); border-bottom:1px solid var(--color-border-faint); display:flex; justify-content:space-between; align-items:center">
+                    <div style="display:flex; align-items:center; gap:12px">
+                      <div style="width:42px; height:42px; border-radius:12px; background:${initialsColor}22; color:${initialsColor}; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:800; border:1px solid ${initialsColor}44">${initials}</div>
+                      <div>
+                        <h3 style="margin:0; font-size:16px; font-weight:900; color:var(--color-text)">${esc(member.name)}</h3>
+                        <div style="font-size:12px; color:var(--color-text-muted); margin-top:2px">Allocation Details: <b>Week ${wNum}</b> (${dateRangeLabel})</div>
+                      </div>
+                    </div>
+                    <button class="btn ghost icon-btn" onclick="window._closeHeatmapDrilldown()" title="Close Modal" style="border-radius:50%; padding:8px"><i data-lucide="x" style="width:18px; height:18px"></i></button>
+                  </div>
+
+                  <div class="custom-scroll" style="padding:24px; max-height:55vh; overflow-y:auto; background:var(--color-bg)">
+                    ${leavesHtml}
+
+                    <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:24px">
+                      <div style="padding:12px; background:var(--color-surface-2); border-radius:12px; border:1px solid var(--color-border-faint); text-align:center">
+                        <div style="font-size:10px; font-weight:700; color:var(--color-text-faint); text-transform:uppercase; letter-spacing:0.05em">Total Effort</div>
+                        <div style="font-size:18px; font-weight:900; color:var(--color-text); margin-top:4px">${effort.toFixed(1)}${uShort}</div>
+                      </div>
+                      <div style="padding:12px; background:var(--color-surface-2); border-radius:12px; border:1px solid var(--color-border-faint); text-align:center">
+                        <div style="font-size:10px; font-weight:700; color:var(--color-text-faint); text-transform:uppercase; letter-spacing:0.05em">Net Capacity</div>
+                        <div style="font-size:18px; font-weight:900; color:var(--color-text); margin-top:4px">${weekCap.toFixed(1)}${uShort}</div>
+                      </div>
+                      <div style="padding:12px; background:var(--color-surface-2); border-radius:12px; border:1px solid var(--color-border-faint); text-align:center">
+                        <div style="font-size:10px; font-weight:700; color:var(--color-text-faint); text-transform:uppercase; letter-spacing:0.05em">Utilization</div>
+                        <div style="font-size:18px; font-weight:900; color:${pctColor}; margin-top:4px">${Math.round(pct)}%</div>
+                      </div>
+                      <div style="padding:12px; background:var(--color-surface-2); border-radius:12px; border:1px solid var(--color-border-faint); text-align:center; display:flex; flex-direction:column; justify-content:center; align-items:center">
+                        <div style="font-size:10px; font-weight:700; color:var(--color-text-faint); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px">Status</div>
+                        <span style="font-size:11px; font-weight:800; padding:2px 8px; border-radius:8px; background:${pctColor}12; color:${pctColor}; border:1px solid ${pctColor}33; display:inline-block">${statusLabel}</span>
+                      </div>
+                    </div>
+
+                    <div style="font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:12px; display:flex; align-items:center; gap:6px">
+                      <i data-lucide="list-todo" style="width:14px; height:14px"></i>
+                      <span>Scheduled Tasks (${tks.length})</span>
+                    </div>
+                    ${rowsHtml}
+                  </div>
+
+                  <div style="padding:16px 24px; background:var(--color-surface-2); border-top:1px solid var(--color-border-faint); display:flex; justify-content:space-between; align-items:center">
+                    <button class="btn outline" onclick="window._closeHeatmapDrilldown(); filterToWeek('${member.name}', '${startIso}', '${endIso}')" title="See these tasks in main task view">
+                      <i data-lucide="external-link" style="margin-right:6px; width:14px; height:14px"></i> Filter Main Task View
+                    </button>
+                    <div style="display:flex; gap:10px">
+                      <button class="btn ghost" onclick="window._closeHeatmapDrilldown()">Close</button>
+                      ${!P.readonly ? `<button class="btn primary" onclick="window._closeHeatmapDrilldown(); openFlyout('','edit')"><i data-lucide="plus-circle" style="margin-right:6px; width:14px; height:14px"></i> Add Task</button>` : ''}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+
+            let wrap = $id('heatmap-modal-root');
+            if (!wrap) {
+              wrap = document.createElement('div');
+              wrap.id = 'heatmap-modal-root';
+              document.body.appendChild(wrap);
+            }
+            wrap.innerHTML = modalHtml;
+            if (window.lucide) {
+              lucide.createIcons({ target: wrap });
+            }
+          };
+
+          window._closeHeatmapDrilldown = function() {
+            const wrap = $id('heatmap-modal-root');
+            if (wrap) wrap.innerHTML = '';
+          };
+
+          // Draw initial heatmap
+          drawHeatmap();
         }
 
         else if (cleanId === 'workload_balance') {
