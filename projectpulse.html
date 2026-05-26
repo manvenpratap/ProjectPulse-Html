@@ -25030,7 +25030,7 @@
           const mx = (e.clientX - rect.left) * scaleX / (window.devicePixelRatio || 1);
           const my = (e.clientY - rect.top) * scaleY / (window.devicePixelRatio || 1);
 
-          const padL = 200, padR = 60, padT = 50, padB = 40;
+          const padL = 180, padR = 60, padT = 50, padB = 40;
           const chartH = (cvs.height / (window.devicePixelRatio || 1)) - padT - padB;
           const gap = chartH / labels.length;
 
@@ -25056,7 +25056,7 @@
         });
       }
 
-      const padL = 200, padR = 60, padT = 50, padB = 40;
+      const padL = 180, padR = 60, padT = 50, padB = 40;
       const chartW = W - padL - padR, chartH = H - padT - padB;
 
       const actualMax = Math.max(...d1, 0);
@@ -25088,6 +25088,26 @@
         ctx.roundRect(x, y, w, h, h / 2);
         ctx.fillStyle = fill;
         ctx.fill();
+        ctx.restore();
+      };
+
+      // Helper to draw a circular avatar with initials on the canvas
+      const drawCanvasAvatar = (x, y, size, name, color) => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x + size / 2, y, size / 2, 0, Math.PI * 2);
+        ctx.fillStyle = color + '22'; // 13% opacity color background
+        ctx.fill();
+        ctx.strokeStyle = color + '55'; // 33% opacity border
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = 'bold 9px var(--font-mono), monospace';
+        ctx.fillStyle = color;
+        ctx.fillText(initials, x + size / 2, y);
         ctx.restore();
       };
 
@@ -25149,6 +25169,7 @@
         const completed = d2[i] || 0;
         const overdue = d3[i] || 0;
         const inProgress = Math.max(0, assigned - completed - overdue);
+        const compRate = assigned > 0 ? (completed / assigned) * 100 : 0;
 
         // Highlight row background on hover
         if (cvs._hoverIdx === i) {
@@ -25158,9 +25179,23 @@
           ctx.fill();
         }
 
-        // Render sticky resource label text on left
-        ctx.textAlign = 'right'; ctx.font = '800 13px var(--font-display), sans-serif'; ctx.fillStyle = themeText;
-        ctx.fillText(l || 'Unknown', padL - 24, y + 5);
+        // Retrieve member role for subtitle
+        const memberObj = P.members.find(m => m.name === l);
+        const role = memberObj ? (memberObj.role || 'Member') : 'Member';
+
+        // Circular initials avatar drawing on canvas
+        const CC = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#06b6d4'];
+        const memberIdx = P.members.findIndex(m => m.name === l);
+        const avatarColor = CC[memberIdx >= 0 ? memberIdx % CC.length : 0];
+        drawCanvasAvatar(20, y, 22, l, avatarColor);
+
+        // Left-aligned Resource Name and Subtitle
+        ctx.textAlign = 'left';
+        ctx.font = '800 12px var(--font-display), sans-serif'; ctx.fillStyle = themeText;
+        ctx.fillText(l || 'Unknown', 52, y - 2);
+
+        ctx.font = '600 9px var(--font-body), sans-serif'; ctx.fillStyle = themeMuted;
+        ctx.fillText(role, 52, y + 8);
 
         // Background capsule track
         drawPill(padL, y - barH / 2, chartW, barH, 'rgba(100, 116, 139, 0.04)');
@@ -25173,10 +25208,10 @@
         // Draw stacked pill
         drawStackedPill(padL, y - barH / 2, barH, wComp, wInProg, wOverd);
 
-        // Value text next to bar ends
+        // Value text and Completion badge next to bar ends
         const totalW = wComp + wInProg + wOverd;
         ctx.textAlign = "left"; ctx.font = "bold 10px var(--font-mono), monospace"; ctx.fillStyle = themeMuted;
-        ctx.fillText(`${assigned.toFixed(1)}${uShort}`, padL + Math.max(totalW, 2) + 12, y + 4);
+        ctx.fillText(`${assigned.toFixed(1)}${uShort} (${Math.round(compRate)}% done)`, padL + Math.max(totalW, 2) + 12, y + 4);
       });
 
       // Interactive Slate-Glass Hover Tooltip Card
@@ -25203,7 +25238,7 @@
           { text: `Grand Total: ${assigned.toFixed(1)}${uShort}`, font: '700 11px var(--font-body)', color: '#ffffff' }
         ];
 
-        let tW = 185;
+        let tW = 230; // Increased width to 230 to prevent text clipping
         let tH = 105;
         let tx = cvs._mx + 15;
         let ty = cvs._my + 15;
@@ -33502,6 +33537,62 @@
               sortedMembers.sort((a, b) => a.name.localeCompare(b.name));
             }
 
+            // Generate dynamic operational insights
+            let highestEffortMem = null, highestEffortVal = 0;
+            let highestEfficiencyMem = null, highestEfficiencyPct = 0;
+            let highestOverdueMem = null, highestOverdueVal = 0;
+
+            sortedMembers.forEach(m => {
+              if (m.assigned > highestEffortVal) {
+                highestEffortVal = m.assigned;
+                highestEffortMem = m.name;
+              }
+              if (m.compRate > highestEfficiencyPct && m.assigned > 0) {
+                highestEfficiencyPct = m.compRate;
+                highestEfficiencyMem = m.name;
+              }
+              if (m.overdue > highestOverdueVal) {
+                highestOverdueVal = m.overdue;
+                highestOverdueMem = m.name;
+              }
+            });
+
+            let insightsHtml = '';
+            if (highestEffortMem || highestEfficiencyMem || highestOverdueMem) {
+              insightsHtml += `
+                <div style="display:flex; flex-wrap:wrap; gap:12px; font-size:11px; padding:10px 14px; background:var(--color-surface-3); border-radius:10px; border:1px solid var(--color-border-faint); align-items:center">
+                  <div style="font-weight:800; color:var(--color-primary); text-transform:uppercase; letter-spacing:0.05em; display:flex; align-items:center; gap:6px; margin-right:8px">
+                    <i data-lucide="sparkles" style="width:13px; height:13px; color:var(--color-primary)"></i> Insights
+                  </div>
+                  <div style="display:flex; flex-wrap:wrap; gap:16px; flex:1">
+              `;
+              if (highestEfficiencyMem && highestEfficiencyPct > 0) {
+                insightsHtml += `
+                  <div style="display:flex; align-items:center; gap:6px">
+                    <span style="font-size:12px">🏆</span>
+                    <span style="color:var(--color-text-muted)">Most Efficient: <b style="color:var(--color-text)">${esc(highestEfficiencyMem)}</b> (${Math.round(highestEfficiencyPct * 100)}% done)</span>
+                  </div>
+                `;
+              }
+              if (highestEffortMem && highestEffortVal > 0) {
+                insightsHtml += `
+                  <div style="display:flex; align-items:center; gap:6px">
+                    <span style="font-size:12px">⚡</span>
+                    <span style="color:var(--color-text-muted)">Highest Load: <b style="color:var(--color-text)">${esc(highestEffortMem)}</b> (${highestEffortVal.toFixed(1)}${uShort})</span>
+                  </div>
+                `;
+              }
+              if (highestOverdueMem && highestOverdueVal > 0) {
+                insightsHtml += `
+                  <div style="display:flex; align-items:center; gap:6px">
+                    <span style="font-size:12px">⚠️</span>
+                    <span style="color:var(--color-text-muted)">Overdue baggage: <b style="color:var(--color-text)">${esc(highestOverdueMem)}</b> (${highestOverdueVal.toFixed(1)}${uShort})</span>
+                  </div>
+                `;
+              }
+              insightsHtml += `</div></div>`;
+            }
+
             if (!sortedMembers.length) {
               chartContainer.innerHTML = `
                 <div style="text-align:center; padding:40px; color:var(--color-text-faint); font-weight:600">
@@ -33514,6 +33605,9 @@
             // Create canvas dynamically with matching height for perfect spacing
             const cHeight = Math.max(250, sortedMembers.length * 52);
             const balCvs = mkCvs(800, cHeight);
+
+            // Inject insights and append canvas
+            chartContainer.innerHTML = insightsHtml;
             chartContainer.appendChild(balCvs);
 
             const labels = sortedMembers.map(m => m.name);
@@ -33525,6 +33619,11 @@
             setTimeout(() => {
               drawWorkloadBar(balCvs, labels, d1, d2, d3);
             }, 50);
+
+            // Re-trigger Lucide icons for sparkles inside insights
+            if (window.lucide) {
+              lucide.createIcons({ target: chartContainer });
+            }
           }
 
           // Build HTML controls bar (Search + Sort + Legend)
