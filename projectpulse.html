@@ -9990,6 +9990,163 @@
       return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
     }
 
+    function calculateSparklineData(tasks, logs) {
+      const points = 10;
+      const now = new Date();
+      const dayMs = 24 * 60 * 60 * 1000;
+      
+      const dates = [];
+      for (let i = points - 1; i >= 0; i--) {
+        dates.push(new Date(now.getTime() - i * 3 * dayMs));
+      }
+      
+      const totalSeries = [];
+      const completedSeries = [];
+      const inProgressSeries = [];
+      const onHoldSeries = [];
+      const blockedSeries = [];
+      const overdueSeries = [];
+      
+      const sortedLogs = [...logs]
+        .filter(l => l.ts)
+        .sort((a, b) => new Date(a.ts) - new Date(b.ts));
+        
+      dates.forEach(targetDate => {
+        const taskStates = {};
+        
+        sortedLogs.forEach(l => {
+          if (new Date(l.ts) > targetDate) return;
+          const tid = l.taskId;
+          if (!tid) return;
+          
+          if (!taskStates[tid]) {
+            taskStates[tid] = {
+              id: tid,
+              status: 'Not Started',
+              blocked: false,
+              dueDate: null,
+              created: new Date(l.ts)
+            };
+          }
+          
+          const state = taskStates[tid];
+          if (l.action === 'Created') {
+            state.created = new Date(l.ts);
+          } else if (l.action === 'Deleted') {
+            state.deleted = new Date(l.ts);
+          } else if (l.action === 'Status Changed' || (l.action === 'Updated' && l.field === 'status')) {
+            state.status = l.newVal;
+          } else if (l.action === 'Updated' && l.field === 'blocked') {
+            state.blocked = (l.newVal === 'true' || l.newVal === true);
+          } else if (l.action === 'Updated' && l.field === 'dueDate') {
+            state.dueDate = l.newVal;
+          }
+        });
+        
+        tasks.forEach(t => {
+          if (!taskStates[t.id]) {
+            const deletedLog = sortedLogs.find(l => l.taskId === t.id && l.action === 'Deleted');
+            if (deletedLog && new Date(deletedLog.ts) <= targetDate) return;
+            
+            const taskLogs = sortedLogs.filter(l => l.taskId === t.id);
+            const logsAfter = taskLogs.filter(l => new Date(l.ts) > targetDate);
+            
+            let status = t.status;
+            let blocked = t.blocked || false;
+            let dueDate = t.dueDate;
+            
+            for (let j = logsAfter.length - 1; j >= 0; j--) {
+              const l = logsAfter[j];
+              if (l.action === 'Status Changed' || (l.action === 'Updated' && l.field === 'status')) {
+                status = l.oldVal || 'Not Started';
+              } else if (l.action === 'Updated' && l.field === 'blocked') {
+                blocked = (l.oldVal === 'true' || l.oldVal === true);
+              } else if (l.action === 'Updated' && l.field === 'dueDate') {
+                dueDate = l.oldVal;
+              }
+            }
+            
+            taskStates[t.id] = {
+              id: t.id,
+              status: status,
+              blocked: blocked,
+              dueDate: dueDate
+            };
+          }
+        });
+        
+        let total = 0, completed = 0, inProgress = 0, onHold = 0, blocked = 0, overdue = 0;
+        
+        Object.values(taskStates).forEach(state => {
+          if (state.deleted) return;
+          total++;
+          if (state.status === 'Completed') completed++;
+          else if (state.status === 'In Progress') inProgress++;
+          else if (state.status === 'On Hold') onHold++;
+          
+          if (state.blocked) blocked++;
+          
+          if (state.status !== 'Completed' && state.status !== 'Cancelled' && state.dueDate) {
+            const dDate = new Date(state.dueDate);
+            if (dDate < targetDate) {
+              overdue++;
+            }
+          }
+        });
+        
+        totalSeries.push(total);
+        completedSeries.push(completed);
+        inProgressSeries.push(inProgress);
+        onHoldSeries.push(onHold);
+        blockedSeries.push(blocked);
+        overdueSeries.push(overdue);
+      });
+      
+      return {
+        total: totalSeries,
+        completed: completedSeries,
+        inProgress: inProgressSeries,
+        onHold: onHoldSeries,
+        blocked: blockedSeries,
+        overdue: overdueSeries
+      };
+    }
+
+    function generateSparklineSVGPath(data, isClosed) {
+      if (!data || data.length < 2) {
+        return isClosed ? "M 0 40 L 100 40 Z" : "M 0 20 L 100 20";
+      }
+      const minVal = Math.min(...data);
+      const maxVal = Math.max(...data);
+      const range = maxVal - minVal || 1;
+      
+      const width = 100;
+      const height = 40;
+      const padding = 4;
+      
+      const pts = data.map((val, idx) => {
+        const x = (idx / (data.length - 1)) * width;
+        const y = height - padding - ((val - minVal) / range) * (height - 2 * padding);
+        return { x, y };
+      });
+      
+      let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[i];
+        const p1 = pts[i + 1];
+        const cp1x = p0.x + (p1.x - p0.x) / 3;
+        const cp1y = p0.y;
+        const cp2x = p0.x + 2 * (p1.x - p0.x) / 3;
+        const cp2y = p1.y;
+        d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}`;
+      }
+      
+      if (isClosed) {
+        d += ` L 100 40 L 0 40 Z`;
+      }
+      return d;
+    }
+
     function isBlocked(t, taskByIdMap = null) {
       if (!t.dependsOn || !t.dependsOn.length) return false;
       const deps = Array.isArray(t.dependsOn) ? t.dependsOn : String(t.dependsOn).split(',').map(s => s.trim()).filter(Boolean);
@@ -10249,6 +10406,8 @@
         t: 'Executive Overview Guide',
         d: 'A strategic steering dashboard providing aggregate health metrics, early warning anomalies, milestone tracking, and high-priority RAID items.',
         f: [
+          ['Health Index', 'A composite project health score (0-100) calculated by penalizing the active scope for overdue tasks (-50% weight), blocked tasks (-30% weight), and on-hold tasks (-20% weight) relative to total active items.'],
+          ['Delivery Confidence', 'Pacing assessment (%) representing release feasibility. Calculated by projecting the remaining active backlog against the team\'s actual 4-week moving average completion velocity. Pacing deficits degrade confidence down to a minimum of 30%.'],
           ['Project Health Sparkline', 'Visual trend of the composite health score over time.'],
           ['Early Warnings (EWS)', 'AI-inspired automated scanning of critical anomalies like blocked milestones and capacity bottlenecks.'],
           ['Milestones Status', 'Visual roadmap tracking high-level milestones, target dates, and confidence levels.'],
@@ -22280,6 +22439,20 @@
           const grid = addGrid(inner);
           grid.appendChild(sCard);
 
+          const sparkData = calculateSparklineData(tasks, P.log || []);
+          const totalPath = generateSparklineSVGPath(sparkData.total, false);
+          const totalFill = generateSparklineSVGPath(sparkData.total, true);
+          const completedPath = generateSparklineSVGPath(sparkData.completed, false);
+          const completedFill = generateSparklineSVGPath(sparkData.completed, true);
+          const inProgressPath = generateSparklineSVGPath(sparkData.inProgress, false);
+          const inProgressFill = generateSparklineSVGPath(sparkData.inProgress, true);
+          const onHoldPath = generateSparklineSVGPath(sparkData.onHold, false);
+          const onHoldFill = generateSparklineSVGPath(sparkData.onHold, true);
+          const blockedPath = generateSparklineSVGPath(sparkData.blocked, false);
+          const blockedFill = generateSparklineSVGPath(sparkData.blocked, true);
+          const overduePath = generateSparklineSVGPath(sparkData.overdue, false);
+          const overdueFill = generateSparklineSVGPath(sparkData.overdue, true);
+
           sCard.querySelector('.cb').innerHTML = `
                   <div class="scards-grid-container">
                     <div class="scard enhanced-scard scard-total" onclick="filterDashboardMetric('status','')" title="Click to view all tasks">
@@ -22290,8 +22463,8 @@
                             <stop offset="100%" stop-color="var(--color-primary)" stop-opacity="0"/>
                           </linearGradient>
                         </defs>
-                        <path d="M0 30 Q25 10 50 20 T100 10 L100 40 L0 40 Z" fill="url(#spark-total)"></path>
-                        <path d="M0 30 Q25 10 50 20 T100 10" fill="none" stroke="var(--color-primary)" stroke-width="1.5" stroke-linecap="round"></path>
+                        <path d="${totalFill}" fill="url(#spark-total)"></path>
+                        <path d="${totalPath}" fill="none" stroke="var(--color-primary)" stroke-width="1.5" stroke-linecap="round"></path>
                       </svg>
                       <div class="sc-hdr"><i data-lucide="layers"></i> Total Scope</div>
                       <div class="sc-val" data-count="${total}">0</div>
@@ -22305,8 +22478,8 @@
                             <stop offset="100%" stop-color="var(--green)" stop-opacity="0"/>
                           </linearGradient>
                         </defs>
-                        <path d="M0 35 Q20 30 40 25 T80 15 T100 5 L100 40 L0 40 Z" fill="url(#spark-green)"></path>
-                        <path d="M0 35 Q20 30 40 25 T80 15 T100 5" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round"></path>
+                        <path d="${completedFill}" fill="url(#spark-green)"></path>
+                        <path d="${completedPath}" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round"></path>
                       </svg>
                       <div class="sc-hdr"><i data-lucide="check-circle-2"></i> Completed</div>
                       <div class="sc-val" data-count="${done}">0</div>
@@ -22320,8 +22493,8 @@
                             <stop offset="100%" stop-color="var(--blue)" stop-opacity="0"/>
                           </linearGradient>
                         </defs>
-                        <path d="M0 25 Q25 15 50 20 T100 15 L100 40 L0 40 Z" fill="url(#spark-blue)"></path>
-                        <path d="M0 25 Q25 15 50 20 T100 15" fill="none" stroke="var(--blue)" stroke-width="1.5" stroke-linecap="round"></path>
+                        <path d="${inProgressFill}" fill="url(#spark-blue)"></path>
+                        <path d="${inProgressPath}" fill="none" stroke="var(--blue)" stroke-width="1.5" stroke-linecap="round"></path>
                       </svg>
                       <div class="sc-hdr"><i data-lucide="clock"></i> In Progress</div>
                       <div class="sc-val" data-count="${inProg}">0</div>
@@ -22335,8 +22508,8 @@
                             <stop offset="100%" stop-color="var(--amber)" stop-opacity="0"/>
                           </linearGradient>
                         </defs>
-                        <path d="M0 20 Q30 25 50 20 T100 20 L100 40 L0 40 Z" fill="url(#spark-amber)"></path>
-                        <path d="M0 20 Q30 25 50 20 T100 20" fill="none" stroke="var(--amber)" stroke-width="1.5" stroke-linecap="round"></path>
+                        <path d="${onHoldFill}" fill="url(#spark-amber)"></path>
+                        <path d="${onHoldPath}" fill="none" stroke="var(--amber)" stroke-width="1.5" stroke-linecap="round"></path>
                       </svg>
                       <div class="sc-hdr"><i data-lucide="pause-circle"></i> On Hold</div>
                       <div class="sc-val" data-count="${onHold}">0</div>
@@ -22350,8 +22523,8 @@
                             <stop offset="100%" stop-color="var(--red)" stop-opacity="0"/>
                           </linearGradient>
                         </defs>
-                        <path d="M0 35 Q20 20 40 30 T80 10 T100 15 L100 40 L0 40 Z" fill="url(#spark-red-blocked)"></path>
-                        <path d="M0 35 Q20 20 40 30 T80 10 T100 15" fill="none" stroke="var(--red)" stroke-width="1.5" stroke-linecap="round"></path>
+                        <path d="${blockedFill}" fill="url(#spark-red-blocked)"></path>
+                        <path d="${blockedPath}" fill="none" stroke="var(--red)" stroke-width="1.5" stroke-linecap="round"></path>
                       </svg>
                       <div class="sc-hdr"><i data-lucide="alert-octagon"></i> Blocked</div>
                       <div class="sc-val" data-count="${blocked}">0</div>
@@ -22365,8 +22538,8 @@
                             <stop offset="100%" stop-color="var(--red)" stop-opacity="0"/>
                           </linearGradient>
                         </defs>
-                        <path d="M0 38 Q30 35 50 25 T100 5 L100 40 L0 40 Z" fill="url(#spark-red-overdue)"></path>
-                        <path d="M0 38 Q30 35 50 25 T100 5" fill="none" stroke="var(--red)" stroke-width="1.5" stroke-linecap="round"></path>
+                        <path d="${overdueFill}" fill="url(#spark-red-overdue)"></path>
+                        <path d="${overduePath}" fill="none" stroke="var(--red)" stroke-width="1.5" stroke-linecap="round"></path>
                       </svg>
                       <div class="sc-hdr"><i data-lucide="calendar-x"></i> Overdue</div>
                       <div class="sc-val" data-count="${overdueTasks.length}">0</div>
@@ -23313,8 +23486,8 @@
             let filterHtml = `<div class="screen-filters" style="display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap; padding-top: 8px;">`;
             statuses.forEach(st => {
               if (counts[st] > 0 || st === 'All') {
-                 filterHtml += `<button class="screen-filter-pill ${st === 'All' ? 'active' : ''}" data-status="${st}" style="padding:6px 12px; border-radius:20px; font-size:11px; font-weight:600; cursor:pointer; border:1px solid ${st === 'All' ? 'var(--color-primary)' : 'var(--color-border)'}; background:${st === 'All' ? 'var(--color-surface-3)' : 'var(--color-surface-2)'}; color:${st === 'All' ? 'var(--color-text)' : 'var(--color-text-muted)'}; transition:all 0.2s;">
-                   ${st} <span style="background:var(--color-surface-3); padding:2px 6px; border-radius:10px; font-size:9px; margin-left:4px; color:var(--color-text);">${counts[st]}</span>
+                 filterHtml += `<button class="screen-filter-pill ${st === 'All' ? 'active' : ''}" data-status="${st}" style="padding:6px 12px; border-radius:20px; font-size:11px; font-weight:600; cursor:pointer; border:1px solid ${st === 'All' ? 'var(--color-primary)' : 'var(--color-border)'}; background:${st === 'All' ? 'var(--color-primary)' : 'var(--color-surface-2)'}; color:${st === 'All' ? 'var(--color-surface)' : 'var(--color-text-muted)'}; transition:all 0.2s;">
+                   ${st} <span class="pill-counter" style="background:${st === 'All' ? 'var(--color-surface)' : 'var(--color-surface-3)'}; padding:2px 6px; border-radius:10px; font-size:9px; margin-left:4px; color:${st === 'All' ? 'var(--color-primary)' : 'var(--color-text)'}; font-weight:700;">${counts[st]}</span>
                  </button>`;
               }
             });
@@ -23344,13 +23517,13 @@
                     </div>
                     <div style="margin-top:auto; display:flex; align-items:center; justify-content:space-between; gap:8px; padding-top:6px; border-top:1px dashed var(--color-divider);">
                        <div style="font-size:11px; font-weight:600; color:var(--color-text-muted); display:flex; align-items:center; gap:4px;" title="Assignee">
-                         <i data-lucide="user" style="width:12px; height:12px;"></i> <span style="max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(s.assignee || 'Unassigned')}</span>
+                          <i data-lucide="user" style="width:12px; height:12px;"></i> <span style="max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(s.assignee || 'Unassigned')}</span>
                        </div>
                        <div style="display:flex; align-items:center; gap:6px;">
-                         <div style="width:40px; height:6px; background:var(--color-surface-3); border-radius:3px; overflow:hidden;">
-                           <div style="width:${s.progress || 0}%; height:100%; background:${sColor}; border-radius:3px;"></div>
-                         </div>
-                         <span style="font-size:11px; font-weight:800; color:var(--color-text);">${s.progress || 0}%</span>
+                          <div style="width:40px; height:6px; background:var(--color-surface-3); border-radius:3px; overflow:hidden;">
+                            <div style="width:${s.progress || 0}%; height:100%; background:${sColor}; border-radius:3px;"></div>
+                          </div>
+                          <span style="font-size:11px; font-weight:800; color:var(--color-text);">${s.progress || 0}%</span>
                        </div>
                     </div>
                   </div>
@@ -23365,19 +23538,33 @@
             const pills = ssCard.querySelectorAll('.screen-filter-pill');
             const cards = ssCard.querySelectorAll('.screen-bento-card');
             pills.forEach(p => p.addEventListener('click', (e) => {
-              pills.forEach(x => { x.classList.remove('active'); x.style.background='var(--color-surface-2)'; x.style.borderColor='var(--color-border)'; x.style.color='var(--color-text-muted)'; });
+              pills.forEach(x => {
+                x.classList.remove('active');
+                x.style.background = 'var(--color-surface-2)';
+                x.style.borderColor = 'var(--color-border)';
+                x.style.color = 'var(--color-text-muted)';
+                const cnt = x.querySelector('.pill-counter');
+                if (cnt) {
+                  cnt.style.background = 'var(--color-surface-3)';
+                  cnt.style.color = 'var(--color-text)';
+                }
+              });
               const btn = e.currentTarget;
               btn.classList.add('active');
-              btn.style.background='var(--color-surface-3)';
-              btn.style.borderColor='var(--color-primary)';
-              btn.style.color='var(--color-text)';
+              btn.style.background = 'var(--color-primary)';
+              btn.style.borderColor = 'var(--color-primary)';
+              btn.style.color = 'var(--color-surface)';
+              const cnt = btn.querySelector('.pill-counter');
+              if (cnt) {
+                cnt.style.background = 'var(--color-surface)';
+                cnt.style.color = 'var(--color-primary)';
+              }
               const st = btn.dataset.status;
               cards.forEach(c => {
                 if(st === 'All' || c.dataset.status === st) c.style.display = 'flex';
                 else c.style.display = 'none';
               });
             }));
-            ssCard.querySelector('.cb').innerHTML = screensHtml;
           } else {
             addST(inner, 'Screen Delivery Details');
             const grid = addGrid(inner);
@@ -26068,6 +26255,20 @@
           return `${x},${y}`;
         }).join(' ');
 
+        // Dynamic Delivery Confidence Calculation
+        const remTasks = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled');
+        const last4w = [];
+        for (let i = 3; i >= 0; i--) {
+          const d = new Date(); d.setDate(d.getDate() - (i * 7));
+          const wS = new Date(d); wS.setDate(d.getDate() - (d.getDay() || 7) + 1);
+          const wE = new Date(wS); wE.setDate(wS.getDate() + 6);
+          const done = (P.log || []).filter(l => l.type === 'Updated' && l.details && l.details.includes('Status: Completed') && new Date(l.ts) >= wS && new Date(l.ts) <= wE).length;
+          last4w.push(done);
+        }
+        const avgVel = last4w.reduce((s, v) => s + v, 0) / 4 || 5;
+        const weeksRem = avgVel > 0 ? (remTasks.length / avgVel) : 0;
+        const deliveryConfidenceVal = Math.max(30, Math.min(95, Math.round(100 - (weeksRem * 5))));
+
         // Milestones at Risk
         const milestones = tasks.filter(t => t.name.includes('Milestone') || t.confidence);
         const atRiskMilestones = milestones.filter(m => m.confidence === 'Low' || m.confidence === 'Medium' || (m.forecastDueDate && m.baselineDueDate && m.forecastDueDate > m.baselineDueDate));
@@ -26127,7 +26328,7 @@
               <div style="display:flex; align-items:center; gap:16px; padding:12px 20px; background:var(--color-bg); border-radius:12px; border:1px solid var(--color-border-faint)">
                 <div>
                   <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:2px">Delivery Confidence</div>
-                  <div style="font-size:24px; font-weight:900; color:var(--color-primary); line-height:1">88%</div>
+                  <div style="font-size:24px; font-weight:900; color:var(--color-primary); line-height:1">${deliveryConfidenceVal}%</div>
                 </div>
                 <div style="width:40px; height:40px; border-radius:50%; background:rgba(var(--color-primary-rgb), 0.1); display:flex; align-items:center; justify-content:center; color:var(--color-primary)">
                   <i data-lucide="gauge" style="width:22px; height:22px"></i>
