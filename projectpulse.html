@@ -25014,7 +25014,9 @@
       const { ctx, W, H } = gCtx(cvs);
       if (!ctx || !labels || !labels.length) return;
 
-      // Dynamic hover listener binding
+      const uShort = (P.settings && P.settings.effortUnit === 'hrs') ? 'h' : ((P.settings && P.settings.effortUnit === 'months') ? 'mo' : 'd');
+
+      // Dynamic coordinate event listener binding
       if (!cvs._wired) {
         cvs._wired = true;
         cvs._hoverIdx = -1;
@@ -25057,72 +25059,98 @@
       const padL = 200, padR = 60, padT = 50, padB = 40;
       const chartW = W - padL - padR, chartH = H - padT - padB;
 
-      const actualMax = Math.max(...d1, ...d2, ...d3, 0);
-      const maxVal = Math.max(40, actualMax * 1.1);
+      const actualMax = Math.max(...d1, 0);
+      const maxVal = Math.max(10, actualMax * 1.15); // Add 15% breathing room
 
       const gap = chartH / labels.length;
-      const barH = Math.min(32, gap * 0.7);
+      const barH = Math.min(26, gap * 0.55); // Rounded segmented pill height
 
       const themeText = getComputedStyle(document.body).getPropertyValue('--color-text').trim() || '#1a1a1a';
       const themeMuted = getComputedStyle(document.body).getPropertyValue('--color-text-faint').trim() || '#666666';
       const themeDivider = getComputedStyle(document.body).getPropertyValue('--color-divider').trim() || '#eeeeee';
-      const themePrimary = getComputedStyle(document.body).getPropertyValue('--color-primary').trim() || '#6366f1';
-      const themeGreen = getComputedStyle(document.body).getPropertyValue('--color-green').trim() || '#22c55e';
-      const themeRed = getComputedStyle(document.body).getPropertyValue('--red').trim() || '#ef4444';
 
+      // Draw X-axis grid lines and labels
       ctx.textAlign = 'center'; ctx.font = '600 11px ' + (window.monoFont || 'monospace'); ctx.fillStyle = themeMuted;
       for (let i = 0; i <= 5; i++) {
-        const val = Math.round(maxVal * i / 5);
+        const val = maxVal * i / 5;
         const x = padL + (i / 5) * chartW;
-        ctx.fillText(val + 'd', x, padT - 18);
+        ctx.fillText(val.toFixed(1) + uShort, x, padT - 18);
         ctx.strokeStyle = themeDivider; ctx.setLineDash([2, 3]);
         ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + chartH); ctx.stroke();
       }
       ctx.setLineDash([]);
 
+      // Helper to draw background track capsule pill
       const drawPill = (x, y, w, h, fill) => {
         if (w <= 0) return;
         ctx.save();
         ctx.beginPath();
         ctx.roundRect(x, y, w, h, h / 2);
-        if (fill === themePrimary) {
-          const grad = ctx.createLinearGradient(x, y, x + w, y);
-          grad.addColorStop(0, '#6366f1');
-          grad.addColorStop(1, '#818cf8');
-          ctx.fillStyle = grad;
-        } else if (fill === themeGreen) {
-          const grad = ctx.createLinearGradient(x, y, x + w, y);
+        ctx.fillStyle = fill;
+        ctx.fill();
+        ctx.restore();
+      };
+
+      // Helper to draw Capsule Segmented Stacked Pill with glossy glares
+      const drawStackedPill = (x, y, h, wComp, wInProg, wOverd) => {
+        const totalW = wComp + wInProg + wOverd;
+        if (totalW <= 0) return;
+
+        ctx.save();
+        // Create clipping capsule track
+        ctx.beginPath();
+        ctx.roundRect(x, y, totalW, h, h / 2);
+        ctx.clip();
+
+        // 1. Completed Segment (Green)
+        if (wComp > 0) {
+          const grad = ctx.createLinearGradient(x, y, x + wComp, y);
           grad.addColorStop(0, '#22c55e');
           grad.addColorStop(1, '#4ade80');
           ctx.fillStyle = grad;
-        } else if (fill === themeRed) {
-          const grad = ctx.createLinearGradient(x, y, x + w, y);
+          ctx.fillRect(x, y, wComp, h);
+        }
+
+        // 2. In-Progress Segment (Indigo/Blue)
+        if (wInProg > 0) {
+          const startX = x + wComp;
+          const grad = ctx.createLinearGradient(startX, y, startX + wInProg, y);
+          grad.addColorStop(0, '#6366f1');
+          grad.addColorStop(1, '#818cf8');
+          ctx.fillStyle = grad;
+          ctx.fillRect(startX, y, wInProg, h);
+        }
+
+        // 3. Overdue Segment (Red)
+        if (wOverd > 0) {
+          const startX = x + wComp + wInProg;
+          const grad = ctx.createLinearGradient(startX, y, startX + wOverd, y);
           grad.addColorStop(0, '#ef4444');
           grad.addColorStop(1, '#f87171');
           ctx.fillStyle = grad;
-        } else {
-          ctx.fillStyle = fill;
+          ctx.fillRect(startX, y, wOverd, h);
         }
-        ctx.fill();
 
-        // 3D Glass shine highlight for data metrics
-        if (fill === themePrimary || fill === themeGreen || fill === themeRed) {
-          const gloss = ctx.createLinearGradient(x, y, x, y + h);
-          gloss.addColorStop(0, 'rgba(255, 255, 255, 0.22)');
-          gloss.addColorStop(0.4, 'rgba(255, 255, 255, 0.05)');
-          gloss.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
-          gloss.addColorStop(1, 'rgba(0, 0, 0, 0.08)');
-          ctx.fillStyle = gloss;
-          ctx.fill();
-        }
+        // 4. Glossy glare overlay
+        const gloss = ctx.createLinearGradient(x, y, x, y + h);
+        gloss.addColorStop(0, 'rgba(255, 255, 255, 0.22)');
+        gloss.addColorStop(0.4, 'rgba(255, 255, 255, 0.05)');
+        gloss.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
+        gloss.addColorStop(1, 'rgba(0, 0, 0, 0.08)');
+        ctx.fillStyle = gloss;
+        ctx.fillRect(x, y, totalW, h);
+
         ctx.restore();
       };
 
       labels.forEach((l, i) => {
         const y = padT + (i * gap) + (gap / 2);
-        const v1 = d1[i] || 0, v2 = d2[i] || 0, v3 = d3[i] || 0;
+        const assigned = d1[i] || 0;
+        const completed = d2[i] || 0;
+        const overdue = d3[i] || 0;
+        const inProgress = Math.max(0, assigned - completed - overdue);
 
-        // Background highlight on hover
+        // Highlight row background on hover
         if (cvs._hoverIdx === i) {
           ctx.fillStyle = 'rgba(99, 102, 241, 0.06)';
           ctx.beginPath();
@@ -25130,71 +25158,73 @@
           ctx.fill();
         }
 
+        // Render sticky resource label text on left
         ctx.textAlign = 'right'; ctx.font = '800 13px var(--font-display), sans-serif'; ctx.fillStyle = themeText;
-        ctx.fillText(l || 'Unknown', padL - 20, y + 5);
+        ctx.fillText(l || 'Unknown', padL - 24, y + 5);
 
-        // Background track
-        drawPill(padL, y - barH / 2, chartW, barH, 'rgba(var(--color-text-rgb), 0.03)');
+        // Background capsule track
+        drawPill(padL, y - barH / 2, chartW, barH, 'rgba(100, 116, 139, 0.04)');
 
-        const w1 = (v1 / maxVal) * chartW, w2 = (v2 / maxVal) * chartW, w3 = (v3 / maxVal) * chartW;
+        // Segment widths calculation
+        const wComp = (completed / maxVal) * chartW;
+        const wInProg = (inProgress / maxVal) * chartW;
+        const wOverd = (overdue / maxVal) * chartW;
 
-        // 1. Assigned (Total)
-        drawPill(padL, y - barH / 2, w1, barH, themePrimary);
+        // Draw stacked pill
+        drawStackedPill(padL, y - barH / 2, barH, wComp, wInProg, wOverd);
 
-        // 2. Completed
-        if (w2 > 0) drawPill(padL, y - barH / 2, w2, barH, themeGreen);
-
-        // 3. Overdue
-        if (w3 > 0) {
-          ctx.shadowBlur = 6; ctx.shadowColor = themeRed + '66';
-          drawPill(padL, y - barH / 2, w3, barH, themeRed);
-          ctx.shadowBlur = 0;
-        }
-
-        // Data label indicator text
+        // Value text next to bar ends
+        const totalW = wComp + wInProg + wOverd;
         ctx.textAlign = "left"; ctx.font = "bold 10px var(--font-mono), monospace"; ctx.fillStyle = themeMuted;
-        ctx.fillText(`${v1.toFixed(1)}d`, padL + Math.max(w1, w2, w3, 2) + 12, y + 4);
+        ctx.fillText(`${assigned.toFixed(1)}${uShort}`, padL + Math.max(totalW, 2) + 12, y + 4);
       });
 
-      // Interactive Slate-Glass Tooltip Card
+      // Interactive Slate-Glass Hover Tooltip Card
       if (cvs._hoverIdx !== undefined && cvs._hoverIdx !== -1 && cvs._mx !== undefined) {
         const hoverIdx = cvs._hoverIdx;
         const name = labels[hoverIdx] || 'Member';
         const assigned = d1[hoverIdx] || 0;
         const completed = d2[hoverIdx] || 0;
         const overdue = d3[hoverIdx] || 0;
+        const inProgress = Math.max(0, assigned - completed - overdue);
+
+        // Efficiency breakdown math
+        const compRate = assigned > 0 ? (completed / assigned) * 100 : 0;
+        const overPct = assigned > 0 ? (overdue / assigned) * 100 : 0;
+        const inProgRate = Math.max(0, 100 - compRate - overPct);
 
         ctx.save();
 
         const lines = [
           { text: name, font: 'bold 12px var(--font-display)', color: '#ffffff' },
-          { text: `Assigned: ${assigned.toFixed(1)}d`, font: '600 11px var(--font-body)', color: '#a5b4fc', indicatorColor: '#6366f1' },
-          { text: `Completed: ${completed.toFixed(1)}d`, font: '600 11px var(--font-body)', color: '#86efac', indicatorColor: '#22c55e' },
-          { text: `Overdue: ${overdue.toFixed(1)}d`, font: '600 11px var(--font-body)', color: '#fca5a5', indicatorColor: '#ef4444' }
+          { text: `Completed: ${completed.toFixed(1)}${uShort} (${Math.round(compRate)}%)`, font: '600 11px var(--font-body)', color: '#86efac', indicatorColor: '#22c55e' },
+          { text: `In Progress: ${inProgress.toFixed(1)}${uShort} (${Math.round(inProgRate)}%)`, font: '600 11px var(--font-body)', color: '#a5b4fc', indicatorColor: '#6366f1' },
+          { text: `Overdue baggage: ${overdue.toFixed(1)}${uShort} (${Math.round(overPct)}%)`, font: '600 11px var(--font-body)', color: '#fca5a5', indicatorColor: '#ef4444' },
+          { text: `Grand Total: ${assigned.toFixed(1)}${uShort}`, font: '700 11px var(--font-body)', color: '#ffffff' }
         ];
 
-        let tW = 160;
-        let tH = 85;
+        let tW = 185;
+        let tH = 105;
         let tx = cvs._mx + 15;
         let ty = cvs._my + 15;
 
-        // Canvas limits bounds check
+        // Tooltip canvas boundary check
         if (tx + tW > W) tx = cvs._mx - tW - 15;
         if (ty + tH > H) ty = cvs._my - tH - 15;
 
-        // Draw slate container with drop shadow
-        ctx.shadowBlur = 16; ctx.shadowColor = 'rgba(0, 0, 0, 0.25)'; ctx.shadowOffsetY = 6;
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.96)';
+        // Container card with drop shadow
+        ctx.shadowBlur = 18; ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'; ctx.shadowOffsetY = 6;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.97)';
         ctx.beginPath();
         ctx.roundRect(tx, ty, tW, tH, 10);
         ctx.fill();
 
         // Card border stroke
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'; ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'; ctx.lineWidth = 1;
         ctx.stroke();
         ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
 
-        // Text details rendering
+        // Details content
         let currY = ty + 18;
         lines.forEach((line) => {
           ctx.fillStyle = line.color;
@@ -33365,34 +33395,199 @@
         }
 
         else if (cleanId === 'workload_balance') {
+          // Inject custom workload header controls styling if not present
+          if (!document.getElementById('workload-unified-styles')) {
+            const style = document.createElement('style');
+            style.id = 'workload-unified-styles';
+            style.innerHTML = `
+              .workload-select {
+                padding: 6px 12px;
+                font-size: 12px;
+                border-radius: 8px;
+                border: 1px solid var(--color-border);
+                background: var(--color-surface-2);
+                color: var(--color-text);
+                cursor: pointer;
+                font-weight: 700;
+                transition: all 0.2s;
+              }
+              .workload-select:focus {
+                border-color: var(--color-primary);
+                outline: none;
+                box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+              }
+              .workload-legend-container {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 16px;
+                font-size: 11px;
+                font-weight: 700;
+                color: var(--color-text-muted);
+                padding: 10px 14px;
+                background: var(--color-surface-2);
+                border-radius: 10px;
+                border: 1px solid var(--color-border-faint);
+              }
+              .workload-legend-item {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+              }
+              .workload-legend-dot {
+                width: 12px;
+                height: 12px;
+                border-radius: 4px;
+              }
+            `;
+            document.head.appendChild(style);
+          }
+
           const balId = 'res-workload';
-          const balCard = mkCC('Workload Balance', 'Assigned vs Completed vs Overdue effort', balId, '', 'standard', "<b>Execution Efficiency Analysis:</b> Compares total effort 'Assigned' to each member against their 'Completed' throughput and 'Overdue' baggage.", 'View Explanation', 'bar-chart-2');
+          const balCard = mkCC('Workload Balance', 'Assigned vs Completed vs Overdue effort', balId, '', 'standard', "<b>Execution Efficiency Analysis:</b> Visualizes the resource delivery balance by comparing 'Completed' throughput against 'Healthy In-Progress' effort and 'Overdue' baggage.", 'View Explanation', 'bar-chart-2');
           balCard.style.gridColumn = '1 / -1';
           widgetWrapper.appendChild(balCard);
 
-          const balCvs = mkCvs(800, Math.max(400, P.members.length * 60));
-          balCard.querySelector('.cb').appendChild(balCvs);
+          const balBody = balCard.querySelector('.cb');
+          balBody.style.padding = '16px';
+          balBody.style.display = 'flex';
+          balBody.style.flexDirection = 'column';
+          balBody.style.gap = '16px';
 
-          const balLeg = document.createElement('div'); balLeg.className = 'cleg';
-          balLeg.innerHTML = '<div class="cli"><div class="cdot" style="background:var(--color-primary)"></div>Assigned</div><div class="cli"><div class="cdot" style="background:var(--color-green)"></div>Completed</div><div class="cli"><div class="cdot" style="background:var(--red)"></div>Overdue</div>';
-          balCard.querySelector('.cb').appendChild(balLeg);
+          // Local state initialization for filtering and sorting
+          if (!window._workloadState) {
+            window._workloadState = {
+              searchQuery: '',
+              sortBy: 'assigned_desc'
+            };
+          }
+          const wState = window._workloadState;
 
-          setTimeout(() => {
+          function renderWorkloadChart() {
+            // Remove previous chart structure but keep controls
+            let chartContainer = balBody.querySelector('.workload-chart-container');
+            if (chartContainer) chartContainer.remove();
+
+            chartContainer = document.createElement('div');
+            chartContainer.className = 'workload-chart-container';
+            chartContainer.style.display = 'flex';
+            chartContainer.style.flexDirection = 'column';
+            chartContainer.style.gap = '12px';
+            balBody.appendChild(chartContainer);
+
+            // Compute data and sort
             let sortedMembers = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').map(m => {
               const assigned = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Cancelled').reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
               const completed = P.tasks.filter(t => t.assignee === m.name && t.status === 'Completed').reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
               const overdue = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) < now).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
-              return { name: m.name, assigned, completed, overdue };
+              const compRate = assigned > 0 ? (completed / assigned) : 0;
+              return { name: m.name, role: m.role || 'Member', assigned, completed, overdue, compRate };
             });
-            sortedMembers.sort((a, b) => b.assigned - a.assigned);
+
+            // Filter
+            if (wState.searchQuery) {
+              const q = wState.searchQuery.toLowerCase();
+              sortedMembers = sortedMembers.filter(m => m.name.toLowerCase().includes(q) || m.role.toLowerCase().includes(q));
+            }
+
+            // Sort
+            if (wState.sortBy === 'assigned_desc') {
+              sortedMembers.sort((a, b) => b.assigned - a.assigned);
+            } else if (wState.sortBy === 'assigned_asc') {
+              sortedMembers.sort((a, b) => a.assigned - b.assigned);
+            } else if (wState.sortBy === 'efficiency_desc') {
+              sortedMembers.sort((a, b) => b.compRate - a.compRate || b.assigned - a.assigned);
+            } else if (wState.sortBy === 'overdue_desc') {
+              sortedMembers.sort((a, b) => b.overdue - a.overdue || b.assigned - a.assigned);
+            } else if (wState.sortBy === 'name_asc') {
+              sortedMembers.sort((a, b) => a.name.localeCompare(b.name));
+            }
+
+            if (!sortedMembers.length) {
+              chartContainer.innerHTML = `
+                <div style="text-align:center; padding:40px; color:var(--color-text-faint); font-weight:600">
+                  No resources matched your search filter.
+                </div>
+              `;
+              return;
+            }
+
+            // Create canvas dynamically with matching height for perfect spacing
+            const cHeight = Math.max(250, sortedMembers.length * 52);
+            const balCvs = mkCvs(800, cHeight);
+            chartContainer.appendChild(balCvs);
 
             const labels = sortedMembers.map(m => m.name);
             const d1 = sortedMembers.map(m => m.assigned);
             const d2 = sortedMembers.map(m => m.completed);
             const d3 = sortedMembers.map(m => m.overdue);
 
-            drawWorkloadBar(balCvs, labels, d1, d2, d3);
-          }, 300);
+            // Trigger canvas draw after attachment
+            setTimeout(() => {
+              drawWorkloadBar(balCvs, labels, d1, d2, d3);
+            }, 50);
+          }
+
+          // Build HTML controls bar (Search + Sort + Legend)
+          let controlsHtml = `
+            <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; padding-bottom:4px">
+              <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap">
+                <!-- Sorting dropdown -->
+                <div style="display:flex; align-items:center; gap:6px">
+                  <span style="font-size:12px; font-weight:700; color:var(--color-text-muted)">Sort by:</span>
+                  <select class="workload-select" onchange="window._workloadState.sortBy = this.value; window._refreshWorkloadChart()">
+                    <option value="assigned_desc" ${wState.sortBy === 'assigned_desc' ? 'selected' : ''}>Assigned Effort (High → Low)</option>
+                    <option value="assigned_asc" ${wState.sortBy === 'assigned_asc' ? 'selected' : ''}>Assigned Effort (Low → High)</option>
+                    <option value="efficiency_desc" ${wState.sortBy === 'efficiency_desc' ? 'selected' : ''}>Completion Efficiency % (High → Low)</option>
+                    <option value="overdue_desc" ${wState.sortBy === 'overdue_desc' ? 'selected' : ''}>Overdue Baggage (High → Low)</option>
+                    <option value="name_asc" ${wState.sortBy === 'name_asc' ? 'selected' : ''}>Resource Name (A → Z)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap">
+                <!-- Live Search input -->
+                <div class="heatmap-search-container">
+                  <i data-lucide="search" style="position:absolute; left:10px; width:12px; height:12px; color:var(--color-text-faint)"></i>
+                  <input type="text" class="heatmap-search-input" placeholder="Search team member..." value="${esc(wState.searchQuery)}" oninput="window._workloadState.searchQuery = this.value; window._refreshWorkloadChartDelayed()">
+                </div>
+              </div>
+            </div>
+
+            <!-- Stacked bar Segment Legend Panel -->
+            <div class="workload-legend-container">
+              <div class="workload-legend-item">
+                <div class="workload-legend-dot" style="background:#22c55e"></div>
+                <span>Completed Effort</span>
+              </div>
+              <div class="workload-legend-item">
+                <div class="workload-legend-dot" style="background:#6366f1"></div>
+                <span>Active In-Progress</span>
+              </div>
+              <div class="workload-legend-item">
+                <div class="workload-legend-dot" style="background:#ef4444; box-shadow:0 0 4px rgba(239,68,68,0.3)"></div>
+                <span>Overdue Baggage</span>
+              </div>
+            </div>
+          `;
+
+          balBody.innerHTML = controlsHtml;
+          if (window.lucide) lucide.createIcons({ target: balBody });
+
+          // Hooks for targeted re-rendering
+          window._refreshWorkloadChart = function() {
+            renderWorkloadChart();
+          };
+
+          let wlSearchTimeout = null;
+          window._refreshWorkloadChartDelayed = function() {
+            if (wlSearchTimeout) clearTimeout(wlSearchTimeout);
+            wlSearchTimeout = setTimeout(() => {
+              renderWorkloadChart();
+            }, 250);
+          };
+
+          // Draw workload chart initial load
+          renderWorkloadChart();
         }
 
         else if (cleanId === 'capacity_shortfalls') {
