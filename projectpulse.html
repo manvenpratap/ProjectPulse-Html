@@ -15106,55 +15106,168 @@
           widgetWrapper.appendChild(capCard);
 
           const capBody = capCard.querySelector('.cb');
-          capBody.style.padding = '20px';
+          capBody.style.padding = '0';
 
           const capThreshold = P.settings.workDays || 5;
-          let capHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:24px">`;
-          P.members.filter(m => m.status === 'Active' || m.status === 'Serving Notice Period').forEach((m, idx) => {
-            const days = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled').reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
-            const actualPct = (days / capThreshold) * 100;
-            const barPct = Math.min(100, actualPct);
-            const color = actualPct > 100 ? 'var(--red)' : actualPct > 80 ? 'var(--amber)' : 'var(--color-primary)';
-            const barGradient = actualPct > 100 ? 'linear-gradient(90deg, var(--red), #f87171)' : actualPct > 80 ? 'linear-gradient(90deg, var(--amber), #fbbf24)' : 'linear-gradient(90deg, var(--color-primary), #818cf8)';
+          const effortUnit = P.settings.effortUnit || 'days';
+          const uShort = effortUnit === 'hrs' ? 'h' : effortUnit === 'months' ? 'mo' : 'd';
+
+          const activeMembers = P.members.filter(m => m.status === 'Active' || m.status === 'Serving Notice Period');
+          const otherMembers = P.members.filter(m => m.status === 'Other Assignment');
+
+          // Per-member stats
+          const memberStats = activeMembers.map((m, idx) => {
+            const memberTasks = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled');
+            const effort = memberTasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+            const pct = (effort / capThreshold) * 100;
+            const completedTasks = P.tasks.filter(t => t.assignee === m.name && t.status === 'Completed').length;
+            const criticalTasks = memberTasks.filter(t => t.priority === 'Critical' || t.priority === 'High').length;
+            const blockedTasks = memberTasks.filter(t => t.status === 'Blocked').length;
+            const overdueTasks = memberTasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date()).length;
+            const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+            const color = pct > 100 ? '#ef4444' : pct > 80 ? '#f59e0b' : '#6366f1';
+            return { m, idx, effort, pct, color, memberTasks, completedTasks, criticalTasks, blockedTasks, overdueTasks, initials };
+          });
+
+          // Team-level summary stats
+          const totalEffort = memberStats.reduce((s, ms) => s + ms.effort, 0);
+          const overAllocCount = memberStats.filter(ms => ms.pct > 100).length;
+          const healthyCount = memberStats.filter(ms => ms.pct <= 80).length;
+          const avgLoad = memberStats.length ? Math.round(memberStats.reduce((s, ms) => s + ms.pct, 0) / memberStats.length) : 0;
+          const avgLoadColor = avgLoad > 100 ? '#ef4444' : avgLoad > 80 ? '#f59e0b' : '#22c55e';
+
+          let capHtml = `
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border-bottom:1px solid var(--color-border-faint);background:var(--color-surface-2)">
+              <div style="padding:18px 20px;border-right:1px solid var(--color-border-faint);text-align:center">
+                <div style="font-size:22px;font-weight:900;color:var(--color-primary);font-family:var(--font-mono)">${activeMembers.length}</div>
+                <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);margin-top:2px">Active Members</div>
+              </div>
+              <div style="padding:18px 20px;border-right:1px solid var(--color-border-faint);text-align:center">
+                <div style="font-size:22px;font-weight:900;color:${avgLoadColor};font-family:var(--font-mono)">${avgLoad}%</div>
+                <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);margin-top:2px">Avg Team Load</div>
+              </div>
+              <div style="padding:18px 20px;border-right:1px solid var(--color-border-faint);text-align:center">
+                <div style="font-size:22px;font-weight:900;color:#ef4444;font-family:var(--font-mono)">${overAllocCount}</div>
+                <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);margin-top:2px">Over-Allocated</div>
+              </div>
+              <div style="padding:18px 20px;border-right:1px solid var(--color-border-faint);text-align:center">
+                <div style="font-size:22px;font-weight:900;color:#22c55e;font-family:var(--font-mono)">${healthyCount}</div>
+                <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);margin-top:2px">Healthy Capacity</div>
+              </div>
+              <div style="padding:18px 20px;text-align:center">
+                <div style="font-size:22px;font-weight:900;color:var(--color-text);font-family:var(--font-mono)">${totalEffort.toFixed(1)}${uShort}</div>
+                <div style="font-size:11px;font-weight:600;color:var(--color-text-muted);margin-top:2px">Total Pending Effort</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:11px 18px;border-bottom:1px solid var(--color-border-faint);background:var(--color-surface-1)">
+              <span style="font-size:11px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.04em">Sort:</span>
+              <button id="${capId}-sort-load" onclick="(function(){var sl=document.getElementById('${capId}-sort-load');var sa=document.getElementById('${capId}-sort-alpha');sl.style.background='var(--color-primary)';sl.style.color='white';sa.style.background='transparent';sa.style.color='var(--color-text-muted)';var g=document.getElementById('${capId}-grid');[...g.children].sort(function(a,b){return parseFloat(b.dataset.pct||0)-parseFloat(a.dataset.pct||0)}).forEach(function(c){g.appendChild(c)})})()" style="padding:5px 12px;font-size:11px;font-weight:700;border-radius:8px;border:1px solid var(--color-border);background:var(--color-primary);color:white;cursor:pointer">Load %</button>
+              <button id="${capId}-sort-alpha" onclick="(function(){var sl=document.getElementById('${capId}-sort-load');var sa=document.getElementById('${capId}-sort-alpha');sa.style.background='var(--color-primary)';sa.style.color='white';sl.style.background='transparent';sl.style.color='var(--color-text-muted)';var g=document.getElementById('${capId}-grid');[...g.children].sort(function(a,b){return (a.dataset.name||'').localeCompare(b.dataset.name||'')}).forEach(function(c){g.appendChild(c)})})()" style="padding:5px 12px;font-size:11px;font-weight:700;border-radius:8px;border:1px solid var(--color-border);background:transparent;color:var(--color-text-muted);cursor:pointer">A–Z</button>
+              <div style="flex:1"></div>
+              <span style="font-size:10px;font-weight:700;color:#6366f1;display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#6366f1;display:inline-block"></span>Healthy</span>
+              <span style="font-size:10px;font-weight:700;color:#f59e0b;display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#f59e0b;display:inline-block"></span>High</span>
+              <span style="font-size:10px;font-weight:700;color:#ef4444;display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:2px;background:#ef4444;display:inline-block"></span>Over</span>
+            </div>
+            <div id="${capId}-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;padding:18px">
+          `;
+
+          // Sort by load descending by default
+          memberStats.sort((a, b) => b.pct - a.pct);
+
+          const avatarColors = ['#6366f1','#8b5cf6','#ec4899','#f43f5e','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#06b6d4'];
+
+          memberStats.forEach(({ m, idx, effort, pct, color, memberTasks, completedTasks, criticalTasks, blockedTasks, overdueTasks, initials }) => {
+            const barPct = Math.min(100, pct);
+            const barGradient = pct > 100 ? 'linear-gradient(90deg,#ef4444,#f87171)' : pct > 80 ? 'linear-gradient(90deg,#f59e0b,#fbbf24)' : 'linear-gradient(90deg,#6366f1,#818cf8)';
+            const overrunPct = pct > 100 ? (pct - 100).toFixed(0) : 0;
+            const weeksOfWork = (effort / capThreshold).toFixed(1);
+            const avatarBg = avatarColors[idx % avatarColors.length];
+            const cardBorder = pct > 100 ? '#ef444430' : pct > 80 ? '#f59e0b30' : 'var(--color-border-faint)';
+
+            const statusCounts = {};
+            memberTasks.forEach(t => { statusCounts[t.status] = (statusCounts[t.status] || 0) + 1; });
+            const stColorMap = {'In Progress':'#3b82f6','Under Review':'#a855f7','Blocked':'#ef4444','On Hold':'#f59e0b','Not Started':'#94a3b8'};
+            const statusPillsHtml = Object.entries(statusCounts).map(([st, cnt]) => {
+              const stc = stColorMap[st] || '#94a3b8';
+              return `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:6px;font-size:9px;font-weight:700;background:${stc}22;color:${stc};border:1px solid ${stc}44">${cnt} ${st}</span>`;
+            }).join('');
 
             capHtml += `
-              <div style="background:var(--color-surface-2);padding:14px;border-radius:var(--radius-lg);border:1px solid var(--color-border-faint);box-shadow:var(--shadow-sm);transition:all var(--tr-spring)" class="card-glow-hover">
-                <div style="display:flex;justify-content:space-between;margin-bottom:8px;align-items:flex-end">
-                  <div style="font-weight:800;font-size:13px;color:var(--color-text)">${esc(m.name)}</div>
-                  <div style="font-size:11px;font-weight:700;color:${color}">${days.toFixed(1)}d / ${Math.round(actualPct)}% <span style="font-size:9px;font-weight:500;opacity:0.8;margin-left:4px">(${(days / capThreshold).toFixed(1)}w)</span></div>
-                </div>
-                <div style="height:10px;background:var(--color-surface-3);border-radius:6px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,0.15)">
-                  <div style="width:${barPct}%;height:100%;background:${barGradient};border-radius:6px;transition:width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)"></div>
+              <div data-pct="${pct.toFixed(1)}" data-name="${esc(m.name)}" style="background:var(--color-surface-2);border-radius:16px;border:1px solid ${cardBorder};box-shadow:0 2px 12px rgba(0,0,0,0.04);overflow:hidden;transition:all 0.2s" class="card-glow-hover">
+                <div style="height:3px;background:${barGradient}"></div>
+                <div style="padding:16px">
+                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+                    <div style="width:42px;height:42px;border-radius:50%;background:${avatarBg};color:white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;flex-shrink:0;box-shadow:0 4px 12px ${avatarBg}55;border:2px solid ${avatarBg}44">${initials}</div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-weight:800;font-size:13px;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.name)}</div>
+                      <div style="font-size:10px;font-weight:600;color:var(--color-text-faint);margin-top:1px">${esc(m.role || 'Member')}</div>
+                    </div>
+                    <div style="flex-shrink:0;text-align:right">
+                      <div style="font-size:16px;font-weight:900;color:${color};font-family:var(--font-mono);line-height:1">${Math.round(pct)}%</div>
+                      <div style="font-size:9px;font-weight:600;color:var(--color-text-faint);margin-top:1px">${effort.toFixed(1)}${uShort} / ${weeksOfWork}w</div>
+                    </div>
+                  </div>
+                  <div style="position:relative;margin-bottom:10px">
+                    <div style="height:8px;background:var(--color-surface-3);border-radius:5px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,0.1)">
+                      <div style="width:${barPct}%;height:100%;background:${barGradient};border-radius:5px;transition:width 0.7s cubic-bezier(0.34,1.56,0.64,1)"></div>
+                    </div>
+                    <div style="position:absolute;top:-2px;left:80%;width:1px;height:12px;background:${pct>80?'#f59e0b':'var(--color-border)'};opacity:0.6" title="80% threshold"></div>
+                    ${pct > 100 ? `<div style="margin-top:4px;font-size:9px;font-weight:700;color:#ef4444;display:flex;align-items:center;gap:3px"><i data-lucide="alert-triangle" style="width:9px;height:9px"></i>+${overrunPct}% overrun — ${(effort-capThreshold).toFixed(1)}${uShort} excess</div>` : ''}
+                    ${m.status === 'Serving Notice Period' ? `<div style="margin-top:4px;font-size:9px;font-weight:700;color:#f59e0b;display:flex;align-items:center;gap:3px"><i data-lucide="clock" style="width:9px;height:9px"></i>Serving Notice Period</div>` : ''}
+                  </div>
+                  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:10px">
+                    <div style="text-align:center;background:var(--color-surface-3);border-radius:8px;padding:6px 4px">
+                      <div style="font-size:14px;font-weight:900;color:var(--color-text);font-family:var(--font-mono)">${memberTasks.length}</div>
+                      <div style="font-size:8px;font-weight:600;color:var(--color-text-faint);text-transform:uppercase">Pending</div>
+                    </div>
+                    <div style="text-align:center;background:rgba(239,68,68,0.08);border-radius:8px;padding:6px 4px">
+                      <div style="font-size:14px;font-weight:900;color:#ef4444;font-family:var(--font-mono)">${criticalTasks}</div>
+                      <div style="font-size:8px;font-weight:600;color:var(--color-text-faint);text-transform:uppercase">Hi/Crit</div>
+                    </div>
+                    <div style="text-align:center;background:rgba(239,68,68,0.08);border-radius:8px;padding:6px 4px">
+                      <div style="font-size:14px;font-weight:900;color:#ef4444;font-family:var(--font-mono)">${blockedTasks}</div>
+                      <div style="font-size:8px;font-weight:600;color:var(--color-text-faint);text-transform:uppercase">Blocked</div>
+                    </div>
+                    <div style="text-align:center;background:rgba(34,197,94,0.08);border-radius:8px;padding:6px 4px">
+                      <div style="font-size:14px;font-weight:900;color:#22c55e;font-family:var(--font-mono)">${completedTasks}</div>
+                      <div style="font-size:8px;font-weight:600;color:var(--color-text-faint);text-transform:uppercase">Done</div>
+                    </div>
+                  </div>
+                  ${statusPillsHtml ? `<div style="display:flex;flex-wrap:wrap;gap:4px">${statusPillsHtml}</div>` : ''}
+                  ${overdueTasks > 0 ? `<div style="margin-top:8px;padding:5px 10px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);font-size:10px;font-weight:700;color:#ef4444;display:flex;align-items:center;gap:5px"><i data-lucide="alarm-clock" style="width:10px;height:10px"></i>${overdueTasks} overdue task${overdueTasks>1?'s':''}</div>` : ''}
                 </div>
               </div>
             `;
           });
+
           capHtml += `</div>`;
 
-          const otherMembers = P.members.filter(m => m.status === 'Other Assignment');
           if (otherMembers.length) {
             capHtml += `
-              <div style="margin-top:24px;padding-top:24px;border-top:1px dashed var(--color-divider)">
-                <div style="font-size:11px;font-weight:800;color:var(--color-primary);text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:6px">
-                  ⚡ Potential Capacity Impact (If Added to Project)
+              <div style="margin:0 18px 18px;padding:16px;border-radius:14px;border:1px dashed var(--color-border);background:var(--color-surface-1)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+                  <i data-lucide="zap" style="width:14px;height:14px;color:var(--color-primary)"></i>
+                  <div style="font-size:11px;font-weight:800;color:var(--color-text);text-transform:uppercase;letter-spacing:0.05em">Potential Capacity — Available if Added to Project</div>
                 </div>
-                <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:24px;opacity:0.7">
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;opacity:0.85">
             `;
-            otherMembers.forEach(m => {
+            otherMembers.forEach((m, idx) => {
+              const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+              const avatarBg = avatarColors[(activeMembers.length + idx) % avatarColors.length];
               capHtml += `
-                <div style="background:var(--color-surface-2);padding:14px;border-radius:var(--radius-lg);border:1px dashed var(--color-border-faint)">
-                  <div style="display:flex;justify-content:space-between;margin-bottom:8px;align-items:flex-end">
-                    <div style="font-weight:700;font-size:13px;color:var(--color-text-faint)">${esc(m.name)}</div>
-                    <div style="font-size:10px;font-weight:700;color:var(--color-text-faint)">+${capThreshold.toFixed(1)}d Capacity</div>
+                <div style="background:var(--color-surface-2);padding:12px;border-radius:12px;border:1px dashed var(--color-border-faint);display:flex;align-items:center;gap:10px">
+                  <div style="width:34px;height:34px;border-radius:50%;background:${avatarBg}33;color:${avatarBg};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;border:1px dashed ${avatarBg}66">${initials}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-weight:700;font-size:12px;color:var(--color-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.name)}</div>
+                    <div style="font-size:9px;font-weight:600;color:var(--color-text-faint)">${esc(m.role || 'Member')}</div>
                   </div>
-                  <div style="height:8px;background:var(--color-surface-3);border-radius:4px;overflow:hidden;border:1px dashed var(--color-divider)">
-                    <div style="width:0%;height:100%;background:var(--color-primary);border-radius:4px"></div>
-                  </div>
+                  <div style="font-size:10px;font-weight:700;color:var(--color-primary);white-space:nowrap">+${capThreshold}${uShort}/wk</div>
                 </div>
               `;
             });
             capHtml += `</div></div>`;
           }
+
           capBody.innerHTML = capHtml;
           if (window.lucide) lucide.createIcons(capCard);
         }
