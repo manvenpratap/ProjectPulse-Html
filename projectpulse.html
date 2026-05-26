@@ -4336,6 +4336,9 @@
       width: 100%;
       padding: 0 40px 40px 40px;
       box-sizing: border-box;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
     }
 
     .team-grid {
@@ -4345,18 +4348,36 @@
       margin-bottom: 16px
     }
 
+    .heatmap-cell {
+      position: relative;
+    }
+
+    .heatmap-cell:hover {
+      transform: scale(1.06);
+      box-shadow: var(--shadow-md), 0 0 0 2px var(--color-primary);
+      z-index: 10;
+      border-radius: 4px;
+    }
+
     .member-card {
       background: var(--color-surface);
-      border: 1px solid var(--color-border);
+      border: 1px solid var(--color-border-faint);
       border-radius: var(--radius-lg);
       padding: 16px;
-      transition: all var(--tr);
-      animation: ci .2s ease both
+      transition: all var(--tr-spring);
+      animation: ci .35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+      box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      position: relative;
     }
 
     .member-card:hover {
-      box-shadow: var(--shadow-md);
-      border-color: var(--color-text-faint)
+      box-shadow: var(--shadow-lg), 0 0 0 1px var(--color-primary-highlight);
+      border-color: var(--color-primary);
+      transform: translateY(-5px) scale(1.02);
+    }
+
+    .member-card:active {
+      transform: translateY(-2px) scale(0.98);
     }
 
     @keyframes ci {
@@ -4913,7 +4934,8 @@
       height: 100%;
     }
 
-    .dash-widget-wrapper {
+    .dash-widget-wrapper,
+    .team-widget-wrapper {
       position: relative;
       transition: transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.2s ease, opacity 0.2s ease;
       border-radius: 24px;
@@ -4921,7 +4943,8 @@
       flex-direction: column;
     }
 
-    .dash-widget-wrapper.apple-jiggle {
+    .dash-widget-wrapper.apple-jiggle,
+    .team-widget-wrapper.apple-jiggle {
       animation: appleJiggle 0.35s infinite alternate ease-in-out;
       cursor: grab;
       background: var(--color-surface-2);
@@ -4930,18 +4953,21 @@
       box-shadow: 0 10px 30px rgba(var(--color-primary-rgb), 0.15);
     }
 
-    .dash-widget-wrapper.apple-jiggle:active {
+    .dash-widget-wrapper.apple-jiggle:active,
+    .team-widget-wrapper.apple-jiggle:active {
       cursor: grabbing;
       transform: scale(1.02);
       box-shadow: 0 20px 40px rgba(var(--color-primary-rgb), 0.25);
     }
 
-    .dash-widget-wrapper.dragging {
+    .dash-widget-wrapper.dragging,
+    .team-widget-wrapper.dragging {
       opacity: 0.4;
       transform: scale(0.96);
     }
 
-    .dash-widget-wrapper.drag-over {
+    .dash-widget-wrapper.drag-over,
+    .team-widget-wrapper.drag-over {
       transform: scale(1.01);
       border: 2px solid var(--color-primary);
       box-shadow: 0 10px 30px rgba(var(--color-primary-rgb), 0.2);
@@ -14926,17 +14952,13 @@
       renderTeam();
     }
     function renderTeam() {
+      renderTeamPlannerWidgets();
+      return;
       const inner = $id('team-inner'); inner.innerHTML = '';
       $id('v-title').innerHTML = `<i data-lucide="users" style="margin-right:10px"></i> Team & Resource Planner`;
       $id('view-actions').innerHTML = ``; // Handled globally
 
-      renderResourcesIntelligence(inner);
-
-      addST(inner, 'Team Directory');
-
-      const bdaysDiv = document.createElement('div');
-      bdaysDiv.className = 'card';
-      bdaysDiv.style = 'grid-column:1/-1;margin-bottom:24px;background:var(--color-surface-2);border:none';
+      const CC = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#06b6d4'];
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -14969,28 +14991,6 @@
         .filter(m => m._bdayDate && (m._bdayDate - today) <= thirtyDaysMs && (m._bdayDate - today) >= 0)
         .sort((a, b) => a._bdayDate - b._bdayDate);
 
-      if (upcomingBdays.length) {
-        const daysUntil = (d) => Math.ceil((d - today) / (24 * 60 * 60 * 1000));
-        bdaysDiv.innerHTML = `
-          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--color-text-muted);margin-bottom:12px;display:flex;align-items:center;gap:8px">
-            <i data-lucide="cake"></i> Upcoming Birthdays (Next 30 Days)
-          </div>
-          <div style="display:flex;flex-wrap:wrap;gap:12px">
-            ${upcomingBdays.map(m => {
-          const d = daysUntil(m._bdayDate);
-          const label = d === 0 ? '🎉 Today!' : d === 1 ? 'Tomorrow' : d + ' days';
-          return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--color-surface);border-radius:var(--radius-md);border:1px solid ${d <= 3 ? 'var(--color-primary)' : 'var(--color-border)'};box-shadow:var(--shadow-sm)">
-                <div style="font-weight:700;font-size:12px">${esc(m.name)}</div>
-                <div style="font-size:10px;color:var(--color-text-faint);font-family:var(--mono)">${esc(m.birthday)}</div>
-                <div style="font-size:9px;font-weight:700;color:${d <= 3 ? 'var(--color-primary)' : 'var(--amber)'};background:${d <= 3 ? 'var(--acc-t,rgba(99,102,241,0.1))' : 'var(--amber-l)'};padding:1px 6px;border-radius:99px">${label}</div>
-              </div>`;
-        }).join('')}
-          </div>
-        `;
-        inner.appendChild(bdaysDiv);
-      }
-
-      // Upcoming Leaves section
       const upLeaves = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').flatMap(m => {
         let pl = m.plannedLeaves || [];
         if (typeof pl === 'string') { try { pl = JSON.parse(pl); } catch (e) { pl = []; } }
@@ -14998,182 +14998,645 @@
         return pl.map(lv => ({ name: m.name, ...lv }));
       }).filter(lv => lv && lv.to && new Date(lv.to) >= today).sort((a, b) => new Date(a.from) - new Date(b.from));
 
-      if (upLeaves.length) {
-        const leavesDiv = document.createElement('div');
-        leavesDiv.className = 'card';
-        leavesDiv.style = 'grid-column:1/-1;margin-bottom:24px;background:var(--color-surface-2);border:none';
+      const defTeamLayout = [
+        { id: 'bdays', t: 'Upcoming Birthdays', on: true },
+        { id: 'leaves', t: 'Upcoming Leaves', on: true },
+        { id: 'capacity_summary', t: 'Overall Resource Capacity', on: true },
+        { id: 'capacity_heatmap', t: 'Capacity Heatmap', on: true },
+        { id: 'workload_balance', t: 'Workload Balance', on: true },
+        { id: 'capacity_shortfalls', t: 'Predictive Capacity Shortfalls', on: true },
+        { id: 'burn_rate', t: 'Effort & Budget Burn-Rate Trajectory', on: true },
+        { id: 'team_velocity', t: 'Team Velocity', on: true },
+        { id: 'team_directory', t: 'Team Directory', on: true },
+        { id: 'org_chart', t: 'Organization Chart', on: true }
+      ];
 
-        const daysUntil = (d) => Math.ceil((new Date(d) - today) / (24 * 60 * 60 * 1000));
+      let teamLayout = (Array.isArray(P.teamLayout) && P.teamLayout.length) ? P.teamLayout : defTeamLayout;
+      const seen = new Set();
+      teamLayout = teamLayout.filter(sec => {
+        if (seen.has(sec.id)) return false;
+        seen.add(sec.id);
+        return true;
+      });
+      P.teamLayout = teamLayout;
 
-        leavesDiv.innerHTML = `
-          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--color-text-muted);margin-bottom:12px;display:flex;align-items:center;gap:8px">
-            <span>📅</span> Upcoming Leaves
-          </div>
-          <div style="display:flex;flex-wrap:wrap;gap:12px">
-            ${upLeaves.slice(0, 12).map(lv => {
-          const d = daysUntil(lv.from);
-          const isToday = new Date(lv.from) <= today && new Date(lv.to) >= today;
-          const label = isToday ? '🌴 Active' : d === 1 ? 'Tomorrow' : d + ' days';
-          return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--color-surface);border-radius:var(--radius-md);border:1px solid ${isToday ? 'var(--amber)' : 'var(--color-border)'};box-shadow:var(--shadow-sm)">
-                <div style="font-weight:700;font-size:12px">${esc(lv.name)}</div>
-                <div style="font-size:10px;color:var(--color-text-faint);font-family:var(--mono)">${lv.from} → ${lv.to}</div>
-                <div style="font-size:9px;font-weight:700;color:${isToday ? 'var(--amber)' : 'var(--color-text-muted)'};background:${isToday ? 'var(--amber-l)' : 'var(--color-surface-2)'};padding:1px 6px;border-radius:99px">${label}</div>
-              </div>`;
-        }).join('')}
-          </div>
-        `;
-        inner.appendChild(leavesDiv);
-      }
+      teamLayout.forEach((sec, si) => {
+        if (!sec.on) return;
 
-      // T-1: TEAM VELOCITY (Last 12 weeks)
-      const velGrid = addGrid(inner);
-      const uLabelLower = P.settings.effortUnit === 'hrs' ? 'hours' : P.settings.effortUnit === 'months' ? 'months' : 'days';
-      const velCard = mkCC('Team Velocity', 'Completed effort vs 3-week rolling average (12 weeks)', 'team-velocity', '', 'standard', "Historical performance tracking. Measures the volume of work (estimated " + uLabelLower + ") successfully delivered each week. Higher numbers indicate peak productivity.", 'View Explanation');
-      velCard.style.gridColumn = '1 / -1';
-      velGrid.appendChild(velCard);
-      const velCvs = mkCvs(1000, 200);
-      velCard.querySelector('.cb').appendChild(velCvs);
-      const velLeg = document.createElement('div');
-      velLeg.className = 'cleg';
-      velLeg.innerHTML = `
-        <div class="cli"><div class="cdot" style="background:var(--color-primary)"></div>Weekly Velocity</div>
-        <div class="cli"><div style="width:16px;border-top:2px dashed var(--amber)"></div>3-Week Rolling Avg</div>
-      `;
-      velCard.appendChild(velLeg);
+        const widgetWrapper = document.createElement('div');
+        widgetWrapper.className = 'team-widget-wrapper';
+        widgetWrapper.dataset.id = sec.id;
+        widgetWrapper.dataset.index = si;
+        widgetWrapper.dataset.title = sec.t;
 
-      setTimeout(() => {
-        const last12Weeks = [];
-        for (let i = 11; i >= 0; i--) {
-          const d = new Date(); d.setDate(d.getDate() - i * 7);
-          last12Weeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) });
+        if (sec.id === 'capacity_shortfalls' || sec.id === 'burn_rate') {
+          widgetWrapper.style.gridColumn = 'span 2';
+        } else {
+          widgetWrapper.style.gridColumn = 'span 4';
         }
 
-        const velocity = last12Weeks.map(w => {
-          return P.tasks.filter(t => {
-            if (t.status !== 'Completed' || !t.dueDate) return false;
-            const d = new Date(t.dueDate);
-            return getWeekNumber(d) === w.w && d.getFullYear() === w.y;
-          }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
-        });
+        inner.appendChild(widgetWrapper);
+        const cleanId = sec.id;
 
-        const rolling = velocity.map((v, i) => {
-          if (i < 2) return v;
-          return (velocity[i] + velocity[i - 1] + velocity[i - 2]) / 3;
-        });
-
-        const maxVal = Math.max(...velocity, ...rolling, 10);
-
-        const avgVel = (velocity.reduce((a, b) => a + b, 0) / velocity.length).toFixed(1);
-        const latestVel = velocity[velocity.length - 1].toFixed(1);
-        const peakVel = Math.max(...velocity).toFixed(1);
-        const latestRolling = rolling[rolling.length - 1].toFixed(1);
-        const isUp = parseFloat(latestVel) >= parseFloat(latestRolling);
-
-        const summaryBar = document.createElement('div');
-        summaryBar.style = "display:flex; flex-wrap:wrap; gap:16px; padding:16px 20px; background:var(--color-surface-2); border-radius:16px; margin:0 0 20px 0; justify-content:space-between; align-items:center; border:1px solid var(--color-border-faint); box-shadow:0 4px 20px rgba(0,0,0,0.03)";
-        summaryBar.innerHTML = `
-          <div style="display:flex; gap:28px; flex-wrap:wrap">
-            <div>
-              <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:600">Latest Velocity</div>
-              <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--color-text)">${latestVel}d</div>
-            </div>
-            <div>
-              <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:600">Rolling Avg</div>
-              <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--color-text)">${latestRolling}d</div>
-            </div>
-            <div>
-              <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:600">Peak Velocity</div>
-              <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--color-text)">${peakVel}d</div>
-            </div>
-          </div>
-          <div>
-            ${isUp
-            ? `<span style="background:rgba(34,197,94,0.15); color:#16a34a; padding:6px 16px; border-radius:20px; font-weight:700; font-size:12px; display:flex; align-items:center; gap:6px; box-shadow:0 2px 12px rgba(34,197,94,0.15)"><i data-lucide="trending-up" style="width:16px;height:16px"></i> Velocity Trending Up</span>`
-            : `<span style="background:rgba(245,158,11,0.15); color:#d97706; padding:6px 16px; border-radius:20px; font-weight:700; font-size:12px; display:flex; align-items:center; gap:6px; box-shadow:0 2px 12px rgba(245,158,11,0.15)"><i data-lucide="trending-down" style="width:16px;height:16px"></i> Velocity Adjusting</span>`
+        if (cleanId === 'bdays') {
+          if (upcomingBdays.length) {
+            const bdaysDiv = document.createElement('div');
+            bdaysDiv.className = 'card';
+            bdaysDiv.style = 'background:var(--color-surface-2);border:none;margin-bottom:0';
+            const daysUntil = (d) => Math.ceil((d - today) / (24 * 60 * 60 * 1000));
+            bdaysDiv.innerHTML = `
+              <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--color-text-muted);margin-bottom:12px;display:flex;align-items:center;gap:8px">
+                <i data-lucide="cake"></i> Upcoming Birthdays (Next 30 Days)
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:12px">
+                ${upcomingBdays.map(m => {
+                  const d = daysUntil(m._bdayDate);
+                  const label = d === 0 ? '🎉 Today!' : d === 1 ? 'Tomorrow' : d + ' days';
+                  return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--color-surface);border-radius:var(--radius-md);border:1px solid ${d <= 3 ? 'var(--color-primary)' : 'var(--color-border)'};box-shadow:var(--shadow-sm);transition:all var(--tr-spring);cursor:default" class="card-glow-hover">
+                    <div style="font-weight:700;font-size:12px">${esc(m.name)}</div>
+                    <div style="font-size:10px;color:var(--color-text-faint);font-family:var(--mono)">${esc(m.birthday)}</div>
+                    <div style="font-size:9px;font-weight:700;color:${d <= 3 ? 'var(--color-primary)' : 'var(--amber)'};background:${d <= 3 ? 'var(--acc-t,rgba(99,102,241,0.1))' : 'var(--amber-l)'};padding:1px 6px;border-radius:99px">${label}</div>
+                  </div>`;
+                }).join('')}
+              </div>
+            `;
+            widgetWrapper.appendChild(bdaysDiv);
+            if (window.lucide) lucide.createIcons(bdaysDiv);
+          } else {
+            widgetWrapper.style.display = 'none';
           }
-          </div>
-        `;
-        const cb = velCard.querySelector('.cb');
-        cb.insertBefore(summaryBar, velCvs);
-        lucide.createIcons(summaryBar);
+        }
 
-        drawVBar(velCvs, last12Weeks.map((w, i) => [w.l, velocity[i]]), ['var(--color-primary)'], maxVal, false, rolling);
-      }, 350);
+        else if (cleanId === 'leaves') {
+          if (upLeaves.length) {
+            const leavesDiv = document.createElement('div');
+            leavesDiv.className = 'card';
+            leavesDiv.style = 'background:var(--color-surface-2);border:none;margin-bottom:0';
+            const daysUntil = (d) => Math.ceil((new Date(d) - today) / (24 * 60 * 60 * 1000));
+            leavesDiv.innerHTML = `
+              <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--color-text-muted);margin-bottom:12px;display:flex;align-items:center;gap:8px">
+                <i data-lucide="plane"></i> Upcoming Leaves
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:12px">
+                ${upLeaves.slice(0, 12).map(lv => {
+                  const d = daysUntil(lv.from);
+                  const isToday = new Date(lv.from) <= today && new Date(lv.to) >= today;
+                  const label = isToday ? '🌴 Active' : d === 1 ? 'Tomorrow' : d + ' days';
+                  return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--color-surface);border-radius:var(--radius-md);border:1px solid ${isToday ? 'var(--amber)' : 'var(--color-border)'};box-shadow:var(--shadow-sm);transition:all var(--tr-spring);cursor:default" class="card-glow-hover">
+                    <div style="font-weight:700;font-size:12px">${esc(lv.name)}</div>
+                    <div style="font-size:10px;color:var(--color-text-faint);font-family:var(--mono)">${lv.from} → ${lv.to}</div>
+                    <div style="font-size:9px;font-weight:700;color:${isToday ? 'var(--amber)' : 'var(--color-text-muted)'};background:${isToday ? 'var(--amber-l)' : 'var(--color-surface-2)'};padding:1px 6px;border-radius:99px">${label}</div>
+                  </div>`;
+                }).join('')}
+              </div>
+            `;
+            widgetWrapper.appendChild(leavesDiv);
+            if (window.lucide) lucide.createIcons(leavesDiv);
+          } else {
+            widgetWrapper.style.display = 'none';
+          }
+        }
 
-      const grid = document.createElement('div'); grid.className = 'team-grid';
-      P.members.forEach((m, i) => {
-        const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-        const taskCount = P.tasks.filter(t => t.assignee === m.name).length;
-        const doneCount = P.tasks.filter(t => t.assignee === m.name && t.status === 'Completed').length;
-        const stCls = m.status === 'Active' ? 'mc-active' : m.status === 'On Leave' ? 'mc-leave' : m.status === 'Serving Notice Period' ? 'mc-notice' : m.status === 'Other Assignment' ? 'mc-other' : 'mc-departed';
-        const card = document.createElement('div'); card.className = 'member-card'; card.style.animationDelay = (i * .05) + 's';
-        const prog = taskCount ? Math.round((doneCount / taskCount) * 100) : 0;
-        const memberLogs = P.log.filter(l => l.user === m.name);
-        const recentActivity = memberLogs.filter(l => new Date(l.ts) > new Date(Date.now() - 7 * 864e5)).length;
+        else if (cleanId === 'capacity_summary') {
+          const capId = 'res-capacity-summary';
+          const uLabel = P.settings.effortUnit === 'hrs' ? 'Hours' : P.settings.effortUnit === 'months' ? 'Months' : 'Days';
+          const uLabelLower = uLabel.toLowerCase();
+          const capCard = mkCC('Overall Resource Capacity', 'Individual utilization vs total capacity', capId, '', 'standard', `<b>Resource Load Analysis:</b> Visualizes the current 'Effort Density' for every active team member. <br><br><b>Calculation Logic:</b><br>Percentage = (Sum of Estimated ${uLabel} for ALL Pending Tasks) / (Weekly Capacity)<br>• 100% means the member is fully booked for exactly one week.<br><br><b>Legend:</b> <br>• <span style='color:var(--red)'>Red (100%+)</span>: Over-allocated. <br>• <span style='color:var(--amber)'>Amber (80-100%)</span>: High Capacity. <br>• <span style='color:var(--color-primary)'>Blue (<80%)</span>: Healthy availability.`, 'View Explanation', 'users');
+          capCard.style.gridColumn = '1 / -1';
+          widgetWrapper.appendChild(capCard);
 
-        card.innerHTML = `
-          <div class="mc-head">
-            <div class="mc-avatar" style="background:${CC[i % CC.length]}">${initials}</div>
-            <div style="flex:1;min-width:0">
-              <div class="mc-name">${esc(m.name)}</div>
-              <div class="mc-role">${esc(m.role || '—')}</div>
-            </div>
-            <span class="mc-status ${stCls}" style="font-size:8px;padding:1px 5px">${m.status === 'Serving Notice Period' ? 'Notice' : m.status === 'Other Assignment' ? 'Other' : esc(m.status)}</span>
-          </div>
-          <div style="padding:12px">
-            <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-               <span style="font-size:10px;font-weight:700;color:var(--color-text-muted)">TASK PROGRESS</span>
-               <span style="font-size:10px;font-weight:700;color:var(--color-primary)">${prog}%</span>
-            </div>
-            <div style="height:6px;background:var(--color-surface-3);border-radius:3px;overflow:hidden;margin-bottom:12px">
-               <div style="width:${prog}%;height:100%;background:linear-gradient(90deg, var(--color-primary), #a855f7)"></div>
-            </div>
-            
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-               <div style="background:var(--color-surface-2);padding:6px;border-radius:var(--radius-md);text-align:center">
-                  <div style="font-size:8px;color:var(--color-text-faint)">TOTAL</div>
-                  <div style="font-size:12px;font-weight:800">${taskCount}</div>
-               </div>
-               <div style="background:var(--color-surface-2);padding:6px;border-radius:var(--radius-md);text-align:center">
-                  <div style="font-size:8px;color:var(--color-text-faint)">DONE</div>
-                  <div style="font-size:12px;font-weight:800;color:var(--green)">${doneCount}</div>
-               </div>
-            </div>
+          const capBody = capCard.querySelector('.cb');
+          capBody.style.padding = '20px';
 
-            <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--color-divider)">
-               <div>
-                  <div style="font-size:8px;color:var(--color-text-faint);text-transform:uppercase">7D Activity</div>
-                  <div style="font-size:10px;font-weight:700">${recentActivity} actions</div>
-               </div>
-               <canvas id="m-perf-${m.id}" width="60" height="20" style="width:60px;height:20px"></canvas>
-            </div>
-          </div>
-          <div style="padding:8px 12px;background:var(--color-surface-2);display:flex;gap:4px">
-            <button class="btn ghost mini" style="flex:1;font-size:10px" onclick="if(!P.readonly) openAddMember('${m.id}')">Profile</button>
-            <button class="btn ghost mini" style="flex:1;font-size:10px" onclick="filterTasksByAssignee('${m.name}'); setView('tasks')">Tasks</button>
-          </div>
-        `;
+          const capThreshold = P.settings.workDays || 5;
+          let capHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:24px">`;
+          P.members.filter(m => m.status === 'Active' || m.status === 'Serving Notice Period').forEach((m, idx) => {
+            const days = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled').reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+            const actualPct = (days / capThreshold) * 100;
+            const barPct = Math.min(100, actualPct);
+            const color = actualPct > 100 ? 'var(--red)' : actualPct > 80 ? 'var(--amber)' : 'var(--color-primary)';
+            const barGradient = actualPct > 100 ? 'linear-gradient(90deg, var(--red), #f87171)' : actualPct > 80 ? 'linear-gradient(90deg, var(--amber), #fbbf24)' : 'linear-gradient(90deg, var(--color-primary), #818cf8)';
 
-        // Sparkline drawing
-        setTimeout(() => {
-          const mcvs = $id(`m-perf-${m.id}`);
-          if (mcvs) {
-            const { ctx: mctx } = gCtx(mcvs);
-            const data = [];
-            for (let j = 6; j >= 0; j--) {
-              const dStr = new Date(Date.now() - j * 864e5).toISOString().split('T')[0];
-              data.push(memberLogs.filter(l => l.ts && typeof l.ts === 'string' && l.ts.startsWith(dStr)).length);
+            capHtml += `
+              <div style="background:var(--color-surface-2);padding:14px;border-radius:var(--radius-lg);border:1px solid var(--color-border-faint);box-shadow:var(--shadow-sm);transition:all var(--tr-spring)" class="card-glow-hover">
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px;align-items:flex-end">
+                  <div style="font-weight:800;font-size:13px;color:var(--color-text)">${esc(m.name)}</div>
+                  <div style="font-size:11px;font-weight:700;color:${color}">${days.toFixed(1)}d / ${Math.round(actualPct)}% <span style="font-size:9px;font-weight:500;opacity:0.8;margin-left:4px">(${(days / capThreshold).toFixed(1)}w)</span></div>
+                </div>
+                <div style="height:10px;background:var(--color-surface-3);border-radius:6px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,0.15)">
+                  <div style="width:${barPct}%;height:100%;background:${barGradient};border-radius:6px;transition:width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)"></div>
+                </div>
+              </div>
+            `;
+          });
+          capHtml += `</div>`;
+
+          const otherMembers = P.members.filter(m => m.status === 'Other Assignment');
+          if (otherMembers.length) {
+            capHtml += `
+              <div style="margin-top:24px;padding-top:24px;border-top:1px dashed var(--color-divider)">
+                <div style="font-size:11px;font-weight:800;color:var(--color-primary);text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+                  ⚡ Potential Capacity Impact (If Added to Project)
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:24px;opacity:0.7">
+            `;
+            otherMembers.forEach(m => {
+              capHtml += `
+                <div style="background:var(--color-surface-2);padding:14px;border-radius:var(--radius-lg);border:1px dashed var(--color-border-faint)">
+                  <div style="display:flex;justify-content:space-between;margin-bottom:8px;align-items:flex-end">
+                    <div style="font-weight:700;font-size:13px;color:var(--color-text-faint)">${esc(m.name)}</div>
+                    <div style="font-size:10px;font-weight:700;color:var(--color-text-faint)">+${capThreshold.toFixed(1)}d Capacity</div>
+                  </div>
+                  <div style="height:8px;background:var(--color-surface-3);border-radius:4px;overflow:hidden;border:1px dashed var(--color-divider)">
+                    <div style="width:0%;height:100%;background:var(--color-primary);border-radius:4px"></div>
+                  </div>
+                </div>
+              `;
+            });
+            capHtml += `</div></div>`;
+          }
+          capBody.innerHTML = capHtml;
+          if (window.lucide) lucide.createIcons(capCard);
+        }
+
+        else if (cleanId === 'capacity_heatmap') {
+          const heatId = 'res-heatmap';
+          const heatCard = mkCC('Capacity Heatmap', '12-week resource allocation', heatId, '', 'standard', "<b>Temporal Capacity Forecasting:</b> A 12-week predictive model showing team availability.", 'View Explanation', 'grid');
+          heatCard.style.gridColumn = '1 / -1';
+          widgetWrapper.appendChild(heatCard);
+
+          const heatBody = heatCard.querySelector('.cb');
+          heatBody.style.overflowX = 'auto';
+          heatBody.style.padding = '12px';
+
+          const weeks = [];
+          const now = new Date();
+          const day = now.getDay() || 7;
+          const monday = new Date(now); monday.setDate(now.getDate() - day + 1);
+
+          for (let i = 0; i < 12; i++) {
+            const d = new Date(monday); d.setDate(monday.getDate() + i * 7);
+            const wNum = getWeekNumber(d);
+            weeks.push({ date: d, label: `W${wNum}\n${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` });
+          }
+
+          let heatHtml = `<table class="task-tbl glass-table" style="min-width:1000px;border-collapse:collapse;border:1px solid var(--color-border-faint);border-radius:var(--radius-lg);overflow:hidden">
+            <thead>
+              <tr style="background:var(--color-surface-2)">
+                <th style="width:220px;padding:14px;text-align:left;border-bottom:2px solid var(--color-border)"><div class="thin" style="font-weight:800">Member</div></th>`;
+          weeks.forEach(w => {
+            heatHtml += `<th style="text-align:center;padding:10px;border-bottom:2px solid var(--color-border);border-left:1px solid var(--color-border-faint)">
+              <div class="thin" style="justify-content:center;text-align:center;font-size:10px;line-height:1.2;font-weight:800">${w.label.replace('\n', '<br>')}</div>
+            </th>`;
+          });
+          heatHtml += `</tr></thead><tbody>`;
+
+          const standardCap = 5;
+          if (!P.members || !P.members.length) {
+            heatHtml += `<tr><td colspan="${weeks.length + 1}" style="padding:40px;text-align:center;color:var(--color-text-faint)">No team members found in project state.</td></tr>`;
+          } else {
+            P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').forEach((m, idx) => {
+              const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+              heatHtml += `<tr>
+                <td style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-right:2px solid var(--color-border);border-bottom:1px solid var(--color-border-faint);background:var(--color-surface);font-weight:700">
+                  <div style="width:30px;height:30px;border-radius:50%;background:${CC[idx % CC.length]};color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;box-shadow:var(--shadow-sm)">${initials}</div>
+                  <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">
+                    <div style="font-weight:800;font-size:13px;color:var(--color-text)">${esc(m.name)}</div>
+                    <div style="font-size:10px;color:var(--color-text-faint);font-weight:600">${esc(m.role || 'Member')}</div>
+                  </div>
+                </td>`;
+
+              weeks.forEach(w => {
+                const weekStart = new Date(w.date), weekEnd = new Date(w.date); weekEnd.setDate(weekEnd.getDate() + 6);
+                const tks = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) >= weekStart && new Date(t.dueDate) <= weekEnd);
+                const effort = tks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+
+                let leaveDays = 0;
+                (m.plannedLeaves || []).forEach(l => {
+                  const ls = new Date(l.from), le = new Date(l.to);
+                  const overlapS = new Date(Math.max(weekStart, ls));
+                  const overlapE = new Date(Math.min(weekEnd, le));
+                  if (overlapS <= overlapE) leaveDays += (Math.ceil((overlapE - overlapS) / 864e5) + 1);
+                });
+                const weekCap = Math.max(0, standardCap - leaveDays);
+
+                let bg = 'var(--color-surface)', color = 'var(--color-text-faint)', icon = '';
+                if (effort > weekCap && weekCap > 0) {
+                  bg = 'linear-gradient(135deg, var(--red), #f87171)'; color = '#fff';
+                } else if (effort > 0) {
+                  const ratio = Math.min(1, effort / standardCap);
+                  bg = ratio > 0.8 ? 'linear-gradient(135deg, var(--color-primary), #818cf8)' : (ratio > 0.4 ? 'rgba(99, 102, 241, 0.22)' : 'rgba(99, 102, 241, 0.12)');
+                  color = ratio > 0.8 ? '#fff' : 'var(--color-text)';
+                }
+                if (leaveDays > 0) icon = '<span title="On Leave" style="margin-left:4px;color:var(--amber)">🌴</span>';
+
+                const title = `${m.name}: ${effort.toFixed(1)}d / ${weekCap.toFixed(1)}d cap`;
+                heatHtml += `<td onclick="filterToWeek('${m.name}', '${weekStart.toISOString()}', '${weekEnd.toISOString()}')" title="${title}" class="heatmap-cell" style="background:${bg};color:${color};text-align:center;font-size:11px;font-weight:800;cursor:pointer;border-right:1px solid var(--color-border-faint);border-bottom:1px solid var(--color-border-faint);transition:all var(--tr-spring)">${effort > 0 ? effort.toFixed(1) + 'd' : '—'}${icon}</td>`;
+              });
+              heatHtml += '</tr>';
+            });
+          }
+          heatHtml += `</tbody></table>`;
+          heatBody.innerHTML = heatHtml;
+          if (window.lucide) lucide.createIcons(heatCard);
+        }
+
+        else if (cleanId === 'workload_balance') {
+          const balId = 'res-workload';
+          const balCard = mkCC('Workload Balance', 'Assigned vs Completed vs Overdue effort', balId, '', 'standard', "<b>Execution Efficiency Analysis:</b> Compares total effort 'Assigned' to each member against their 'Completed' throughput and 'Overdue' baggage.", 'View Explanation', 'bar-chart-2');
+          balCard.style.gridColumn = '1 / -1';
+          widgetWrapper.appendChild(balCard);
+
+          const balCvs = mkCvs(800, Math.max(400, P.members.length * 60));
+          balCard.querySelector('.cb').appendChild(balCvs);
+
+          const balLeg = document.createElement('div'); balLeg.className = 'cleg';
+          balLeg.innerHTML = '<div class="cli"><div class="cdot" style="background:var(--color-primary)"></div>Assigned</div><div class="cli"><div class="cdot" style="background:var(--color-green)"></div>Completed</div><div class="cli"><div class="cdot" style="background:var(--red)"></div>Overdue</div>';
+          balCard.querySelector('.cb').appendChild(balLeg);
+
+          setTimeout(() => {
+            let sortedMembers = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').map(m => {
+              const assigned = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Cancelled').reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+              const completed = P.tasks.filter(t => t.assignee === m.name && t.status === 'Completed').reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+              const overdue = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) < now).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+              return { name: m.name, assigned, completed, overdue };
+            });
+            sortedMembers.sort((a, b) => b.assigned - a.assigned);
+
+            const labels = sortedMembers.map(m => m.name);
+            const d1 = sortedMembers.map(m => m.assigned);
+            const d2 = sortedMembers.map(m => m.completed);
+            const d3 = sortedMembers.map(m => m.overdue);
+
+            drawWorkloadBar(balCvs, labels, d1, d2, d3);
+          }, 300);
+        }
+
+        else if (cleanId === 'capacity_shortfalls') {
+          const shortId = 'res-capacity-shortfalls';
+          const shortCard = mkCC('Predictive Capacity Shortfalls', 'Upcoming sprint bottlenecks & leave deficits', shortId, '', 'standard', "<b>Predictive Bottleneck Analysis:</b> Scans the upcoming 12 weeks to identify sprints where assigned task effort exceeds available team capacity.", 'View Explanation', 'alert-triangle');
+          shortCard.style.gridColumn = '1 / -1';
+          widgetWrapper.appendChild(shortCard);
+
+          const shortBody = shortCard.querySelector('.cb');
+
+          const weeks = [];
+          const now = new Date();
+          const day = now.getDay() || 7;
+          const monday = new Date(now); monday.setDate(now.getDate() - day + 1);
+
+          for (let i = 0; i < 12; i++) {
+            const d = new Date(monday); d.setDate(monday.getDate() + i * 7);
+            const wNum = getWeekNumber(d);
+            weeks.push({ date: d, label: `W${wNum}\n${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` });
+          }
+
+          let shortHtml = `<div style="padding:16px;display:flex;flex-direction:column;gap:12px">`;
+          let shortfallFound = false;
+
+          weeks.forEach(w => {
+            const weekStart = new Date(w.date), weekEnd = new Date(w.date); weekEnd.setDate(weekEnd.getDate() + 6);
+            let totalEffortDays = 0;
+            let totalCapDays = 0;
+            let bottleneckTasks = [];
+
+            P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').forEach(m => {
+              const tks = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) >= weekStart && new Date(t.dueDate) <= weekEnd);
+              const effort = tks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+              totalEffortDays += effort;
+              if (effort > 0) bottleneckTasks.push(...tks);
+
+              let leaveDays = 0;
+              (m.plannedLeaves || []).forEach(l => {
+                const ls = new Date(l.from), le = new Date(l.to);
+                const overlapS = new Date(Math.max(weekStart, ls));
+                const overlapE = new Date(Math.min(weekEnd, le));
+                if (overlapS <= overlapE) leaveDays += (Math.ceil((overlapE - overlapS) / 864e5) + 1);
+              });
+              totalCapDays += Math.max(0, standardCap - leaveDays);
+            });
+
+            if (totalEffortDays > totalCapDays && totalCapDays > 0) {
+              shortfallFound = true;
+              const deficit = totalEffortDays - totalCapDays;
+              shortHtml += `
+                <div style="padding:16px;background:var(--color-surface-2);border-radius:12px;border:1px solid var(--color-border-faint);border-left:4px solid var(--red);display:flex;flex-direction:column;gap:8px;transition:all var(--tr-spring)" class="card-glow-hover">
+                  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                    <div style="font-weight:800;font-size:14px;color:var(--color-text)">${w.label.replace('\n', ' · ')}</div>
+                    <span style="padding:2px 8px;background:rgba(239,68,68,0.1);color:var(--red);border-radius:12px;font-size:10px;font-weight:800">Deficit: ${deficit.toFixed(1)}d</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--color-text-muted)">
+                    <div>Required Effort: <b>${totalEffortDays.toFixed(1)}d</b></div>
+                    <div>Available Capacity: <b>${totalCapDays.toFixed(1)}d</b></div>
+                  </div>
+                  <div style="font-size:11px;color:var(--color-text-faint);margin-top:4px">
+                    <b>Key Bottleneck Tasks:</b> ${bottleneckTasks.slice(0, 3).map(t => esc(t.name)).join(', ')}${bottleneckTasks.length > 3 ? ` (+${bottleneckTasks.length - 3} more)` : ''}
+                  </div>
+                </div>
+              `;
             }
-            drawSpark(mctx, data);
-          }
-        }, 400);
-        grid.appendChild(card);
-      });
-      inner.appendChild(grid);
+          });
 
-      // ══════ HIGH PERFORMANCE CANVAS ORG CHART (BUCHHEIM-WALKER) ══════
-      const roots = P.members.filter(m => !m.reportsTo || !P.members.find(x => x.name === m.reportsTo));
-      if (roots.length && P.members.length > 1) {
+          if (!shortfallFound) {
+            shortHtml += `
+              <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center">
+                <div style="font-size:28px;margin-bottom:8px;color:var(--color-green)">🌟</div>
+                <div style="font-weight:800;color:var(--color-text)">Zero Capacity Shortfalls</div>
+                <div style="font-size:12px;color:var(--color-text-muted);margin-top:4px">Team capacity is perfectly balanced to meet all commitments.</div>
+              </div>
+            `;
+          }
+          shortHtml += `</div>`;
+          shortBody.innerHTML = shortHtml;
+          if (window.lucide) lucide.createIcons(shortCard);
+        }
+
+        else if (cleanId === 'burn_rate') {
+          const burnId = 'res-burn-rate';
+          const burnCard = mkCC('Effort & Budget Burn-Rate Trajectory', 'Baseline commitments vs projected completion effort', burnId, '', 'standard', "<b>Financial & Effort Burn Trajectory:</b> Compares the original baseline days against the current actual burn + remaining estimated work.", 'View Explanation', 'trending-up');
+          burnCard.style.gridColumn = '1 / -1';
+          widgetWrapper.appendChild(burnCard);
+
+          const burnBody = burnCard.querySelector('.cb');
+          let totalBaselineHours = 0;
+          let totalActualHours = 0;
+          let totalRemainingEstHours = 0;
+
+          P.tasks.filter(t => t.status !== 'Cancelled').forEach(t => {
+            totalBaselineHours += (parseFloat(t.baselineEffort) || parseFloat(t.estEffort) || 0);
+            totalActualHours += (parseFloat(t.actEffort) || parseFloat(t.progress ? (parseFloat(t.estEffort) * parseFloat(t.progress) / 100) : 0) || 0);
+            if (t.status !== 'Completed') {
+              totalRemainingEstHours += (parseFloat(t.estEffort) || 0) * (1 - (parseFloat(t.progress) || 0) / 100);
+            }
+          });
+
+          const projectedTotalHours = totalActualHours + totalRemainingEstHours;
+          const hoursVariance = projectedTotalHours - totalBaselineHours;
+          const isOverrun = hoursVariance > 0;
+          const burnColor = isOverrun ? 'var(--red)' : 'var(--color-green)';
+          const burnBg = isOverrun ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)';
+
+          let burnHtml = `
+            <div style="padding:24px;display:flex;flex-direction:column;gap:20px">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--color-surface-2);border-radius:12px;border:1px solid var(--color-border-faint)">
+                <div>
+                  <div style="font-size:11px;color:var(--color-text-muted);text-transform:uppercase;font-weight:700">Projected Completion Effort</div>
+                  <div style="font-size:28px;font-weight:900;color:var(--color-text);margin-top:4px">${Math.round(projectedTotalHours)} <span style="font-size:14px;color:var(--color-text-muted);font-weight:600">days</span></div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-size:11px;color:var(--color-text-muted);text-transform:uppercase;font-weight:700">Baseline Charter</div>
+                  <div style="font-size:20px;font-weight:700;color:var(--color-text-muted);margin-top:4px">${Math.round(totalBaselineHours)} days</div>
+                </div>
+              </div>
+
+              <div style="padding:16px;background:${burnBg};border-radius:12px;border:1px solid ${burnColor};display:flex;align-items:center;gap:16px;box-shadow:var(--shadow-sm);transition:all var(--tr-spring)" class="card-glow-hover">
+                <div style="width:40px;height:40px;border-radius:50%;background:var(--color-surface);display:flex;align-items:center;justify-content:center;color:${burnColor};flex-shrink:0">
+                  <i data-lucide="${isOverrun ? 'alert-octagon' : 'check-circle'}" style="width:22px;height:22px"></i>
+                </div>
+                <div style="flex:1">
+                  <div style="font-weight:800;font-size:14px;color:${burnColor}">${isOverrun ? 'Budget Overrun Alert' : 'Tracking Within Charter Budget'}</div>
+                  <div style="font-size:12px;color:var(--color-text-muted);margin-top:2px">
+                    ${isOverrun ? `Project is forecast to exceed baseline by <b>${Math.round(hoursVariance)} days</b> (${Math.round((hoursVariance / totalBaselineHours) * 100)}%).` : `Project is forecast to complete <b>${Math.round(Math.abs(hoursVariance))} days</b> under budget.`}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:8px;color:var(--color-text-muted)">
+                  <span>Actual Burn (${Math.round(totalActualHours)}d)</span>
+                  <span>Remaining Est (${Math.round(totalRemainingEstHours)}d)</span>
+                </div>
+                <div style="height:12px;background:var(--color-surface-3);border-radius:6px;overflow:hidden;display:flex;box-shadow:inset 0 1px 2px rgba(0,0,0,0.15)">
+                  <div style="width:${Math.min(100, (totalActualHours / (projectedTotalHours || 1)) * 100)}%;background:linear-gradient(90deg, var(--color-primary), #818cf8);height:100%"></div>
+                  <div style="flex:1;background:linear-gradient(90deg, var(--amber), #fbbf24);height:100%;opacity:0.9"></div>
+                </div>
+              </div>
+            </div>
+          `;
+          burnBody.innerHTML = burnHtml;
+          if (window.lucide) lucide.createIcons(burnCard);
+        }
+
+        else if (cleanId === 'team_velocity') {
+          const velGrid = document.createElement('div');
+          velGrid.className = 'grid';
+          velGrid.style = 'grid-template-columns:1fr;gap:0px;margin-bottom:0px';
+
+          const velCard = mkCC('Team Velocity', 'Completed effort vs 3-week rolling average (12 weeks)', 'team-velocity', '', 'standard', "Historical performance tracking. Measures the volume of work successfully delivered each week.", 'View Explanation', 'trending-up');
+          velCard.style.gridColumn = '1 / -1';
+          velGrid.appendChild(velCard);
+
+          const velCvs = mkCvs(1000, 200);
+          velCard.querySelector('.cb').appendChild(velCvs);
+          const velLeg = document.createElement('div');
+          velLeg.className = 'cleg';
+          velLeg.innerHTML = `
+            <div class="cli"><div class="cdot" style="background:var(--color-primary)"></div>Weekly Velocity</div>
+            <div class="cli"><div style="width:16px;border-top:2px dashed var(--amber)"></div>3-Week Rolling Avg</div>
+          `;
+          velCard.appendChild(velLeg);
+
+          setTimeout(() => {
+            const last12Weeks = [];
+            for (let i = 11; i >= 0; i--) {
+              const d = new Date(); d.setDate(d.getDate() - i * 7);
+              last12Weeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) });
+            }
+
+            const velocity = last12Weeks.map(w => {
+              return P.tasks.filter(t => {
+                if (t.status !== 'Completed' || !t.dueDate) return false;
+                const d = new Date(t.dueDate);
+                return getWeekNumber(d) === w.w && d.getFullYear() === w.y;
+              }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+            });
+
+            const rolling = velocity.map((v, i) => {
+              if (i < 2) return v;
+              return (velocity[i] + velocity[i - 1] + velocity[i - 2]) / 3;
+            });
+
+            const maxVal = Math.max(...velocity, ...rolling, 10);
+
+            const latestVel = velocity[velocity.length - 1].toFixed(1);
+            const peakVel = Math.max(...velocity).toFixed(1);
+            const latestRolling = rolling[rolling.length - 1].toFixed(1);
+            const isUp = parseFloat(latestVel) >= parseFloat(latestRolling);
+
+            const summaryBar = document.createElement('div');
+            summaryBar.style = "display:flex; flex-wrap:wrap; gap:16px; padding:16px 20px; background:var(--color-surface-2); border-radius:16px; margin:0 0 20px 0; justify-content:space-between; align-items:center; border:1px solid var(--color-border-faint); box-shadow:0 4px 20px rgba(0,0,0,0.03)";
+            summaryBar.innerHTML = `
+              <div style="display:flex; gap:28px; flex-wrap:wrap">
+                <div>
+                  <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:600">Latest Velocity</div>
+                  <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--color-text)">${latestVel}d</div>
+                </div>
+                <div>
+                  <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:600">Rolling Avg</div>
+                  <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--color-text)">${latestRolling}d</div>
+                </div>
+                <div>
+                  <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:600">Peak Velocity</div>
+                  <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--color-text)">${peakVel}d</div>
+                </div>
+              </div>
+              <div>
+                ${isUp
+                ? `<span style="background:rgba(34,197,94,0.15); color:#16a34a; padding:6px 16px; border-radius:20px; font-weight:700; font-size:12px; display:flex; align-items:center; gap:6px; box-shadow:0 2px 12px rgba(34,197,94,0.15)"><i data-lucide="trending-up" style="width:16px;height:16px"></i> Velocity Trending Up</span>`
+                : `<span style="background:rgba(245,158,11,0.15); color:#d97706; padding:6px 16px; border-radius:20px; font-weight:700; font-size:12px; display:flex; align-items:center; gap:6px; box-shadow:0 2px 12px rgba(245,158,11,0.15)"><i data-lucide="trending-down" style="width:16px;height:16px"></i> Velocity Adjusting</span>`
+              }
+              </div>
+            `;
+            const cb = velCard.querySelector('.cb');
+            cb.insertBefore(summaryBar, velCvs);
+            lucide.createIcons(summaryBar);
+
+            drawVBar(velCvs, last12Weeks.map((w, i) => [w.l, velocity[i]]), ['var(--color-primary)'], maxVal, false, rolling);
+          }, 350);
+
+          widgetWrapper.appendChild(velGrid);
+        }
+
+        else if (cleanId === 'team_directory') {
+          addST(widgetWrapper, 'Team Directory');
+          const grid = document.createElement('div'); grid.className = 'team-grid';
+          P.members.forEach((m, i) => {
+            const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+            const taskCount = P.tasks.filter(t => t.assignee === m.name).length;
+            const doneCount = P.tasks.filter(t => t.assignee === m.name && t.status === 'Completed').length;
+            const stCls = m.status === 'Active' ? 'mc-active' : m.status === 'On Leave' ? 'mc-leave' : m.status === 'Serving Notice Period' ? 'mc-notice' : m.status === 'Other Assignment' ? 'mc-other' : 'mc-departed';
+            const card = document.createElement('div'); card.className = 'member-card'; card.style.animationDelay = (i * .05) + 's';
+            const prog = taskCount ? Math.round((doneCount / taskCount) * 100) : 0;
+            const memberLogs = P.log.filter(l => l.user === m.name);
+            const recentActivity = memberLogs.filter(l => new Date(l.ts) > new Date(Date.now() - 7 * 864e5)).length;
+
+            card.innerHTML = `
+              <div class="mc-head">
+                <div class="mc-avatar" style="background:${CC[i % CC.length]}">${initials}</div>
+                <div style="flex:1;min-width:0">
+                  <div class="mc-name">${esc(m.name)}</div>
+                  <div class="mc-role">${esc(m.role || '—')}</div>
+                </div>
+                <span class="mc-status ${stCls}" style="font-size:8px;padding:1px 5px">${m.status === 'Serving Notice Period' ? 'Notice' : m.status === 'Other Assignment' ? 'Other' : esc(m.status)}</span>
+              </div>
+              <div style="padding:12px">
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+                   <span style="font-size:10px;font-weight:700;color:var(--color-text-muted)">TASK PROGRESS</span>
+                   <span style="font-size:10px;font-weight:700;color:var(--color-primary)">${prog}%</span>
+                </div>
+                <div style="height:6px;background:var(--color-surface-3);border-radius:3px;overflow:hidden;margin-bottom:12px">
+                   <div style="width:${prog}%;height:100%;background:linear-gradient(90deg, var(--color-primary), #a855f7)"></div>
+                </div>
+                
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+                   <div style="background:var(--color-surface-2);padding:6px;border-radius:var(--radius-md);text-align:center">
+                      <div style="font-size:8px;color:var(--color-text-faint)">TOTAL</div>
+                      <div style="font-size:12px;font-weight:800">${taskCount}</div>
+                   </div>
+                   <div style="background:var(--color-surface-2);padding:6px;border-radius:var(--radius-md);text-align:center">
+                      <div style="font-size:8px;color:var(--color-text-faint)">DONE</div>
+                      <div style="font-size:12px;font-weight:800;color:var(--green)">${doneCount}</div>
+                   </div>
+                </div>
+
+                <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--color-divider)">
+                   <div>
+                      <div style="font-size:8px;color:var(--color-text-faint);text-transform:uppercase">7D Activity</div>
+                      <div style="font-size:10px;font-weight:700">${recentActivity} actions</div>
+                   </div>
+                   <canvas id="m-perf-${m.id}" width="60" height="20" style="width:60px;height:20px"></canvas>
+                </div>
+              </div>
+              <div style="padding:8px 12px;background:var(--color-surface-2);display:flex;gap:4px;border-radius:0 0 var(--radius-lg) var(--radius-lg)">
+                <button class="btn ghost mini" style="flex:1;font-size:10px" onclick="if(!P.readonly) openAddMember('${m.id}')">Profile</button>
+                <button class="btn ghost mini" style="flex:1;font-size:10px" onclick="filterTasksByAssignee('${m.name}'); setView('tasks')">Tasks</button>
+              </div>
+            `;
+
+            setTimeout(() => {
+              const mcvs = $id(`m-perf-${m.id}`);
+              if (mcvs) {
+                const { ctx: mctx } = gCtx(mcvs);
+                const data = [];
+                for (let j = 6; j >= 0; j--) {
+                  const dStr = new Date(Date.now() - j * 864e5).toISOString().split('T')[0];
+                  data.push(memberLogs.filter(l => l.ts && typeof l.ts === 'string' && l.ts.startsWith(dStr)).length);
+                }
+                drawSpark(mctx, data);
+              }
+            }, 400);
+            grid.appendChild(card);
+          });
+          widgetWrapper.appendChild(grid);
+        }
+
+        else if (cleanId === 'org_chart') {
+          // Dynamic org chart wrapper
+        }
+      });
+
+      // Apple jiggle rearrange mode logic symmetric with insights view
+      inner.querySelectorAll('.team-widget-wrapper').forEach(wrapper => {
+        const secId = wrapper.dataset.id;
+        if (P.appleRearrangeMode) {
+          wrapper.classList.add('apple-jiggle');
+          wrapper.draggable = true;
+          wrapper.style.position = 'relative';
+
+          const badge = document.createElement('div');
+          badge.className = 'apple-widget-badge';
+          badge.innerHTML = `<i data-lucide="grip-horizontal" style="width:12px;height:12px"></i> Drag`;
+          wrapper.appendChild(badge);
+
+          wrapper.ondragstart = (e) => {
+            if (P.readonly) return;
+            e.dataTransfer.setData('text/plain', secId);
+            e.dataTransfer.effectAllowed = 'move';
+            setTimeout(() => wrapper.classList.add('dragging'), 10);
+          };
+          wrapper.ondragover = (e) => {
+            if (P.readonly) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (!wrapper.classList.contains('drag-over')) wrapper.classList.add('drag-over');
+          };
+          wrapper.ondragleave = (e) => {
+            if (P.readonly) return;
+            wrapper.classList.remove('drag-over');
+          };
+          wrapper.ondrop = (e) => {
+            if (P.readonly) return;
+            e.preventDefault();
+            wrapper.classList.remove('drag-over');
+            const draggedId = e.dataTransfer.getData('text/plain');
+            if (draggedId !== secId) {
+              const allWrappers = Array.from(inner.children);
+              const draggedWrapper = inner.querySelector(`[data-id="${draggedId}"]`);
+              if (draggedWrapper) {
+                const fromIdx = allWrappers.indexOf(draggedWrapper);
+                const toIdx = allWrappers.indexOf(wrapper);
+                if (fromIdx < toIdx) wrapper.after(draggedWrapper);
+                else wrapper.before(draggedWrapper);
+                draggedWrapper.classList.remove('dragging');
+
+                const currentLayout = Array.from(inner.children).map((child) => {
+                  const wId = child.dataset.id;
+                  const item = P.teamLayout.find(x => x.id === wId);
+                  return item || { id: wId, t: child.dataset.title || wId, on: true };
+                });
+                P.teamLayout = currentLayout;
+                localStorage.setItem('pp-team-layout', JSON.stringify(P.teamLayout));
+                save();
+                renderTeam();
+              }
+            }
+          };
+        }
+      });
+
+      // Render Org Chart dynamically inside its layout-wrapper if in layout
+      const orgWrapper = inner.querySelector('.team-widget-wrapper[data-id="org_chart"]');
+      if (orgWrapper) {
         const title = document.createElement('div'); title.className = 'sec-title';
         title.textContent = 'Organization Chart'; title.style.marginTop = '24px';
         inner.appendChild(title);
@@ -17276,46 +17739,7 @@
             msmCard.style.gridColumn = `span ${msmSpan}`;
             grid.appendChild(msmCard);
 
-            const table = document.createElement('table');
-            table.className = 'status-matrix-table';
-            table.style = "width:100%; border-collapse:separate; border-spacing:0; font-size:12px; text-align:left";
-
-            let thead = `<thead style="background:var(--color-surface-1); border-bottom:2px solid var(--color-border); position:sticky; top:0; z-index:10"><tr style="color:var(--color-text-muted)"><th style="padding:14px 16px; font-weight:700; width:20%; border-bottom:1px solid var(--color-border)">Module / Type</th>`;
-            types.forEach(type => { thead += `<th style="padding:14px 16px; font-weight:600; text-align:center; border-bottom:1px solid var(--color-border)">${esc(type.split('/')[0].trim())}</th>`; });
-            thead += `</tr></thead>`;
-
-            let tbody = `<tbody>`;
-            modules.forEach((mod, mi) => {
-              tbody += `<tr style="border-bottom:1px solid var(--color-border); background:${mi % 2 === 0 ? 'var(--color-surface)' : 'var(--color-surface-1)'}">
-                <td style="padding:14px 16px; font-weight:700; color:var(--color-text); border-bottom:1px solid var(--color-border-faint); border-right:1px solid var(--color-border-faint)">${esc(mod)}</td>`;
-              types.forEach(type => {
-                const modTasks = tasks.filter(t => (t.module === mod || (!t.module && mod === 'General')) && (t.moduleType === type || (!t.moduleType && type === types[0])));
-                let cellContent = `<span style="color:var(--color-text-faint); font-style:italic; font-size:11px">—</span>`;
-                let bg = 'transparent';
-                if (modTasks.length > 0) {
-                  const statusCounts = {}; STATUSES.forEach(s => statusCounts[s] = 0);
-                  modTasks.forEach(t => statusCounts[t.status]++);
-                  let dominantStatus = 'Not Started'; let maxC = -1;
-                  STATUSES.forEach(s => { if (statusCounts[s] > maxC && statusCounts[s] > 0) { dominantStatus = s; maxC = statusCounts[s]; } });
-                  const stMap = { 'Completed': { bg: 'rgba(34,197,94,0.15)', col: '#16a34a' }, 'In Progress': { bg: 'rgba(59,130,246,0.15)', col: '#2563eb' }, 'Blocked': { bg: 'rgba(245,158,11,0.15)', col: '#d97706' }, 'Not Started': { bg: 'rgba(148,163,184,0.15)', col: '#64748b' } };
-                  const stConfig = stMap[dominantStatus] || stMap['Not Started'];
-                  bg = stConfig.bg;
-                  cellContent = `<div style="display:flex; flex-direction:column; align-items:center; gap:4px">
-                    <span style="font-weight:800; font-size:14px; color:${stConfig.col}; font-family:var(--font-mono)">${modTasks.length}</span>
-                    <span style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:2px 6px; border-radius:8px; background:var(--color-surface); border:1px solid currentColor; color:${stConfig.col}">${dominantStatus}</span>
-                  </div>`;
-                }
-                tbody += `<td style="padding:12px 10px; text-align:center; vertical-align:middle; border-bottom:1px solid var(--color-border-faint); background:${bg}; transition:all 0.2s ease">${cellContent}</td>`;
-              });
-              tbody += `</tr>`;
-            });
-            tbody += `</tbody>`;
-            table.innerHTML = thead + tbody;
-            const tableWrap = document.createElement('div');
-            tableWrap.style = "overflow-x:auto; width:100%; border-radius:0 0 20px 20px";
-            tableWrap.appendChild(table);
-            msmCard.querySelector('.cb').style.padding = '0';
-            msmCard.querySelector('.cb').appendChild(tableWrap);
+            renderModuleStatusMatrix(msmCard, tasks, true);
           }
         } else if (sec.id === 'feature_insights') {
           addST(inner, 'Feature Intelligence');
@@ -20190,12 +20614,17 @@
               };
             });
           } else {
-            const sections = Array.from(innerEl.querySelectorAll('.sec-title'));
-            items = sections.map((sec, idx) => ({
-              id: sec.id || `jump-team-${idx}`,
-              title: sec.textContent,
-              element: sec
-            }));
+            const wrappers = Array.from(innerEl.querySelectorAll('.team-widget-wrapper'));
+            items = wrappers.map((w, idx) => {
+              const cleanId = (w.dataset.id || '').toLowerCase().trim();
+              const dsTitle = w.dataset.title || '';
+              return {
+                id: w.dataset.id || `jump-team-${idx}`,
+                title: dsTitle,
+                element: w,
+                layoutIndex: parseInt(w.dataset.index)
+              };
+            });
           }
 
           const scSec = document.createElement('div');
@@ -20223,7 +20652,7 @@
                 }
               };
 
-              if (v === 'dash' && item.layoutIndex !== undefined && !P.readonly) {
+              if ((v === 'dash' || v === 'team') && item.layoutIndex !== undefined && !P.readonly) {
                 btn.draggable = true;
                 btn.title = `${esc(item.title)} (Drag to reorder)`;
                 btn.innerHTML = `<span style="display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><i data-lucide="grip-vertical" style="width:12px;height:12px;opacity:0.5"></i> ${esc(item.title)}</span><span style="opacity:0.4;font-size:9px">▼</span>`;
@@ -20260,45 +20689,80 @@
                   const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
                   const toIdx = item.layoutIndex;
 
-                  const defLayout = [
-                    { id: 'summary', t: 'Summary Cards', on: true },
-                    { id: 'module_status_matrix', t: 'Strategic Module Status', on: true },
-                    { id: 'health', t: 'Project Health', on: true },
-                    { id: 'defect_intel', t: 'Defect Intelligence', on: true },
-                    { id: 'feature_insights', t: 'Feature Intelligence', on: true },
-                    { id: 'release_timeline', t: 'Release Timeline', on: true },
-                    { id: 'burndown', t: 'Burndown Chart', on: true },
-                    { id: 'velocity', t: 'Weekly Velocity', on: true },
-                    { id: 'cfd', t: 'Cumulative Flow', on: true },
-                    { id: 'milestone-timeline', t: 'Milestone Timeline', on: true },
-                    { id: 'module_health', t: 'Module & Release Health', on: true },
-                    { id: 'screen_status', t: 'Screen Status Details', on: true },
-                    { id: 'workload', t: 'Team Workload', on: true },
-                    { id: 'cat_hours', t: 'Category & Effort', on: true },
-                    { id: 'overdue', t: 'Overdue Attention', on: true },
-                    { id: 'intelligence', t: 'Predictive Intelligence', on: true },
-                    { id: 'activity', t: 'Recent Activity', on: true },
-                    { id: 'analytics', t: 'Advanced Analytics', on: true }
-                  ];
+                  if (v === 'dash') {
+                    const defLayout = [
+                      { id: 'summary', t: 'Summary Cards', on: true },
+                      { id: 'module_status_matrix', t: 'Strategic Module Status', on: true },
+                      { id: 'health', t: 'Project Health', on: true },
+                      { id: 'defect_intel', t: 'Defect Intelligence', on: true },
+                      { id: 'feature_insights', t: 'Feature Intelligence', on: true },
+                      { id: 'release_timeline', t: 'Release Timeline', on: true },
+                      { id: 'burndown', t: 'Burndown Chart', on: true },
+                      { id: 'velocity', t: 'Weekly Velocity', on: true },
+                      { id: 'cfd', t: 'Cumulative Flow', on: true },
+                      { id: 'milestone-timeline', t: 'Milestone Timeline', on: true },
+                      { id: 'module_health', t: 'Module & Release Health', on: true },
+                      { id: 'screen_status', t: 'Screen Status Details', on: true },
+                      { id: 'workload', t: 'Team Workload', on: true },
+                      { id: 'cat_hours', t: 'Category & Effort', on: true },
+                      { id: 'overdue', t: 'Overdue Attention', on: true },
+                      { id: 'intelligence', t: 'Predictive Intelligence', on: true },
+                      { id: 'activity', t: 'Recent Activity', on: true },
+                      { id: 'analytics', t: 'Advanced Analytics', on: true }
+                    ];
 
-                  let layout = (Array.isArray(P.dashLayout) && P.dashLayout.length) ? P.dashLayout : defLayout;
-                  const seen = new Set();
-                  layout = layout.filter(sec => {
-                    if (seen.has(sec.id)) return false;
-                    seen.add(sec.id);
-                    return true;
-                  });
+                    let layout = (Array.isArray(P.dashLayout) && P.dashLayout.length) ? P.dashLayout : defLayout;
+                    const seen = new Set();
+                    layout = layout.filter(sec => {
+                      if (seen.has(sec.id)) return false;
+                      seen.add(sec.id);
+                      return true;
+                    });
 
-                  if (!isNaN(fromIdx) && fromIdx !== toIdx && fromIdx >= 0 && fromIdx < layout.length) {
-                    const movedItem = layout.splice(fromIdx, 1)[0];
-                    layout.splice(toIdx, 0, movedItem);
+                    if (!isNaN(fromIdx) && fromIdx !== toIdx && fromIdx >= 0 && fromIdx < layout.length) {
+                      const movedItem = layout.splice(fromIdx, 1)[0];
+                      layout.splice(toIdx, 0, movedItem);
 
-                    P.dashLayout = JSON.parse(JSON.stringify(layout));
-                    localStorage.setItem('pp-dash-layout', JSON.stringify(P.dashLayout));
-                    save();
+                      P.dashLayout = JSON.parse(JSON.stringify(layout));
+                      localStorage.setItem('pp-dash-layout', JSON.stringify(P.dashLayout));
+                      save();
 
-                    renderDash();
-                    notify(`Moved "${movedItem.t || movedItem.id}" to position ${toIdx + 1}`, 'ok');
+                      renderDash();
+                      notify(`Moved "${movedItem.t || movedItem.id}" to position ${toIdx + 1}`, 'ok');
+                    }
+                  } else {
+                    const defTeamLayout = [
+                      { id: 'bdays', t: 'Upcoming Birthdays', on: true },
+                      { id: 'leaves', t: 'Upcoming Leaves', on: true },
+                      { id: 'capacity_summary', t: 'Overall Resource Capacity', on: true },
+                      { id: 'capacity_heatmap', t: 'Capacity Heatmap', on: true },
+                      { id: 'workload_balance', t: 'Workload Balance', on: true },
+                      { id: 'capacity_shortfalls', t: 'Predictive Capacity Shortfalls', on: true },
+                      { id: 'burn_rate', t: 'Effort & Budget Burn-Rate Trajectory', on: true },
+                      { id: 'team_velocity', t: 'Team Velocity', on: true },
+                      { id: 'team_directory', t: 'Team Directory', on: true },
+                      { id: 'org_chart', t: 'Organization Chart', on: true }
+                    ];
+
+                    let layout = (Array.isArray(P.teamLayout) && P.teamLayout.length) ? P.teamLayout : defTeamLayout;
+                    const seen = new Set();
+                    layout = layout.filter(sec => {
+                      if (seen.has(sec.id)) return false;
+                      seen.add(sec.id);
+                      return true;
+                    });
+
+                    if (!isNaN(fromIdx) && fromIdx !== toIdx && fromIdx >= 0 && fromIdx < layout.length) {
+                      const movedItem = layout.splice(fromIdx, 1)[0];
+                      layout.splice(toIdx, 0, movedItem);
+
+                      P.teamLayout = JSON.parse(JSON.stringify(layout));
+                      localStorage.setItem('pp-team-layout', JSON.stringify(P.teamLayout));
+                      save();
+
+                      renderTeam();
+                      notify(`Moved "${movedItem.t || movedItem.id}" to position ${toIdx + 1}`, 'ok');
+                    }
                   }
                 };
               }
@@ -20639,6 +21103,542 @@
       if (wrap) wrap.innerHTML = '';
     };
 
+    // ══════ PREMIUM INTERACTIVE STATUS MATRIX ══════
+    if (!document.getElementById('matrix-unified-styles')) {
+      const style = document.createElement('style');
+      style.id = 'matrix-unified-styles';
+      style.innerHTML = `
+        .matrix-cell {
+          position: relative;
+          text-align: center;
+          padding: 12px !important;
+          border: 1px solid var(--color-border-faint) !important;
+          background: var(--color-surface-1);
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+          cursor: pointer;
+        }
+        .matrix-cell:hover {
+          background: var(--color-surface-hover) !important;
+          transform: scale(1.025) !important;
+          box-shadow: var(--shadow-md) !important;
+          z-index: 5 !important;
+          border-radius: var(--radius-sm) !important;
+        }
+        .matrix-cell.has-blocked::after {
+          content: '';
+          position: absolute;
+          top: 6px;
+          right: 6px;
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: var(--red);
+          box-shadow: 0 0 6px var(--red);
+          animation: m-pulse-red 2.5s infinite;
+        }
+        @keyframes m-pulse-red {
+          0% { transform: scale(0.9); opacity: 0.8; }
+          50% { transform: scale(1.4); opacity: 1; }
+          100% { transform: scale(0.9); opacity: 0.8; }
+        }
+        .matrix-control-bar select, .matrix-control-bar input {
+          font-family: var(--font-main) !important;
+          font-weight: 500 !important;
+        }
+        .matrix-control-bar select:hover, .matrix-control-bar input:focus {
+          border-color: var(--color-primary) !important;
+        }
+        .btn-toggle:hover {
+          background: rgba(var(--color-primary-rgb), 0.05) !important;
+        }
+        .matrix-modal-task-row:hover {
+          box-shadow: inset 4px 0 0 var(--color-primary) !important;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    window._matrixStates = window._matrixStates || {};
+    window._matrixInstances = window._matrixInstances || {};
+    window._matrixCellTasks = window._matrixCellTasks || {};
+    window._matrixCellMeta = window._matrixCellMeta || {};
+
+    window._matrixStateChange = function(matrixId, key, val) {
+      window._matrixStates[matrixId][key] = val;
+      const inst = window._matrixInstances[matrixId];
+      if (inst) {
+        window.renderModuleStatusMatrix(inst.card, inst.tasks, inst.isReport);
+      }
+    };
+
+    window._matrixCellHover = function(e) {
+      const cellId = e.currentTarget.getAttribute('data-cell-id');
+      const cellTasks = window._matrixCellTasks[cellId] || [];
+      const meta = window._matrixCellMeta[cellId] || {};
+      if (!cellTasks.length) return;
+
+      let tooltip = document.getElementById('matrix-tooltip');
+      if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.id = 'matrix-tooltip';
+        tooltip.style = "position:absolute; pointer-events:none; background:var(--color-surface); border:1px solid var(--color-border); border-radius:12px; box-shadow:var(--shadow-lg); padding:16px; z-index:9999; display:none; flex-direction:column; gap:8px; width:280px; font-size:12px; font-family:var(--font-main); color:var(--color-text); backdrop-filter:var(--glass); transition:opacity 0.15s ease, transform 0.15s ease; opacity:0; transform:translateY(10px)";
+        document.body.appendChild(tooltip);
+      }
+
+      const counts = {};
+      STATUSES.forEach(s => counts[s] = 0);
+      cellTasks.forEach(t => counts[t.status || 'Not Started']++);
+
+      const statusItems = Object.entries(counts).filter(x => x[1] > 0).map(([st, c]) => {
+        const stCls = ST_CLS[st] || 'not-started';
+        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11px">
+          <span class="badge ${stCls}" style="padding:2px 6px;font-size:10px">${esc(st)}</span>
+          <span style="font-weight:700;color:var(--color-text-muted)">${c} task${c > 1 ? 's' : ''}</span>
+        </div>`;
+      }).join('');
+
+      const est = cellTasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+      const act = cellTasks.reduce((s, t) => s + (parseFloat(t.actEffort) || 0), 0);
+      const avgP = cellTasks.length ? Math.round(cellTasks.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / cellTasks.length) : 0;
+
+      const topTasks = cellTasks.slice(0, 3).map(t => {
+        return `<div style="padding:4px 0;border-bottom:1px solid var(--color-border-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--color-text-muted);font-size:11px">
+          • ${esc(t.name)}
+        </div>`;
+      }).join('');
+
+      tooltip.innerHTML = `
+        <div style="font-weight:800;font-size:12px;border-bottom:1px solid var(--color-border);padding-bottom:6px;margin-bottom:8px;color:var(--color-text)">
+          ${esc(meta.module)} <span style="color:var(--color-text-faint)">→</span> ${esc(meta.type.split('/')[0].trim())}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
+          ${statusItems}
+        </div>
+        <div style="border-top:1px solid var(--color-border-faint);padding-top:6px;margin-top:6px;display:flex;justify-content:space-between;font-size:10px;color:var(--color-text-faint)">
+          <span>Est: <b>${est}h</b></span>
+          <span>Act: <b>${act}h</b></span>
+          <span>Progress: <b>${avgP}%</b></span>
+        </div>
+        ${topTasks ? `
+          <div style="border-top:1px solid var(--color-border-faint);padding-top:6px;margin-top:6px">
+            <div style="font-size:9px;font-weight:700;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Tasks Preview</div>
+            ${topTasks}
+          </div>
+        ` : ''}
+      `;
+
+      tooltip.style.display = 'flex';
+      requestAnimationFrame(() => {
+        tooltip.style.opacity = '1';
+        tooltip.style.transform = 'translateY(0)';
+      });
+
+      tooltip.style.left = (e.pageX + 15) + 'px';
+      tooltip.style.top = (e.pageY + 15) + 'px';
+    };
+
+    window._matrixCellMove = function(e) {
+      const tooltip = document.getElementById('matrix-tooltip');
+      if (tooltip && tooltip.style.display !== 'none') {
+        tooltip.style.left = (e.pageX + 15) + 'px';
+        tooltip.style.top = (e.pageY + 15) + 'px';
+      }
+    };
+
+    window._matrixCellLeave = function() {
+      const tooltip = document.getElementById('matrix-tooltip');
+      if (tooltip) {
+        tooltip.style.opacity = '0';
+        tooltip.style.transform = 'translateY(10px)';
+        tooltip.style.display = 'none';
+      }
+    };
+
+    window._matrixCellClick = function(el) {
+      const cellId = el.getAttribute('data-cell-id');
+      const cellTasks = window._matrixCellTasks[cellId] || [];
+      const meta = window._matrixCellMeta[cellId] || {};
+      if (!cellTasks.length) return;
+      
+      let modal = document.getElementById('matrix-detail-modal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'matrix-detail-modal';
+        modal.className = 'mbg';
+        document.body.appendChild(modal);
+        
+        modal.addEventListener('click', e => { if (e.target === modal) closeModal('matrix-detail-modal'); });
+      }
+
+      const est = cellTasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+      const act = cellTasks.reduce((s, t) => s + (parseFloat(t.actEffort) || 0), 0);
+      const avgProgress = cellTasks.length ? Math.round(cellTasks.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / cellTasks.length) : 0;
+
+      let taskRows = cellTasks.map(t => {
+        const stCls = ST_CLS[t.status || 'Not Started'] || 'not-started';
+        const pstr = (t.priority || '').toLowerCase();
+        let pColor = 'var(--color-text)', pBg = 'var(--color-surface-2)', pBorder = 'var(--color-border)';
+        if (pstr.includes('crit')) { pColor = 'var(--red)'; pBg = 'rgba(239, 68, 68, 0.1)'; pBorder = 'rgba(239, 68, 68, 0.2)'; }
+        else if (pstr.includes('high')) { pColor = 'var(--amber)'; pBg = 'rgba(245, 158, 11, 0.1)'; pBorder = 'rgba(245, 158, 11, 0.2)'; }
+        else if (pstr.includes('med')) { pColor = 'var(--blue)'; pBg = 'rgba(59, 130, 246, 0.1)'; pBorder = 'rgba(59, 130, 246, 0.2)'; }
+        else if (pstr.includes('low')) { pColor = 'var(--green)'; pBg = 'rgba(16, 185, 129, 0.1)'; pBorder = 'rgba(16, 185, 129, 0.2)'; }
+        
+        const initials = t.assignee ? t.assignee.split(' ').map(x => x[0]).join('').substring(0, 2).toUpperCase() : '??';
+
+        return `<tr class="matrix-modal-task-row" style="border-bottom:1px solid var(--color-border-faint); cursor:pointer; transition:background 0.2s" onclick="closeModal('matrix-detail-modal'); openFlyout('${t.id}', 'view')" onmouseover="this.style.background='var(--color-surface-hover)'" onmouseout="this.style.background='transparent'">
+          <td style="padding:14px 16px; font-weight:700; color:var(--color-text)" class="task-name-text">
+            <div style="display:flex; flex-direction:column; gap:4px">
+              <span>${esc(t.name)}</span>
+              <span style="font-size:10px; font-weight:600; color:var(--color-text-faint)">ID: ${t.id}</span>
+            </div>
+          </td>
+          <td style="padding:14px 16px">
+            <div style="display:flex; align-items:center; gap:8px">
+              <div style="width:24px; height:24px; border-radius:50%; background:var(--color-primary-highlight); color:var(--color-primary); font-size:9px; font-weight:800; display:flex; align-items:center; justify-content:center; border:1px solid var(--color-border)">${initials}</div>
+              <span style="font-size:12px; font-weight:600; color:var(--color-text-muted)">${esc(t.assignee || 'Unassigned')}</span>
+            </div>
+          </td>
+          <td style="padding:14px 16px; text-align:center">
+            <span class="badge ${stCls}" style="font-size:11px; padding:4px 8px">${esc(t.status || 'Not Started')}</span>
+          </td>
+          <td style="padding:14px 16px; text-align:center">
+            <span style="color:${pColor}; background:${pBg}; border:1px solid ${pBorder}; font-size:10px; font-weight:800; padding:2px 6px; border-radius:6px; letter-spacing:0.5px">${(t.priority || 'Medium').toUpperCase()}</span>
+          </td>
+          <td style="padding:14px 16px; text-align:center; font-family:var(--font-mono); font-size:11px; color:var(--color-text-muted)">
+            ${t.dueDate || 'N/A'}
+          </td>
+          <td style="padding:14px 16px">
+            <div style="display:flex; flex-direction:column; gap:4px; align-items:center">
+              <span style="font-weight:700; font-size:11px; font-family:var(--font-mono); color:var(--color-primary)">${t.progress || 0}%</span>
+              <div style="width:60px; height:4px; background:var(--color-surface-3); border-radius:2px; overflow:hidden">
+                <div style="width:${t.progress || 0}%; height:100%; background:var(--color-primary)"></div>
+              </div>
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+
+      if (!taskRows) {
+        taskRows = `<tr><td colspan="6" style="padding:40px; text-align:center; color:var(--color-text-faint)">No tasks match the active matrix filters in this cell.</td></tr>`;
+      }
+      
+      modal.innerHTML = `
+        <div class="mcard" style="max-width:900px; width:95%; display:flex; flex-direction:column; max-height:85vh; border-radius:var(--radius-lg); box-shadow:0 32px 64px rgba(0,0,0,0.4)">
+          <div class="mheader" style="padding:20px 24px; border-bottom:1px solid var(--color-border-faint)">
+            <div class="mtitle" style="font-size:18px; font-weight:800; color:var(--color-text); display:flex; align-items:center; gap:8px">
+              <i data-lucide="layout-grid" style="color:var(--color-primary)"></i>
+              <span>${esc(meta.module)} <span style="color:var(--color-text-faint); font-weight:400">/</span> ${esc(meta.type)}</span>
+            </div>
+            <button class="icon-btn" onclick="closeModal('matrix-detail-modal')" title="Close"><i data-lucide="x"></i></button>
+          </div>
+          
+          <div style="padding:16px 24px; background:var(--color-surface-2); border-bottom:1px solid var(--color-border-faint); display:flex; flex-wrap:wrap; gap:16px; align-items:center; justify-content:space-between">
+            <div style="display:flex; gap:24px">
+              <div>
+                <div style="font-size:10px; color:var(--color-text-faint); text-transform:uppercase; letter-spacing:0.5px">Total Tasks</div>
+                <div style="font-size:18px; font-weight:800; color:var(--color-text)">${cellTasks.length}</div>
+              </div>
+              <div>
+                <div style="font-size:10px; color:var(--color-text-faint); text-transform:uppercase; letter-spacing:0.5px">Avg Progress</div>
+                <div style="font-size:18px; font-weight:800; color:var(--color-primary)">${avgProgress}%</div>
+              </div>
+              <div>
+                <div style="font-size:10px; color:var(--color-text-faint); text-transform:uppercase; letter-spacing:0.5px">Est / Act Hours</div>
+                <div style="font-size:18px; font-weight:800; color:var(--color-text)">${est}h <span style="font-size:12px; font-weight:500; color:var(--color-text-muted)">/</span> ${act}h</div>
+              </div>
+            </div>
+            <div style="position:relative; width:260px">
+              <i data-lucide="search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); width:14px; height:14px; color:var(--color-text-muted)"></i>
+              <input type="text" placeholder="Search cell tasks..." style="width:100%; padding:8px 12px 8px 34px; font-size:12px; border-radius:10px; border:1px solid var(--color-border); background:var(--color-surface); color:var(--color-text); outline:none" oninput="window._matrixModalSearch(this.value)" />
+            </div>
+          </div>
+          
+          <div class="mbody custom-scroll" style="flex:1; overflow-y:auto; padding:0">
+            <table style="width:100%; border-collapse:collapse; text-align:left; font-size:12px">
+              <thead>
+                <tr style="background:var(--color-surface-2); border-bottom:1px solid var(--color-border); color:var(--color-text-muted)">
+                  <th style="padding:12px 16px; font-weight:700">Task Name</th>
+                  <th style="padding:12px 16px; font-weight:700">Assignee</th>
+                  <th style="padding:12px 16px; font-weight:700; text-align:center">Status</th>
+                  <th style="padding:12px 16px; font-weight:700; text-align:center">Priority</th>
+                  <th style="padding:12px 16px; font-weight:700; text-align:center">Due Date</th>
+                  <th style="padding:12px 16px; font-weight:700; text-align:center; width:100px">Progress</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${taskRows}
+              </tbody>
+            </table>
+          </div>
+          <div class="mact" style="padding:16px 24px; border-top:1px solid var(--color-border-faint); display:flex; justify-content:flex-end; background:var(--color-surface-2)">
+            <button class="btn primary" onclick="closeModal('matrix-detail-modal')">Close</button>
+          </div>
+        </div>
+      `;
+
+      openModal('matrix-detail-modal');
+      if (window.lucide) lucide.createIcons({ target: modal });
+    };
+
+    window._matrixModalSearch = function(query) {
+      const modal = document.getElementById('matrix-detail-modal');
+      if (!modal) return;
+      const rows = modal.querySelectorAll('.matrix-modal-task-row');
+      rows.forEach(row => {
+        const text = row.querySelector('.task-name-text').textContent.toLowerCase();
+        if (text.includes(query.toLowerCase())) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    };
+
+    window.renderModuleStatusMatrix = function (msmCard, tasks, isReport = false) {
+      const modules = P.dropdowns.module || ['General'];
+      const types = P.dropdowns.moduleType || ['Client / Frontend', 'Server / Backend', 'Database / Storage', 'API / Integration', 'UI / UX Design', 'Other'];
+      if (!modules.length || !types.length) return;
+
+      const matrixId = isReport ? 'rpt-matrix' : 'dash-matrix';
+      
+      if (!window._matrixStates[matrixId]) {
+        window._matrixStates[matrixId] = {
+          viewMode: 'status',
+          searchQuery: '',
+          priority: 'All',
+          assignee: 'All'
+        };
+      }
+      
+      const state = window._matrixStates[matrixId];
+      window._matrixInstances[matrixId] = { card: msmCard, tasks, isReport };
+
+      const cb = msmCard.querySelector('.cb');
+      cb.style.padding = '0';
+      cb.innerHTML = '';
+
+      const ctrlBar = document.createElement('div');
+      ctrlBar.className = 'matrix-control-bar';
+      ctrlBar.style = "display:flex; flex-wrap:wrap; gap:16px; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--color-border-faint); background:var(--color-surface-2)";
+      
+      ctrlBar.innerHTML = `
+        <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center; flex:1">
+          <div style="position:relative; min-width:200px">
+            <i data-lucide="search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); width:14px; height:14px; color:var(--color-text-faint)"></i>
+            <input type="text" class="matrix-search" placeholder="Search tasks..." value="${esc(state.searchQuery)}" style="width:100%; padding:8px 12px 8px 34px; font-size:12px; border-radius:10px; border:1px solid var(--color-border); background:var(--color-surface); color:var(--color-text); outline:none; transition:border 0.2s" oninput="window._matrixStateChange('${matrixId}', 'searchQuery', this.value)" />
+          </div>
+          <select style="padding:8px 12px; font-size:12px; border-radius:10px; border:1px solid var(--color-border); background:var(--color-surface); color:var(--color-text); outline:none" onchange="window._matrixStateChange('${matrixId}', 'priority', this.value)">
+            <option value="All">All Priorities</option>
+            <option value="Critical" ${state.priority === 'Critical' ? 'selected' : ''}>Critical</option>
+            <option value="High" ${state.priority === 'High' ? 'selected' : ''}>High</option>
+            <option value="Medium" ${state.priority === 'Medium' ? 'selected' : ''}>Medium</option>
+            <option value="Low" ${state.priority === 'Low' ? 'selected' : ''}>Low</option>
+          </select>
+          <select style="padding:8px 12px; font-size:12px; border-radius:10px; border:1px solid var(--color-border); background:var(--color-surface); color:var(--color-text); outline:none" onchange="window._matrixStateChange('${matrixId}', 'assignee', this.value)">
+            <option value="All">All Assignees</option>
+            ${(P.members || []).map(m => `<option value="${esc(m.name)}" ${state.assignee === m.name ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}
+          </select>
+        </div>
+        
+        <div style="display:flex; background:var(--color-surface-3); padding:3px; border-radius:12px; border:1px solid var(--color-border-faint)">
+          <button class="btn-toggle" onclick="window._matrixStateChange('${matrixId}', 'viewMode', 'status')" style="padding:6px 12px; font-size:11px; font-weight:700; border-radius:10px; border:none; background:${state.viewMode === 'status' ? 'var(--color-surface)' : 'transparent'}; color:${state.viewMode === 'status' ? 'var(--color-text)' : 'var(--color-text-muted)'}; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:${state.viewMode === 'status' ? 'var(--shadow-sm)' : 'none'}; transition:all 0.2s">
+            <i data-lucide="layout-grid" style="width:12px; height:12px"></i> Dominant Status
+          </button>
+          <button class="btn-toggle" onclick="window._matrixStateChange('${matrixId}', 'viewMode', 'progress')" style="padding:6px 12px; font-size:11px; font-weight:700; border-radius:10px; border:none; background:${state.viewMode === 'progress' ? 'var(--color-surface)' : 'transparent'}; color:${state.viewMode === 'progress' ? 'var(--color-text)' : 'var(--color-text-muted)'}; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:${state.viewMode === 'progress' ? 'var(--shadow-sm)' : 'none'}; transition:all 0.2s">
+            <i data-lucide="sparkles" style="width:12px; height:12px"></i> Progress Heatmap
+          </button>
+          <button class="btn-toggle" onclick="window._matrixStateChange('${matrixId}', 'viewMode', 'volume')" style="padding:6px 12px; font-size:11px; font-weight:700; border-radius:10px; border:none; background:${state.viewMode === 'volume' ? 'var(--color-surface)' : 'transparent'}; color:${state.viewMode === 'volume' ? 'var(--color-text)' : 'var(--color-text-muted)'}; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:${state.viewMode === 'volume' ? 'var(--shadow-sm)' : 'none'}; transition:all 0.2s">
+            <i data-lucide="bar-chart-2" style="width:12px; height:12px"></i> Task Volume
+          </button>
+          <button class="btn-toggle" onclick="window._matrixStateChange('${matrixId}', 'viewMode', 'effort')" style="padding:6px 12px; font-size:11px; font-weight:700; border-radius:10px; border:none; background:${state.viewMode === 'effort' ? 'var(--color-surface)' : 'transparent'}; color:${state.viewMode === 'effort' ? 'var(--color-text)' : 'var(--color-text-muted)'}; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:${state.viewMode === 'effort' ? 'var(--shadow-sm)' : 'none'}; transition:all 0.2s">
+            <i data-lucide="clock" style="width:12px; height:12px"></i> Hours / Effort
+          </button>
+        </div>
+      `;
+      cb.appendChild(ctrlBar);
+
+      const tableWrap = document.createElement('div');
+      tableWrap.className = 'table-wrap custom-scroll';
+      tableWrap.style = "overflow-x:auto; width:100%; border-radius:0 0 20px 20px; padding: 12px;";
+
+      let ths = types.map(ty => `<th style="text-align:center;font-size:11px;color:var(--color-text-muted);font-weight:800;padding:12px 8px;background:var(--color-surface-2);border-bottom:2px solid var(--color-border-faint);min-width:130px">${esc(ty.split('/')[0].trim().toUpperCase())}</th>`).join('');
+      ths += `<th style="text-align:center;font-size:11px;color:var(--color-primary);font-weight:800;padding:12px 8px;background:var(--color-surface-2);border-bottom:2px solid var(--color-border-faint);min-width:130px">OVERALL COMP.</th>`;
+
+      const columnTotals = types.map(() => ({ tasks: [], completed: 0, progressSum: 0 }));
+      let grandTotalTasks = 0;
+      let grandCompletedTasks = 0;
+
+      let rows = modules.map((m, mi) => {
+        let rowTasks = [];
+        let rowCompleted = 0;
+        
+        let tds = types.map((ty, ti) => {
+          const cellTasks = tasks.filter(t => {
+            const inCell = (t.module === m || (!t.module && m === 'General')) && (t.moduleType === ty || (!t.moduleType && ty === types[0]));
+            if (!inCell) return false;
+            
+            if (state.searchQuery && !t.name.toLowerCase().includes(state.searchQuery.toLowerCase())) return false;
+            if (state.priority !== 'All' && t.priority !== state.priority) return false;
+            if (state.assignee !== 'All' && t.assignee !== state.assignee) return false;
+            
+            return true;
+          });
+
+          rowTasks = rowTasks.concat(cellTasks);
+          cellTasks.forEach(t => {
+            if (t.status === 'Completed') rowCompleted++;
+            columnTotals[ti].tasks.push(t);
+            if (t.status === 'Completed') columnTotals[ti].completed++;
+            columnTotals[ti].progressSum += (parseInt(t.progress) || 0);
+          });
+
+          if (!cellTasks.length) {
+            return `<td style="text-align:center;padding:12px;border:1px solid var(--color-divider-faint);background:var(--color-surface-1)"><span style="color:var(--color-text-faint);font-size:12px">—</span></td>`;
+          }
+
+          const cellId = `cell-${matrixId}-${mi}-${ti}`;
+          window._matrixCellTasks[cellId] = cellTasks;
+          window._matrixCellMeta[cellId] = { module: m, type: ty };
+
+          let cellHTML = '';
+          let bg = 'var(--color-surface-1)';
+          const hasBlocked = cellTasks.some(t => t.status === 'Blocked');
+
+          if (state.viewMode === 'status') {
+            const stMap = {}; cellTasks.forEach(t => stMap[t.status] = (stMap[t.status] || 0) + 1);
+            let domSt = 'Not Started', maxC = 0;
+            Object.entries(stMap).forEach(([st, c]) => { if (c > maxC) { maxC = c; domSt = st; } });
+
+            const stCls = ST_CLS[domSt] || 'not-started';
+            let stIcon = 'circle';
+            if (domSt === 'Completed') stIcon = 'check-circle-2';
+            else if (domSt === 'In Progress') stIcon = 'clock';
+            else if (domSt === 'On Hold') stIcon = 'pause-circle';
+            else if (domSt === 'Under Review') stIcon = 'eye';
+            else if (domSt === 'Blocked') stIcon = 'alert-octagon';
+
+            cellHTML = `
+              <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+                <span class="badge ${stCls}" style="font-size:10px;padding:4px 8px;display:inline-flex;align-items:center;gap:4px;box-shadow:0 2px 6px rgba(0,0,0,0.05)">
+                  <i data-lucide="${stIcon}" style="width:10px;height:10px"></i>${esc(domSt)}
+                </span>
+                <span style="font-size:12px;font-weight:700;color:var(--color-text);font-family:var(--font-mono);background:var(--color-surface-3);padding:2px 8px;border-radius:10px;border:1px solid var(--color-border-faint)">${cellTasks.length} task${cellTasks.length > 1 ? 's' : ''}</span>
+              </div>
+            `;
+          } else if (state.viewMode === 'progress') {
+            const avgProgress = Math.round(cellTasks.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / cellTasks.length);
+            const alpha = Math.max(0.08, avgProgress / 100 * 0.35);
+            bg = hasBlocked ? 'rgba(239, 68, 68, 0.12)' : `rgba(34, 197, 94, ${alpha})`;
+            
+            cellHTML = `
+              <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+                <span style="font-size:15px;font-weight:900;color:var(--color-primary);font-family:var(--font-mono)">${avgProgress}%</span>
+                <div style="width:60px;height:4px;background:var(--color-surface-3);border-radius:2px;overflow:hidden">
+                  <div style="width:${avgProgress}%;height:100%;background:var(--color-primary)"></div>
+                </div>
+              </div>
+            `;
+          } else if (state.viewMode === 'volume') {
+            const ratio = Math.min(1, cellTasks.length / 8);
+            const alpha = Math.max(0.05, ratio * 0.28);
+            bg = `rgba(var(--color-primary-rgb), ${alpha})`;
+
+            cellHTML = `
+              <div style="display:flex;align-items:center;justify-content:center">
+                <div style="width:30px;height:30px;border-radius:50%;background:var(--color-primary);color:white;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(var(--color-primary-rgb), 0.3)">
+                  ${cellTasks.length}
+                </div>
+              </div>
+            `;
+          } else if (state.viewMode === 'effort') {
+            const est = cellTasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+            const act = cellTasks.reduce((s, t) => s + (parseFloat(t.actEffort) || 0), 0);
+            const varHours = act - est;
+            if (varHours > 0) bg = 'rgba(239, 68, 68, 0.08)';
+            else if (cellTasks.every(t => t.status === 'Completed')) bg = 'rgba(34, 197, 94, 0.06)';
+
+            cellHTML = `
+              <div style="display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px">
+                <div style="font-weight:600;color:var(--color-text-muted)">Est: <span style="font-weight:700;color:var(--color-text)">${est}h</span></div>
+                <div style="font-weight:600;color:var(--color-text-muted)">Act: <span style="font-weight:700;color:var(--color-text)">${act}h</span></div>
+                ${varHours > 0 ? `<span style="font-size:9px;font-weight:700;color:var(--red);background:rgba(239,68,68,0.1);padding:1px 4px;border-radius:4px;margin-top:2px">+${varHours}h overrun</span>` : ''}
+              </div>
+            `;
+          }
+
+          return `<td class="matrix-cell ${hasBlocked ? 'has-blocked' : ''}" data-cell-id="${cellId}" style="background:${bg}" onmouseenter="window._matrixCellHover(event)" onmousemove="window._matrixCellMove(event)" onmouseleave="window._matrixCellLeave()" onclick="window._matrixCellClick(this)">
+            ${cellHTML}
+          </td>`;
+        }).join('');
+
+        grandTotalTasks += rowTasks.length;
+        grandCompletedTasks += rowCompleted;
+        
+        let rowTotalsHTML = '';
+        if (rowTasks.length > 0) {
+          const rowCompPct = Math.round(rowCompleted / rowTasks.length * 100);
+          rowTotalsHTML = `
+            <td style="padding:12px;border:1px solid var(--color-divider-faint);background:var(--color-surface-2);text-align:center;vertical-align:middle;font-weight:700">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+                <span style="font-size:12px;font-weight:800;color:var(--color-primary);font-family:var(--font-mono)">${rowCompPct}%</span>
+                <span style="font-size:10px;color:var(--color-text-muted)">${rowCompleted}/${rowTasks.length} done</span>
+                <div style="width:60px;height:4px;background:var(--color-surface-3);border-radius:2px;overflow:hidden">
+                  <div style="width:${rowCompPct}%;height:100%;background:var(--color-primary)"></div>
+                </div>
+              </div>
+            </td>
+          `;
+        } else {
+          rowTotalsHTML = `<td style="text-align:center;padding:12px;border:1px solid var(--color-divider-faint);background:var(--color-surface-2)"><span style="color:var(--color-text-faint);font-size:12px">—</span></td>`;
+        }
+
+        return `<tr style="transition:background 0.2s"><td style="font-weight:800;font-size:12px;color:var(--color-text);padding:14px 16px;background:var(--color-surface-2);border:1px solid var(--color-divider-faint);border-left:4px solid var(--color-primary);position:sticky;left:0;z-index:1;box-shadow:2px 0 8px rgba(0,0,0,0.02)">${esc(m)}</td>${tds}${rowTotalsHTML}</tr>`;
+      }).join('');
+
+      let colTotalsTds = columnTotals.map(col => {
+        if (!col.tasks.length) return `<td style="padding:12px;border-top:2px solid var(--color-border);background:var(--color-surface-2);text-align:center;color:var(--color-text-faint)">—</td>`;
+        const avgColProgress = Math.round(col.progressSum / col.tasks.length);
+        return `
+          <td style="padding:12px;border-top:2px solid var(--color-border);background:var(--color-surface-2);text-align:center;font-weight:700">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+              <span style="font-size:11px;font-family:var(--font-mono);color:var(--color-text)">${col.tasks.length} task${col.tasks.length > 1 ? 's' : ''}</span>
+              <span style="font-size:10px;color:var(--color-text-muted)">(${avgColProgress}% comp)</span>
+            </div>
+          </td>
+        `;
+      }).join('');
+
+      const grandCompPct = grandTotalTasks ? Math.round(grandCompletedTasks / grandTotalTasks * 100) : 0;
+      const grandTotalTds = `
+        <td style="padding:12px;border-top:2px solid var(--color-border);background:var(--color-surface-2);text-align:center;font-weight:800;color:var(--color-primary)">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+            <span style="font-size:12px;font-family:var(--font-mono)">${grandTotalTasks} tasks</span>
+            <span style="font-size:10px;color:var(--color-text-muted)">(${grandCompPct}% comp)</span>
+          </div>
+        </td>
+      `;
+
+      const totalsRow = `<tr><td style="font-weight:800;font-size:11px;color:var(--color-text);padding:14px 16px;background:var(--color-surface-2);border-top:2px solid var(--color-border);border-left:4px solid var(--color-primary)">TOTALS</td>${colTotalsTds}${grandTotalTds}</tr>`;
+
+      tableWrap.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;background:var(--color-surface-1);border-radius:var(--radius-lg);overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.03);border:1px solid var(--color-border)">
+          <thead>
+            <tr>
+              <th style="text-align:left;font-size:11px;color:var(--color-text-muted);font-weight:800;padding:12px 16px;background:var(--color-surface-2);border-bottom:2px solid var(--color-border-faint);min-width:140px;position:sticky;left:0;z-index:2">MODULE \\ TYPE</th>
+              ${ths}
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+            ${totalsRow}
+          </tbody>
+        </table>
+      `;
+      cb.appendChild(tableWrap);
+
+      if (window.lucide) lucide.createIcons({ target: msmCard });
+    };
+
     function renderDash() {
       const startTime = performance.now();
       const d = $id('vw-dash'); d.innerHTML = '';
@@ -20887,46 +21887,7 @@
             msmCard.style.gridColumn = `span ${msmSpan}`;
             grid.appendChild(msmCard);
 
-            const tableWrap = document.createElement('div');
-            tableWrap.className = 'table-wrap custom-scroll';
-            tableWrap.style.margin = '16px';
-
-            let ths = types.map(ty => `<th style="text-align:center;font-size:11px;color:var(--color-text-muted);font-weight:700;padding:12px 8px;background:var(--color-surface-2);border-bottom:2px solid var(--color-border-faint);min-width:120px">${esc(ty)}</th>`).join('');
-            let rows = modules.map(m => {
-              let tds = types.map(ty => {
-                const mtTasks = dashCache.byModule[m]?.byType[ty] || [];
-                if (!mtTasks.length) return `<td style="text-align:center;padding:12px;border:1px solid var(--color-divider-faint);background:var(--color-surface-1)"><span style="color:var(--color-text-faint);font-size:12px">—</span></td>`;
-
-                const stMap = {}; mtTasks.forEach(t => stMap[t.status] = (stMap[t.status] || 0) + 1);
-                let domSt = 'Not Started', maxC = 0;
-                Object.entries(stMap).forEach(([st, c]) => { if (c > maxC) { maxC = c; domSt = st; } });
-
-                const stCls = ST_CLS[domSt] || 'not-started';
-                let stIcon = 'circle';
-                if (domSt === 'Completed') stIcon = 'check-circle-2';
-                else if (domSt === 'In Progress') stIcon = 'clock';
-                else if (domSt === 'On Hold') stIcon = 'pause-circle';
-                else if (domSt === 'Under Review') stIcon = 'eye';
-
-                return `<td style="text-align:center;padding:12px;border:1px solid var(--color-divider-faint);background:var(--color-surface-1);transition:background 0.2s" onmouseover="this.style.background='var(--color-surface-2)'" onmouseout="this.style.background='var(--color-surface-1)'">
-                        <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
-                          <span class="badge ${stCls}" style="font-size:10px;padding:4px 8px;display:inline-flex;align-items:center;gap:4px;box-shadow:0 2px 6px rgba(0,0,0,0.05)">
-                            <i data-lucide="${stIcon}" style="width:10px;height:10px"></i>${esc(domSt)}
-                          </span>
-                          <span style="font-size:12px;font-weight:700;color:var(--color-text);font-family:var(--font-mono);background:var(--color-surface-3);padding:2px 8px;border-radius:10px;border:1px solid var(--color-border-faint)">${mtTasks.length} task${mtTasks.length > 1 ? 's' : ''}</span>
-                        </div>
-                      </td>`;
-              }).join('');
-
-              return `<tr><td style="font-weight:800;font-size:12px;color:var(--color-text);padding:14px 16px;background:var(--color-surface-2);border:1px solid var(--color-divider-faint);border-left:4px solid var(--color-primary);position:sticky;left:0;z-index:1;box-shadow:2px 0 8px rgba(0,0,0,0.02)">${esc(m)}</td>${tds}</tr>`;
-            }).join('');
-
-            tableWrap.innerHTML = `<table style="width:100%;border-collapse:collapse;background:var(--color-surface-1);border-radius:var(--radius-lg);overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.03);border:1px solid var(--color-border)">
-                    <thead><tr><th style="text-align:left;font-size:11px;color:var(--color-text-muted);font-weight:800;padding:12px 16px;background:var(--color-surface-2);border-bottom:2px solid var(--color-border-faint);min-width:140px;position:sticky;left:0;z-index:2">MODULE \\ TYPE</th>${ths}</tr></thead>
-                    <tbody>${rows}</tbody>
-                  </table>`;
-
-            msmCard.querySelector('.cb').appendChild(tableWrap);
+            renderModuleStatusMatrix(msmCard, tasks, false);
           }
         } else if (sec.id === 'defect_intel') {
           const defs = P.defects || [];
@@ -23830,6 +24791,46 @@
       const { ctx, W, H } = gCtx(cvs);
       if (!ctx || !labels || !labels.length) return;
 
+      // Dynamic hover listener binding
+      if (!cvs._wired) {
+        cvs._wired = true;
+        cvs._hoverIdx = -1;
+        cvs._mx = 0;
+        cvs._my = 0;
+
+        cvs.addEventListener('mousemove', (e) => {
+          const rect = cvs.getBoundingClientRect();
+          const scaleX = cvs.width / rect.width;
+          const scaleY = cvs.height / rect.height;
+          const mx = (e.clientX - rect.left) * scaleX / (window.devicePixelRatio || 1);
+          const my = (e.clientY - rect.top) * scaleY / (window.devicePixelRatio || 1);
+
+          const padL = 200, padR = 60, padT = 50, padB = 40;
+          const chartH = (cvs.height / (window.devicePixelRatio || 1)) - padT - padB;
+          const gap = chartH / labels.length;
+
+          let hoverIdx = -1;
+          labels.forEach((_, idx) => {
+            const y = padT + (idx * gap) + (gap / 2);
+            if (Math.abs(my - y) <= gap / 2) {
+              hoverIdx = idx;
+            }
+          });
+
+          if (cvs._hoverIdx !== hoverIdx || cvs._mx !== mx || cvs._my !== my) {
+            cvs._hoverIdx = hoverIdx;
+            cvs._mx = mx;
+            cvs._my = my;
+            drawWorkloadBar(cvs, labels, d1, d2, d3);
+          }
+        });
+
+        cvs.addEventListener('mouseleave', () => {
+          cvs._hoverIdx = -1;
+          drawWorkloadBar(cvs, labels, d1, d2, d3);
+        });
+      }
+
       const padL = 200, padR = 60, padT = 50, padB = 40;
       const chartW = W - padL - padR, chartH = H - padT - padB;
 
@@ -23858,18 +24859,56 @@
 
       const drawPill = (x, y, w, h, fill) => {
         if (w <= 0) return;
+        ctx.save();
         ctx.beginPath();
-        ctx.roundRect(x, y, w, h, h / 4);
-        ctx.fillStyle = fill;
+        ctx.roundRect(x, y, w, h, h / 2);
+        if (fill === themePrimary) {
+          const grad = ctx.createLinearGradient(x, y, x + w, y);
+          grad.addColorStop(0, '#6366f1');
+          grad.addColorStop(1, '#818cf8');
+          ctx.fillStyle = grad;
+        } else if (fill === themeGreen) {
+          const grad = ctx.createLinearGradient(x, y, x + w, y);
+          grad.addColorStop(0, '#22c55e');
+          grad.addColorStop(1, '#4ade80');
+          ctx.fillStyle = grad;
+        } else if (fill === themeRed) {
+          const grad = ctx.createLinearGradient(x, y, x + w, y);
+          grad.addColorStop(0, '#ef4444');
+          grad.addColorStop(1, '#f87171');
+          ctx.fillStyle = grad;
+        } else {
+          ctx.fillStyle = fill;
+        }
         ctx.fill();
+
+        // 3D Glass shine highlight for data metrics
+        if (fill === themePrimary || fill === themeGreen || fill === themeRed) {
+          const gloss = ctx.createLinearGradient(x, y, x, y + h);
+          gloss.addColorStop(0, 'rgba(255, 255, 255, 0.22)');
+          gloss.addColorStop(0.4, 'rgba(255, 255, 255, 0.05)');
+          gloss.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
+          gloss.addColorStop(1, 'rgba(0, 0, 0, 0.08)');
+          ctx.fillStyle = gloss;
+          ctx.fill();
+        }
+        ctx.restore();
       };
 
       labels.forEach((l, i) => {
         const y = padT + (i * gap) + (gap / 2);
         const v1 = d1[i] || 0, v2 = d2[i] || 0, v3 = d3[i] || 0;
 
-        ctx.textAlign = 'right'; ctx.font = '800 14px ' + (window.bodyFont || 'sans-serif'); ctx.fillStyle = themeText;
-        ctx.fillText(l || 'Unknown', padL - 20, y + 6);
+        // Background highlight on hover
+        if (cvs._hoverIdx === i) {
+          ctx.fillStyle = 'rgba(99, 102, 241, 0.06)';
+          ctx.beginPath();
+          ctx.roundRect(10, y - gap / 2, W - 20, gap, 8);
+          ctx.fill();
+        }
+
+        ctx.textAlign = 'right'; ctx.font = '800 13px var(--font-display), sans-serif'; ctx.fillStyle = themeText;
+        ctx.fillText(l || 'Unknown', padL - 20, y + 5);
 
         // Background track
         drawPill(padL, y - barH / 2, chartW, barH, 'rgba(var(--color-text-rgb), 0.03)');
@@ -23884,15 +24923,77 @@
 
         // 3. Overdue
         if (w3 > 0) {
-          ctx.shadowBlur = 4; ctx.shadowColor = themeRed + '66';
+          ctx.shadowBlur = 6; ctx.shadowColor = themeRed + '66';
           drawPill(padL, y - barH / 2, w3, barH, themeRed);
           ctx.shadowBlur = 0;
         }
 
-        // Data label
-        ctx.textAlign = "left"; ctx.font = "10px " + (window.monoFont || 'monospace'); ctx.fillStyle = themeMuted;
-        ctx.fillText(`${Math.round(v1)}d`, padL + Math.max(w1, w2, w3, 2) + 12, y + 5);
+        // Data label indicator text
+        ctx.textAlign = "left"; ctx.font = "bold 10px var(--font-mono), monospace"; ctx.fillStyle = themeMuted;
+        ctx.fillText(`${v1.toFixed(1)}d`, padL + Math.max(w1, w2, w3, 2) + 12, y + 4);
       });
+
+      // Interactive Slate-Glass Tooltip Card
+      if (cvs._hoverIdx !== undefined && cvs._hoverIdx !== -1 && cvs._mx !== undefined) {
+        const hoverIdx = cvs._hoverIdx;
+        const name = labels[hoverIdx] || 'Member';
+        const assigned = d1[hoverIdx] || 0;
+        const completed = d2[hoverIdx] || 0;
+        const overdue = d3[hoverIdx] || 0;
+
+        ctx.save();
+
+        const lines = [
+          { text: name, font: 'bold 12px var(--font-display)', color: '#ffffff' },
+          { text: `Assigned: ${assigned.toFixed(1)}d`, font: '600 11px var(--font-body)', color: '#a5b4fc', indicatorColor: '#6366f1' },
+          { text: `Completed: ${completed.toFixed(1)}d`, font: '600 11px var(--font-body)', color: '#86efac', indicatorColor: '#22c55e' },
+          { text: `Overdue: ${overdue.toFixed(1)}d`, font: '600 11px var(--font-body)', color: '#fca5a5', indicatorColor: '#ef4444' }
+        ];
+
+        let tW = 160;
+        let tH = 85;
+        let tx = cvs._mx + 15;
+        let ty = cvs._my + 15;
+
+        // Canvas limits bounds check
+        if (tx + tW > W) tx = cvs._mx - tW - 15;
+        if (ty + tH > H) ty = cvs._my - tH - 15;
+
+        // Draw slate container with drop shadow
+        ctx.shadowBlur = 16; ctx.shadowColor = 'rgba(0, 0, 0, 0.25)'; ctx.shadowOffsetY = 6;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.96)';
+        ctx.beginPath();
+        ctx.roundRect(tx, ty, tW, tH, 10);
+        ctx.fill();
+
+        // Card border stroke
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'; ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+
+        // Text details rendering
+        let currY = ty + 18;
+        lines.forEach((line) => {
+          ctx.fillStyle = line.color;
+          ctx.font = line.font;
+          ctx.textAlign = 'left';
+
+          if (line.indicatorColor) {
+            ctx.beginPath();
+            ctx.arc(tx + 12, currY - 3.5, 3.5, 0, Math.PI * 2);
+            ctx.fillStyle = line.indicatorColor;
+            ctx.fill();
+
+            ctx.fillStyle = line.color;
+            ctx.fillText(line.text, tx + 24, currY);
+          } else {
+            ctx.fillText(line.text, tx + 12, currY);
+          }
+          currY += 18;
+        });
+
+        ctx.restore();
+      }
     }
 
     function drawVelocityLine(cvs, labels, data) {
@@ -26227,6 +27328,7 @@
       try {
         const d = localStorage.getItem('pp-dash-layout'); if (d) P.dashLayout = JSON.parse(d);
         const r = localStorage.getItem('pp-report-layout'); if (r) P.reportLayout = JSON.parse(r);
+        const t = localStorage.getItem('pp-team-layout'); if (t) P.teamLayout = JSON.parse(t);
         const w = localStorage.getItem('pp-widget-spans'); if (w) P.widgetSpans = JSON.parse(w);
 
         if (Array.isArray(P.dashLayout)) {
@@ -31062,6 +32164,1039 @@
 
     window.exportProjectExcel = exportProjectExcel;
     window.exportProjectCSV = exportProjectCSV;
+
+    function renderTeamPlannerWidgets() {
+      const inner = $id('team-inner'); inner.innerHTML = '';
+      $id('v-title').innerHTML = `<i data-lucide="users" style="margin-right:10px"></i> Team & Resource Planner`;
+      $id('view-actions').innerHTML = ``; // Handled globally
+
+      const CC = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#06b6d4'];
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      const parseBday = (bStr) => {
+        if (!bStr) return null;
+        const s = String(bStr);
+        if (s.includes('-') || s.includes('/')) {
+          const d = new Date(s);
+          if (!isNaN(d)) {
+            let bd = new Date(now.getFullYear(), d.getMonth(), d.getDate());
+            if (bd < today) bd.setFullYear(now.getFullYear() + 1);
+            return bd;
+          }
+        }
+        const parts = s.split(/[ \-]/);
+        if (parts.length < 2) return null;
+        const day = parseInt(parts[0]);
+        const monIdx = months.findIndex(m => parts[1].toLowerCase().startsWith(m.toLowerCase()));
+        if (isNaN(day) || monIdx < 0) return null;
+        let bdayDate = new Date(now.getFullYear(), monIdx, day);
+        if (bdayDate < today) bdayDate.setFullYear(now.getFullYear() + 1);
+        return bdayDate;
+      };
+
+      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+      const upcomingBdays = P.members
+        .filter(m => m.birthday && (m.status === 'Active' || m.status === 'Serving Notice Period' || m.status === 'On Leave'))
+        .map(m => ({ ...m, _bdayDate: parseBday(m.birthday) }))
+        .filter(m => m._bdayDate && (m._bdayDate - today) <= thirtyDaysMs && (m._bdayDate - today) >= 0)
+        .sort((a, b) => a._bdayDate - b._bdayDate);
+
+      const upLeaves = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').flatMap(m => {
+        let pl = m.plannedLeaves || [];
+        if (typeof pl === 'string') { try { pl = JSON.parse(pl); } catch (e) { pl = []; } }
+        if (!Array.isArray(pl)) pl = [];
+        return pl.map(lv => ({ name: m.name, ...lv }));
+      }).filter(lv => lv && lv.to && new Date(lv.to) >= today).sort((a, b) => new Date(a.from) - new Date(b.from));
+
+      const defTeamLayout = [
+        { id: 'bdays', t: 'Upcoming Birthdays', on: true },
+        { id: 'leaves', t: 'Upcoming Leaves', on: true },
+        { id: 'capacity_summary', t: 'Overall Resource Capacity', on: true },
+        { id: 'capacity_heatmap', t: 'Capacity Heatmap', on: true },
+        { id: 'workload_balance', t: 'Workload Balance', on: true },
+        { id: 'capacity_shortfalls', t: 'Predictive Capacity Shortfalls', on: true },
+        { id: 'burn_rate', t: 'Effort & Budget Burn-Rate Trajectory', on: true },
+        { id: 'team_velocity', t: 'Team Velocity', on: true },
+        { id: 'team_directory', t: 'Team Directory', on: true },
+        { id: 'org_chart', t: 'Organization Chart', on: true }
+      ];
+
+      let teamLayout = (Array.isArray(P.teamLayout) && P.teamLayout.length) ? P.teamLayout : defTeamLayout;
+      const seen = new Set();
+      teamLayout = teamLayout.filter(sec => {
+        if (seen.has(sec.id)) return false;
+        seen.add(sec.id);
+        return true;
+      });
+      P.teamLayout = teamLayout;
+
+      teamLayout.forEach((sec, si) => {
+        if (!sec.on) return;
+
+        const widgetWrapper = document.createElement('div');
+        widgetWrapper.className = 'team-widget-wrapper';
+        widgetWrapper.dataset.id = sec.id;
+        widgetWrapper.dataset.index = si;
+        widgetWrapper.dataset.title = sec.t;
+
+        if (sec.id === 'capacity_shortfalls' || sec.id === 'burn_rate') {
+          widgetWrapper.style.gridColumn = 'span 2';
+        } else {
+          widgetWrapper.style.gridColumn = 'span 4';
+        }
+
+        inner.appendChild(widgetWrapper);
+        const cleanId = sec.id;
+
+        if (cleanId === 'bdays') {
+          if (upcomingBdays.length) {
+            const bdaysDiv = document.createElement('div');
+            bdaysDiv.className = 'card';
+            bdaysDiv.style = 'background:var(--color-surface-2);border:none;margin-bottom:0';
+            const daysUntil = (d) => Math.ceil((d - today) / (24 * 60 * 60 * 1000));
+            bdaysDiv.innerHTML = `
+              <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--color-text-muted);margin-bottom:12px;display:flex;align-items:center;gap:8px">
+                <i data-lucide="cake"></i> Upcoming Birthdays (Next 30 Days)
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:12px">
+                ${upcomingBdays.map(m => {
+                  const d = daysUntil(m._bdayDate);
+                  const label = d === 0 ? '🎉 Today!' : d === 1 ? 'Tomorrow' : d + ' days';
+                  return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--color-surface);border-radius:var(--radius-md);border:1px solid ${d <= 3 ? 'var(--color-primary)' : 'var(--color-border)'};box-shadow:var(--shadow-sm);transition:all var(--tr-spring);cursor:default" class="card-glow-hover">
+                    <div style="font-weight:700;font-size:12px">${esc(m.name)}</div>
+                    <div style="font-size:10px;color:var(--color-text-faint);font-family:var(--mono)">${esc(m.birthday)}</div>
+                    <div style="font-size:9px;font-weight:700;color:${d <= 3 ? 'var(--color-primary)' : 'var(--amber)'};background:${d <= 3 ? 'var(--acc-t,rgba(99,102,241,0.1))' : 'var(--amber-l)'};padding:1px 6px;border-radius:99px">${label}</div>
+                  </div>`;
+                }).join('')}
+              </div>
+            `;
+            widgetWrapper.appendChild(bdaysDiv);
+            if (window.lucide) lucide.createIcons(bdaysDiv);
+          } else {
+            widgetWrapper.style.display = 'none';
+          }
+        }
+
+        else if (cleanId === 'leaves') {
+          if (upLeaves.length) {
+            const leavesDiv = document.createElement('div');
+            leavesDiv.className = 'card';
+            leavesDiv.style = 'background:var(--color-surface-2);border:none;margin-bottom:0';
+            const daysUntil = (d) => Math.ceil((new Date(d) - today) / (24 * 60 * 60 * 1000));
+            leavesDiv.innerHTML = `
+              <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--color-text-muted);margin-bottom:12px;display:flex;align-items:center;gap:8px">
+                <i data-lucide="plane"></i> Upcoming Leaves
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:12px">
+                ${upLeaves.slice(0, 12).map(lv => {
+                  const d = daysUntil(lv.from);
+                  const isToday = new Date(lv.from) <= today && new Date(lv.to) >= today;
+                  const label = isToday ? '🌴 Active' : d === 1 ? 'Tomorrow' : d + ' days';
+                  return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--color-surface);border-radius:var(--radius-md);border:1px solid ${isToday ? 'var(--amber)' : 'var(--color-border)'};box-shadow:var(--shadow-sm);transition:all var(--tr-spring);cursor:default" class="card-glow-hover">
+                    <div style="font-weight:700;font-size:12px">${esc(lv.name)}</div>
+                    <div style="font-size:10px;color:var(--color-text-faint);font-family:var(--mono)">${lv.from} → ${lv.to}</div>
+                    <div style="font-size:9px;font-weight:700;color:${isToday ? 'var(--amber)' : 'var(--color-text-muted)'};background:${isToday ? 'var(--amber-l)' : 'var(--color-surface-2)'};padding:1px 6px;border-radius:99px">${label}</div>
+                  </div>`;
+                }).join('')}
+              </div>
+            `;
+            widgetWrapper.appendChild(leavesDiv);
+            if (window.lucide) lucide.createIcons(leavesDiv);
+          } else {
+            widgetWrapper.style.display = 'none';
+          }
+        }
+
+        else if (cleanId === 'capacity_summary') {
+          const capId = 'res-capacity-summary';
+          const uLabel = P.settings.effortUnit === 'hrs' ? 'Hours' : P.settings.effortUnit === 'months' ? 'Months' : 'Days';
+          const uLabelLower = uLabel.toLowerCase();
+          const capCard = mkCC('Overall Resource Capacity', 'Individual utilization vs total capacity', capId, '', 'standard', `<b>Resource Load Analysis:</b> Visualizes the current 'Effort Density' for every active team member. <br><br><b>Calculation Logic:</b><br>Percentage = (Sum of Estimated ${uLabel} for ALL Pending Tasks) / (Weekly Capacity)<br>• 100% means the member is fully booked for exactly one week.<br><br><b>Legend:</b> <br>• <span style='color:var(--red)'>Red (100%+)</span>: Over-allocated. <br>• <span style='color:var(--amber)'>Amber (80-100%)</span>: High Capacity. <br>• <span style='color:var(--color-primary)'>Blue (<80%)</span>: Healthy availability.`, 'View Explanation', 'users');
+          capCard.style.gridColumn = '1 / -1';
+          widgetWrapper.appendChild(capCard);
+
+          const capBody = capCard.querySelector('.cb');
+          capBody.style.padding = '20px';
+
+          const capThreshold = P.settings.workDays || 5;
+          let capHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(250px, 1fr));gap:24px">`;
+          P.members.filter(m => m.status === 'Active' || m.status === 'Serving Notice Period').forEach((m, idx) => {
+            const memberTasks = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled');
+            const days = memberTasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+            const actualPct = (days / capThreshold) * 100;
+            const barPct = Math.min(100, actualPct);
+
+            let statusText = 'Optimal';
+            let statusBg = 'rgba(34, 197, 94, 0.1)';
+            let statusColor = 'var(--color-green)';
+            if (actualPct > 100) {
+              statusText = 'Overloaded';
+              statusBg = 'rgba(239, 68, 68, 0.1)';
+              statusColor = 'var(--red)';
+            } else if (actualPct > 80) {
+              statusText = 'High Load';
+              statusBg = 'rgba(245, 158, 11, 0.1)';
+              statusColor = 'var(--amber)';
+            } else if (actualPct < 40) {
+              statusText = 'Available';
+              statusBg = 'rgba(99, 102, 241, 0.08)';
+              statusColor = 'var(--color-primary)';
+            }
+
+            const color = actualPct > 100 ? 'var(--red)' : actualPct > 80 ? 'var(--amber)' : 'var(--color-primary)';
+            const barGradient = actualPct > 100 ? 'linear-gradient(90deg, var(--red), #f87171)' : actualPct > 80 ? 'linear-gradient(90deg, var(--amber), #fbbf24)' : 'linear-gradient(90deg, var(--color-primary), #818cf8)';
+            const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+            const avatarBg = CC[idx % CC.length];
+
+            capHtml += `
+              <div style="background:var(--color-surface-2);padding:16px;border-radius:var(--radius-lg);border:1px solid var(--color-border-faint);box-shadow:var(--shadow-sm);transition:all var(--tr-spring);display:flex;flex-direction:column;gap:12px" class="card-glow-hover">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+                  <div style="display:flex;align-items:center;gap:10px;min-width:0">
+                    <div style="width:34px;height:34px;border-radius:50%;background:${avatarBg};color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0;box-shadow:var(--shadow-sm);border:1px solid rgba(255,255,255,0.1)">${initials}</div>
+                    <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">
+                      <div style="font-weight:900;font-size:14px;color:var(--color-text)">${esc(m.name)}</div>
+                      <div style="font-size:10px;color:var(--color-text-faint);font-weight:700">${esc(m.role || 'Member')}</div>
+                    </div>
+                  </div>
+                  <span style="padding:3px 8px;background:${statusBg};border:1px solid ${statusColor}22;color:${statusColor};border-radius:12px;font-size:9px;font-weight:800;white-space:nowrap">${statusText}</span>
+                </div>
+
+                <div style="display:flex;justify-content:space-between;align-items:flex-end;font-size:11px;font-weight:700;color:var(--color-text-muted)">
+                  <span>Weekly Load</span>
+                  <span style="color:${color}">${days.toFixed(1)}d / ${Math.round(actualPct)}%</span>
+                </div>
+
+                <div style="height:10px;background:var(--color-surface-3);border-radius:6px;overflow:hidden;box-shadow:inset 0 2px 4px rgba(0,0,0,0.15), 0 1px 0 rgba(255,255,255,0.05)">
+                  <div style="width:${barPct}%;height:100%;background:linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.12) 100%), ${barGradient};border-radius:6px;transition:width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)"></div>
+                </div>
+
+                ${memberTasks.length ? `
+                  <div style="margin-top:4px;border-top:1px dashed var(--color-divider);padding-top:10px">
+                    <div style="font-size:9px;font-weight:800;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
+                      <span>Primary Commitments</span>
+                      <span style="opacity:0.6">${memberTasks.length} tasks</span>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:5px">
+                      ${memberTasks.slice(0, 3).map(t => `
+                        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--color-text-muted);gap:8px" title="${esc(t.name)}">
+                          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">• ${esc(t.name)}</span>
+                          <span style="font-weight:700;color:var(--color-text-faint);font-family:var(--mono)">${(parseFloat(t.estEffort) || 0).toFixed(1)}d</span>
+                        </div>
+                      `).join('')}
+                      ${memberTasks.length > 3 ? `
+                        <div style="font-size:9px;color:var(--color-primary);font-weight:700;text-align:right;cursor:pointer;opacity:0.8" onclick="showMemberTaskDrilldown('${esc(m.name)}')">
+                          +${memberTasks.length - 3} more task${memberTasks.length - 3 > 1 ? 's' : ''}
+                        </div>
+                      ` : ''}
+                    </div>
+                  </div>
+                ` : `
+                  <div style="font-size:10px;color:var(--color-text-faint);text-align:center;padding:12px 0;font-style:italic">
+                    No active commitments
+                  </div>
+                `}
+              </div>
+            `;
+          });
+          capHtml += `</div>`;
+
+          const otherMembers = P.members.filter(m => m.status === 'Other Assignment');
+          if (otherMembers.length) {
+            capHtml += `
+              <div style="margin-top:24px;padding-top:24px;border-top:1px dashed var(--color-divider)">
+                <div style="font-size:11px;font-weight:800;color:var(--color-primary);text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+                  ⚡ Potential Capacity Impact (If Added to Project)
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:24px;opacity:0.8">
+            `;
+            otherMembers.forEach((m, oIdx) => {
+              const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+              const avatarBg = CC[(oIdx + P.members.length) % CC.length];
+              capHtml += `
+                <div style="background:var(--color-surface-2);padding:14px;border-radius:var(--radius-lg);border:1px dashed var(--color-border-faint);display:flex;align-items:center;justify-content:space-between;gap:12px">
+                  <div style="display:flex;align-items:center;gap:10px;min-width:0">
+                    <div style="width:30px;height:30px;border-radius:50%;background:${avatarBg};color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;opacity:0.8">${initials}</div>
+                    <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">
+                      <div style="font-weight:700;font-size:13px;color:var(--color-text-faint)">${esc(m.name)}</div>
+                      <div style="font-size:10px;color:var(--color-text-faint);font-weight:600">${esc(m.role || 'Member')}</div>
+                    </div>
+                  </div>
+                  <span style="font-size:10px;font-weight:700;color:var(--color-text-faint);background:var(--color-surface-3);padding:2px 8px;border-radius:12px;border:1px solid var(--color-border)">+${capThreshold.toFixed(1)}d Cap</span>
+                </div>
+              `;
+            });
+            capHtml += `</div></div>`;
+          }
+          capBody.innerHTML = capHtml;
+          if (window.lucide) lucide.createIcons(capCard);
+        }
+
+        else if (cleanId === 'capacity_heatmap') {
+          const heatId = 'res-heatmap';
+          const heatCard = mkCC('Capacity Heatmap', '12-week resource allocation', heatId, '', 'standard', "<b>Temporal Capacity Forecasting:</b> A 12-week predictive model showing team availability.", 'View Explanation', 'grid');
+          heatCard.style.gridColumn = '1 / -1';
+          widgetWrapper.appendChild(heatCard);
+
+          const heatBody = heatCard.querySelector('.cb');
+          heatBody.style.overflowX = 'auto';
+          heatBody.style.padding = '12px';
+
+          const weeks = [];
+          const now = new Date();
+          const day = now.getDay() || 7;
+          const monday = new Date(now); monday.setDate(now.getDate() - day + 1);
+
+          for (let i = 0; i < 12; i++) {
+            const d = new Date(monday); d.setDate(monday.getDate() + i * 7);
+            const wNum = getWeekNumber(d);
+            weeks.push({ date: d, label: `W${wNum}\n${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` });
+          }
+
+          let heatHtml = `<table class="task-tbl glass-table" style="min-width:1000px;border-collapse:collapse;border:1px solid var(--color-border-faint);border-radius:var(--radius-lg);overflow:hidden">
+            <thead>
+              <tr style="background:rgba(var(--color-surface-2-rgb, 243, 244, 246), 0.65); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-bottom:2px solid var(--color-border)">
+                <th style="width:220px;padding:14px;text-align:left;border-bottom:2px solid var(--color-border)"><div class="thin" style="font-weight:800">Member</div></th>`;
+          weeks.forEach(w => {
+            heatHtml += `<th style="text-align:center;padding:10px;border-bottom:2px solid var(--color-border);border-left:1px solid var(--color-border-faint)">
+              <div class="thin" style="justify-content:center;text-align:center;font-size:10px;line-height:1.2;font-weight:800">${w.label.replace('\n', '<br>')}</div>
+            </th>`;
+          });
+          heatHtml += `</tr></thead><tbody>`;
+
+          const standardCap = 5;
+          if (!P.members || !P.members.length) {
+            heatHtml += `<tr><td colspan="${weeks.length + 1}" style="padding:40px;text-align:center;color:var(--color-text-faint)">No team members found in project state.</td></tr>`;
+          } else {
+            P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').forEach((m, idx) => {
+              const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+              heatHtml += `<tr>
+                <td style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-right:2px solid var(--color-border);border-bottom:1px solid var(--color-border-faint);background:var(--color-surface);font-weight:700">
+                  <div style="width:30px;height:30px;border-radius:50%;background:${CC[idx % CC.length]};color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;box-shadow:var(--shadow-sm)">${initials}</div>
+                  <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">
+                    <div style="font-weight:800;font-size:13px;color:var(--color-text)">${esc(m.name)}</div>
+                    <div style="font-size:10px;color:var(--color-text-faint);font-weight:600">${esc(m.role || 'Member')}</div>
+                  </div>
+                </td>`;
+
+              weeks.forEach(w => {
+                const weekStart = new Date(w.date), weekEnd = new Date(w.date); weekEnd.setDate(weekEnd.getDate() + 6);
+                const tks = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) >= weekStart && new Date(t.dueDate) <= weekEnd);
+                const effort = tks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+
+                let leaveDays = 0;
+                (m.plannedLeaves || []).forEach(l => {
+                  const ls = new Date(l.from), le = new Date(l.to);
+                  const overlapS = new Date(Math.max(weekStart, ls));
+                  const overlapE = new Date(Math.min(weekEnd, le));
+                  if (overlapS <= overlapE) leaveDays += (Math.ceil((overlapE - overlapS) / 864e5) + 1);
+                });
+                const weekCap = Math.max(0, standardCap - leaveDays);
+
+                let bg = 'var(--color-surface)', color = 'var(--color-text-faint)', icon = '', bl = 'none', borderSt = '';
+                if (effort > weekCap && weekCap > 0) {
+                  bg = 'linear-gradient(135deg, rgba(239, 68, 68, 0.88), rgba(248, 113, 113, 0.88))'; color = '#fff'; bl = 'blur(6px)';
+                } else if (effort > 0) {
+                  const ratio = Math.min(1, effort / standardCap);
+                  if (ratio > 0.8) {
+                    bg = 'linear-gradient(135deg, rgba(99, 102, 241, 0.88), rgba(129, 140, 248, 0.88))'; color = '#fff'; bl = 'blur(6px)';
+                  } else if (ratio > 0.4) {
+                    bg = 'rgba(99, 102, 241, 0.16)'; color = 'var(--color-text)'; bl = 'blur(4px)'; borderSt = '1px solid rgba(99, 102, 241, 0.25)';
+                  } else {
+                    bg = 'rgba(99, 102, 241, 0.08)'; color = 'var(--color-text-muted)'; borderSt = '1px solid rgba(99, 102, 241, 0.1)';
+                  }
+                }
+                if (leaveDays > 0) icon = '<span title="On Leave" style="margin-left:4px;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.2))">🌴</span>';
+
+                const title = `${m.name}: ${effort.toFixed(1)}d / ${weekCap.toFixed(1)}d cap`;
+                heatHtml += `<td onclick="filterToWeek('${m.name}', '${weekStart.toISOString()}', '${weekEnd.toISOString()}')" title="${title}" class="heatmap-cell" style="background:${bg};color:${color};backdrop-filter:${bl};-webkit-backdrop-filter:${bl};text-align:center;font-size:11px;font-weight:800;cursor:pointer;border-right:1px solid var(--color-border-faint);border-bottom:1px solid var(--color-border-faint);border:${borderSt || 'none'};transition:all var(--tr-spring)">${effort > 0 ? effort.toFixed(1) + 'd' : '—'}${icon}</td>`;
+              });
+              heatHtml += '</tr>';
+            });
+          }
+          heatHtml += `</tbody></table>`;
+          heatBody.innerHTML = heatHtml;
+          if (window.lucide) lucide.createIcons(heatCard);
+        }
+
+        else if (cleanId === 'workload_balance') {
+          const balId = 'res-workload';
+          const balCard = mkCC('Workload Balance', 'Assigned vs Completed vs Overdue effort', balId, '', 'standard', "<b>Execution Efficiency Analysis:</b> Compares total effort 'Assigned' to each member against their 'Completed' throughput and 'Overdue' baggage.", 'View Explanation', 'bar-chart-2');
+          balCard.style.gridColumn = '1 / -1';
+          widgetWrapper.appendChild(balCard);
+
+          const balCvs = mkCvs(800, Math.max(400, P.members.length * 60));
+          balCard.querySelector('.cb').appendChild(balCvs);
+
+          const balLeg = document.createElement('div'); balLeg.className = 'cleg';
+          balLeg.innerHTML = '<div class="cli"><div class="cdot" style="background:var(--color-primary)"></div>Assigned</div><div class="cli"><div class="cdot" style="background:var(--color-green)"></div>Completed</div><div class="cli"><div class="cdot" style="background:var(--red)"></div>Overdue</div>';
+          balCard.querySelector('.cb').appendChild(balLeg);
+
+          setTimeout(() => {
+            let sortedMembers = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').map(m => {
+              const assigned = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Cancelled').reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+              const completed = P.tasks.filter(t => t.assignee === m.name && t.status === 'Completed').reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+              const overdue = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) < now).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+              return { name: m.name, assigned, completed, overdue };
+            });
+            sortedMembers.sort((a, b) => b.assigned - a.assigned);
+
+            const labels = sortedMembers.map(m => m.name);
+            const d1 = sortedMembers.map(m => m.assigned);
+            const d2 = sortedMembers.map(m => m.completed);
+            const d3 = sortedMembers.map(m => m.overdue);
+
+            drawWorkloadBar(balCvs, labels, d1, d2, d3);
+          }, 300);
+        }
+
+        else if (cleanId === 'capacity_shortfalls') {
+          const shortId = 'res-capacity-shortfalls';
+          const shortCard = mkCC('Predictive Capacity Shortfalls', 'Upcoming sprint bottlenecks & leave deficits', shortId, '', 'standard', "<b>Predictive Bottleneck Analysis:</b> Scans the upcoming 12 weeks to identify sprints where assigned task effort exceeds available team capacity.", 'View Explanation', 'alert-triangle');
+          shortCard.style.gridColumn = '1 / -1';
+          widgetWrapper.appendChild(shortCard);
+
+          const shortBody = shortCard.querySelector('.cb');
+
+          const weeks = [];
+          const now = new Date();
+          const day = now.getDay() || 7;
+          const monday = new Date(now); monday.setDate(now.getDate() - day + 1);
+
+          for (let i = 0; i < 12; i++) {
+            const d = new Date(monday); d.setDate(monday.getDate() + i * 7);
+            const wNum = getWeekNumber(d);
+            weeks.push({ date: d, label: `W${wNum}\n${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` });
+          }
+
+          let shortHtml = `<div style="padding:16px;display:flex;flex-direction:column;gap:12px">`;
+          let shortfallFound = false;
+
+          weeks.forEach(w => {
+            const weekStart = new Date(w.date), weekEnd = new Date(w.date); weekEnd.setDate(weekEnd.getDate() + 6);
+            let totalEffortDays = 0;
+            let totalCapDays = 0;
+            let bottleneckTasks = [];
+
+            const standardCap = 5;
+            P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').forEach(m => {
+              const tks = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) >= weekStart && new Date(t.dueDate) <= weekEnd);
+              const effort = tks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+              totalEffortDays += effort;
+              if (effort > 0) bottleneckTasks.push(...tks);
+
+              let leaveDays = 0;
+              (m.plannedLeaves || []).forEach(l => {
+                const ls = new Date(l.from), le = new Date(l.to);
+                const overlapS = new Date(Math.max(weekStart, ls));
+                const overlapE = new Date(Math.min(weekEnd, le));
+                if (overlapS <= overlapE) leaveDays += (Math.ceil((overlapE - overlapS) / 864e5) + 1);
+              });
+              totalCapDays += Math.max(0, standardCap - leaveDays);
+            });
+
+            if (totalEffortDays > totalCapDays && totalCapDays > 0) {
+              shortfallFound = true;
+              const deficit = totalEffortDays - totalCapDays;
+              shortHtml += `
+                <div style="padding:16px;background:var(--color-surface-2);border-radius:12px;border:1px solid var(--color-border-faint);border-left:4px solid var(--red);box-shadow:var(--shadow-sm), 0 4px 12px rgba(239,68,68,0.04);display:flex;flex-direction:column;gap:8px;transition:all var(--tr-spring)" class="card-glow-hover">
+                  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                    <div style="font-weight:800;font-size:14px;color:var(--color-text)">${w.label.replace('\n', ' · ')}</div>
+                    <span style="padding:2px 8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.2);color:var(--red);border-radius:12px;font-size:10px;font-weight:800">Deficit: ${deficit.toFixed(1)}d</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--color-text-muted)">
+                    <div>Required Effort: <b>${totalEffortDays.toFixed(1)}d</b></div>
+                    <div>Available Capacity: <b>${totalCapDays.toFixed(1)}d</b></div>
+                  </div>
+                  <div style="font-size:11px;color:var(--color-text-faint);margin-top:4px">
+                    <b>Key Bottleneck Tasks:</b> ${bottleneckTasks.slice(0, 3).map(t => esc(t.name)).join(', ')}${bottleneckTasks.length > 3 ? ` (+${bottleneckTasks.length - 3} more)` : ''}
+                  </div>
+                </div>
+              `;
+            }
+          });
+
+          if (!shortfallFound) {
+            shortHtml += `
+              <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center">
+                <div style="font-size:28px;margin-bottom:8px;color:var(--color-green)">🌟</div>
+                <div style="font-weight:800;color:var(--color-text)">Zero Capacity Shortfalls</div>
+                <div style="font-size:12px;color:var(--color-text-muted);margin-top:4px">Team capacity is perfectly balanced to meet all commitments.</div>
+              </div>
+            `;
+          }
+          shortHtml += `</div>`;
+          shortBody.innerHTML = shortHtml;
+          if (window.lucide) lucide.createIcons(shortCard);
+        }
+
+        else if (cleanId === 'burn_rate') {
+          const burnId = 'res-burn-rate';
+          const burnCard = mkCC('Effort & Budget Burn-Rate Trajectory', 'Baseline commitments vs projected completion effort', burnId, '', 'standard', "<b>Financial & Effort Burn Trajectory:</b> Compares the original baseline days against the current actual burn + remaining estimated work.", 'View Explanation', 'trending-up');
+          burnCard.style.gridColumn = '1 / -1';
+          widgetWrapper.appendChild(burnCard);
+
+          const burnBody = burnCard.querySelector('.cb');
+          let totalBaselineHours = 0;
+          let totalActualHours = 0;
+          let totalRemainingEstHours = 0;
+
+          P.tasks.filter(t => t.status !== 'Cancelled').forEach(t => {
+            totalBaselineHours += (parseFloat(t.baselineEffort) || parseFloat(t.estEffort) || 0);
+            totalActualHours += (parseFloat(t.actEffort) || parseFloat(t.progress ? (parseFloat(t.estEffort) * parseFloat(t.progress) / 100) : 0) || 0);
+            if (t.status !== 'Completed') {
+              totalRemainingEstHours += (parseFloat(t.estEffort) || 0) * (1 - (parseFloat(t.progress) || 0) / 100);
+            }
+          });
+
+          const projectedTotalHours = totalActualHours + totalRemainingEstHours;
+          const hoursVariance = projectedTotalHours - totalBaselineHours;
+          const isOverrun = hoursVariance > 0;
+          const burnColor = isOverrun ? 'var(--red)' : 'var(--color-green)';
+          const burnBg = isOverrun ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)';
+
+          let burnHtml = `
+            <div style="padding:24px;display:flex;flex-direction:column;gap:20px">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;background:var(--color-surface-2);border-radius:12px;border:1px solid var(--color-border-faint)">
+                <div>
+                  <div style="font-size:11px;color:var(--color-text-muted);text-transform:uppercase;font-weight:700">Projected Completion Effort</div>
+                  <div style="font-size:28px;font-weight:900;color:var(--color-text);margin-top:4px">${Math.round(projectedTotalHours)} <span style="font-size:14px;color:var(--color-text-muted);font-weight:600">days</span></div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-size:11px;color:var(--color-text-muted);text-transform:uppercase;font-weight:700">Baseline Charter</div>
+                  <div style="font-size:20px;font-weight:700;color:var(--color-text-muted);margin-top:4px">${Math.round(totalBaselineHours)} days</div>
+                </div>
+              </div>
+
+              <div style="padding:16px;background:${burnBg};border-radius:12px;border:1px solid ${burnColor};display:flex;align-items:center;gap:16px;box-shadow:var(--shadow-sm);transition:all var(--tr-spring)" class="card-glow-hover">
+                <div style="width:40px;height:40px;border-radius:50%;background:var(--color-surface);display:flex;align-items:center;justify-content:center;color:${burnColor};flex-shrink:0">
+                  <i data-lucide="${isOverrun ? 'alert-octagon' : 'check-circle'}" style="width:22px;height:22px"></i>
+                </div>
+                <div style="flex:1">
+                  <div style="font-weight:800;font-size:14px;color:${burnColor}">${isOverrun ? 'Budget Overrun Alert' : 'Tracking Within Charter Budget'}</div>
+                  <div style="font-size:12px;color:var(--color-text-muted);margin-top:2px">
+                    ${isOverrun ? `Project is forecast to exceed baseline by <b>${Math.round(hoursVariance)} days</b> (${Math.round((hoursVariance / totalBaselineHours) * 100)}%).` : `Project is forecast to complete <b>${Math.round(Math.abs(hoursVariance))} days</b> under budget.`}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:8px;color:var(--color-text-muted)">
+                  <span>Actual Burn (${Math.round(totalActualHours)}d)</span>
+                  <span>Remaining Est (${Math.round(totalRemainingEstHours)}d)</span>
+                </div>
+                <div style="height:12px;background:var(--color-surface-3);border-radius:6px;overflow:hidden;display:flex;box-shadow:inset 0 2px 4px rgba(0,0,0,0.15), 0 1px 0 rgba(255,255,255,0.05)">
+                  <div style="width:${Math.min(100, (totalActualHours / (projectedTotalHours || 1)) * 100)}%;background:linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.12) 100%), linear-gradient(90deg, var(--color-primary), #818cf8);height:100%"></div>
+                  <div style="flex:1;background:linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.12) 100%), linear-gradient(90deg, var(--amber), #fbbf24);height:100%;opacity:0.9"></div>
+                </div>
+              </div>
+            </div>
+          `;
+          burnBody.innerHTML = burnHtml;
+          if (window.lucide) lucide.createIcons(burnCard);
+        }
+
+        else if (cleanId === 'team_velocity') {
+          const velGrid = document.createElement('div');
+          velGrid.className = 'grid';
+          velGrid.style = 'grid-template-columns:1fr;gap:0px;margin-bottom:0px';
+
+          const velCard = mkCC('Team Velocity', 'Completed effort vs 3-week rolling average (12 weeks)', 'team-velocity', '', 'standard', "Historical performance tracking. Measures the volume of work successfully delivered each week.", 'View Explanation', 'trending-up');
+          velCard.style.gridColumn = '1 / -1';
+          velGrid.appendChild(velCard);
+
+          const velCvs = mkCvs(1000, 200);
+          velCard.querySelector('.cb').appendChild(velCvs);
+          const velLeg = document.createElement('div');
+          velLeg.className = 'cleg';
+          velLeg.innerHTML = `
+            <div class="cli"><div class="cdot" style="background:var(--color-primary)"></div>Weekly Velocity</div>
+            <div class="cli"><div style="width:16px;border-top:2px dashed var(--amber)"></div>3-Week Rolling Avg</div>
+          `;
+          velCard.appendChild(velLeg);
+
+          setTimeout(() => {
+            const last12Weeks = [];
+            for (let i = 11; i >= 0; i--) {
+              const d = new Date(); d.setDate(d.getDate() - i * 7);
+              last12Weeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) });
+            }
+
+            const velocity = last12Weeks.map(w => {
+              return P.tasks.filter(t => {
+                if (t.status !== 'Completed' || !t.dueDate) return false;
+                const d = new Date(t.dueDate);
+                return getWeekNumber(d) === w.w && d.getFullYear() === w.y;
+              }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+            });
+
+            const rolling = velocity.map((v, i) => {
+              if (i < 2) return v;
+              return (velocity[i] + velocity[i - 1] + velocity[i - 2]) / 3;
+            });
+
+            const maxVal = Math.max(...velocity, ...rolling, 10);
+
+            const latestVel = velocity[velocity.length - 1].toFixed(1);
+            const peakVel = Math.max(...velocity).toFixed(1);
+            const latestRolling = rolling[rolling.length - 1].toFixed(1);
+            const isUp = parseFloat(latestVel) >= parseFloat(latestRolling);
+
+            const summaryBar = document.createElement('div');
+            summaryBar.style = "display:flex; flex-wrap:wrap; gap:16px; padding:16px 20px; background:var(--color-surface-2); border-radius:16px; margin:0 0 20px 0; justify-content:space-between; align-items:center; border:1px solid var(--color-border-faint); box-shadow:0 4px 20px rgba(0,0,0,0.03)";
+            summaryBar.innerHTML = `
+              <div style="display:flex; gap:28px; flex-wrap:wrap">
+                <div>
+                  <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:600">Latest Velocity</div>
+                  <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--color-text)">${latestVel}d</div>
+                </div>
+                <div>
+                  <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:600">Rolling Avg</div>
+                  <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--color-text)">${latestRolling}d</div>
+                </div>
+                <div>
+                  <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:600">Peak Velocity</div>
+                  <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--color-text)">${peakVel}d</div>
+                </div>
+              </div>
+              <div>
+                ${isUp
+                ? `<span style="background:rgba(34,197,94,0.15); color:#16a34a; padding:6px 16px; border-radius:20px; font-weight:700; font-size:12px; display:flex; align-items:center; gap:6px; box-shadow:0 2px 12px rgba(34,197,94,0.15)"><i data-lucide="trending-up" style="width:16px;height:16px"></i> Velocity Trending Up</span>`
+                : `<span style="background:rgba(245,158,11,0.15); color:#d97706; padding:6px 16px; border-radius:20px; font-weight:700; font-size:12px; display:flex; align-items:center; gap:6px; box-shadow:0 2px 12px rgba(245,158,11,0.15)"><i data-lucide="trending-down" style="width:16px;height:16px"></i> Velocity Adjusting</span>`
+              }
+              </div>
+            `;
+            const cb = velCard.querySelector('.cb');
+            cb.insertBefore(summaryBar, velCvs);
+            lucide.createIcons(summaryBar);
+
+            drawVBar(velCvs, last12Weeks.map((w, i) => [w.l, velocity[i]]), ['var(--color-primary)'], maxVal, false, rolling);
+          }, 350);
+
+          widgetWrapper.appendChild(velGrid);
+        }
+
+        else if (cleanId === 'team_directory') {
+          addST(widgetWrapper, 'Team Directory');
+          const grid = document.createElement('div'); grid.className = 'team-grid';
+          P.members.forEach((m, i) => {
+            const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+            const taskCount = P.tasks.filter(t => t.assignee === m.name).length;
+            const doneCount = P.tasks.filter(t => t.assignee === m.name && t.status === 'Completed').length;
+            const stCls = m.status === 'Active' ? 'mc-active' : m.status === 'On Leave' ? 'mc-leave' : m.status === 'Serving Notice Period' ? 'mc-notice' : m.status === 'Other Assignment' ? 'mc-other' : 'mc-departed';
+            const card = document.createElement('div'); card.className = 'member-card'; card.style.animationDelay = (i * .05) + 's';
+            const prog = taskCount ? Math.round((doneCount / taskCount) * 100) : 0;
+            const memberLogs = P.log.filter(l => l.user === m.name);
+            const recentActivity = memberLogs.filter(l => new Date(l.ts) > new Date(Date.now() - 7 * 864e5)).length;
+
+            card.innerHTML = `
+              <div class="mc-head">
+                <div class="mc-avatar" style="background:${CC[i % CC.length]}">${initials}</div>
+                <div style="flex:1;min-width:0">
+                  <div class="mc-name">${esc(m.name)}</div>
+                  <div class="mc-role">${esc(m.role || '—')}</div>
+                </div>
+                <span class="mc-status ${stCls}" style="font-size:8px;padding:1px 5px">${m.status === 'Serving Notice Period' ? 'Notice' : m.status === 'Other Assignment' ? 'Other' : esc(m.status)}</span>
+              </div>
+              <div style="padding:12px">
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+                   <span style="font-size:10px;font-weight:700;color:var(--color-text-muted)">TASK PROGRESS</span>
+                   <span style="font-size:10px;font-weight:700;color:var(--color-primary)">${prog}%</span>
+                </div>
+                <div style="height:6px;background:var(--color-surface-3);border-radius:3px;overflow:hidden;margin-bottom:12px">
+                   <div style="width:${prog}%;height:100%;background:linear-gradient(90deg, var(--color-primary), #a855f7)"></div>
+                </div>
+                
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+                   <div style="background:var(--color-surface-2);padding:6px;border-radius:var(--radius-md);text-align:center">
+                      <div style="font-size:8px;color:var(--color-text-faint)">TOTAL</div>
+                      <div style="font-size:12px;font-weight:800">${taskCount}</div>
+                   </div>
+                   <div style="background:var(--color-surface-2);padding:6px;border-radius:var(--radius-md);text-align:center">
+                      <div style="font-size:8px;color:var(--color-text-faint)">DONE</div>
+                      <div style="font-size:12px;font-weight:800;color:var(--green)">${doneCount}</div>
+                   </div>
+                </div>
+
+                <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--color-divider)">
+                   <div>
+                      <div style="font-size:8px;color:var(--color-text-faint);text-transform:uppercase">7D Activity</div>
+                      <div style="font-size:10px;font-weight:700">${recentActivity} actions</div>
+                   </div>
+                   <canvas id="m-perf-${m.id}" width="60" height="20" style="width:60px;height:20px"></canvas>
+                </div>
+              </div>
+              <div style="padding:8px 12px;background:var(--color-surface-2);display:flex;gap:4px;border-radius:0 0 var(--radius-lg) var(--radius-lg)">
+                <button class="btn ghost mini" style="flex:1;font-size:10px" onclick="if(!P.readonly) openAddMember('${m.id}')">Profile</button>
+                <button class="btn ghost mini" style="flex:1;font-size:10px" onclick="filterTasksByAssignee('${m.name}'); setView('tasks')">Tasks</button>
+              </div>
+            `;
+
+            setTimeout(() => {
+              const mcvs = $id(`m-perf-${m.id}`);
+              if (mcvs) {
+                const { ctx: mctx } = gCtx(mcvs);
+                const data = [];
+                for (let j = 6; j >= 0; j--) {
+                  const dStr = new Date(Date.now() - j * 864e5).toISOString().split('T')[0];
+                  data.push(memberLogs.filter(l => l.ts && typeof l.ts === 'string' && l.ts.startsWith(dStr)).length);
+                }
+                drawSpark(mctx, data);
+              }
+            }, 400);
+            grid.appendChild(card);
+          });
+          widgetWrapper.appendChild(grid);
+        }
+
+        else if (cleanId === 'org_chart') {
+          // Placeholder handled below in dedicated high-performance tree walks
+        }
+      });
+
+      // Apple jiggle rearrange mode logic symmetric with insights view
+      inner.querySelectorAll('.team-widget-wrapper').forEach(wrapper => {
+        const secId = wrapper.dataset.id;
+        if (P.appleRearrangeMode) {
+          wrapper.classList.add('apple-jiggle');
+          wrapper.draggable = true;
+          wrapper.style.position = 'relative';
+
+          const badge = document.createElement('div');
+          badge.className = 'apple-widget-badge';
+          badge.innerHTML = `<i data-lucide="grip-horizontal" style="width:12px;height:12px"></i> Drag`;
+          wrapper.appendChild(badge);
+
+          wrapper.ondragstart = (e) => {
+            if (P.readonly) return;
+            e.dataTransfer.setData('text/plain', secId);
+            e.dataTransfer.effectAllowed = 'move';
+            setTimeout(() => wrapper.classList.add('dragging'), 10);
+          };
+          wrapper.ondragover = (e) => {
+            if (P.readonly) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (!wrapper.classList.contains('drag-over')) wrapper.classList.add('drag-over');
+          };
+          wrapper.ondragleave = (e) => {
+            if (P.readonly) return;
+            wrapper.classList.remove('drag-over');
+          };
+          wrapper.ondrop = (e) => {
+            if (P.readonly) return;
+            e.preventDefault();
+            wrapper.classList.remove('drag-over');
+            const draggedId = e.dataTransfer.getData('text/plain');
+            if (draggedId !== secId) {
+              const allWrappers = Array.from(inner.children);
+              const draggedWrapper = inner.querySelector(`[data-id="${draggedId}"]`);
+              if (draggedWrapper) {
+                const fromIdx = allWrappers.indexOf(draggedWrapper);
+                const toIdx = allWrappers.indexOf(wrapper);
+                if (fromIdx < toIdx) wrapper.after(draggedWrapper);
+                else wrapper.before(draggedWrapper);
+                draggedWrapper.classList.remove('dragging');
+
+                const currentLayout = Array.from(inner.children).map((child) => {
+                  const wId = child.dataset.id;
+                  const item = P.teamLayout.find(x => x.id === wId);
+                  return item || { id: wId, t: child.dataset.title || wId, on: true };
+                });
+                P.teamLayout = currentLayout;
+                localStorage.setItem('pp-team-layout', JSON.stringify(P.teamLayout));
+                save();
+                renderTeam();
+              }
+            }
+          };
+        }
+      });
+
+      // Render Org Chart dynamically inside its layout-wrapper if in layout
+      const orgWrapper = inner.querySelector('.team-widget-wrapper[data-id="org_chart"]');
+      if (orgWrapper) {
+        const roots = P.members.filter(m => !m.reportsTo || !P.members.find(x => x.name === m.reportsTo));
+        if (roots.length && P.members.length > 1) {
+          addST(orgWrapper, 'Organization Chart');
+
+          const canvasWrap = document.createElement('div');
+          canvasWrap.className = 'org-canvas-wrap glass';
+          canvasWrap.style.height = '600px';
+          canvasWrap.style.marginTop = '12px';
+          canvasWrap.style.position = 'relative';
+          canvasWrap.style.overflow = 'hidden';
+          canvasWrap.style.borderRadius = 'var(--radius-lg)';
+          canvasWrap.style.border = '1px solid var(--color-border)';
+          canvasWrap.style.background = 'var(--color-surface-2)';
+
+          const canvas = document.createElement('canvas');
+          canvas.style.width = '100%';
+          canvas.style.height = '100%';
+          canvas.style.cursor = 'grab';
+          canvasWrap.appendChild(canvas);
+
+          const controls = document.createElement('div');
+          controls.style.position = 'absolute';
+          controls.style.top = '12px';
+          controls.style.right = '12px';
+          controls.style.display = 'flex';
+          controls.style.gap = '8px';
+          controls.innerHTML = `
+            <button class="btn ghost outline mini" onclick="orgResetView()" title="Reset Pan & Zoom">⟲</button>
+            <button class="btn ghost outline mini" onclick="orgZoom(0.9)" title="Zoom Out">−</button>
+            <button class="btn ghost outline mini" onclick="orgZoom(1.1)" title="Zoom In">+</button>
+          `;
+          canvasWrap.appendChild(controls);
+          orgWrapper.appendChild(canvasWrap);
+
+          if (!P._org) P._org = { panX: 0, panY: 40, zoom: 0.8, drag: false, lastX: 0, lastY: 0 };
+
+          class ONode {
+            constructor(m, depth = 0, number = 0) {
+              this.m = m; this.id = m.id; this.name = m.name; this.role = m.role || 'Member';
+              this.depth = depth; this.number = number;
+              this.children = []; this.parent = null;
+              this.x = 0; this.y = 0; this.mod = 0; this.prelim = 0;
+              this.ancestor = this; this.thread = null;
+              this.change = 0; this.shift = 0;
+              this.isCollapsed = P.collapsedNodes.has(m.id);
+            }
+            getLeftSibling() { return (this.parent && this.number > 0) ? this.parent.children[this.number - 1] : null; }
+            getLeftMostSibling() { return (this.parent && this.number > 0) ? this.parent.children[0] : null; }
+          }
+
+          const buildTree = () => {
+            const map = {};
+            P.members.forEach(m => map[m.name] = new ONode(m));
+            const treeRoots = [];
+            P.members.forEach(m => {
+              const node = map[m.name];
+              if (m.reportsTo && map[m.reportsTo]) {
+                node.parent = map[m.reportsTo];
+                node.number = node.parent.children.length;
+                node.parent.children.push(node);
+              } else {
+                treeRoots.push(node);
+              }
+            });
+            return treeRoots;
+          };
+
+          const firstWalk = (v, distance) => {
+            if (v.children.length === 0 || v.isCollapsed) {
+              const left = v.getLeftSibling();
+              v.prelim = left ? left.prelim + distance : 0;
+            } else {
+              let defaultAncestor = v.children[0];
+              v.children.forEach(c => {
+                c.depth = v.depth + 1;
+                firstWalk(c, distance);
+                defaultAncestor = apportion(c, defaultAncestor, distance);
+              });
+              executeShifts(v);
+              const mid = (v.children[0].prelim + v.children[v.children.length - 1].prelim) / 2;
+              const left = v.getLeftSibling();
+              if (left) {
+                v.prelim = left.prelim + distance;
+                v.mod = v.prelim - mid;
+              } else {
+                v.prelim = mid;
+              }
+            }
+          };
+
+          const apportion = (v, defaultAncestor, distance) => {
+            const w = v.getLeftSibling();
+            if (w) {
+              let v_i_p = v, v_o_p = v, v_i_m = w, v_o_m = v_i_p.getLeftMostSibling();
+              let s_i_p = v.mod, s_o_p = v.mod, s_i_m = v_i_m.mod, s_o_m = v_o_m.mod;
+              while (nextRight(v_i_m) && nextLeft(v_i_p)) {
+                v_i_m = nextRight(v_i_m); v_i_p = nextLeft(v_i_p);
+                v_o_m = nextLeft(v_o_m); v_o_p = nextRight(v_o_p);
+                v_o_p.ancestor = v;
+                const shift = (v_i_m.prelim + s_i_m) - (v_i_p.prelim + s_i_p) + distance;
+                if (shift > 0) {
+                  moveSubtree(ancestor(v_i_m, v, defaultAncestor), v, shift);
+                  s_i_p += shift; s_o_p += shift;
+                }
+                s_i_m += v_i_m.mod; s_i_p += v_i_p.mod;
+                s_o_m += v_o_m.mod; s_o_p += v_o_p.mod;
+              }
+              if (nextRight(v_i_m) && !nextRight(v_o_p)) {
+                v_o_p.thread = nextRight(v_i_m); v_o_p.mod += s_i_m - s_o_p;
+              }
+              if (nextLeft(v_i_p) && !nextLeft(v_o_m)) {
+                v_o_m.thread = nextLeft(v_i_p); v_o_m.mod += s_i_p - s_o_m;
+                defaultAncestor = v;
+              }
+            }
+            return defaultAncestor;
+          };
+
+          const moveSubtree = (w, v, shift) => {
+            const subtrees = v.number - w.number;
+            v.change -= shift / subtrees; v.shift += shift;
+            w.change += shift / subtrees; v.prelim += shift; v.mod += shift;
+          };
+
+          const executeShifts = (v) => {
+            let shift = 0, change = 0;
+            for (let i = v.children.length - 1; i >= 0; i--) {
+              const c = v.children[i];
+              c.prelim += shift; c.mod += shift;
+              change += c.change; shift += c.shift + change;
+            }
+          };
+
+          const nextLeft = (v) => v.children.length > 0 && !v.isCollapsed ? v.children[0] : v.thread;
+          const nextRight = (v) => v.children.length > 0 && !v.isCollapsed ? v.children[v.children.length - 1] : v.thread;
+          const ancestor = (v_i_m, v, defaultAncestor) => v_i_m.ancestor.parent === v.parent ? v_i_m.ancestor : defaultAncestor;
+          const secondWalk = (v, m) => {
+            v.x = v.prelim + m; v.y = v.depth;
+            v.children.forEach(c => secondWalk(c, m + v.mod));
+          };
+
+          const ctx = canvas.getContext('2d');
+          const getV = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+          const renderCanvas = () => {
+            const dpr = window.devicePixelRatio || 1;
+            const w = canvasWrap.clientWidth, h = canvasWrap.clientHeight;
+            canvas.width = w * dpr; canvas.height = h * dpr;
+            ctx.scale(dpr, dpr);
+
+            const cBg = getV('--color-surface-2') || '#f9fafb';
+            const cSurf = getV('--color-surface') || '#ffffff';
+            const cText = getV('--color-text') || '#1f2937';
+            const cMuted = getV('--color-text-muted') || '#6b7280';
+            const cBorder = getV('--color-border') || '#e5e7eb';
+
+            ctx.clearRect(0, 0, w, h);
+
+            const treeRoots = buildTree();
+            const NODE_W = 190, NODE_H = 60, DIST_X = 250, DIST_Y = 80;
+
+            treeRoots.forEach((root, i) => {
+              firstWalk(root, 1);
+              secondWalk(root, i * 2);
+            });
+
+            ctx.save();
+            ctx.translate(P._org.panX, P._org.panY);
+            ctx.scale(P._org.zoom, P._org.zoom);
+
+            const drawLines = (n) => {
+              if (n.isCollapsed) return;
+              n.children.forEach(c => {
+                const x1 = n.y * DIST_X + NODE_W, y1 = n.x * DIST_Y + NODE_H / 2;
+                const x2 = c.y * DIST_X, y2 = c.x * DIST_Y + NODE_H / 2;
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                const midX = (x1 + x2) / 2;
+                ctx.lineTo(midX, y1);
+                ctx.lineTo(midX, y2);
+                ctx.lineTo(x2, y2);
+                ctx.strokeStyle = cBorder; ctx.lineWidth = 1.5;
+                ctx.stroke();
+                drawLines(c);
+              });
+            };
+
+            const drawNodes = (n) => {
+              const px = n.y * DIST_X, py = n.x * DIST_Y;
+              ctx.shadowBlur = 8; ctx.shadowColor = 'rgba(0,0,0,0.06)'; ctx.shadowOffsetY = 3;
+              ctx.beginPath();
+              ctx.roundRect(px, py, NODE_W, NODE_H, 8);
+              ctx.fillStyle = cSurf; ctx.fill();
+              ctx.shadowBlur = 0;
+
+              const grad = ctx.createLinearGradient(px, py, px + NODE_W, py);
+              grad.addColorStop(0, CC[P.members.indexOf(n.m) % CC.length]); grad.addColorStop(1, cBorder);
+              ctx.strokeStyle = grad; ctx.lineWidth = 2; ctx.stroke();
+
+              ctx.fillStyle = cText; ctx.font = 'bold 12px var(--font-display)';
+              ctx.fillText(n.name, px + 15, py + 25);
+              ctx.fillStyle = cMuted; ctx.font = '600 9px var(--font-body)';
+              ctx.fillText(n.role.toUpperCase(), px + 15, py + 42);
+
+              if (n.children.length > 0) {
+                ctx.beginPath(); ctx.arc(px + NODE_W, py + NODE_H / 2, 10, 0, Math.PI * 2);
+                ctx.fillStyle = cBg; ctx.fill();
+                ctx.strokeStyle = cBorder; ctx.lineWidth = 1; ctx.stroke();
+                ctx.fillStyle = cText; ctx.font = 'bold 12px var(--font-body)'; ctx.textAlign = 'center';
+                ctx.fillText(n.isCollapsed ? '+' : '−', px + NODE_W, py + NODE_H / 2 + 4);
+                ctx.textAlign = 'left';
+              }
+              if (!n.isCollapsed) n.children.forEach(drawNodes);
+            };
+
+            treeRoots.forEach(r => { drawLines(r); drawNodes(r); });
+            ctx.restore();
+          };
+
+          window.orgZoom = (f) => { P._org.zoom = Math.max(0.2, Math.min(3, P._org.zoom * f)); renderCanvas(); };
+          window.orgResetView = () => { P._org.panX = 0; P._org.panY = 40; P._org.zoom = 0.8; renderCanvas(); };
+
+          canvas.onmousedown = (e) => { P._org.drag = true; P._org.lastX = e.clientX; P._org.lastY = e.clientY; canvas.style.cursor = 'grabbing'; };
+          window.onmousemove = (e) => {
+            if (!P._org.drag) return;
+            P._org.panX += (e.clientX - P._org.lastX); P._org.panY += (e.clientY - P._org.lastY);
+            P._org.lastX = e.clientX; P._org.lastY = e.clientY; renderCanvas();
+          };
+          window.onmouseup = () => { P._org.drag = false; canvas.style.cursor = 'grab'; };
+          canvas.onwheel = (e) => {
+            e.preventDefault();
+            const delta = e.deltaMode === 1 ? e.deltaY * 20 : e.deltaY;
+            const factor = Math.pow(0.999, delta);
+            orgZoom(factor);
+          };
+
+          canvas.onclick = (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = (e.offsetX - P._org.panX) / P._org.zoom;
+            const my = (e.offsetY - P._org.panY) / P._org.zoom;
+
+            const roots = buildTree();
+            const NODE_W = 190, NODE_H = 60, DIST_X = 250, DIST_Y = 80;
+            roots.forEach((root, i) => {
+              firstWalk(root, 1);
+              secondWalk(root, i * 2);
+            });
+
+            const findAndToggle = (nodes) => {
+              for (const n of nodes) {
+                const px = n.y * DIST_X, py = n.x * DIST_Y;
+                if (n.children.length > 0 && Math.hypot(mx - (px + NODE_W), my - (py + NODE_H / 2)) < 25) {
+                  toggleOrgNode(n.id); return true;
+                }
+                if (mx >= px && mx <= px + NODE_W && my >= py && my <= py + NODE_H) {
+                  openAddMember(n.id); return true;
+                }
+                if (!n.isCollapsed && findAndToggle(n.children)) return true;
+              }
+              return false;
+            };
+            findAndToggle(roots);
+          };
+
+          requestAnimationFrame(renderCanvas);
+          window.addEventListener('resize', renderCanvas);
+        }
+      }
+
+      if (window.lucide) lucide.createIcons(inner);
+    }
+
+    window.showMemberTaskDrilldown = function(name) {
+      if (!P.filters || !P.filters.assignee) return;
+      P.filters.assignee.clear();
+      P.filters.assignee.add(name);
+      P.view = 'dash';
+      render();
+      notify(`Filtering tasks to focus on ${name}`, 'ok');
+    };
   </script>
 
   <!-- ── SCRIPTS ── -->
