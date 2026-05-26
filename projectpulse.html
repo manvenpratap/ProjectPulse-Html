@@ -10301,6 +10301,7 @@
 
     // ══════ CORE STATE ══════
     const WIDGET_TITLES = {
+      high_impact_entities: 'High Impact Entities',
       summary: 'Executive Summary',
       module_status_matrix: 'Strategic Module Status',
       module_matrix: 'Project Status Matrix',
@@ -20808,6 +20809,7 @@
                       { id: 'module_status_matrix', t: 'Strategic Module Status', on: true },
                       { id: 'health', t: 'Project Health', on: true },
                       { id: 'defect_intel', t: 'Defect Intelligence', on: true },
+                      { id: 'high_impact_entities', t: 'High Impact Entities', on: true },
                       { id: 'feature_insights', t: 'Feature Intelligence', on: true },
                       { id: 'release_timeline', t: 'Release Timeline', on: true },
                       { id: 'burndown', t: 'Burndown Chart', on: true },
@@ -21899,6 +21901,7 @@
         { id: 'module_status_matrix', t: 'Strategic Module Status', on: true },
         { id: 'health', t: 'Project Health', on: true },
         { id: 'defect_intel', t: 'Defect Intelligence', on: true },
+        { id: 'high_impact_entities', t: 'High Impact Entities', on: true },
         { id: 'feature_insights', t: 'Feature Intelligence', on: true },
         { id: 'release_timeline', t: 'Release Timeline', on: true },
         { id: 'burndown', t: 'Burndown Chart', on: true },
@@ -22376,6 +22379,76 @@
             `;
             grid.appendChild(emptyCard);
           }
+        } else if (sec.id === 'high_impact_entities') {
+          addST(inner, 'High Impact Entities');
+          const grid = addGrid(inner);
+          const impactId = 'dash-high-impact-entities';
+          const impactSpan = (P.widgetSpans && P.widgetSpans[impactId]) || sec.span || 4;
+          const impactCard = mkCC('High Impact Entities', 'Deliverables with highest defect density', impactId, '', 'standard', "<b>Quality Hotspots:</b> Lists the specific tasks, deliverables, or modules that have accumulated the highest number of linked defects. High defect density indicates architectural bottlenecks or areas needing intensive code review.", 'View Explanation', 'octagon-alert');
+          impactCard.style.gridColumn = `span ${impactSpan}`;
+          grid.appendChild(impactCard);
+
+          const defs = P.defects || [];
+          const counts = {}; 
+          defs.forEach(d => { 
+            if (d.linkedId) counts[d.linkedId] = (counts[d.linkedId] || 0) + 1; 
+          });
+          const sortedEntities = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+          const topEntities = sortedEntities.slice(0, 5);
+          const maxDefects = topEntities.length ? topEntities[0][1] : 1;
+
+          let impactHtml = '';
+          if (topEntities.length) {
+            impactHtml = '<div style="padding:16px"><div class="hotspot-list">';
+            topEntities.forEach(([id, c]) => {
+              let name = id;
+              if (dashCache.taskById[id]) name = dashCache.taskById[id].name;
+              else if (dashCache.subtaskById[id]) name = dashCache.subtaskById[id].st.name;
+              else if (dashCache.screenByName[id]) name = dashCache.screenByName[id].name;
+
+              const pct = (c / maxDefects) * 100;
+              const colorClass = pct > 70 ? 'high' : pct > 35 ? 'med' : 'low';
+              
+              let clickAction = `openFlyout('${id}', 'view')`;
+              if (dashCache.subtaskById[id]) {
+                const { st, parentTask } = dashCache.subtaskById[id];
+                if (st.type === 'screen') {
+                  clickAction = `openScreenFlyout('${parentTask.id}', '${st.id}', 'view')`;
+                } else {
+                  clickAction = `openFlyout('${parentTask.id}', 'view')`;
+                }
+              } else if (dashCache.screenByName[id]) {
+                const scr = dashCache.screenByName[id];
+                if (scr.parentTasks.length > 0 && dashCache.subtasksByScreen[id] && dashCache.subtasksByScreen[id].length > 0) {
+                  clickAction = `openScreenFlyout('${scr.parentTasks[0].id}', '${dashCache.subtasksByScreen[id][0].id}', 'view')`;
+                } else if (scr.parentTasks.length > 0) {
+                  clickAction = `openFlyout('${scr.parentTasks[0].id}', 'view')`;
+                }
+              }
+
+              impactHtml += `
+                <div class="hotspot-row" onclick="${clickAction}" style="margin: 4px 0;" title="Click to inspect this Hotspot">
+                  <div class="hotspot-bar ${colorClass}" style="width:${pct}%"></div>
+                  <div class="hotspot-pill">${esc(id)}</div>
+                  <div class="hotspot-name" style="z-index:1; font-weight:800; color:var(--color-text)">${esc(name)}</div>
+                  <div class="hotspot-count" style="z-index:1">
+                    <div class="hotspot-count-val">${c}</div>
+                    <div class="hotspot-count-lbl">Defects</div>
+                  </div>
+                </div>`;
+            });
+            impactHtml += '</div></div>';
+          } else {
+            impactHtml = `
+              <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:40px 20px;text-align:center">
+                <div style="width:48px;height:48px;background:var(--color-surface-2);border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:16px;color:var(--color-green)">
+                  <i data-lucide="check-circle" style="width:24px;height:24px"></i>
+                </div>
+                <div style="font-weight:700;font-size:14px;color:var(--color-text)">No Hotspots Detected</div>
+                <div style="font-size:12px;color:var(--color-text-muted);margin-top:4px">All linked entities are currently maintaining high quality standards.</div>
+              </div>`;
+          }
+          impactCard.querySelector('.cb').innerHTML = impactHtml;
         } else if (sec.id === 'feature_insights') {
           const feats = P.features || [];
           if (feats.length) {
@@ -26883,12 +26956,12 @@
       let idxL = 0;
       const addLay = (v, lays) => (lays || []).forEach(l => {
         const wid = l.id || l.i || '';
-        const curSpan = (P.widgetSpans && P.widgetSpans[wid]) || l.span || l.w || (wid === 'summary' || wid === 'activities' || wid === 'achievements' || wid === 'risks' || wid === 'plans' || wid === 'team' || wid === 'util' || wid === 'burndown' || wid === 'velocity' || wid === 'cfd' || wid === 'milestone-timeline' || wid === 'module_health' || wid === 'screen_status' || wid === 'intelligence' || wid === 'activity' || wid === 'overdue_tbl' || wid === 'overdue' || wid === 'workload' || wid === 'cat_hours' || wid === 'module_status_matrix' || wid === 'release_timeline' || wid === 'defect_intel' || wid === 'feature_insights' || wid === 'kpi_summary' ? 4 : wid === 'health' ? 2 : 2);
+        const curSpan = (P.widgetSpans && P.widgetSpans[wid]) || l.span || l.w || (wid === 'summary' || wid === 'activities' || wid === 'achievements' || wid === 'risks' || wid === 'plans' || wid === 'team' || wid === 'util' || wid === 'burndown' || wid === 'velocity' || wid === 'cfd' || wid === 'milestone-timeline' || wid === 'module_health' || wid === 'screen_status' || wid === 'intelligence' || wid === 'activity' || wid === 'overdue_tbl' || wid === 'overdue' || wid === 'workload' || wid === 'cat_hours' || wid === 'module_status_matrix' || wid === 'release_timeline' || wid === 'defect_intel' || wid === 'feature_insights' || wid === 'high_impact_entities' || wid === 'kpi_summary' ? 4 : wid === 'health' ? 2 : 2);
         const row = wsLay.addRow({ view: v, id: wid, t: l.t || wid, x: l.x || 0, y: l.y || 0, w: curSpan, h: l.h || 1 }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
         if (idxL++ % 2 === 1) row.eachCell(c => c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } });
       });
       const defDashLay = [
-        { id: 'summary', t: 'Summary Cards', on: true }, { id: 'module_status_matrix', t: 'Strategic Module Status', on: true }, { id: 'health', t: 'Project Health', on: true }, { id: 'defect_intel', t: 'Defect Intelligence', on: true }, { id: 'feature_insights', t: 'Feature Intelligence', on: true }, { id: 'release_timeline', t: 'Release Timeline', on: true }, { id: 'burndown', t: 'Burndown Chart', on: true }, { id: 'velocity', t: 'Weekly Velocity', on: true }, { id: 'cfd', t: 'Cumulative Flow', on: true }, { id: 'milestone-timeline', t: 'Milestone Timeline', on: true }, { id: 'module_health', t: 'Module & Release Health', on: true }, { id: 'screen_status', t: 'Screen Status Details', on: true }, { id: 'workload', t: 'Team Workload', on: true }, { id: 'cat_hours', t: 'Category & Effort', on: true }, { id: 'overdue', t: 'Overdue Attention', on: true }, { id: 'intelligence', t: 'Predictive Intelligence', on: true }, { id: 'activity', t: 'Recent Activity', on: true }, { id: 'analytics', t: 'Advanced Analytics', on: true }
+        { id: 'summary', t: 'Summary Cards', on: true }, { id: 'module_status_matrix', t: 'Strategic Module Status', on: true }, { id: 'health', t: 'Project Health', on: true }, { id: 'defect_intel', t: 'Defect Intelligence', on: true }, { id: 'high_impact_entities', t: 'High Impact Entities', on: true }, { id: 'feature_insights', t: 'Feature Intelligence', on: true }, { id: 'release_timeline', t: 'Release Timeline', on: true }, { id: 'burndown', t: 'Burndown Chart', on: true }, { id: 'velocity', t: 'Weekly Velocity', on: true }, { id: 'cfd', t: 'Cumulative Flow', on: true }, { id: 'milestone-timeline', t: 'Milestone Timeline', on: true }, { id: 'module_health', t: 'Module & Release Health', on: true }, { id: 'screen_status', t: 'Screen Status Details', on: true }, { id: 'workload', t: 'Team Workload', on: true }, { id: 'cat_hours', t: 'Category & Effort', on: true }, { id: 'overdue', t: 'Overdue Attention', on: true }, { id: 'intelligence', t: 'Predictive Intelligence', on: true }, { id: 'activity', t: 'Recent Activity', on: true }, { id: 'analytics', t: 'Advanced Analytics', on: true }
       ];
       const defRptLay = [
         { id: 'kpi_summary', t: 'Executive Metrics', on: true }, { id: 'health', t: 'Project Health', on: true }, { id: 'defect_intel', t: 'Defect Intelligence', on: true }, { id: 'summary', t: 'Executive Summary', on: true }, { id: 'activities', t: 'Key Activities', on: true }, { id: 'achievements', t: 'Achievements', on: true }, { id: 'risks', t: 'Risks & Issues', on: true }, { id: 'plans', t: 'Upcoming Plans', on: true }, { id: 'team', t: 'Team Workload', on: true }, { id: 'util', t: 'Resource Utilization', on: true }, { id: 'burndown', t: 'Burndown Chart', on: true }, { id: 'velocity', t: 'Weekly Velocity', on: true }, { id: 'cfd', t: 'Cumulative Flow', on: true }, { id: 'milestone-timeline', t: 'Milestone Timeline', on: true }, { id: 'module_health', t: 'Module & Release Health', on: true }, { id: 'screen_status', t: 'Screen Status Details', on: true }, { id: 'intelligence', t: 'Predictive Intelligence', on: true }, { id: 'activity', t: 'Latest Updates', on: true }, { id: 'overdue_tbl', t: 'Overdue Table', on: true }
@@ -27655,6 +27728,7 @@
         { id: 'module_status_matrix', t: 'Strategic Module Status', on: true },
         { id: 'health', t: 'Project Health', on: true },
         { id: 'defect_intel', t: 'Defect Intelligence', on: true },
+        { id: 'high_impact_entities', t: 'High Impact Entities', on: true },
         { id: 'feature_insights', t: 'Feature Intelligence', on: true },
         { id: 'release_timeline', t: 'Release Timeline', on: true },
         { id: 'burndown', t: 'Burndown Chart', on: true },
