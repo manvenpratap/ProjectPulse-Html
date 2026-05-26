@@ -21414,13 +21414,43 @@
       const state = window._matrixStates[matrixId];
       window._matrixInstances[matrixId] = { card: msmCard, tasks, isReport };
 
+      // Effort unit helpers
+      const effortUnit = (P.settings && P.settings.effortUnit) || 'days';
+      const effortUnitShort = effortUnit === 'hrs' ? 'h' : effortUnit === 'months' ? 'mo' : 'd';
+      const effortUnitLabel = effortUnit === 'hrs' ? 'Hours' : effortUnit === 'months' ? 'Months' : 'Days';
+
+      // Vibrant per-column colour palettes
+      const COL_PALETTES = [
+        { h:'hsl(221,85%,55%)',  bg:'hsla(221,85%,55%,0.09)', pill:'hsla(221,85%,55%,0.17)', border:'hsla(221,85%,55%,0.32)', glow:'hsla(221,85%,55%,0.20)' },
+        { h:'hsl(262,78%,58%)',  bg:'hsla(262,78%,58%,0.09)', pill:'hsla(262,78%,58%,0.17)', border:'hsla(262,78%,58%,0.32)', glow:'hsla(262,78%,58%,0.20)' },
+        { h:'hsl(340,78%,56%)',  bg:'hsla(340,78%,56%,0.09)', pill:'hsla(340,78%,56%,0.17)', border:'hsla(340,78%,56%,0.32)', glow:'hsla(340,78%,56%,0.20)' },
+        { h:'hsl(38,90%,48%)',   bg:'hsla(38,90%,48%,0.09)',  pill:'hsla(38,90%,48%,0.17)',  border:'hsla(38,90%,48%,0.32)',  glow:'hsla(38,90%,48%,0.20)'  },
+        { h:'hsl(166,72%,40%)',  bg:'hsla(166,72%,40%,0.09)', pill:'hsla(166,72%,40%,0.17)', border:'hsla(166,72%,40%,0.32)', glow:'hsla(166,72%,40%,0.20)' },
+        { h:'hsl(197,82%,44%)',  bg:'hsla(197,82%,44%,0.09)', pill:'hsla(197,82%,44%,0.17)', border:'hsla(197,82%,44%,0.32)', glow:'hsla(197,82%,44%,0.20)' },
+        { h:'hsl(14,85%,56%)',   bg:'hsla(14,85%,56%,0.09)',  pill:'hsla(14,85%,56%,0.17)',  border:'hsla(14,85%,56%,0.32)',  glow:'hsla(14,85%,56%,0.20)'  },
+        { h:'hsl(134,62%,42%)',  bg:'hsla(134,62%,42%,0.09)', pill:'hsla(134,62%,42%,0.17)', border:'hsla(134,62%,42%,0.32)', glow:'hsla(134,62%,42%,0.20)' },
+      ];
+      const palette = (ti) => COL_PALETTES[ti % COL_PALETTES.length];
+
+      // Row accent hues
+      const ROW_ACCENTS = [
+        'hsl(221,85%,55%)','hsl(262,78%,58%)','hsl(340,78%,56%)','hsl(38,90%,48%)',
+        'hsl(166,72%,40%)','hsl(197,82%,44%)','hsl(14,85%,56%)','hsl(134,62%,42%)',
+      ];
+      const rowAccent = (mi) => ROW_ACCENTS[mi % ROW_ACCENTS.length];
+
+      // Check if any GUI data exists (to conditionally show Screens view button)
+      const hasGUIType = types.some(ty => ty.trim().toUpperCase() === 'GUI') ||
+                         tasks.some(t => t.moduleType === 'GUI' || (t.guiScreens && t.guiScreens.length));
+
       const cb = msmCard.querySelector('.cb');
       cb.style.padding = '0';
       cb.innerHTML = '';
 
       const ctrlBar = document.createElement('div');
       ctrlBar.className = 'matrix-control-bar';
-      ctrlBar.style = "display:flex; flex-wrap:wrap; gap:16px; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--color-border-faint); background:var(--color-surface-2)";
+      ctrlBar.style = "display:flex; flex-wrap:wrap; gap:14px; align-items:center; justify-content:space-between; padding:13px 18px; border-bottom:1px solid var(--color-border-faint); background:var(--color-surface-2)";
+      const btnStyle = (mode) => `padding:6px 12px; font-size:11px; font-weight:700; border-radius:10px; border:none; background:${state.viewMode === mode ? 'var(--color-surface)' : 'transparent'}; color:${state.viewMode === mode ? 'var(--color-text)' : 'var(--color-text-muted)'}; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:${state.viewMode === mode ? 'var(--shadow-sm)' : 'none'}; transition:all 0.2s`;
       
       ctrlBar.innerHTML = `
         <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center; flex:1">
@@ -21441,19 +21471,22 @@
           </select>
         </div>
         
-        <div style="display:flex; background:var(--color-surface-3); padding:3px; border-radius:12px; border:1px solid var(--color-border-faint)">
-          <button class="btn-toggle" onclick="window._matrixStateChange('${matrixId}', 'viewMode', 'status')" style="padding:6px 12px; font-size:11px; font-weight:700; border-radius:10px; border:none; background:${state.viewMode === 'status' ? 'var(--color-surface)' : 'transparent'}; color:${state.viewMode === 'status' ? 'var(--color-text)' : 'var(--color-text-muted)'}; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:${state.viewMode === 'status' ? 'var(--shadow-sm)' : 'none'}; transition:all 0.2s">
-            <i data-lucide="layout-grid" style="width:12px; height:12px"></i> Dominant Status
+        <div style="display:flex; background:var(--color-surface-3); padding:3px; border-radius:12px; border:1px solid var(--color-border-faint); gap:2px">
+          <button class="btn-toggle" onclick="window._matrixStateChange('${matrixId}', 'viewMode', 'status')" style="${btnStyle('status')}">
+            <i data-lucide="layout-grid" style="width:12px; height:12px"></i> Status
           </button>
-          <button class="btn-toggle" onclick="window._matrixStateChange('${matrixId}', 'viewMode', 'progress')" style="padding:6px 12px; font-size:11px; font-weight:700; border-radius:10px; border:none; background:${state.viewMode === 'progress' ? 'var(--color-surface)' : 'transparent'}; color:${state.viewMode === 'progress' ? 'var(--color-text)' : 'var(--color-text-muted)'}; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:${state.viewMode === 'progress' ? 'var(--shadow-sm)' : 'none'}; transition:all 0.2s">
-            <i data-lucide="sparkles" style="width:12px; height:12px"></i> Progress Heatmap
+          <button class="btn-toggle" onclick="window._matrixStateChange('${matrixId}', 'viewMode', 'progress')" style="${btnStyle('progress')}">
+            <i data-lucide="sparkles" style="width:12px; height:12px"></i> Progress
           </button>
-          <button class="btn-toggle" onclick="window._matrixStateChange('${matrixId}', 'viewMode', 'volume')" style="padding:6px 12px; font-size:11px; font-weight:700; border-radius:10px; border:none; background:${state.viewMode === 'volume' ? 'var(--color-surface)' : 'transparent'}; color:${state.viewMode === 'volume' ? 'var(--color-text)' : 'var(--color-text-muted)'}; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:${state.viewMode === 'volume' ? 'var(--shadow-sm)' : 'none'}; transition:all 0.2s">
-            <i data-lucide="bar-chart-2" style="width:12px; height:12px"></i> Task Volume
+          <button class="btn-toggle" onclick="window._matrixStateChange('${matrixId}', 'viewMode', 'volume')" style="${btnStyle('volume')}">
+            <i data-lucide="bar-chart-2" style="width:12px; height:12px"></i> Volume
           </button>
-          <button class="btn-toggle" onclick="window._matrixStateChange('${matrixId}', 'viewMode', 'effort')" style="padding:6px 12px; font-size:11px; font-weight:700; border-radius:10px; border:none; background:${state.viewMode === 'effort' ? 'var(--color-surface)' : 'transparent'}; color:${state.viewMode === 'effort' ? 'var(--color-text)' : 'var(--color-text-muted)'}; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:${state.viewMode === 'effort' ? 'var(--shadow-sm)' : 'none'}; transition:all 0.2s">
-            <i data-lucide="clock" style="width:12px; height:12px"></i> Hours / Effort
+          <button class="btn-toggle" onclick="window._matrixStateChange('${matrixId}', 'viewMode', 'effort')" style="${btnStyle('effort')}">
+            <i data-lucide="clock" style="width:12px; height:12px"></i> Effort (${effortUnitLabel})
           </button>
+          ${hasGUIType ? `<button class="btn-toggle" onclick="window._matrixStateChange('${matrixId}', 'viewMode', 'screens')" style="${btnStyle('screens')}">
+            <i data-lucide="monitor" style="width:12px; height:12px"></i> Screens
+          </button>` : ''}
         </div>
       `;
       cb.appendChild(ctrlBar);
@@ -21462,8 +21495,21 @@
       tableWrap.className = 'table-wrap custom-scroll';
       tableWrap.style = "overflow-x:auto; width:100%; border-radius:0 0 20px 20px; padding: 12px;";
 
-      let ths = types.map(ty => `<th style="text-align:center;font-size:11px;color:var(--color-text-muted);font-weight:800;padding:12px 8px;background:var(--color-surface-2);border-bottom:2px solid var(--color-border-faint);min-width:130px">${esc(ty.split('/')[0].trim().toUpperCase())}</th>`).join('');
-      ths += `<th style="text-align:center;font-size:11px;color:var(--color-primary);font-weight:800;padding:12px 8px;background:var(--color-surface-2);border-bottom:2px solid var(--color-border-faint);min-width:130px">OVERALL COMP.</th>`;
+      let ths = types.map((ty, ti) => {
+        const p = palette(ti);
+        const label = ty.split('/')[0].trim().toUpperCase();
+        return `<th style="text-align:center;font-size:10px;font-weight:800;padding:11px 10px;min-width:140px;background:${p.bg};border-bottom:3px solid ${p.border};color:${p.h};letter-spacing:0.04em">
+          <div style="display:flex;align-items:center;justify-content:center;gap:5px">
+            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${p.h};box-shadow:0 0 6px ${p.glow}"></span>
+            ${esc(label)}
+          </div>
+        </th>`;
+      }).join('');
+      ths += `<th style="text-align:center;font-size:10px;font-weight:800;padding:11px 10px;min-width:140px;background:hsla(221,85%,55%,0.08);border-bottom:3px solid hsla(221,85%,55%,0.38);color:var(--color-primary);letter-spacing:0.04em">
+        <div style="display:flex;align-items:center;justify-content:center;gap:5px">
+          <i data-lucide="activity" style="width:11px;height:11px"></i> OVERALL
+        </div>
+      </th>`;
 
       const columnTotals = types.map(() => ({ tasks: [], completed: 0, progressSum: 0 }));
       let grandTotalTasks = 0;
@@ -21474,14 +21520,15 @@
         let rowCompleted = 0;
         
         let tds = types.map((ty, ti) => {
+          const p = palette(ti);
+          const isGUICol = ty.trim().toUpperCase() === 'GUI';
+
           const cellTasks = tasks.filter(t => {
             const inCell = (t.module === m || (!t.module && m === 'General')) && (t.moduleType === ty || (!t.moduleType && ty === types[0]));
             if (!inCell) return false;
-            
             if (state.searchQuery && !t.name.toLowerCase().includes(state.searchQuery.toLowerCase())) return false;
             if (state.priority !== 'All' && t.priority !== state.priority) return false;
             if (state.assignee !== 'All' && t.assignee !== state.assignee) return false;
-            
             return true;
           });
 
@@ -21494,7 +21541,7 @@
           });
 
           if (!cellTasks.length) {
-            return `<td style="text-align:center;padding:12px;border:1px solid var(--color-divider-faint);background:var(--color-surface-1)"><span style="color:var(--color-text-faint);font-size:12px">—</span></td>`;
+            return `<td style="text-align:center;padding:14px;border:1px solid var(--color-divider-faint);background:var(--color-surface-1)"><span style="color:var(--color-text-faint);font-size:13px">—</span></td>`;
           }
 
           const cellId = `cell-${matrixId}-${mi}-${ti}`;
@@ -21502,7 +21549,7 @@
           window._matrixCellMeta[cellId] = { module: m, type: ty };
 
           let cellHTML = '';
-          let bg = 'var(--color-surface-1)';
+          let bg = p.bg;
           const hasBlocked = cellTasks.some(t => t.status === 'Blocked');
 
           if (state.viewMode === 'status') {
@@ -21518,56 +21565,99 @@
             else if (domSt === 'Under Review') stIcon = 'eye';
             else if (domSt === 'Blocked') stIcon = 'alert-octagon';
 
+            // Mini multi-status bar
+            const allStatuses = ['Completed','In Progress','Under Review','On Hold','Blocked','Not Started'];
+            const stColors = ['#22c55e','#3b82f6','#a855f7','#f59e0b','#ef4444','#94a3b8'];
+            const barSegs = allStatuses.map((s, si) => {
+              const cnt = stMap[s] || 0;
+              if (!cnt) return '';
+              const pct = Math.round(cnt / cellTasks.length * 100);
+              return `<div style="width:${pct}%;height:100%;background:${stColors[si]};min-width:2px" title="${s}: ${cnt}"></div>`;
+            }).join('');
+
+            bg = hasBlocked ? 'rgba(239,68,68,0.07)' : p.bg;
             cellHTML = `
               <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
-                <span class="badge ${stCls}" style="font-size:10px;padding:4px 8px;display:inline-flex;align-items:center;gap:4px;box-shadow:0 2px 6px rgba(0,0,0,0.05)">
+                <span class="badge ${stCls}" style="font-size:10px;padding:4px 9px;display:inline-flex;align-items:center;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
                   <i data-lucide="${stIcon}" style="width:10px;height:10px"></i>${esc(domSt)}
                 </span>
-                <span style="font-size:12px;font-weight:700;color:var(--color-text);font-family:var(--font-mono);background:var(--color-surface-3);padding:2px 8px;border-radius:10px;border:1px solid var(--color-border-faint)">${cellTasks.length} task${cellTasks.length > 1 ? 's' : ''}</span>
+                <div style="width:64px;height:5px;background:var(--color-surface-3);border-radius:3px;overflow:hidden;display:flex">${barSegs}</div>
+                <span style="font-size:11px;font-weight:700;color:${p.h};font-family:var(--font-mono);background:${p.pill};padding:2px 8px;border-radius:8px;border:1px solid ${p.border}">${cellTasks.length} task${cellTasks.length > 1 ? 's' : ''}</span>
               </div>
             `;
           } else if (state.viewMode === 'progress') {
             const avgProgress = Math.round(cellTasks.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / cellTasks.length);
-            const alpha = Math.max(0.08, avgProgress / 100 * 0.35);
-            bg = hasBlocked ? 'rgba(239, 68, 68, 0.12)' : `rgba(34, 197, 94, ${alpha})`;
-            
+            const progressColor = avgProgress >= 80 ? '#22c55e' : avgProgress >= 50 ? '#3b82f6' : avgProgress >= 25 ? '#f59e0b' : '#ef4444';
+            const alpha = Math.max(0.06, avgProgress / 100 * 0.30);
+            bg = hasBlocked ? 'rgba(239,68,68,0.08)' : `hsla(${221 + ti*37},75%,55%,${alpha})`;
             cellHTML = `
               <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
-                <span style="font-size:15px;font-weight:900;color:var(--color-primary);font-family:var(--font-mono)">${avgProgress}%</span>
-                <div style="width:60px;height:4px;background:var(--color-surface-3);border-radius:2px;overflow:hidden">
-                  <div style="width:${avgProgress}%;height:100%;background:var(--color-primary)"></div>
+                <span style="font-size:18px;font-weight:900;color:${progressColor};font-family:var(--font-mono)">${avgProgress}%</span>
+                <div style="width:66px;height:6px;background:var(--color-surface-3);border-radius:3px;overflow:hidden">
+                  <div style="width:${avgProgress}%;height:100%;background:${progressColor};border-radius:3px"></div>
                 </div>
+                <span style="font-size:10px;color:var(--color-text-muted)">${cellTasks.length} task${cellTasks.length>1?'s':''}</span>
               </div>
             `;
           } else if (state.viewMode === 'volume') {
             const ratio = Math.min(1, cellTasks.length / 8);
-            const alpha = Math.max(0.05, ratio * 0.28);
-            bg = `rgba(var(--color-primary-rgb), ${alpha})`;
-
+            const alpha = Math.max(0.08, ratio * 0.28);
+            bg = `hsla(${221 + ti*37},75%,55%,${alpha})`;
+            const size = Math.max(28, Math.min(44, 22 + cellTasks.length * 2));
             cellHTML = `
-              <div style="display:flex;align-items:center;justify-content:center">
-                <div style="width:30px;height:30px;border-radius:50%;background:var(--color-primary);color:white;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(var(--color-primary-rgb), 0.3)">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+                <div style="width:${size}px;height:${size}px;border-radius:50%;background:linear-gradient(135deg,${p.h},${p.h}bb);color:white;font-weight:900;font-size:${size > 36 ? 13 : 11}px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px ${p.glow}">
                   ${cellTasks.length}
                 </div>
+                <span style="font-size:10px;font-weight:600;color:${p.h}">task${cellTasks.length>1?'s':''}</span>
               </div>
             `;
           } else if (state.viewMode === 'effort') {
             const est = cellTasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
             const act = cellTasks.reduce((s, t) => s + (parseFloat(t.actEffort) || 0), 0);
-            const varHours = act - est;
-            if (varHours > 0) bg = 'rgba(239, 68, 68, 0.08)';
-            else if (cellTasks.every(t => t.status === 'Completed')) bg = 'rgba(34, 197, 94, 0.06)';
-
+            const variance = act - est;
+            const isOverrun = variance > 0;
+            bg = isOverrun ? 'rgba(239,68,68,0.08)' : (cellTasks.every(t => t.status === 'Completed') ? 'rgba(34,197,94,0.08)' : p.bg);
             cellHTML = `
-              <div style="display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px">
-                <div style="font-weight:600;color:var(--color-text-muted)">Est: <span style="font-weight:700;color:var(--color-text)">${est}h</span></div>
-                <div style="font-weight:600;color:var(--color-text-muted)">Act: <span style="font-weight:700;color:var(--color-text)">${act}h</span></div>
-                ${varHours > 0 ? `<span style="font-size:9px;font-weight:700;color:var(--red);background:rgba(239,68,68,0.1);padding:1px 4px;border-radius:4px;margin-top:2px">+${varHours}h overrun</span>` : ''}
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px">
+                <div style="display:flex;gap:6px">
+                  <div style="text-align:center">
+                    <div style="font-size:9px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.04em">Est</div>
+                    <div style="font-weight:800;color:${p.h};font-family:var(--font-mono);font-size:13px">${est}${effortUnitShort}</div>
+                  </div>
+                  <div style="width:1px;background:var(--color-border-faint);margin:2px 0"></div>
+                  <div style="text-align:center">
+                    <div style="font-size:9px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.04em">Act</div>
+                    <div style="font-weight:800;color:var(--color-text);font-family:var(--font-mono);font-size:13px">${act}${effortUnitShort}</div>
+                  </div>
+                </div>
+                ${variance !== 0 ? `<span style="font-size:9px;font-weight:700;color:${isOverrun?'#ef4444':'#22c55e'};background:${isOverrun?'rgba(239,68,68,0.12)':'rgba(34,197,94,0.12)'};padding:2px 6px;border-radius:6px;margin-top:1px">${isOverrun?'+':''}${variance.toFixed(1)}${effortUnitShort} ${isOverrun?'overrun':'saved'}</span>` : `<span style="font-size:9px;color:var(--color-text-faint)">on budget</span>`}
               </div>
             `;
+          } else if (state.viewMode === 'screens') {
+            const guiInCell = cellTasks.filter(t => t.moduleType === 'GUI' || isGUICol || (t.guiScreens && t.guiScreens.length));
+            const screenSet = new Set();
+            guiInCell.forEach(t => { (t.guiScreens || []).forEach(s => screenSet.add(typeof s === 'string' ? s : s.name)); });
+            const screenCount = screenSet.size;
+            if (!guiInCell.length || screenCount === 0) {
+              bg = 'var(--color-surface-1)';
+              cellHTML = `<div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+                <i data-lucide="minus-circle" style="width:14px;height:14px;color:var(--color-text-faint)"></i>
+                <span style="font-size:10px;color:var(--color-text-faint)">N/A</span>
+                <span style="font-size:10px;color:var(--color-text-muted)">${cellTasks.length} task${cellTasks.length>1?'s':''}</span>
+              </div>`;
+            } else {
+              const size = Math.max(30, Math.min(46, 24 + screenCount * 3));
+              bg = p.bg;
+              cellHTML = `<div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+                <div style="width:${size}px;height:${size}px;border-radius:10px;background:linear-gradient(135deg,${p.h},${p.h}bb);color:white;font-weight:900;font-size:${screenCount>9?12:14}px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px ${p.glow}">${screenCount}</div>
+                <span style="font-size:10px;font-weight:600;color:${p.h}">screen${screenCount!==1?'s':''}</span>
+                <span style="font-size:9px;color:var(--color-text-muted)">${guiInCell.length} task${guiInCell.length>1?'s':''}</span>
+              </div>`;
+            }
           }
 
-          return `<td class="matrix-cell ${hasBlocked ? 'has-blocked' : ''}" data-cell-id="${cellId}" style="background:${bg}" onmouseenter="window._matrixCellHover(event)" onmousemove="window._matrixCellMove(event)" onmouseleave="window._matrixCellLeave()" onclick="window._matrixCellClick(this)">
+          return `<td class="matrix-cell ${hasBlocked ? 'has-blocked' : ''}" data-cell-id="${cellId}" style="background:${bg};border:1px solid ${p.border}" onmouseenter="window._matrixCellHover(event)" onmousemove="window._matrixCellMove(event)" onmouseleave="window._matrixCellLeave()" onclick="window._matrixCellClick(this)">
             ${cellHTML}
           </td>`;
         }).join('');
@@ -21578,14 +21668,15 @@
         let rowTotalsHTML = '';
         if (rowTasks.length > 0) {
           const rowCompPct = Math.round(rowCompleted / rowTasks.length * 100);
+          const pctColor = rowCompPct >= 80 ? '#22c55e' : rowCompPct >= 50 ? '#3b82f6' : rowCompPct >= 25 ? '#f59e0b' : '#ef4444';
           rowTotalsHTML = `
             <td style="padding:12px;border:1px solid var(--color-divider-faint);background:var(--color-surface-2);text-align:center;vertical-align:middle;font-weight:700">
               <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
-                <span style="font-size:12px;font-weight:800;color:var(--color-primary);font-family:var(--font-mono)">${rowCompPct}%</span>
-                <span style="font-size:10px;color:var(--color-text-muted)">${rowCompleted}/${rowTasks.length} done</span>
-                <div style="width:60px;height:4px;background:var(--color-surface-3);border-radius:2px;overflow:hidden">
-                  <div style="width:${rowCompPct}%;height:100%;background:var(--color-primary)"></div>
+                <span style="font-size:13px;font-weight:900;color:${pctColor};font-family:var(--font-mono)">${rowCompPct}%</span>
+                <div style="width:60px;height:5px;background:var(--color-surface-3);border-radius:3px;overflow:hidden">
+                  <div style="width:${rowCompPct}%;height:100%;background:${pctColor};border-radius:3px"></div>
                 </div>
+                <span style="font-size:10px;color:var(--color-text-muted)">${rowCompleted}/${rowTasks.length} done</span>
               </div>
             </td>
           `;
@@ -21593,17 +21684,28 @@
           rowTotalsHTML = `<td style="text-align:center;padding:12px;border:1px solid var(--color-divider-faint);background:var(--color-surface-2)"><span style="color:var(--color-text-faint);font-size:12px">—</span></td>`;
         }
 
-        return `<tr style="transition:background 0.2s"><td style="font-weight:800;font-size:12px;color:var(--color-text);padding:14px 16px;background:var(--color-surface-2);border:1px solid var(--color-divider-faint);border-left:4px solid var(--color-primary);position:sticky;left:0;z-index:1;box-shadow:2px 0 8px rgba(0,0,0,0.02)">${esc(m)}</td>${tds}${rowTotalsHTML}</tr>`;
+        const accent = rowAccent(mi);
+        return `<tr style="transition:background 0.2s"><td style="font-weight:800;font-size:12px;color:var(--color-text);padding:14px 16px;background:var(--color-surface-2);border:1px solid var(--color-divider-faint);border-left:4px solid ${accent};position:sticky;left:0;z-index:1;box-shadow:2px 0 8px rgba(0,0,0,0.03)">
+          <div style="display:flex;align-items:center;gap:7px">
+            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${accent};box-shadow:0 0 6px ${accent}66;flex-shrink:0"></span>
+            ${esc(m)}
+          </div>
+        </td>${tds}${rowTotalsHTML}</tr>`;
       }).join('');
 
-      let colTotalsTds = columnTotals.map(col => {
-        if (!col.tasks.length) return `<td style="padding:12px;border-top:2px solid var(--color-border);background:var(--color-surface-2);text-align:center;color:var(--color-text-faint)">—</td>`;
+      let colTotalsTds = columnTotals.map((col, ti) => {
+        const p = palette(ti);
+        if (!col.tasks.length) return `<td style="padding:12px;border-top:2px solid var(--color-border);background:${p.bg};text-align:center;color:var(--color-text-faint)">—</td>`;
         const avgColProgress = Math.round(col.progressSum / col.tasks.length);
+        const colCompPct = Math.round(col.completed / col.tasks.length * 100);
         return `
-          <td style="padding:12px;border-top:2px solid var(--color-border);background:var(--color-surface-2);text-align:center;font-weight:700">
-            <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
-              <span style="font-size:11px;font-family:var(--font-mono);color:var(--color-text)">${col.tasks.length} task${col.tasks.length > 1 ? 's' : ''}</span>
-              <span style="font-size:10px;color:var(--color-text-muted)">(${avgColProgress}% comp)</span>
+          <td style="padding:12px;border-top:2px solid ${p.border};background:${p.bg};text-align:center;font-weight:700">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+              <span style="font-size:12px;font-family:var(--font-mono);color:${p.h};font-weight:800">${col.tasks.length} task${col.tasks.length > 1 ? 's' : ''}</span>
+              <div style="width:52px;height:4px;background:var(--color-surface-3);border-radius:2px;overflow:hidden">
+                <div style="width:${colCompPct}%;height:100%;background:${p.h};border-radius:2px"></div>
+              </div>
+              <span style="font-size:10px;color:var(--color-text-muted)">${avgColProgress}% avg</span>
             </div>
           </td>
         `;
@@ -21611,15 +21713,22 @@
 
       const grandCompPct = grandTotalTasks ? Math.round(grandCompletedTasks / grandTotalTasks * 100) : 0;
       const grandTotalTds = `
-        <td style="padding:12px;border-top:2px solid var(--color-border);background:var(--color-surface-2);text-align:center;font-weight:800;color:var(--color-primary)">
-          <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
-            <span style="font-size:12px;font-family:var(--font-mono)">${grandTotalTasks} tasks</span>
-            <span style="font-size:10px;color:var(--color-text-muted)">(${grandCompPct}% comp)</span>
+        <td style="padding:12px;border-top:2px solid hsla(221,85%,55%,0.4);background:hsla(221,85%,55%,0.08);text-align:center;font-weight:800;color:var(--color-primary)">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+            <span style="font-size:13px;font-family:var(--font-mono);font-weight:900">${grandTotalTasks} tasks</span>
+            <div style="width:52px;height:4px;background:var(--color-surface-3);border-radius:2px;overflow:hidden">
+              <div style="width:${grandCompPct}%;height:100%;background:var(--color-primary);border-radius:2px"></div>
+            </div>
+            <span style="font-size:10px;color:var(--color-text-muted)">${grandCompPct}% done</span>
           </div>
         </td>
       `;
 
-      const totalsRow = `<tr><td style="font-weight:800;font-size:11px;color:var(--color-text);padding:14px 16px;background:var(--color-surface-2);border-top:2px solid var(--color-border);border-left:4px solid var(--color-primary)">TOTALS</td>${colTotalsTds}${grandTotalTds}</tr>`;
+      const totalsRow = `<tr><td style="font-weight:800;font-size:11px;color:var(--color-text);padding:14px 16px;background:var(--color-surface-2);border-top:2px solid var(--color-border);border-left:4px solid var(--color-primary);position:sticky;left:0;z-index:1;letter-spacing:0.03em">
+        <div style="display:flex;align-items:center;gap:6px">
+          <i data-lucide="sigma" style="width:11px;height:11px;color:var(--color-primary)"></i> TOTALS
+        </div>
+      </td>${colTotalsTds}${grandTotalTds}</tr>`;
 
       tableWrap.innerHTML = `
         <table style="width:100%;border-collapse:collapse;background:var(--color-surface-1);border-radius:var(--radius-lg);overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.03);border:1px solid var(--color-border)">
