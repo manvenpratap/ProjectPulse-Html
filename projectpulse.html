@@ -26898,10 +26898,18 @@
       wsFilt.columns = [{ header: 'Category', key: 'cat', width: 22 }, { header: 'Filter Value', key: 'val', width: 35 }];
       wsFilt.getRow(1).height = 30; wsFilt.getRow(1).eachCell(c => c.style = hdrStyle);
       let idxF = 0;
-      Object.entries(P.filters || {}).forEach(([cat, set]) => (set || []).forEach(v => {
-        const row = wsFilt.addRow({ cat: S(cat), val: S(v) }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
-        if (idxF++ % 2 === 1) row.eachCell(c => c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } });
-      }));
+      Object.entries(P.filters || {}).forEach(([cat, set]) => {
+        if (set === undefined || set === null) return;
+        if (typeof set.forEach === 'function') {
+          set.forEach(v => {
+            const row = wsFilt.addRow({ cat: S(cat), val: S(v) }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
+            if (idxF++ % 2 === 1) row.eachCell(c => c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } });
+          });
+        } else {
+          const row = wsFilt.addRow({ cat: S(cat), val: S(set) }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
+          if (idxF++ % 2 === 1) row.eachCell(c => c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } });
+        }
+      });
 
       const wsSets = wb.addWorksheet('State_Sets', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
       wsSets.properties.tabColor = { argb: COLORS.slate };
@@ -27394,7 +27402,22 @@
       if (stateSets.length) { P.dismissedAlerts = new Set(stateSets.filter(s => s.type === 'DismissedAlert').map(s => s.value)); P.expanded = new Set(stateSets.filter(s => s.type === 'ExpandedNode').map(s => s.value)); }
       const stateFilters = rawData.getTable('App_Filters');
       P.filters = { status: new Set(), priority: new Set(), assignee: new Set(), module: new Set(), feature: new Set() };
-      stateFilters.forEach(f => { const cat = f.cat || f.category; const val = f.val || f.value; if (cat && P.filters[cat]) P.filters[cat].add(val); });
+      stateFilters.forEach(f => {
+        const cat = f.cat || f.category;
+        const val = f.val || f.value;
+        if (cat) {
+          if (cat === 'overdueOnly' || cat === 'blockedOnly') {
+            P.filters[cat] = (val === 'true' || val === true);
+          } else {
+            if (!P.filters[cat]) P.filters[cat] = new Set();
+            if (P.filters[cat] instanceof Set) {
+              P.filters[cat].add(val);
+            } else {
+              P.filters[cat] = val;
+            }
+          }
+        }
+      });
 
       const gridCols = rawData.getTable('Config_GridColumns');
       if (gridCols.length) { const mapCols = (ws) => gridCols.filter(c => c.workshop === ws).map(c => ({ key: c.key, label: c.label, w: parseInt(c.w), type: c.type, edit: !!c.edit })); P.cols = mapCols('Task'); P.defCols = mapCols('Defect'); }
