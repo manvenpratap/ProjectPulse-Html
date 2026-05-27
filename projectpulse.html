@@ -15299,39 +15299,61 @@
       const cont = flyout.querySelector('#flyout_server_subs_cont');
       subtasks.forEach((st, idx) => {
         const div = document.createElement('div');
-        div.style = 'display:flex;align-items:center;justify-content:space-between;padding:12px;background:var(--color-surface-2);border:1px solid var(--color-divider);border-radius:8px;margin-bottom:8px';
-        const isDone = st.status === 'Completed';
-        div.innerHTML = `
-             <div style="display:flex;align-items:center;gap:12px">
-                <input type="checkbox" ${isDone ? 'checked' : ''} style="width:16px;height:16px" onchange="window.toggleServerSubtaskDoneLocal('${st.id}',this.checked)">
-                <div>
-                   <div style="display:flex;align-items:center;gap:8px">
-                      <div style="font-size:12px;font-weight:600;${isDone ? 'text-decoration:line-through;opacity:0.5' : ''}">${esc(st.name)}</div>
-                      <select style="font-size:9px;background:var(--color-surface-3);border:1px solid var(--color-divider);border-radius:4px;padding:1px 4px;color:var(--text)" onchange="window.updateServerSubtaskStatusLocal('${st.id}',this.value)">
-                         ${STATUSES.map(s => `<option value="${s}" ${s === st.status ? 'selected' : ''}>${s}</option>`).join('')}
-                      </select>
-                   </div>
-                     <div style="font-size:10px;color:var(--color-text-muted);display:flex;flex-direction:column;gap:6px;margin-top:4px">
-                        <div style="display:grid;grid-template-columns: 70px 1fr;gap:8px;align-items:center">
-                           <div style="opacity:0.7">Effort:</div>
-                           <div><input type="number" value="${st.effort || 1}" style="width:40px;background:var(--color-surface-3);border:1px solid var(--color-divider);color:inherit;font-size:inherit;padding:2px 4px;border-radius:4px;text-align:center" onchange="window.updateServerSubtaskEffortLocal('${st.id}',this.value)"> Days</div>
-                           
-                           <div style="opacity:0.7">Schedule:</div>
-                           <div style="font-weight:500">${st.startDate || '?'} <span style="opacity:0.5">→</span> ${st.dueDate || '?'}</div>
+        const isDone = st.status === 'Completed' || st.done;
+        const status = st.status || (st.done ? 'Completed' : 'Not Started');
+        const colors = {
+          'Not Started': '#64748b',
+          'In Progress': '#2563eb',
+          'Under Review': '#7e22ce',
+          'Completed': '#16a34a',
+          'On Hold': '#ea580c',
+          'Blocked': '#dc2626',
+          'Deferred': '#94a3b8'
+        };
+        const statusColor = colors[status] || '#64748b';
 
-                           <div style="opacity:0.7">Actual:</div>
-                           <div style="display:flex;align-items:center;gap:8px">
-                              <input type="date" value="${st.actCompletionDate || ''}" style="background:var(--color-surface-3);border:1px solid var(--color-divider);color:inherit;font-size:inherit;padding:2px 4px;border-radius:4px" onchange="window.updateServerSubtaskCompletionDateLocal('${st.id}',this.value)">
-                              <span id="server_act_hours_${st.id}" style="color:var(--green);font-weight:700;font-size:10px;background:rgba(var(--color-success-rgb),0.1);padding:1px 6px;border-radius:10px;display:${st.actEffort ? 'inline' : 'none'}">${st.actEffort || 0}d actual</span>
-                           </div>
-                        </div>
-                     </div>
+        div.style = `display:flex; flex-direction:column; padding:14px; background:var(--color-surface); border:1px solid var(--color-border); border-left:4px solid ${statusColor}; border-radius:var(--radius-md); margin-bottom:12px; box-shadow:var(--shadow-sm); transition:all 0.2s ease`;
+        
+        div.innerHTML = `
+             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                   <input type="checkbox" ${isDone ? 'checked' : ''} style="width:15px; height:15px; accent-color:var(--color-primary); cursor:pointer;" onchange="window.toggleServerSubtaskDoneLocal('${st.id}',this.checked)">
+                   <div style="font-size:12px; font-weight:600; color:var(--color-text); ${isDone ? 'text-decoration:line-through; opacity:0.5' : ''}">${esc(st.name)}</div>
+                </div>
+                <div>
+                   <select style="font-size:10px; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:4px; padding:2px 6px; color:var(--color-text); cursor:pointer; font-weight:600;" onchange="window.updateServerSubtaskStatusLocal('${st.id}',this.value)">
+                      ${STATUSES.map(s => `<option value="${s}" ${s === status ? 'selected' : ''}>${s}</option>`).join('')}
+                   </select>
                 </div>
              </div>
-             <span class="st-badge st-${(st.status || 'Not Started').toLowerCase().replace(/ /g, '-')}" style="font-size:9px">${st.status || 'Not Started'}</span>
+             <div style="height:1px; background:var(--color-divider); margin:0 -14px 10px -14px; opacity:0.4;"></div>
+             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap:12px; font-size:10px; color:var(--color-text-muted);">
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                   <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Effort Plan</span>
+                   <div style="display:flex; align-items:center; gap:4px;">
+                      <input type="number" value="${st.effort || 1}" style="width:44px; background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; text-align:center; font-weight:600;" onchange="window.updateServerSubtaskEffortLocal('${st.id}',this.value)">
+                      <span style="font-weight:500;">Days</span>
+                   </div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                   <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Schedule</span>
+                   <div style="display:flex; align-items:center; gap:4px; font-weight:600; color:var(--color-text); margin-top:2px;">
+                      <i data-lucide="calendar" style="width:11px; height:11px; opacity:0.6;"></i>
+                      <span>${st.startDate || '?'} <span style="opacity:0.4;">→</span> ${st.dueDate || '?'}</span>
+                   </div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                   <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Actual Completion</span>
+                   <div style="display:flex; align-items:center; gap:6px;">
+                      <input type="date" value="${st.actCompletionDate || ''}" style="background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; width:110px;" onchange="window.updateServerSubtaskCompletionDateLocal('${st.id}',this.value)">
+                      <span id="server_act_hours_${st.id}" class="badge success" style="font-weight:700; font-size:8px; display:${st.actEffort ? 'inline-flex' : 'none'}; padding: 1px 4px; border-radius: 3px; white-space:nowrap">${st.actEffort || 0}d act</span>
+                   </div>
+                </div>
+             </div>
           `;
         cont.appendChild(div);
       });
+      if (window.lucide) lucide.createIcons({ target: flyout });
     }
 
     function closeFlyout() { $id('flyout').classList.remove('open'); P._editingTaskId = null; }
