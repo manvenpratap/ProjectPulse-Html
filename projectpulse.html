@@ -14096,7 +14096,15 @@
 
       // Create flyout if not exists
       let flyout = $id('screen-flyout');
-      if (!flyout) {
+      let scrollPos = 0;
+      let activeId = null;
+      if (flyout) {
+        const flyBody = flyout.querySelector('.fly-body');
+        if (flyBody) scrollPos = flyBody.scrollTop;
+        if (document.activeElement && document.activeElement.id) {
+          activeId = document.activeElement.id;
+        }
+      } else {
         flyout = document.createElement('div');
         flyout.id = 'screen-flyout';
         flyout.className = 'view-flyout';
@@ -14301,11 +14309,11 @@
         div.innerHTML = `
              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
                 <div style="display:flex; align-items:center; gap:10px;">
-                   <input type="checkbox" ${isDone ? 'checked' : ''} style="width:15px; height:15px; accent-color:var(--color-primary); cursor:pointer;" onchange="window.updateGUIStepLocal(${idx},'status',this.checked?'Completed':'In Progress')">
+                   <input type="checkbox" id="gui_step_cb_${idx}" ${isDone ? 'checked' : ''} style="width:15px; height:15px; accent-color:var(--color-primary); cursor:pointer;" onchange="window.updateGUIStepLocal(${idx},'status',this.checked?'Completed':'In Progress')">
                    <div style="font-size:12px; font-weight:600; color:var(--color-text); ${isDone ? 'text-decoration:line-through; opacity:0.5' : ''}">${esc(step.name)}</div>
                 </div>
                 <div>
-                   <select style="font-size:10px; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:4px; padding:2px 6px; color:var(--color-text); cursor:pointer; font-weight:600;" onchange="window.updateGUIStepLocal(${idx},'status',this.value)">
+                   <select id="gui_step_sel_${idx}" style="font-size:10px; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:4px; padding:2px 6px; color:var(--color-text); cursor:pointer; font-weight:600;" onchange="window.updateGUIStepLocal(${idx},'status',this.value)">
                       ${STATUSES.map(s => `<option value="${s}" ${s === status ? 'selected' : ''}>${s}</option>`).join('')}
                    </select>
                 </div>
@@ -14315,7 +14323,7 @@
                 <div style="display:flex; flex-direction:column; gap:4px;">
                    <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Effort Plan</span>
                    <div style="display:flex; align-items:center; gap:4px;">
-                      <input type="number" value="${step.effort || 1}" style="width:44px; background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; text-align:center; font-weight:600;" onchange="window.updateGUIStepEffortLocal(${idx},this.value)">
+                      <input type="number" id="gui_step_eff_${idx}" value="${step.effort || 1}" style="width:44px; background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; text-align:center; font-weight:600;" onchange="window.updateGUIStepEffortLocal(${idx},this.value)">
                       <span style="font-weight:500;">Days</span>
                    </div>
                 </div>
@@ -14329,7 +14337,7 @@
                 <div style="display:flex; flex-direction:column; gap:4px;">
                    <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Actual Completion</span>
                    <div style="display:flex; align-items:center; gap:6px;">
-                      <input type="text" value="${step.actCompletionDate ? fmtDate(step.actCompletionDate) : ''}" placeholder="dd-mmm-yyyy" style="background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; width:110px;" onchange="window.updateGUIStepCompletionDateLocal(${idx},parseDateDMY(this.value))">
+                      <input type="text" id="gui_step_act_${idx}" value="${step.actCompletionDate ? fmtDate(step.actCompletionDate) : ''}" placeholder="dd-mmm-yyyy" style="background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; width:110px;" onchange="window.updateGUIStepCompletionDateLocal(${idx},parseDateDMY(this.value))">
                       <span id="step_act_hours_${idx}" class="badge success" style="font-weight:700; font-size:8px; display:${step.actEffort ? 'inline-flex' : 'none'}; padding: 1px 4px; border-radius: 3px; white-space:nowrap">${step.actEffort || 0}d act</span>
                    </div>
                 </div>
@@ -14340,6 +14348,13 @@
 
       flyout.classList.add('open');
       if (window.lucide) lucide.createIcons({ target: flyout });
+
+      const newFlyBody = flyout.querySelector('.fly-body');
+      if (newFlyBody) newFlyBody.scrollTop = scrollPos;
+      if (activeId) {
+        const el = $id(activeId);
+        if (el) el.focus();
+      }
     }
 
     function showSubtaskCtx(e, taskId, stId) {
@@ -15226,6 +15241,17 @@
       const task = P.tasks.find(t => t.id === taskId);
       if (!task) return;
 
+      const oldFlyout = $id('server-workflow-flyout');
+      let scrollPos = 0;
+      let activeId = null;
+      if (oldFlyout) {
+        const flyBody = oldFlyout.querySelector('.fly-body');
+        if (flyBody) scrollPos = flyBody.scrollTop;
+        if (document.activeElement && document.activeElement.id) {
+          activeId = document.activeElement.id;
+        }
+      }
+
       if (!window._editingServerTaskId || window._editingServerTaskId !== taskId) {
         window._editingServerTaskId = taskId;
         window._editingServerSubtasks = JSON.parse(JSON.stringify(task.subtasks || []));
@@ -15404,11 +15430,11 @@
         div.innerHTML = `
              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
                 <div style="display:flex; align-items:center; gap:10px;">
-                   <input type="checkbox" ${isDone ? 'checked' : ''} style="width:15px; height:15px; accent-color:var(--color-primary); cursor:pointer;" onchange="window.toggleServerSubtaskDoneLocal('${st.id}',this.checked)">
+                   <input type="checkbox" id="server_st_cb_${st.id}" ${isDone ? 'checked' : ''} style="width:15px; height:15px; accent-color:var(--color-primary); cursor:pointer;" onchange="window.toggleServerSubtaskDoneLocal('${st.id}',this.checked)">
                    <div style="font-size:12px; font-weight:600; color:var(--color-text); ${isDone ? 'text-decoration:line-through; opacity:0.5' : ''}">${esc(st.name)}</div>
                 </div>
                 <div>
-                   <select style="font-size:10px; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:4px; padding:2px 6px; color:var(--color-text); cursor:pointer; font-weight:600;" onchange="window.updateServerSubtaskStatusLocal('${st.id}',this.value)">
+                   <select id="server_st_sel_${st.id}" style="font-size:10px; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:4px; padding:2px 6px; color:var(--color-text); cursor:pointer; font-weight:600;" onchange="window.updateServerSubtaskStatusLocal('${st.id}',this.value)">
                       ${STATUSES.map(s => `<option value="${s}" ${s === status ? 'selected' : ''}>${s}</option>`).join('')}
                    </select>
                 </div>
@@ -15418,7 +15444,7 @@
                 <div style="display:flex; flex-direction:column; gap:4px;">
                    <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Effort Plan</span>
                    <div style="display:flex; align-items:center; gap:4px;">
-                      <input type="number" value="${st.effort || 1}" style="width:44px; background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; text-align:center; font-weight:600;" onchange="window.updateServerSubtaskEffortLocal('${st.id}',this.value)">
+                      <input type="number" id="server_st_eff_${st.id}" value="${st.effort || 1}" style="width:44px; background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; text-align:center; font-weight:600;" onchange="window.updateServerSubtaskEffortLocal('${st.id}',this.value)">
                       <span style="font-weight:500;">Days</span>
                    </div>
                 </div>
@@ -15432,7 +15458,7 @@
                 <div style="display:flex; flex-direction:column; gap:4px;">
                    <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Actual Completion</span>
                    <div style="display:flex; align-items:center; gap:6px;">
-                      <input type="text" value="${st.actCompletionDate ? fmtDate(st.actCompletionDate) : ''}" placeholder="dd-mmm-yyyy" style="background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; width:110px;" onchange="window.updateServerSubtaskCompletionDateLocal('${st.id}',parseDateDMY(this.value))">
+                      <input type="text" id="server_st_act_${st.id}" value="${st.actCompletionDate ? fmtDate(st.actCompletionDate) : ''}" placeholder="dd-mmm-yyyy" style="background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; width:110px;" onchange="window.updateServerSubtaskCompletionDateLocal('${st.id}',parseDateDMY(this.value))">
                       <span id="server_act_hours_${st.id}" class="badge success" style="font-weight:700; font-size:8px; display:${st.actEffort ? 'inline-flex' : 'none'}; padding: 1px 4px; border-radius: 3px; white-space:nowrap">${st.actEffort || 0}d act</span>
                    </div>
                 </div>
@@ -15441,6 +15467,13 @@
         cont.appendChild(div);
       });
       if (window.lucide) lucide.createIcons({ target: flyout });
+
+      const newFlyBody = flyout.querySelector('.fly-body');
+      if (newFlyBody) newFlyBody.scrollTop = scrollPos;
+      if (activeId) {
+        const el = $id(activeId);
+        if (el) el.focus();
+      }
     }
 
     function closeFlyout() { $id('flyout').classList.remove('open'); P._editingTaskId = null; }
@@ -19372,8 +19405,11 @@
         allItems.push(t);
         if (t.subtasks) t.subtasks.forEach(st => allItems.push({ ...st, module: t.module, parentName: t.name, assignee: st.assignee || t.assignee }));
       });
-      const milestones = allItems.filter(t => (t.startDate && t.startDate === t.dueDate) || modMs.has(t.id))
-        .sort((a, b) => new Date(a.dueDate || a.startDate) - new Date(b.dueDate || b.startDate));
+      const milestones = allItems.filter(t => {
+        const hasMilestoneKeyword = (t.name || '').toLowerCase().includes('milestone') || (t.name || '').includes('💎');
+        const isExplicitMilestone = hasMilestoneKeyword || modMs.has(t.id) || t.confidence;
+        return isExplicitMilestone;
+      }).sort((a, b) => new Date(a.dueDate || a.startDate) - new Date(b.dueDate || b.startDate));
 
       if (!milestones.length) {
         addEmptyState(container, 'No milestones defined');
@@ -19399,7 +19435,7 @@
       if (nextMilestone) {
         const daysDiff = Math.ceil((new Date(nextMilestone.dueDate || nextMilestone.startDate) - now) / (1000 * 60 * 60 * 24));
         let daysStr = daysDiff < 0 ? `<span style="color:#ef4444;font-weight:700">(${Math.abs(daysDiff)} days overdue)</span>` : daysDiff === 0 ? `<span style="color:#f59e0b;font-weight:700">(Due today)</span>` : `<span style="color:var(--color-text-muted)">(${daysDiff} days left)</span>`;
-        nextMsHtml = `<span style="font-weight:700; color:var(--color-text)">${esc(nextMilestone.name)}</span> <span style="font-size:12px; margin-left:6px">${daysStr}</span>`;
+        nextMsHtml = `<span style="font-weight:700; color:var(--color-text)">${esc(nextMilestone.parentName || nextMilestone.name)}</span> <span style="font-size:12px; margin-left:6px">${daysStr}</span>`;
       }
 
       summaryBar.innerHTML = `
@@ -19476,7 +19512,7 @@
 
         node.innerHTML = `
           <div class="ms-content" style="top:-55px">
-            <span class="ms-name" style="font-size:12px; font-weight:700; color:${isNext ? 'var(--color-primary)' : 'var(--color-text)'}">${esc(m.name)}</span>
+            <span class="ms-name" style="font-size:12px; font-weight:700; color:${isNext ? 'var(--color-primary)' : 'var(--color-text)'}">${esc(m.parentName || m.name)}</span>
             <span class="ms-date" style="font-size:10px; font-weight:600; color:var(--color-text-muted); margin-top:4px">${fmtDate(m.dueDate || m.startDate)}</span>
             <span style="display:inline-block; font-size:9px; font-weight:700; padding:2px 8px; border-radius:10px; margin-top:4px; background:${isCompleted ? 'rgba(34,197,94,0.1)' : isInProgress ? 'rgba(99,102,241,0.1)' : 'var(--color-surface-2)'}; color:${markerColor}">${m.status}</span>
           </div>
@@ -19501,8 +19537,8 @@
                 <i data-lucide="${isCompleted ? 'check' : isNext ? 'flag' : 'clock'}" style="width:20px;height:20px"></i>
               </div>
               <div>
-                <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; font-weight:600; letter-spacing:0.5px">${m.module ? esc(m.module) : 'General Milestone'} ${m.parentName ? `• ${esc(m.parentName)}` : ''}</div>
-                <div style="font-size:16px; font-weight:800; color:var(--color-text); margin-top:2px">${esc(m.name)}</div>
+                <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; font-weight:600; letter-spacing:0.5px">${m.module ? esc(m.module) : 'General Milestone'} ${m.parentName ? `• ${esc(m.name)}` : ''}</div>
+                <div style="font-size:16px; font-weight:800; color:var(--color-text); margin-top:2px">${esc(m.parentName || m.name)}</div>
               </div>
             </div>
             <div style="display:flex; align-items:center; gap:24px; flex-wrap:wrap">
@@ -24941,6 +24977,22 @@
       const { ctx, W, H } = gCtx(cvs);
       if (!ctx || !labels || !labels.length) return;
 
+      const truncateText = (text, maxWidth) => {
+        if (ctx.measureText(text).width <= maxWidth) return text;
+        let low = 0, high = text.length, best = 0;
+        while (low <= high) {
+          const mid = (low + high) >> 1;
+          const candidate = text.slice(0, mid) + '...';
+          if (ctx.measureText(candidate).width <= maxWidth) {
+            best = mid;
+            low = mid + 1;
+          } else {
+            high = mid - 1;
+          }
+        }
+        return text.slice(0, best) + '...';
+      };
+
       const uShort = (P.settings && P.settings.effortUnit === 'hrs') ? 'h' : ((P.settings && P.settings.effortUnit === 'months') ? 'mo' : 'd');
 
       // Dynamic coordinate event listener binding
@@ -25119,10 +25171,10 @@
         // Left-aligned Resource Name and Subtitle
         ctx.textAlign = 'left';
         ctx.font = '800 12px var(--font-display), sans-serif'; ctx.fillStyle = themeText;
-        ctx.fillText(l || 'Unknown', 52, y - 2);
+        ctx.fillText(truncateText(l || 'Unknown', 115), 52, y - 2);
 
         ctx.font = '600 9px var(--font-body), sans-serif'; ctx.fillStyle = themeMuted;
-        ctx.fillText(role, 52, y + 8);
+        ctx.fillText(truncateText(role, 115), 52, y + 8);
 
         // Background capsule track
         drawPill(padL, y - barH / 2, chartW, barH, 'rgba(100, 116, 139, 0.04)');
@@ -27226,6 +27278,9 @@
           if (name === 'Reports') {
             if (raw === 'reporttitle' || raw === 'title') mapped = 'title';
             if (raw === 'executivesummary' || raw === 'summary') mapped = 'summary';
+          }
+          if (name === 'Config_GridColumns') {
+            if (raw === 'width') mapped = 'w';
           }
           if (name === 'Tasks') {
             if (raw === 'category') mapped = 'category';
