@@ -271,6 +271,24 @@
       --border-interactive: 1px solid transparent;
       --gradient-accent: var(--color-primary);
       --surface-glass: var(--color-surface);
+
+      /* Inconsistency fixes & custom variables mappings */
+      --color-danger: var(--red);
+      --color-warning: var(--amber);
+      --color-text-main: var(--color-text);
+      --shadow-xl: var(--shadow-lg);
+      --shadow-2xl: var(--shadow-lg);
+      --font-mono: var(--mono);
+      --color-emerald: var(--green);
+      --emerald: var(--green);
+      --color-success-rgb: 34, 197, 94;
+      --red-rgb: 239, 68, 68;
+      --orange: #f97316;
+      --color-slate: var(--color-text-muted);
+      --color-surfaceAlt: var(--color-surface-2);
+      --color-textLight: var(--color-text);
+      --color-textDark: var(--color-text);
+      --color-border-hover: var(--color-primary);
     }
 
     .registry-value-row {
@@ -3204,14 +3222,14 @@
       top: 0;
       left: 0;
       right: 0;
-      background: var(--bg-card);
+      background: var(--color-surface);
       border: 1px solid var(--border);
       border-top: none;
       z-index: 10;
       max-height: 250px;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 4px 12px var(--shadow);
+      box-shadow: var(--shadow-lg);
       border-radius: 0 0 6px 6px;
     }
 
@@ -8983,17 +9001,7 @@
               </table>
             </div>
           </div>
-          <!-- TIMELINE/GANTT VIEW -->
-          <div class="view-panel" id="vw-timeline" style="display:flex;flex-direction:column">
-            <div id="mc-summary-bar"
-              style="display:none;padding:16px 24px;background:var(--color-surface-2);border-bottom:1px solid var(--color-divider);align-items:center;justify-content:space-between;gap:20px;flex-shrink:0">
-            </div>
-            <div class="gantt-wrap">
-              <div class="gantt-left" id="gantt-left"></div>
-              <div class="gantt-resizer" id="gantt-resizer"></div>
-              <div class="gantt-right" id="gantt-right"><canvas id="gantt-canvas" class="gr-canvas"></canvas></div>
-            </div>
-          </div>
+
           <!-- TEAM VIEW -->
           <div class="view-panel scrollable" id="vw-team">
             <div class="team-inner" id="team-inner"></div>
@@ -9064,6 +9072,10 @@
           <!-- ACTIVITY LOG VIEW -->
           <div class="view-panel scrollable" id="vw-log">
             <div id="log-inner" style="padding:24px;max-width:1400px;margin:0 auto;width:100%"></div>
+          </div>
+          <!-- SHARE VIEW -->
+          <div class="view-panel scrollable" id="vw-share">
+            <div id="share-inner" style="padding:24px;max-width:1400px;margin:0 auto;width:100%"></div>
           </div>
         </div>
       </div>
@@ -10374,20 +10386,54 @@
     // ══════ KEYBOARD SHORTCUTS ══════
     window.addEventListener('keydown', e => {
       const isMod = e.ctrlKey || e.metaKey;
+      
+      // Ctrl+S / Cmd+S - Local save or Direct File Sync save
+      if (isMod && e.key === 's') {
+        e.preventDefault();
+        if (P.fsHandle && !P._isLoading && !P._isSaving) {
+          clearTimeout(_fileSaveTimer);
+          saveToFile();
+        } else {
+          save();
+          notify('Project state saved locally.', 'ok');
+        }
+      }
+      
+      // Ctrl+, / Cmd+, -> Settings
       if (isMod && e.key === ',') { e.preventDefault(); openSettings(); }
+      
+      // Ctrl+K / Cmd+K -> Command Palette
       if (isMod && e.key === 'k') { e.preventDefault(); openCmdPalette(); }
+      
+      // Ctrl+O / Cmd+O -> Open file/picker
       if (isMod && e.key === 'o') { e.preventDefault(); pickProjectDir(); }
-      if (isMod && e.key === 's') { e.preventDefault(); save(); notify('Data saved', 'ok'); }
+      
+      // Ctrl+N / Cmd+N -> New Task
       if (isMod && e.key === 'n') { e.preventDefault(); openAddTask(); }
+      
+      // Ctrl+R / Cmd+R -> Team View
+      if (isMod && e.key === 'r') { e.preventDefault(); setView('team'); }
+      
+      // Ctrl+A / Cmd+A -> Alerts
+      if (isMod && e.key === 'a') { e.preventDefault(); toggleAlerts(); }
+      
+      // Escape -> close everything
       if (e.key === 'Escape') {
-        if ($id('flyout').classList.contains('open')) closeFlyout();
+        if ($id('flyout') && $id('flyout').classList.contains('open')) closeFlyout();
+        if (typeof toggleSnapshotsDrawer === 'function' && $id('snapshots-backdrop')?.classList.contains('open')) toggleSnapshotsDrawer();
+        if (typeof toggleWhatIfDrawer === 'function' && $id('whatif-backdrop')?.classList.contains('open')) toggleWhatIfDrawer();
+        
         const activeModal = document.querySelector('.mbg.on, .mbg.open');
         if (activeModal) {
           if (activeModal.id === 'cmd-palette') closeCmdPalette();
-          else closeModal(activeModal.id);
+          else if (typeof closeModal === 'function') closeModal(activeModal.id);
+          else activeModal.classList.remove('open', 'on');
         }
-        closeCtx();
+        if (typeof closeCtx === 'function') closeCtx();
+        if (typeof closeAllFlyouts === 'function') closeAllFlyouts();
       }
+      
+      // Quick View-Switching Numeric Keys
       if (!isMod && (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA' && e.target.id !== 'cmd-input')) {
         if (e.key === '1') setView('tasks');
         if (e.key === '2') { setView('tasks'); setTaskViewMode('timeline'); }
@@ -12261,11 +12307,14 @@
       if (t) { mod = t.module; ass = t.assignee; }
       P.log.push({ ts: nowISO(), action, taskId, taskName, field: field || '', oldVal: oldVal || '', newVal: newVal || '', comment: comment || '', module: mod || 'General', assignee: ass || 'Unassigned' });
       save();
-      const b = $id('log-badge');
-      if (!b) return;
       const cnt = P.log.filter(l => l.ts && typeof l.ts === 'string' && l.ts.startsWith(todayStr())).length;
-      if (cnt > 0) { b.style.display = ''; b.textContent = cnt; }
-      else b.style.display = 'none';
+      ['log-badge', 'log-badge-mobile'].forEach(id => {
+        const b = $id(id);
+        if (b) {
+          if (cnt > 0) { b.style.display = ''; b.textContent = cnt; }
+          else b.style.display = 'none';
+        }
+      });
     }
 
     function migrateLogs() {
@@ -14534,7 +14583,7 @@
       const visibleParent = parent || target;
       if (!filtered.find(f => f.id === visibleParent.id)) {
         P.filters = {}; P.searchQuery = '';
-        const si = $id('search-tasks'); if (si) si.value = '';
+        const si = $id('global-search'); if (si) si.value = '';
         render();
       }
 
@@ -22733,20 +22782,24 @@
 
             const trendId = 'dash-defect-trend';
             const trendSpan = (P.widgetSpans && P.widgetSpans[trendId]) || sec.span || 2;
-            const trendCard = mkCC('Defect Inflow Trend', 'Last 7 days discovery rate', trendId, '', 'standard', "<b>Defect Inflow Velocity:</b> Tracks the volume of newly logged defects over the trailing 7 days. A rising trendline during late project phases indicates potential instability or inadequate earlier testing.", 'View Explanation', 'trending-up');
+            const trendCard = mkCC('Defect Inflow Trend', 'Last 7 weeks discovery rate', trendId, '', 'standard', "<b>Defect Inflow Velocity:</b> Tracks the volume of newly logged defects over the trailing 7 weeks. A rising trendline during late project phases indicates potential instability or inadequate earlier testing.", 'View Explanation', 'trending-up');
             trendCard.style.gridColumn = `span ${trendSpan}`;
             grid.appendChild(trendCard);
             const trendCvs = mkCvs(460, 160); trendCard.querySelector('.cb').appendChild(trendCvs);
             dashDrawQueue.push(() => {
-              const last7Days = Array.from({ length: 7 }, (_, i) => {
-                const d = new Date(); d.setDate(d.getDate() - (6 - i));
+              const last7WeeksLabels = Array.from({ length: 7 }, (_, i) => {
+                const d = new Date(); d.setDate(d.getDate() - (6 - i) * 7);
                 return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
               });
-              const trendData = last7Days.map((label, i) => {
-                const targetDate = new Date(); targetDate.setDate(targetDate.getDate() - (6 - i));
-                return defs.filter(d => new Date(d.createdAt || d.ts || Date.now()).toDateString() === targetDate.toDateString()).length;
+              const trendData = last7WeeksLabels.map((_, i) => {
+                const start = new Date(); start.setDate(start.getDate() - (7 - i) * 7);
+                const end = new Date(); end.setDate(end.getDate() - (6 - i) * 7);
+                return defs.filter(d => {
+                  const dt = new Date(d.createdAt || d.ts || Date.now());
+                  return dt > start && dt <= end;
+                }).length;
               });
-              drawLineChart(trendCvs, last7Days, [trendData], ['Defects Logged'], ['var(--red)']);
+              drawLineChart(trendCvs, last7WeeksLabels, [trendData], ['Defects Logged'], ['var(--red)']);
             });
 
             const rateId = 'dash-defect-rate';
@@ -24298,7 +24351,7 @@
       const viewMap = {
         'tasks': 'vw-tasks',
         'defects': 'vw-defects',
-        'timeline': 'vw-timeline',
+        'timeline': 'vw-tasks',
         'team': 'vw-team',
         'reports': 'vw-reports',
         'dash': 'vw-dash',
@@ -24594,7 +24647,11 @@
         btn.setAttribute('data-v', vid);
         btn.onclick = () => setView(vid);
         btn.title = viewDef.title;
-        btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${viewDef.label}`;
+        if (vid === 'log') {
+          btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${viewDef.label} <span id="log-badge" class="badge" style="display:none;margin-left:6px;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">0</span>`;
+        } else {
+          btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${viewDef.label}`;
+        }
         vsw.appendChild(btn);
 
         // Mobile #mobile-nav
@@ -24603,14 +24660,32 @@
         if (P.view === vid) mBtn.classList.add('active');
         mBtn.setAttribute('data-v', vid);
         mBtn.onclick = () => setView(vid);
-        mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${viewDef.label}</span>`;
+        if (vid === 'log') {
+          mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${viewDef.label}</span><span id="log-badge-mobile" class="badge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:white;font-size:9px;padding:1px 4px;border-radius:10px;line-height:1">0</span>`;
+        } else {
+          mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${viewDef.label}</span>`;
+        }
         mobileNav.appendChild(mBtn);
       });
 
       if (window.lucide) window.lucide.createIcons();
+
+      // Update log badge counts dynamically
+      const cnt = P.log.filter(l => l.ts && typeof l.ts === 'string' && l.ts.startsWith(todayStr())).length;
+      ['log-badge', 'log-badge-mobile'].forEach(id => {
+        const b = $id(id);
+        if (b) {
+          if (cnt > 0) { b.style.display = ''; b.textContent = cnt; }
+          else b.style.display = 'none';
+        }
+      });
     }
 
     function setView(v) {
+      if (v === 'timeline') {
+        P.taskViewMode = 'timeline';
+        v = 'tasks';
+      }
       if (['features', 'releases', 'scaffolder', 'fields', 'dropdowns', 'steps', 'settings'].includes(v)) {
         P._adminActiveTab = v;
         v = 'admin';
@@ -24648,7 +24723,6 @@
         'overview': '<div id="overview-inner" style="padding:24px;max-width:1400px;margin:0 auto;width:100%"></div>',
         'dash': '<div class="dash-inner" id="dash-inner"></div>',
         'tasks': '<div class="twrap" id="twrap"><table id="tbl"><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>',
-        'timeline': '<div id="mc-summary-bar" style="display:none;padding:16px 24px;background:var(--color-surface-2);border-bottom:1px solid var(--color-divider);align-items:center;justify-content:space-between;gap:20px;flex-shrink:0"></div><div class="gantt-wrap"><div class="gantt-left" id="gantt-left"></div><div class="gantt-resizer" id="gantt-resizer"></div><div class="gantt-right" id="gantt-right"><canvas id="gantt-canvas" class="gr-canvas"></canvas></div></div>',
         'risks': '<div id="risks-inner" style="padding:24px;max-width:1400px;margin:0 auto;width:100%"></div>',
         'team': '<div class="team-inner" id="team-inner"></div>',
         'reports': '<div class="rpt-inner" id="rpt-inner"></div>',
@@ -27507,7 +27581,8 @@
         { key: 'Quick Tips Collapsed', val: P.quickTipsCollapsed ? 'true' : 'false' },
         { key: 'Show Explanations', val: P.showExplanations ? 'true' : 'false' },
         { key: 'Sidebar Collapsed', val: JSON.stringify(P.sidebarCollapsed || {}) },
-        { key: 'Pivot State', val: JSON.stringify(P._pvS || {}) }
+        { key: 'Pivot State', val: JSON.stringify(P._pvS || {}) },
+        { key: 'Local Folder Sync Path', val: P.fsDirName || '' }
       ];
       projMeta.forEach((r, i) => {
         const row = wsProj.addRow(r); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
@@ -28001,6 +28076,15 @@
       if (stateMap['Show Explanations']) P.showExplanations = stateMap['Show Explanations'] === 'true';
       if (stateMap['Sidebar Collapsed']) { try { P.sidebarCollapsed = JSON.parse(stateMap['Sidebar Collapsed']); } catch (e) { } }
       if (stateMap['Pivot State']) { try { P._pvS = JSON.parse(stateMap['Pivot State']); } catch (e) { } }
+      P.fsDirName = stateMap['Local Folder Sync Path'] || '';
+      if (P.fsDirName) {
+        getHandle(P.fsDirName + '_dir').then(h => {
+          if (h) {
+            P.fsDirHandle = h;
+            updateFsInd();
+          }
+        });
+      }
       setTheme(P.theme); setView(P.view);
 
       P.colorMode = stateMap['Color Mode'] || P.colorMode || 'default';
@@ -32078,20 +32162,7 @@
     // ══════ HELP ══════
     function openHelpPP() { $id('help-modal').classList.add('open'); }
 
-    // ══════ KEYBOARD ══════
-    document.addEventListener('keydown', e => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        if (P.fsHandle && !P._isLoading && !P._isSaving) { clearTimeout(_fileSaveTimer); saveToFile(); }
-        else if (!P.fsHandle) { notify('Project state saved locally.', 'ok'); }
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); $id('search-inp')?.focus(); }
-      if (e.key === 'Escape') document.querySelectorAll('.mbg.open').forEach(m => m.classList.remove('open'));
-      if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); openAddTask(); }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'r') { e.preventDefault(); setView('team'); }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'a') { e.preventDefault(); renderAlertsPanel(); }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'h') { e.preventDefault(); generateHealthReport(); }
-    });
+    // Keyboard shortcuts unified in primary window keydown listener above
 
     let nt; function notify(msg, type = 'ok') { const el = $id('notif'); el.innerHTML = `<span style="font-size:13px">${type === 'ok' ? '✓' : '✕'}</span>${msg}`; el.className = 'show ' + type; if (window.lucide) lucide.createIcons({ attrs: { 'stroke-width': 3 }, nameAttr: 'data-notif-lucide' }); clearTimeout(nt); nt = setTimeout(() => el.classList.remove('show'), 3e3); }
 
