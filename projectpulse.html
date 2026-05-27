@@ -32318,12 +32318,21 @@
     function renderTeamPlannerWidgets() {
       const inner = $id('team-inner'); inner.innerHTML = '';
       $id('v-title').innerHTML = `<i data-lucide="users" style="margin-right:10px"></i> Team & Resource Planner`;
-      $id('view-actions').innerHTML = ``; // Handled globally
+      if (!$id('team-search-input')) {
+        $id('view-actions').innerHTML = `
+          <div style="position:relative; display:flex; align-items:center">
+            <i data-lucide="search" style="position:absolute; left:10px; width:12px; height:12px; color:var(--color-text-faint)"></i>
+            <input type="text" id="team-search-input" placeholder="Search team member..." value="${esc(P.teamSearchQuery || '')}" style="padding:6px 12px 6px 28px; font-size:12px; border-radius:8px; border:1px solid var(--color-border); background:var(--color-surface-2); color:var(--color-text); outline:none; transition:border 0.2s; width:200px" oninput="P.teamSearchQuery = this.value; renderTeam();" />
+          </div>
+        `;
+        if (window.lucide) lucide.createIcons({ target: $id('view-actions') });
+      }
 
       const CC = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#06b6d4'];
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const q = (P.teamSearchQuery || '').toLowerCase();
 
       const parseBday = (bStr) => {
         if (!bStr) return null;
@@ -32349,16 +32358,19 @@
       const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
       const upcomingBdays = P.members
         .filter(m => m.birthday && (m.status === 'Active' || m.status === 'Serving Notice Period' || m.status === 'On Leave'))
+        .filter(m => !q || m.name.toLowerCase().includes(q) || (m.role || '').toLowerCase().includes(q))
         .map(m => ({ ...m, _bdayDate: parseBday(m.birthday) }))
         .filter(m => m._bdayDate && (m._bdayDate - today) <= thirtyDaysMs && (m._bdayDate - today) >= 0)
         .sort((a, b) => a._bdayDate - b._bdayDate);
 
-      const upLeaves = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').flatMap(m => {
-        let pl = m.plannedLeaves || [];
-        if (typeof pl === 'string') { try { pl = JSON.parse(pl); } catch (e) { pl = []; } }
-        if (!Array.isArray(pl)) pl = [];
-        return pl.map(lv => ({ name: m.name, ...lv }));
-      }).filter(lv => lv && lv.to && new Date(lv.to) >= today).sort((a, b) => new Date(a.from) - new Date(b.from));
+      const upLeaves = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed')
+        .filter(m => !q || m.name.toLowerCase().includes(q) || (m.role || '').toLowerCase().includes(q))
+        .flatMap(m => {
+          let pl = m.plannedLeaves || [];
+          if (typeof pl === 'string') { try { pl = JSON.parse(pl); } catch (e) { pl = []; } }
+          if (!Array.isArray(pl)) pl = [];
+          return pl.map(lv => ({ name: m.name, ...lv }));
+        }).filter(lv => lv && lv.to && new Date(lv.to) >= today).sort((a, b) => new Date(a.from) - new Date(b.from));
 
       const defTeamLayout = [
         { id: 'bdays', t: 'Upcoming Birthdays', on: true },
@@ -32790,8 +32802,8 @@
             // Filter members based on search queries and alert states
             const activeMembers = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed');
             const filteredMembers = activeMembers.filter(m => {
-              if (state.searchQuery) {
-                const q = state.searchQuery.toLowerCase();
+              const q = (state.searchQuery || P.teamSearchQuery || '').toLowerCase();
+              if (q) {
                 const matchesName = m.name.toLowerCase().includes(q);
                 const matchesRole = (m.role || '').toLowerCase().includes(q);
                 if (!matchesName && !matchesRole) return false;
@@ -33382,8 +33394,8 @@
             });
 
             // Filter
-            if (wState.searchQuery) {
-              const q = wState.searchQuery.toLowerCase();
+            const q = (wState.searchQuery || P.teamSearchQuery || '').toLowerCase();
+            if (q) {
               sortedMembers = sortedMembers.filter(m => m.name.toLowerCase().includes(q) || m.role.toLowerCase().includes(q));
             }
 
@@ -33781,7 +33793,9 @@
         else if (cleanId === 'team_directory') {
           addST(widgetWrapper, 'Team Directory');
           const grid = document.createElement('div'); grid.className = 'team-grid';
-          P.members.forEach((m, i) => {
+          const q = (P.teamSearchQuery || '').toLowerCase();
+          const filteredMembers = P.members.filter(m => !q || m.name.toLowerCase().includes(q) || (m.role || '').toLowerCase().includes(q));
+          filteredMembers.forEach((m, i) => {
             const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
             const taskCount = P.tasks.filter(t => t.assignee === m.name).length;
             const doneCount = P.tasks.filter(t => t.assignee === m.name && t.status === 'Completed').length;
