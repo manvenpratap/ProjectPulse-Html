@@ -12825,6 +12825,22 @@
         render();
       }
     }
+    window.updateVelocityWeeks = function(w) {
+      let val = parseInt(w) || 8;
+      if (val < 8) val = 8;
+      if (val > 100) val = 100;
+      P.velocityWeeks = val;
+      save();
+      render();
+    };
+    window.updateCFDWeeks = function(w) {
+      let val = parseInt(w) || 8;
+      if (val < 8) val = 8;
+      if (val > 100) val = 100;
+      P.cfdWeeks = val;
+      save();
+      render();
+    };
     function duplicateTask(taskId) { if (P.readonly) { notify('Action disabled in View-Only mode', 'amber'); return; } const o = P.tasks.find(t => t.id === taskId); if (!o) return; const d = { ...o, subtasks: (o.subtasks || []).map(s => ({ ...s, id: 'ST-' + P.nextSubId++ })) }; delete d.id; delete d.createdAt; d.name += ' (copy)'; d.status = 'Not Started'; d.progress = 0; createTask(d); }
 
     // ── Sub-tasks ──
@@ -12892,20 +12908,29 @@
         return;
       }
 
+      // Pre-refresh screen subtasks so their effort already reflects their own complexity
+      subs.forEach(s => { if (s.type === 'screen') recalcGUIScreen(s); });
+
       const oldProg = task.progress;
       const oldStatus = task.status;
       const isGUI = task.moduleType === 'GUI';
 
       // 1. Effort & Progress Rollup
-      const baseEffort = subs.reduce((sum, s) => sum + (parseFloat(s.effort) || 1), 0);
-      const baseDoneEffort = subs.reduce((sum, s) => {
+      // Screens already have complexity baked into s.effort via recalcGUIScreen;
+      // only non-screen subtasks are scaled by the parent task's complexity factor.
+      let totalEffort = 0;
+      let doneEffort = 0;
+      subs.forEach(s => {
         const eff = parseFloat(s.effort) || 1;
-        if (s.type === 'screen') return sum + (eff * (s.progress / 100));
-        return sum + (s.status === 'Completed' ? eff : 0);
-      }, 0);
-
-      const totalEffort = baseEffort * factor;
-      const doneEffort = baseDoneEffort * factor;
+        if (s.type === 'screen') {
+          // Screen effort already includes its own complexity factor — no double-scale
+          totalEffort += eff;
+          doneEffort += eff * ((s.progress || 0) / 100);
+        } else {
+          totalEffort += eff * factor;
+          doneEffort += (s.status === 'Completed' ? eff : 0) * factor;
+        }
+      });
 
       const totalActualEffort = subs.reduce((sum, s) => {
         if (s.type === 'screen') return sum + (s.actEffort || 0);
@@ -13780,9 +13805,16 @@
                 else if (col.key === 'assignee') { std.innerHTML = `<div class="td-inner" style="font-size:11px">${esc(st.assignee || '—')}</div>`; }
                 else if (col.key === 'progress') { std.innerHTML = `<div class="td-inner" style="padding:0 8px"><div class="p-bg" style="height:4px;border-radius:2px"><div class="p-fill" style="width:${st.progress || 0}%;height:100%;border-radius:2px"></div></div></div>`; }
                 else if (col.key === 'windowName') { std.innerHTML = `<div class="td-inner" style="font-size:11px;color:var(--t2)">${esc(st.windowName || st.name || '—')}</div>`; }
+                else if (col.key === 'complexity') {
+                  std.innerHTML = `<div class="td-inner">${st.complexity ? `<span class="badge" style="font-size:10px;background:var(--color-surface-3);color:var(--color-text-muted);border:1px solid var(--color-border);font-weight:600;padding:2px 7px;border-radius:5px">${esc(st.complexity)}</span>` : '<span style="color:var(--color-text-faint);font-size:11px">—</span>'}</div>`;
+                  if (col.edit && !P.readonly) {
+                    std.style.cursor = 'pointer';
+                    std.addEventListener('dblclick', () => startSubtaskCellEdit(std, task.id, st.id, col));
+                  }
+                }
                 else { std.innerHTML = '<div class="td-inner"></div>'; }
 
-                if (col.edit && col.key !== 'isNewWindow') {
+                if (col.edit && col.key !== 'isNewWindow' && col.key !== 'complexity') {
                   std.style.cursor = 'pointer';
                   std.addEventListener('dblclick', () => startSubtaskCellEdit(std, task.id, st.id, col));
                 }
@@ -16043,9 +16075,29 @@
           velGrid.className = 'grid';
           velGrid.style = 'grid-template-columns:1fr;gap:0px;margin-bottom:0px';
 
-          const velCard = mkCC('Team Velocity', 'Completed effort vs 3-week rolling average (12 weeks)', 'team-velocity', '', 'standard', "Historical performance tracking. Measures the volume of work successfully delivered each week.", 'View Explanation', 'trending-up');
+          let weeksCount = parseInt(P.velocityWeeks) || 12;
+          if (weeksCount < 8) weeksCount = 8;
+          if (weeksCount > 100) weeksCount = 100;
+          const velCard = mkCC('Team Velocity', `Completed effort vs 3-week rolling average (${weeksCount} weeks)`, 'team-velocity', '', 'standard', "Historical performance tracking. Measures the volume of work successfully delivered each week.", 'View Explanation', 'trending-up');
           velCard.style.gridColumn = '1 / -1';
           velGrid.appendChild(velCard);
+
+          const optWeeks = [8, 12, 16, 20, 24, 32, 40, 48, 52, 64, 76, 88, 100];
+          if (!optWeeks.includes(weeksCount)) {
+            optWeeks.push(weeksCount);
+            optWeeks.sort((a, b) => a - b);
+          }
+          let selectHtml = `<select onchange="updateVelocityWeeks(this.value)" style="border:none; background:transparent; color:var(--color-text-muted); font-size:11px; font-weight:700; cursor:pointer; outline:none; padding:2px 4px;">`;
+          optWeeks.forEach(w => {
+            const isYear = w === 52 ? ' (1 Year)' : '';
+            const isMax = w === 100 ? ' (Max)' : '';
+            selectHtml += `<option value="${w}" ${weeksCount === w ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">${w} Weeks${isYear}${isMax}</option>`;
+          });
+          selectHtml += `</select>`;
+          const weeksToggle = document.createElement('div');
+          weeksToggle.style = "display:inline-flex; background:var(--color-surface-offset); padding:2px 6px; border-radius:7px; border:1px solid var(--color-border); align-items:center; flex-shrink:0; height:fit-content; margin-left:auto;";
+          weeksToggle.innerHTML = selectHtml;
+          velCard.querySelector('.ch').appendChild(weeksToggle);
 
           const velCvs = mkCvs(1000, 200);
           velCard.querySelector('.cb').appendChild(velCvs);
@@ -16058,13 +16110,13 @@
           velCard.appendChild(velLeg);
 
           setTimeout(() => {
-            const last12Weeks = [];
-            for (let i = 11; i >= 0; i--) {
+            const lastWeeks = [];
+            for (let i = weeksCount - 1; i >= 0; i--) {
               const d = new Date(); d.setDate(d.getDate() - i * 7);
-              last12Weeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) });
+              lastWeeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) });
             }
 
-            const velocity = last12Weeks.map(w => {
+            const velocity = lastWeeks.map(w => {
               return P.tasks.filter(t => {
                 if (t.status !== 'Completed' || !t.dueDate) return false;
                 const d = new Date(t.dueDate);
@@ -16112,7 +16164,7 @@
             cb.insertBefore(summaryBar, velCvs);
             lucide.createIcons(summaryBar);
 
-            drawVBar(velCvs, last12Weeks.map((w, i) => [w.l, velocity[i]]), ['var(--color-primary)'], maxVal, false, rolling);
+            drawVBar(velCvs, lastWeeks.map((w, i) => [w.l, velocity[i]]), ['var(--color-primary)'], maxVal, false, rolling);
           }, 350);
 
           widgetWrapper.appendChild(velGrid);
@@ -17743,16 +17795,37 @@
           const grid = addGrid(inner);
           const vId = `rpt-${id}-velocity`;
           const vSpan = sec.span || 4;
-          const vCard = mkCC('<i data-lucide="zap"></i> Weekly Velocity', 'Completed Effort vs 3-Week Rolling Average', vId, '', 'standard', "<b>Performance Trend:</b> Measures the volume of work completed per week. Consistent velocity suggests a predictable and stable delivery team.", 'View Explanation');
+          let weeksCount = parseInt(P.velocityWeeks) || 8;
+          if (weeksCount < 8) weeksCount = 8;
+          if (weeksCount > 100) weeksCount = 100;
+          const vCard = mkCC('<i data-lucide="zap"></i> Weekly Velocity', `Completed Effort vs 3-Week Rolling Average (${weeksCount} weeks)`, vId, '', 'standard', "<b>Performance Trend:</b> Measures the volume of work completed per week. Consistent velocity suggests a predictable and stable delivery team.", 'View Explanation');
           vCard.style.gridColumn = `span ${vSpan}`;
           grid.appendChild(vCard);
+
+          const optWeeks = [8, 12, 16, 20, 24, 32, 40, 48, 52, 64, 76, 88, 100];
+          if (!optWeeks.includes(weeksCount)) {
+            optWeeks.push(weeksCount);
+            optWeeks.sort((a, b) => a - b);
+          }
+          let selectHtml = `<select onchange="updateVelocityWeeks(this.value)" style="border:none; background:transparent; color:var(--color-text-muted); font-size:11px; font-weight:700; cursor:pointer; outline:none; padding:2px 4px;">`;
+          optWeeks.forEach(w => {
+            const isYear = w === 52 ? ' (1 Year)' : '';
+            const isMax = w === 100 ? ' (Max)' : '';
+            selectHtml += `<option value="${w}" ${weeksCount === w ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">${w} Weeks${isYear}${isMax}</option>`;
+          });
+          selectHtml += `</select>`;
+          const weeksToggle = document.createElement('div');
+          weeksToggle.style = "display:inline-flex; background:var(--color-surface-offset); padding:2px 6px; border-radius:7px; border:1px solid var(--color-border); align-items:center; flex-shrink:0; height:fit-content; margin-left:auto;";
+          weeksToggle.innerHTML = selectHtml;
+          vCard.querySelector('.ch').appendChild(weeksToggle);
+
           const vCvs = mkCvs(700, 250); vCard.querySelector('.cb').appendChild(vCvs);
           const vLeg = document.createElement('div'); vLeg.className = 'cleg';
           vLeg.innerHTML = `<div class="cli"><div class="cdot" style="background:var(--color-primary)"></div>Weekly Velocity</div><div class="cli"><div style="width:16px;border-top:2px dashed var(--amber)"></div>3-Week Rolling Avg</div>`;
           vCard.appendChild(vLeg);
           setTimeout(() => {
-            const last8Weeks = []; for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); last8Weeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) }); }
-            const velocity = last8Weeks.map(w => tasks.filter(t => { if (t.status !== 'Completed' || !t.dueDate) return false; const d = new Date(t.dueDate); return getWeekNumber(d) === w.w && d.getFullYear() === w.y; }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
+            const lastWeeks = []; for (let i = weeksCount - 1; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); lastWeeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) }); }
+            const velocity = lastWeeks.map(w => tasks.filter(t => { if (t.status !== 'Completed' || !t.dueDate) return false; const d = new Date(t.dueDate); return getWeekNumber(d) === w.w && d.getFullYear() === w.y; }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
             const rolling = velocity.map((v, i) => (i < 2) ? v : (velocity[i] + velocity[i - 1] + velocity[i - 2]) / 3);
             const maxVal = Math.max(...velocity, ...rolling, 10);
 
@@ -17790,26 +17863,47 @@
             cb.insertBefore(summaryBar, vCvs);
             lucide.createIcons(summaryBar);
 
-            drawVBar(vCvs, last8Weeks.map((w, i) => [w.l, velocity[i]]), ['var(--color-primary)'], maxVal, false, rolling);
+            drawVBar(vCvs, lastWeeks.map((w, i) => [w.l, velocity[i]]), ['var(--color-primary)'], maxVal, false, rolling);
           }, 350);
         } else if (sec.id === 'cfd') {
           addST(inner, 'Cumulative Flow');
           const grid = addGrid(inner);
           const cfdId = `rpt-${id}-cfd`;
           const cfdSpan = sec.span || 4;
-          const cfdCard = mkCC('Cumulative Flow Diagram', 'Last 8 Weeks Status Distribution', cfdId, '', 'standard', "Visualizes task lifecycle flow.", 'View Explanation');
+          let weeksCount = parseInt(P.cfdWeeks) || 8;
+          if (weeksCount < 8) weeksCount = 8;
+          if (weeksCount > 100) weeksCount = 100;
+          const cfdCard = mkCC('Cumulative Flow Diagram', `Status Distribution (${weeksCount} weeks)`, cfdId, '', 'standard', "Visualizes task lifecycle flow.", 'View Explanation');
           if (cfdSpan >= 4) cfdCard.style.gridColumn = '1 / -1';
           else cfdCard.style.gridColumn = `span ${cfdSpan}`;
           grid.appendChild(cfdCard);
+
+          const optWeeks = [8, 12, 16, 20, 24, 32, 40, 48, 52, 64, 76, 88, 100];
+          if (!optWeeks.includes(weeksCount)) {
+            optWeeks.push(weeksCount);
+            optWeeks.sort((a, b) => a - b);
+          }
+          let selectHtml = `<select onchange="updateCFDWeeks(this.value)" style="border:none; background:transparent; color:var(--color-text-muted); font-size:11px; font-weight:700; cursor:pointer; outline:none; padding:2px 4px;">`;
+          optWeeks.forEach(w => {
+            const isYear = w === 52 ? ' (1 Year)' : '';
+            const isMax = w === 100 ? ' (Max)' : '';
+            selectHtml += `<option value="${w}" ${weeksCount === w ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">${w} Weeks${isYear}${isMax}</option>`;
+          });
+          selectHtml += `</select>`;
+          const weeksToggle = document.createElement('div');
+          weeksToggle.style = "display:inline-flex; background:var(--color-surface-offset); padding:2px 6px; border-radius:7px; border:1px solid var(--color-border); align-items:center; flex-shrink:0; height:fit-content; margin-left:auto;";
+          weeksToggle.innerHTML = selectHtml;
+          cfdCard.querySelector('.ch').appendChild(weeksToggle);
+
           const cfdCvs = mkCvs(700, 250); cfdCard.querySelector('.cb').appendChild(cfdCvs);
           const cfdLeg = document.createElement('div'); cfdLeg.className = 'cleg'; cfdCard.appendChild(cfdLeg);
           setTimeout(() => {
-            const last8Weeks = [];
-            for (let i = 7; i >= 0; i--) {
+            const lastWeeks = [];
+            for (let i = weeksCount - 1; i >= 0; i--) {
               const d = new Date(); d.setDate(d.getDate() - i * 7); d.setHours(23, 59, 59, 999);
-              last8Weeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d), date: d });
+              lastWeeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d), date: d });
             }
-            const stacks = STATUSES.map(s => last8Weeks.map(w => tasks.filter(t => {
+            const stacks = STATUSES.map(s => lastWeeks.map(w => tasks.filter(t => {
               if (new Date(t.createdAt || 0) > w.date) return false;
               const logs = (P.log || []).filter(l => l.taskId === t.id && l.action === 'Status Changed');
               const priorLogs = logs.filter(l => new Date(l.ts) <= w.date).sort((a, b) => new Date(b.ts) - new Date(a.ts));
@@ -17822,7 +17916,7 @@
               return statusAtTime === s;
             }).length));
 
-            const totals = last8Weeks.map((_, i) => stacks.reduce((s, st) => s + st[i], 0));
+            const totals = lastWeeks.map((_, i) => stacks.reduce((s, st) => s + st[i], 0));
             const latestTotal = totals[totals.length - 1] || 0;
             const compIdx = STATUSES.indexOf('Completed');
             const latestComp = compIdx >= 0 ? stacks[compIdx][stacks[compIdx].length - 1] : 0;
@@ -17859,7 +17953,7 @@
             cb.insertBefore(summaryBar, cfdCvs);
             lucide.createIcons(summaryBar);
 
-            drawAreaChart(cfdCvs, last8Weeks.map(w => w.l), stacks, STATUSES, CC);
+            drawAreaChart(cfdCvs, lastWeeks.map(w => w.l), stacks, STATUSES, CC);
             STATUSES.forEach((s, j) => { cfdLeg.innerHTML += `<div class="cli"><div class="cdot" style="background:${CC[j % CC.length]}"></div>${esc(s)}</div>`; });
           }, 400);
         } else if (sec.id === 'milestone-timeline') {
@@ -18538,8 +18632,11 @@
           const doneEffort = totalEffort - currentActual;
           const donePct = totalEffort ? Math.round((doneEffort / totalEffort) * 100) : 0;
 
-          const last8Weeks = []; for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); last8Weeks.push({ w: getWeekNumber(d), y: d.getFullYear() }); }
-          const velocity = last8Weeks.map(w => tasks.filter(t => { if (t.status !== 'Completed' || !t.dueDate) return false; const d = new Date(t.dueDate); return getWeekNumber(d) === w.w && d.getFullYear() === w.y; }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
+          let weeksCount = parseInt(P.velocityWeeks) || 8;
+          if (weeksCount < 8) weeksCount = 8;
+          if (weeksCount > 100) weeksCount = 100;
+          const lastWeeks = []; for (let i = weeksCount - 1; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); lastWeeks.push({ w: getWeekNumber(d), y: d.getFullYear() }); }
+          const velocity = lastWeeks.map(w => tasks.filter(t => { if (t.status !== 'Completed' || !t.dueDate) return false; const d = new Date(t.dueDate); return getWeekNumber(d) === w.w && d.getFullYear() === w.y; }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
           const latestVel = velocity[velocity.length - 1]?.toFixed(1) || '0.0';
 
           const summaryContent = document.createElement('div');
@@ -23260,17 +23357,38 @@
           const grid = addGrid(inner);
           const vId = 'dash-velocity';
           const vSpan = (P.widgetSpans && P.widgetSpans[vId]) || sec.span || 4;
-          const vCard = mkCC('<i data-lucide="zap"></i> Weekly Velocity', 'Completed Effort vs 3-Week Rolling Average', vId, '', 'standard', "<b>Performance Trend:</b> Measures the volume of work completed per week. Consistent velocity suggests a predictable and stable delivery team.", 'View Explanation');
+          let weeksCount = parseInt(P.velocityWeeks) || 8;
+          if (weeksCount < 8) weeksCount = 8;
+          if (weeksCount > 100) weeksCount = 100;
+          const vCard = mkCC('<i data-lucide="zap"></i> Weekly Velocity', `Completed Effort vs 3-Week Rolling Average (${weeksCount} weeks)`, vId, '', 'standard', "<b>Performance Trend:</b> Measures the volume of work completed per week. Consistent velocity suggests a predictable and stable delivery team.", 'View Explanation');
           vCard.style.gridColumn = `span ${vSpan}`;
           grid.appendChild(vCard);
+
+          const optWeeks = [8, 12, 16, 20, 24, 32, 40, 48, 52, 64, 76, 88, 100];
+          if (!optWeeks.includes(weeksCount)) {
+            optWeeks.push(weeksCount);
+            optWeeks.sort((a, b) => a - b);
+          }
+          let selectHtml = `<select onchange="updateVelocityWeeks(this.value)" style="border:none; background:transparent; color:var(--color-text-muted); font-size:11px; font-weight:700; cursor:pointer; outline:none; padding:2px 4px;">`;
+          optWeeks.forEach(w => {
+            const isYear = w === 52 ? ' (1 Year)' : '';
+            const isMax = w === 100 ? ' (Max)' : '';
+            selectHtml += `<option value="${w}" ${weeksCount === w ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">${w} Weeks${isYear}${isMax}</option>`;
+          });
+          selectHtml += `</select>`;
+          const weeksToggle = document.createElement('div');
+          weeksToggle.style = "display:inline-flex; background:var(--color-surface-offset); padding:2px 6px; border-radius:7px; border:1px solid var(--color-border); align-items:center; flex-shrink:0; height:fit-content; margin-left:auto;";
+          weeksToggle.innerHTML = selectHtml;
+          vCard.querySelector('.ch').appendChild(weeksToggle);
+
           const vCvs = mkCvs(700, 250); vCard.querySelector('.cb').appendChild(vCvs);
           const vLeg = document.createElement('div'); 
           vLeg.style = 'display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:16px; padding:0 16px 16px;';
           vLeg.innerHTML = `<div style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--color-surface-2);border:1px solid var(--color-divider);font-size:11px;font-weight:600;color:var(--color-text)"><div style="width:8px;height:8px;border-radius:50%;background:var(--color-primary)"></div>Weekly Velocity</div><div style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--color-surface-2);border:1px solid var(--color-divider);font-size:11px;font-weight:600;color:var(--color-text)"><div style="width:16px;border-top:2px dashed var(--amber)"></div>3-Week Rolling Avg</div>`;
           vCard.appendChild(vLeg);
 
-          const last8Weeks = []; for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); last8Weeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) }); }
-          const velocity = last8Weeks.map(w => tasks.filter(t => { if (t.status !== 'Completed' || !t.dueDate) return false; const d = new Date(t.dueDate); return getWeekNumber(d) === w.w && d.getFullYear() === w.y; }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
+          const lastWeeks = []; for (let i = weeksCount - 1; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); lastWeeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) }); }
+          const velocity = lastWeeks.map(w => tasks.filter(t => { if (t.status !== 'Completed' || !t.dueDate) return false; const d = new Date(t.dueDate); return getWeekNumber(d) === w.w && d.getFullYear() === w.y; }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
           const rolling = velocity.map((v, i) => (i < 2) ? v : (velocity[i] + velocity[i - 1] + velocity[i - 2]) / 3);
           const maxVal = Math.max(...velocity, ...rolling, 10);
 
@@ -23308,24 +23426,45 @@
           const cb = vCard.querySelector('.cb');
           cb.insertBefore(summaryBar, vCvs);
 
-          dashDrawQueue.push(() => drawVBar(vCvs, last8Weeks.map((w, i) => [w.l, velocity[i]]), ['var(--color-primary)'], maxVal, false, rolling));
+          dashDrawQueue.push(() => drawVBar(vCvs, lastWeeks.map((w, i) => [w.l, velocity[i]]), ['var(--color-primary)'], maxVal, false, rolling));
         } else if (sec.id === 'cfd') {
           addST(inner, 'Cumulative Flow');
           const grid = addGrid(inner);
           const cfdId = 'dash-cfd';
           const cfdSpan = (P.widgetSpans && P.widgetSpans[cfdId]) || sec.span || 4;
-          const cfdCard = mkCC('Cumulative Flow Diagram', 'Last 8 Weeks Status Distribution', cfdId, '', 'standard', "Visualizes task lifecycle flow.", 'View Explanation');
+          let cfdWeeksCount = parseInt(P.cfdWeeks) || 8;
+          if (cfdWeeksCount < 8) cfdWeeksCount = 8;
+          if (cfdWeeksCount > 100) cfdWeeksCount = 100;
+          const cfdCard = mkCC('Cumulative Flow Diagram', `Status Distribution (${cfdWeeksCount} weeks)`, cfdId, '', 'standard', "Visualizes task lifecycle flow.", 'View Explanation');
           cfdCard.style.gridColumn = `span ${cfdSpan}`;
           grid.appendChild(cfdCard);
+
+          const cfdOptWeeks = [8, 12, 16, 20, 24, 32, 40, 48, 52, 64, 76, 88, 100];
+          if (!cfdOptWeeks.includes(cfdWeeksCount)) {
+            cfdOptWeeks.push(cfdWeeksCount);
+            cfdOptWeeks.sort((a, b) => a - b);
+          }
+          let cfdSelectHtml = `<select onchange="updateCFDWeeks(this.value)" style="border:none; background:transparent; color:var(--color-text-muted); font-size:11px; font-weight:700; cursor:pointer; outline:none; padding:2px 4px;">`;
+          cfdOptWeeks.forEach(w => {
+            const isYear = w === 52 ? ' (1 Year)' : '';
+            const isMax = w === 100 ? ' (Max)' : '';
+            cfdSelectHtml += `<option value="${w}" ${cfdWeeksCount === w ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">${w} Weeks${isYear}${isMax}</option>`;
+          });
+          cfdSelectHtml += `</select>`;
+          const cfdWeeksToggle = document.createElement('div');
+          cfdWeeksToggle.style = "display:inline-flex; background:var(--color-surface-offset); padding:2px 6px; border-radius:7px; border:1px solid var(--color-border); align-items:center; flex-shrink:0; height:fit-content; margin-left:auto;";
+          cfdWeeksToggle.innerHTML = cfdSelectHtml;
+          cfdCard.querySelector('.ch').appendChild(cfdWeeksToggle);
+
           const cfdCvs = mkCvs(700, 250); cfdCard.querySelector('.cb').appendChild(cfdCvs);
           const cfdLeg = document.createElement('div'); cfdLeg.className = 'cleg'; cfdCard.appendChild(cfdLeg);
 
-          const last8Weeks = [];
-          for (let i = 7; i >= 0; i--) {
+          const cfdLastWeeks = [];
+          for (let i = cfdWeeksCount - 1; i >= 0; i--) {
             const d = new Date(); d.setDate(d.getDate() - i * 7); d.setHours(23, 59, 59, 999);
-            last8Weeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d), date: d });
+            cfdLastWeeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d), date: d });
           }
-          const stacks = STATUSES.map(s => last8Weeks.map(w => tasks.filter(t => {
+          const stacks = STATUSES.map(s => cfdLastWeeks.map(w => tasks.filter(t => {
             if (new Date(t.createdAt || 0) > w.date) return false;
             const logs = (dashCache.statusLogsByTaskId[t.id] || []).filter(l => l.action === 'Status Changed');
             const priorLogs = logs.filter(l => new Date(l.ts) <= w.date).sort((a, b) => new Date(b.ts) - new Date(a.ts));
@@ -23338,7 +23477,7 @@
             return statusAtTime === s;
           }).length));
 
-          const totals = last8Weeks.map((_, i) => stacks.reduce((s, st) => s + st[i], 0));
+          const totals = cfdLastWeeks.map((_, i) => stacks.reduce((s, st) => s + st[i], 0));
           const latestTotal = totals[totals.length - 1] || 0;
           const compIdx = STATUSES.indexOf('Completed');
           const latestComp = compIdx >= 0 ? stacks[compIdx][stacks[compIdx].length - 1] : 0;
@@ -23373,9 +23512,10 @@
                 `;
           const cb = cfdCard.querySelector('.cb');
           cb.insertBefore(summaryBar, cfdCvs);
+          lucide.createIcons(summaryBar);
 
           dashDrawQueue.push(() => {
-            drawAreaChart(cfdCvs, last8Weeks.map(w => w.l), stacks, STATUSES, CC);
+            drawAreaChart(cfdCvs, cfdLastWeeks.map(w => w.l), stacks, STATUSES, CC);
             STATUSES.forEach((s, j) => { cfdLeg.innerHTML += `<div class="cli"><div class="cdot" style="background:${CC[j % CC.length]}"></div>${esc(s)}</div>`; });
           });
         } else if (sec.id === 'milestone-timeline') {
@@ -24114,8 +24254,11 @@
           const doneEffort = totalEffort - currentActual;
           const donePct = totalEffort ? Math.round((doneEffort / totalEffort) * 100) : 0;
 
-          const last8Weeks = []; for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); last8Weeks.push({ w: getWeekNumber(d), y: d.getFullYear() }); }
-          const velocity = last8Weeks.map(w => tasks.filter(t => { if (t.status !== 'Completed' || !t.dueDate) return false; const d = new Date(t.dueDate); return getWeekNumber(d) === w.w && d.getFullYear() === w.y; }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
+          let weeksCount = parseInt(P.velocityWeeks) || 8;
+          if (weeksCount < 8) weeksCount = 8;
+          if (weeksCount > 100) weeksCount = 100;
+          const lastWeeks = []; for (let i = weeksCount - 1; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); lastWeeks.push({ w: getWeekNumber(d), y: d.getFullYear() }); }
+          const velocity = lastWeeks.map(w => tasks.filter(t => { if (t.status !== 'Completed' || !t.dueDate) return false; const d = new Date(t.dueDate); return getWeekNumber(d) === w.w && d.getFullYear() === w.y; }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
           const latestVel = velocity[velocity.length - 1]?.toFixed(1) || '0.0';
 
           const summaryContent = document.createElement('div');

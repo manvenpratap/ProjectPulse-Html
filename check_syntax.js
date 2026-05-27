@@ -1,7 +1,7 @@
 const fs = require('fs');
 const vm = require('vm');
 
-const filePath = '/Users/manvenpratapsingh/Downloads/HTML-CSS APPS/ProjectPulse/projectpulse.html';
+const filePath = '/Users/manvenpratapsingh/Downloads/ProjectPulse/projectpulse.html';
 const content = fs.readFileSync(filePath, 'utf8');
 
 // Regex to find all script blocks
