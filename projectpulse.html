@@ -32484,87 +32484,101 @@
 
           const capThreshold = P.settings.workDays || 5;
           let capHtml = `<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(250px, 1fr));gap:24px">`;
-          P.members.filter(m => m.status === 'Active' || m.status === 'Serving Notice Period').forEach((m, idx) => {
-            const memberTasks = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled');
-            const days = memberTasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
-            const actualPct = (days / capThreshold) * 100;
-            const barPct = Math.min(100, actualPct);
+          const q = (P.teamSearchQuery || '').toLowerCase();
+          const filteredActive = P.members
+            .filter(m => m.status === 'Active' || m.status === 'Serving Notice Period')
+            .filter(m => !q || m.name.toLowerCase().includes(q) || (m.role || '').toLowerCase().includes(q));
 
-            let statusText = 'Optimal';
-            let statusBg = 'rgba(34, 197, 94, 0.1)';
-            let statusColor = 'var(--color-green)';
-            if (actualPct > 100) {
-              statusText = 'Overloaded';
-              statusBg = 'rgba(239, 68, 68, 0.1)';
-              statusColor = 'var(--red)';
-            } else if (actualPct > 80) {
-              statusText = 'High Load';
-              statusBg = 'rgba(245, 158, 11, 0.1)';
-              statusColor = 'var(--amber)';
-            } else if (actualPct < 40) {
-              statusText = 'Available';
-              statusBg = 'rgba(99, 102, 241, 0.08)';
-              statusColor = 'var(--color-primary)';
-            }
-
-            const color = actualPct > 100 ? 'var(--red)' : actualPct > 80 ? 'var(--amber)' : 'var(--color-primary)';
-            const barGradient = actualPct > 100 ? 'linear-gradient(90deg, var(--red), #f87171)' : actualPct > 80 ? 'linear-gradient(90deg, var(--amber), #fbbf24)' : 'linear-gradient(90deg, var(--color-primary), #818cf8)';
-            const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-            const avatarBg = CC[idx % CC.length];
-
+          if (!filteredActive.length) {
             capHtml += `
-              <div style="background:var(--color-surface-2);padding:16px;border-radius:var(--radius-lg);border:1px solid var(--color-border-faint);box-shadow:var(--shadow-sm);transition:all var(--tr-spring);display:flex;flex-direction:column;gap:12px" class="card-glow-hover">
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-                  <div style="display:flex;align-items:center;gap:10px;min-width:0">
-                    <div style="width:34px;height:34px;border-radius:50%;background:${avatarBg};color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0;box-shadow:var(--shadow-sm);border:1px solid rgba(255,255,255,0.1)">${initials}</div>
-                    <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">
-                      <div style="font-weight:900;font-size:14px;color:var(--color-text)">${esc(m.name)}</div>
-                      <div style="font-size:10px;color:var(--color-text-faint);font-weight:700">${esc(m.role || 'Member')}</div>
-                    </div>
-                  </div>
-                  <span style="padding:3px 8px;background:${statusBg};border:1px solid ${statusColor}22;color:${statusColor};border-radius:12px;font-size:9px;font-weight:800;white-space:nowrap">${statusText}</span>
-                </div>
-
-                <div style="display:flex;justify-content:space-between;align-items:flex-end;font-size:11px;font-weight:700;color:var(--color-text-muted)">
-                  <span>Weekly Load</span>
-                  <span style="color:${color}">${days.toFixed(1)}d / ${Math.round(actualPct)}%</span>
-                </div>
-
-                <div style="height:10px;background:var(--color-surface-3);border-radius:6px;overflow:hidden;box-shadow:inset 0 2px 4px rgba(0,0,0,0.15), 0 1px 0 rgba(255,255,255,0.05)">
-                  <div style="width:${barPct}%;height:100%;background:linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.12) 100%), ${barGradient};border-radius:6px;transition:width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)"></div>
-                </div>
-
-                ${memberTasks.length ? `
-                  <div style="margin-top:4px;border-top:1px dashed var(--color-divider);padding-top:10px">
-                    <div style="font-size:9px;font-weight:800;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
-                      <span>Primary Commitments</span>
-                      <span style="opacity:0.6">${memberTasks.length} tasks</span>
-                    </div>
-                    <div style="display:flex;flex-direction:column;gap:5px">
-                      ${memberTasks.slice(0, 3).map(t => `
-                        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--color-text-muted);gap:8px" title="${esc(t.name)}">
-                          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">• ${esc(t.name)}</span>
-                          <span style="font-weight:700;color:var(--color-text-faint);font-family:var(--mono)">${(parseFloat(t.estEffort) || 0).toFixed(1)}d</span>
-                        </div>
-                      `).join('')}
-                      ${memberTasks.length > 3 ? `
-                        <div style="font-size:9px;color:var(--color-primary);font-weight:700;text-align:right;cursor:pointer;opacity:0.8" onclick="showMemberTaskDrilldown('${esc(m.name)}')">
-                          +${memberTasks.length - 3} more task${memberTasks.length - 3 > 1 ? 's' : ''}
-                        </div>
-                      ` : ''}
-                    </div>
-                  </div>
-                ` : `
-                  <div style="font-size:10px;color:var(--color-text-faint);text-align:center;padding:12px 0;font-style:italic">
-                    No active commitments
-                  </div>
-                `}
+              <div style="grid-column: 1 / -1; text-align:center; padding:40px; color:var(--color-text-faint); font-weight:600">
+                No active commitments matched your search query.
               </div>
             `;
-          });
+          } else {
+            filteredActive.forEach((m, idx) => {
+              const memberTasks = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled');
+              const days = memberTasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+              const actualPct = (days / capThreshold) * 100;
+              const barPct = Math.min(100, actualPct);
+
+              let statusText = 'Optimal';
+              let statusBg = 'rgba(34, 197, 94, 0.1)';
+              let statusColor = 'var(--color-green)';
+              if (actualPct > 100) {
+                statusText = 'Overloaded';
+                statusBg = 'rgba(239, 68, 68, 0.1)';
+                statusColor = 'var(--red)';
+              } else if (actualPct > 80) {
+                statusText = 'High Load';
+                statusBg = 'rgba(245, 158, 11, 0.1)';
+                statusColor = 'var(--amber)';
+              } else if (actualPct < 40) {
+                statusText = 'Available';
+                statusBg = 'rgba(99, 102, 241, 0.08)';
+                statusColor = 'var(--color-primary)';
+              }
+
+              const color = actualPct > 100 ? 'var(--red)' : actualPct > 80 ? 'var(--amber)' : 'var(--color-primary)';
+              const barGradient = actualPct > 100 ? 'linear-gradient(90deg, var(--red), #f87171)' : actualPct > 80 ? 'linear-gradient(90deg, var(--amber), #fbbf24)' : 'linear-gradient(90deg, var(--color-primary), #818cf8)';
+              const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+              const avatarBg = CC[idx % CC.length];
+
+              capHtml += `
+                <div style="background:var(--color-surface-2);padding:16px;border-radius:var(--radius-lg);border:1px solid var(--color-border-faint);box-shadow:var(--shadow-sm);transition:all var(--tr-spring);display:flex;flex-direction:column;gap:12px" class="card-glow-hover">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+                    <div style="display:flex;align-items:center;gap:10px;min-width:0">
+                      <div style="width:34px;height:34px;border-radius:50%;background:${avatarBg};color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0;box-shadow:var(--shadow-sm);border:1px solid rgba(255,255,255,0.1)">${initials}</div>
+                      <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">
+                        <div style="font-weight:900;font-size:14px;color:var(--color-text)">${esc(m.name)}</div>
+                        <div style="font-size:10px;color:var(--color-text-faint);font-weight:700">${esc(m.role || 'Member')}</div>
+                      </div>
+                    </div>
+                    <span style="padding:3px 8px;background:${statusBg};border:1px solid ${statusColor}22;color:${statusColor};border-radius:12px;font-size:9px;font-weight:800;white-space:nowrap">${statusText}</span>
+                  </div>
+
+                  <div style="display:flex;justify-content:space-between;align-items:flex-end;font-size:11px;font-weight:700;color:var(--color-text-muted)">
+                    <span>Weekly Load</span>
+                    <span style="color:${color}">${days.toFixed(1)}d / ${Math.round(actualPct)}%</span>
+                  </div>
+
+                  <div style="height:10px;background:var(--color-surface-3);border-radius:6px;overflow:hidden;box-shadow:inset 0 2px 4px rgba(0,0,0,0.15), 0 1px 0 rgba(255,255,255,0.05)">
+                    <div style="width:${barPct}%;height:100%;background:linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.12) 100%), ${barGradient};border-radius:6px;transition:width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)"></div>
+                  </div>
+
+                  ${memberTasks.length ? `
+                    <div style="margin-top:4px;border-top:1px dashed var(--color-divider);padding-top:10px">
+                      <div style="font-size:9px;font-weight:800;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
+                        <span>Primary Commitments</span>
+                        <span style="opacity:0.6">${memberTasks.length} tasks</span>
+                      </div>
+                      <div style="display:flex;flex-direction:column;gap:5px">
+                        ${memberTasks.slice(0, 3).map(t => `
+                          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--color-text-muted);gap:8px" title="${esc(t.name)}">
+                            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">• ${esc(t.name)}</span>
+                            <span style="font-weight:700;color:var(--color-text-faint);font-family:var(--mono)">${(parseFloat(t.estEffort) || 0).toFixed(1)}d</span>
+                          </div>
+                        `).join('')}
+                        ${memberTasks.length > 3 ? `
+                          <div style="font-size:9px;color:var(--color-primary);font-weight:700;text-align:right;cursor:pointer;opacity:0.8" onclick="showMemberTaskDrilldown('${esc(m.name)}')">
+                            +${memberTasks.length - 3} more task${memberTasks.length - 3 > 1 ? 's' : ''}
+                          </div>
+                        ` : ''}
+                      </div>
+                    </div>
+                  ` : `
+                    <div style="font-size:10px;color:var(--color-text-faint);text-align:center;padding:12px 0;font-style:italic">
+                      No active commitments
+                    </div>
+                  `}
+                </div>
+              `;
+            });
+          }
           capHtml += `</div>`;
 
-          const otherMembers = P.members.filter(m => m.status === 'Other Assignment');
+          const otherMembers = P.members.filter(m => m.status === 'Other Assignment')
+            .filter(m => !q || m.name.toLowerCase().includes(q) || (m.role || '').toLowerCase().includes(q));
           if (otherMembers.length) {
             capHtml += `
               <div style="margin-top:24px;padding-top:24px;border-top:1px dashed var(--color-divider)">
