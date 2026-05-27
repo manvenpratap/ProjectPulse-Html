@@ -10003,109 +10003,118 @@
     }
 
     function calculateSparklineData(tasks, logs) {
-      const points = 10;
+      const POINTS = 12;
       const now = new Date();
       const dayMs = 24 * 60 * 60 * 1000;
-      
+
+      // 1. Determine the project timeline window
+      // Use the earliest task createdAt / startDate as the project start.
+      let projectStart = null;
+      tasks.forEach(t => {
+        const cand = t.createdAt || t.startDate;
+        if (cand) {
+          const d = new Date(cand);
+          if (!isNaN(d.getTime()) && (projectStart === null || d < projectStart)) projectStart = d;
+        }
+      });
+      // Fallback: 90 days ago; ensure at least a 28-day window
+      if (!projectStart) projectStart = new Date(now.getTime() - 90 * dayMs);
+      const windowMs = Math.max(now.getTime() - projectStart.getTime(), 28 * dayMs);
+      const stepMs = windowMs / (POINTS - 1);
+
       const dates = [];
-      for (let i = points - 1; i >= 0; i--) {
-        dates.push(new Date(now.getTime() - i * 3 * dayMs));
+      for (let i = 0; i < POINTS; i++) {
+        dates.push(new Date(projectStart.getTime() + i * stepMs));
       }
-      
-      const totalSeries = [];
-      const completedSeries = [];
-      const inProgressSeries = [];
-      const onHoldSeries = [];
-      const blockedSeries = [];
-      const overdueSeries = [];
-      
-      const sortedLogs = [...logs]
-        .filter(l => l.ts)
+
+      // 2. Pre-sort logs and build per-task lookup indices
+      const sortedLogs = [...(logs || [])]
+        .filter(l => l.ts && l.taskId)
         .sort((a, b) => new Date(a.ts) - new Date(b.ts));
-        
-      dates.forEach(targetDate => {
-        const taskStates = {};
-        
-        sortedLogs.forEach(l => {
-          if (new Date(l.ts) > targetDate) return;
-          const tid = l.taskId;
-          if (!tid) return;
-          
-          if (!taskStates[tid]) {
-            taskStates[tid] = {
-              id: tid,
-              status: 'Not Started',
-              blocked: false,
-              dueDate: null,
-              created: new Date(l.ts)
-            };
+
+      const statusLogsByTask = {};
+      const dueDateLogsByTask = {};
+      sortedLogs.forEach(l => {
+        const isStatus = l.action === 'Status Changed' ||
+          (l.action === 'Updated' && (l.field === 'status' || l.field === 'Status'));
+        if (isStatus) {
+          if (!statusLogsByTask[l.taskId]) statusLogsByTask[l.taskId] = [];
+          statusLogsByTask[l.taskId].push(l);
+        }
+        const isDue = l.action === 'Updated' && (l.field === 'dueDate' || l.field === 'DueDate');
+        if (isDue) {
+          if (!dueDateLogsByTask[l.taskId]) dueDateLogsByTask[l.taskId] = [];
+          dueDateLogsByTask[l.taskId].push(l);
+        }
+      });
+
+      // 3. Resolve task state at a given date via log replay
+      function getTaskStateAt(task, atDate) {
+        // Task didn't exist yet at this sample point — skip it
+        const born = task.createdAt || task.startDate;
+        if (born && new Date(born) > atDate) return null;
+
+        // Status: find the last status-change entry on or before atDate
+        let status = 'Not Started';
+        const sLogs = statusLogsByTask[task.id] || [];
+        for (let i = sLogs.length - 1; i >= 0; i--) {
+          if (new Date(sLogs[i].ts) <= atDate) {
+            status = sLogs[i].newVal || status;
+            break;
           }
-          
-          const state = taskStates[tid];
-          if (l.action === 'Created') {
-            state.created = new Date(l.ts);
-          } else if (l.action === 'Deleted') {
-            state.deleted = new Date(l.ts);
-          } else if (l.action === 'Status Changed' || (l.action === 'Updated' && l.field === 'status')) {
-            state.status = l.newVal;
-          } else if (l.action === 'Updated' && l.field === 'blocked') {
-            state.blocked = (l.newVal === 'true' || l.newVal === true);
-          } else if (l.action === 'Updated' && l.field === 'dueDate') {
-            state.dueDate = l.newVal;
+        }
+
+        // dueDate: find the last dueDate change on or before atDate
+        let dueDate = task.dueDate;
+        const dLogs = dueDateLogsByTask[task.id] || [];
+        for (let i = dLogs.length - 1; i >= 0; i--) {
+          if (new Date(dLogs[i].ts) <= atDate) {
+            dueDate = dLogs[i].newVal || dueDate;
+            break;
           }
-        });
-        
+        }
+
+        return { id: task.id, status, dueDate, dependsOn: task.dependsOn || [] };
+      }
+
+      // 4. Compute series
+      const totalSeries = [], completedSeries = [], inProgressSeries = [];
+      const onHoldSeries = [], blockedSeries = [], overdueSeries = [];
+
+      dates.forEach(atDate => {
+        const snapshot = {};
         tasks.forEach(t => {
-          if (!taskStates[t.id]) {
-            const deletedLog = sortedLogs.find(l => l.taskId === t.id && l.action === 'Deleted');
-            if (deletedLog && new Date(deletedLog.ts) <= targetDate) return;
-            
-            const taskLogs = sortedLogs.filter(l => l.taskId === t.id);
-            const logsAfter = taskLogs.filter(l => new Date(l.ts) > targetDate);
-            
-            let status = t.status;
-            let blocked = t.blocked || false;
-            let dueDate = t.dueDate;
-            
-            for (let j = logsAfter.length - 1; j >= 0; j--) {
-              const l = logsAfter[j];
-              if (l.action === 'Status Changed' || (l.action === 'Updated' && l.field === 'status')) {
-                status = l.oldVal || 'Not Started';
-              } else if (l.action === 'Updated' && l.field === 'blocked') {
-                blocked = (l.oldVal === 'true' || l.oldVal === true);
-              } else if (l.action === 'Updated' && l.field === 'dueDate') {
-                dueDate = l.oldVal;
-              }
-            }
-            
-            taskStates[t.id] = {
-              id: t.id,
-              status: status,
-              blocked: blocked,
-              dueDate: dueDate
-            };
-          }
+          const state = getTaskStateAt(t, atDate);
+          if (state) snapshot[t.id] = state;
         });
-        
+
         let total = 0, completed = 0, inProgress = 0, onHold = 0, blocked = 0, overdue = 0;
-        
-        Object.values(taskStates).forEach(state => {
-          if (state.deleted) return;
+
+        Object.values(snapshot).forEach(state => {
+          if (state.status === 'Cancelled') return;
           total++;
           if (state.status === 'Completed') completed++;
           else if (state.status === 'In Progress') inProgress++;
           else if (state.status === 'On Hold') onHold++;
-          
-          if (state.blocked) blocked++;
-          
-          if (state.status !== 'Completed' && state.status !== 'Cancelled' && state.dueDate) {
-            const dDate = new Date(state.dueDate);
-            if (dDate < targetDate) {
-              overdue++;
-            }
+
+          // Blocked: has an incomplete dependency that was also present in the snapshot
+          if (state.status !== 'Completed' && state.dependsOn && state.dependsOn.length) {
+            const deps = Array.isArray(state.dependsOn)
+              ? state.dependsOn
+              : String(state.dependsOn).split(',').map(s => s.trim()).filter(Boolean);
+            const isBlk = deps.some(depId => {
+              const dep = snapshot[depId];
+              return dep && dep.status !== 'Completed';
+            });
+            if (isBlk) blocked++;
+          }
+
+          // Overdue: past its due date at this sample point and not completed
+          if (state.status !== 'Completed' && state.dueDate) {
+            if (new Date(state.dueDate) < atDate) overdue++;
           }
         });
-        
+
         totalSeries.push(total);
         completedSeries.push(completed);
         inProgressSeries.push(inProgress);
@@ -10113,14 +10122,15 @@
         blockedSeries.push(blocked);
         overdueSeries.push(overdue);
       });
-      
+
       return {
         total: totalSeries,
         completed: completedSeries,
         inProgress: inProgressSeries,
         onHold: onHoldSeries,
         blocked: blockedSeries,
-        overdue: overdueSeries
+        overdue: overdueSeries,
+        dates: dates.map(d => d.toISOString().split('T')[0])
       };
     }
 
