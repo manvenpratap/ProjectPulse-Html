@@ -15171,6 +15171,19 @@
         window._editingServerSubtasks = JSON.parse(JSON.stringify(task.subtasks || []));
       }
 
+      window.recalcServerWorkflowLocal = function () {
+        if (!window._editingServerSubtasks) return;
+        window._editingServerSubtasks.forEach(s => {
+          if (s.status === 'Completed' && s.actCompletionDate && s.startDate) {
+            s.actEffort = getBusinessDays(s.startDate, s.actCompletionDate);
+          } else if (s.status !== 'Completed') {
+            s.actEffort = 0;
+          }
+        });
+      };
+
+      window.recalcServerWorkflowLocal();
+
       const subtasks = window._editingServerSubtasks;
 
       window.toggleServerSubtaskDoneLocal = function (stId, done) {
@@ -15184,6 +15197,7 @@
             st.actCompletionDate = st.dueDate || new Date().toISOString().split('T')[0];
           }
         }
+        window.recalcServerWorkflowLocal();
         openServerWorkflowFlyout(window._editingServerTaskId);
       };
 
@@ -15198,6 +15212,7 @@
             st.actCompletionDate = st.dueDate || new Date().toISOString().split('T')[0];
           }
         }
+        window.recalcServerWorkflowLocal();
         openServerWorkflowFlyout(window._editingServerTaskId);
       };
 
@@ -15215,12 +15230,8 @@
         const st = window._editingServerSubtasks.find(s => s.id === stId);
         if (st) {
           st.actCompletionDate = val;
-          if (val && st.startDate) {
-            st.actEffort = getBusinessDays(st.startDate, val);
-          } else {
-            st.actEffort = 0;
-          }
         }
+        window.recalcServerWorkflowLocal();
         openServerWorkflowFlyout(window._editingServerTaskId);
       };
 
@@ -15234,6 +15245,7 @@
             st.actCompletionDate = st.dueDate || new Date().toISOString().split('T')[0];
           }
         });
+        window.recalcServerWorkflowLocal();
         openServerWorkflowFlyout(window._editingServerTaskId);
       };
 
