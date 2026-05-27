@@ -10204,7 +10204,40 @@
     const $id = id => document.getElementById(id);
     const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const fmtN = n => { /* reserved */ if (isNaN(n) || !isFinite(n)) return '–'; const a = Math.abs(n); if (a >= 1e6) return (n / 1e6).toFixed(1) + 'M'; if (a >= 1e3) return (n / 1e3).toFixed(1) + 'K'; return Math.round(n * 100) / 100; };
-    const fmtDate = d => { if (!d) return '—'; try { const dt = new Date(d); return isNaN(dt) ? d : dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); } catch (e) { return d; } };
+    const fmtDate = d => {
+      if (!d) return '—';
+      try {
+        const dt = new Date(d);
+        if (isNaN(dt)) return d;
+        const day = String(dt.getDate()).padStart(2, '0');
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const month = months[dt.getMonth()];
+        const year = dt.getFullYear();
+        return `${day}-${month}-${year}`;
+      } catch (e) {
+        return d;
+      }
+    };
+    const parseDateDMY = str => {
+      if (!str) return '';
+      const trimmed = String(str).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+      const m = trimmed.match(/^(\d{1,2})[-/ ]([A-Za-z]{3})[-/ ](\d{4})$/);
+      if (m) {
+        const day = parseInt(m[1]);
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthIdx = months.findIndex(name => name.toLowerCase() === m[2].toLowerCase());
+        const year = parseInt(m[3]);
+        if (monthIdx > -1) {
+          return `${year}-${String(monthIdx + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+      }
+      const d = new Date(trimmed);
+      if (!isNaN(d)) {
+        return d.toISOString().split('T')[0];
+      }
+      return trimmed;
+    };
 
     function addEmptyState(container, msg) {
       if (!container) return;
@@ -14201,11 +14234,11 @@
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
                    <div class="fg" style="margin:0">
                       <label class="flbl">Start Date</label>
-                      <input type="date" class="finp" value="${stEdit.startDate || ''}" onchange="window._editingSubtask.startDate = this.value; window.recalcGUIScreenLocal(); window.openScreenFlyout('${taskId}','${stId}','edit');" style="background:var(--color-surface)">
+                      <input type="text" class="finp" value="${stEdit.startDate ? fmtDate(stEdit.startDate) : ''}" placeholder="dd-mmm-yyyy" onchange="window._editingSubtask.startDate = parseDateDMY(this.value); window.recalcGUIScreenLocal(); window.openScreenFlyout('${taskId}','${stId}','edit');" style="background:var(--color-surface)">
                    </div>
                    <div class="fg" style="margin:0">
                       <label class="flbl">Due Date (Auto)</label>
-                      <input type="date" class="finp" value="${stEdit.dueDate || ''}" readonly style="opacity:0.65; cursor:not-allowed; background:var(--color-surface-offset)">
+                      <input type="text" class="finp" value="${stEdit.dueDate ? fmtDate(stEdit.dueDate) : ''}" readonly style="opacity:0.65; cursor:not-allowed; background:var(--color-surface-offset)">
                    </div>
                 </div>
              </div>
@@ -14270,13 +14303,13 @@
                    <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Schedule</span>
                    <div style="display:flex; align-items:center; gap:4px; font-weight:600; color:var(--color-text); margin-top:2px;">
                       <i data-lucide="calendar" style="width:11px; height:11px; opacity:0.6;"></i>
-                      <span>${step.startDate || '?'} <span style="opacity:0.4;">→</span> ${step.dueDate || '?'}</span>
+                      <span>${step.startDate ? fmtDate(step.startDate) : '?'} <span style="opacity:0.4;">→</span> ${step.dueDate ? fmtDate(step.dueDate) : '?'}</span>
                    </div>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:4px;">
                    <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Actual Completion</span>
                    <div style="display:flex; align-items:center; gap:6px;">
-                      <input type="date" value="${step.actCompletionDate || ''}" style="background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; width:110px;" onchange="window.updateGUIStepCompletionDateLocal(${idx},this.value)">
+                      <input type="text" value="${step.actCompletionDate ? fmtDate(step.actCompletionDate) : ''}" placeholder="dd-mmm-yyyy" style="background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; width:110px;" onchange="window.updateGUIStepCompletionDateLocal(${idx},parseDateDMY(this.value))">
                       <span id="step_act_hours_${idx}" class="badge success" style="font-weight:700; font-size:8px; display:${step.actEffort ? 'inline-flex' : 'none'}; padding: 1px 4px; border-radius: 3px; white-space:nowrap">${step.actEffort || 0}d act</span>
                    </div>
                 </div>
@@ -15351,13 +15384,13 @@
                    <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Schedule</span>
                    <div style="display:flex; align-items:center; gap:4px; font-weight:600; color:var(--color-text); margin-top:2px;">
                       <i data-lucide="calendar" style="width:11px; height:11px; opacity:0.6;"></i>
-                      <span>${st.startDate || '?'} <span style="opacity:0.4;">→</span> ${st.dueDate || '?'}</span>
+                      <span>${st.startDate ? fmtDate(st.startDate) : '?'} <span style="opacity:0.4;">→</span> ${st.dueDate ? fmtDate(st.dueDate) : '?'}</span>
                    </div>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:4px;">
                    <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Actual Completion</span>
                    <div style="display:flex; align-items:center; gap:6px;">
-                      <input type="date" value="${st.actCompletionDate || ''}" style="background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; width:110px;" onchange="window.updateServerSubtaskCompletionDateLocal('${st.id}',this.value)">
+                      <input type="text" value="${st.actCompletionDate ? fmtDate(st.actCompletionDate) : ''}" placeholder="dd-mmm-yyyy" style="background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; width:110px;" onchange="window.updateServerSubtaskCompletionDateLocal('${st.id}',parseDateDMY(this.value))">
                       <span id="server_act_hours_${st.id}" class="badge success" style="font-weight:700; font-size:8px; display:${st.actEffort ? 'inline-flex' : 'none'}; padding: 1px 4px; border-radius: 3px; white-space:nowrap">${st.actEffort || 0}d act</span>
                    </div>
                 </div>
