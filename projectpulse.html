@@ -11503,8 +11503,8 @@
           if (P.fsHandle && !P._isLoading && !P._fsPermissionError) {
             clearTimeout(_fileSaveTimer);
             _fileSaveTimer = setTimeout(() => {
-              if (!P._isSaving && !P._isLoading) saveToFile();
-            }, 10000); // 10s debounce for file mode
+              if (!P._isSaving && !P._isLoading) saveToFile(true);
+            }, 60000); // 60s debounce for file mode (up from 10s to prevent constant freezing)
           }
         } catch (e) {
           console.error('Save failed', e);
@@ -12145,18 +12145,21 @@
     }
 
 
-    async function saveToFile() {
+    async function saveToFile(isAutosave = false) {
       if (typeof ExcelJS === 'undefined') { notify('Excel library not loaded yet. Please try again.', 'amber'); return; }
       if (!P.fsHandle || P._isSaving || P._fsPermissionError) return;
       P._isSaving = true;
 
-      const saveOverlay = document.createElement('div');
-      saveOverlay.className = 'save-overlay';
-      saveOverlay.innerHTML = '<div class="save-spinner"></div><div class="save-text">Saving to Excel...</div>';
-      document.body.appendChild(saveOverlay);
+      let saveOverlay = null;
+      if (!isAutosave) {
+        saveOverlay = document.createElement('div');
+        saveOverlay.className = 'save-overlay';
+        saveOverlay.innerHTML = '<div class="save-spinner"></div><div class="save-text">Saving to Excel...</div>';
+        document.body.appendChild(saveOverlay);
 
-      // Force a paint to ensure the transition delay begins before freezing the thread
-      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        // Force a paint to ensure the transition delay begins before freezing the thread
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      }
 
       try {
         if (P.fsHandle.queryPermission) {
@@ -12187,7 +12190,7 @@
       }
       finally {
         P._isSaving = false;
-        if (saveOverlay.parentNode) saveOverlay.parentNode.removeChild(saveOverlay);
+        if (saveOverlay && saveOverlay.parentNode) saveOverlay.parentNode.removeChild(saveOverlay);
       }
     }
     async function loadFromFile() {
