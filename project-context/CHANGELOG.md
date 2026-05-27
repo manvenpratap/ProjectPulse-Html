@@ -70,3 +70,11 @@
 ## 📅 [2026-05-21] - Context Optimization & Help Sync
 - Consolidated 17 project context files into 6 files for better token efficiency.
 - Re-aligned all in-app `VIEW_HELP` guides and `mkCC` widget tooltips with current code behaviors (18 dashboard widgets, dynamic effort settings, drag-to-reorder, manual saves).
+
+## 📅 [2026-05-27] - Sparklines, High-Fidelity Exports, Theme Alignment & Local Folder Persistence
+- **Executive Overview Sparklines**: Replaced the static dashboard sparkline data with real dynamic tracking of composite project health scores over time, and upgraded `genspark` to plot smooth Bezier curves.
+- **High-Fidelity Widget-to-Image Export**: Implemented custom canvas-based rendering with custom font configurations and direct DOM layout fallback styling to ensure exported widget images look identical to the active themes inside the app.
+- **Theme-Aligned Status Toggles**: Restyled the filters on the *Screen Delivery Status* and *Module vs Type Status Matrix* widgets to align with the active theme's colors (`var(--color-primary)` for active background and `var(--color-surface)` for text/counters). Fixed the JS click handler bug on filter pills by removing the redundant innerHTML rewrite.
+- **Defect Inflow Trend timescale**: Increased the Defect Inflow Trend widget's analysis period from 7 days to 7 weeks and updated descriptions.
+- **Local Folder Sync Path in Excel**: Serialized the active directory sync path (`P.fsDirName`) to the Excel `System State` sheet, allowing the app to automatically reconstruct and restore directory sync handles from IndexedDB on Excel import.
+- **Help Guide Calculations**: Added explanations of the dynamic **Health Index** (weighted penalty model) and **Delivery Confidence** (backlog volume vs 4-week velocity average) calculation systems to the "How this view works" Help Guide modal.

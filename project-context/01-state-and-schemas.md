@@ -79,7 +79,7 @@ All app state lives in `const P = {...}`. Persisted to `localStorage` key `pp-da
 |:---|:---|:---|
 | `fsHandle` | `FileHandle` | Browser FS handle for Excel sync (stored in IDB) |
 | `fsDirHandle` | `DirHandle` | Directory handle for folder sync |
-| `fsDirName` | `string` | Directory name display |
+| `fsDirName` | `string` | Directory name display (saved to Excel System State as 'Local Folder Sync Path') |
 | `lastSynced` | `ISO string` | Last successful file write |
 | `lastBackup` | `ISO string` | Last successful IDB backup |
 | `_isSaving` | `boolean` | Save lock flag |
