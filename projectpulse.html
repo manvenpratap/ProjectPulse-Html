@@ -27651,7 +27651,7 @@
         ws.columns = keys.map(k => ({ header: String(S((window.PROJECT_SCHEMA && window.PROJECT_SCHEMA.labels[k]) || cap(k))), key: k, width: 22 }));
         ws.getRow(1).height = 30; ws.getRow(1).eachCell(c => c.style = hdrStyle);
         data.forEach((r, i) => {
-          const rowValues = {}; keys.forEach(k => rowValues[k] = S(r[k], k));
+        const rowValues = {}; keys.forEach(k => rowValues[k] = S(r[k], k));
           const row = ws.addRow(rowValues); row.font = { size: 10, color: { argb: COLORS.textDark } };
           if (i % 2 === 1) row.eachCell(c => c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } });
         });
@@ -27690,7 +27690,7 @@
     function buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate) {
       if (safeMode) return;
       const ds = wb.addWorksheet('Executive Dashboard', { views: safeMode ? [] : [{ showGridLines: false, state: 'frozen', ySplit: 3 }] });
-      ds.getColumn(1).width = 3.0; for (let i = 2; i <= 18; i++) ds.getColumn(i).width = 17; ds.getColumn(19).width = 3.0;
+      ds.getColumn(1).width = 3.0; for (let i = 2; i <= 24; i++) ds.getColumn(i).width = 17; ds.getColumn(25).width = 3.0;
       for (let i = 1; i <= 250; i++) ds.getRow(i).height = 20;
 
       const applyBg = (r, c, color) => { ds.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } }; };
@@ -27705,12 +27705,33 @@
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, width, height);
 
+        function toWebColor(col) {
+          if (!col) return '#475569';
+          let clean = col.replace('#', '');
+          if (clean.length === 8) return '#' + clean.substring(2);
+          return '#' + clean;
+        }
+
+        const scale = width / 300;
+
+        const VIBRANT_GRADIENTS = [
+          { start: '#4F46E5', end: '#818CF8' },
+          { start: '#10B981', end: '#34D399' },
+          { start: '#F59E0B', end: '#FBBF24' },
+          { start: '#EF4444', end: '#F87171' },
+          { start: '#3B82F6', end: '#60A5FA' },
+          { start: '#8B5CF6', end: '#A78BFA' },
+          { start: '#EC4899', end: '#F472B6' },
+          { start: '#06B6D4', end: '#22D3EE' },
+          { start: '#F97316', end: '#FB923C' }
+        ];
+
         if (type === 'donut') {
           const total = data.reduce((sum, item) => sum + item.value, 0) || 1;
-          const centerX = width * 0.3;
+          const centerX = width * 0.5;
           const centerY = height * 0.5;
-          const radius = Math.min(centerX, centerY) * 0.8;
-          const innerRadius = radius * 0.55;
+          const radius = Math.min(centerX, centerY) * 0.7;
+          const innerRadius = radius * 0.5;
 
           let startAngle = -Math.PI / 2;
           data.forEach(item => {
@@ -27721,46 +27742,36 @@
             ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
             ctx.arc(centerX, centerY, innerRadius, startAngle + sliceAngle, startAngle, true);
             ctx.closePath();
-            ctx.fillStyle = item.color;
+            ctx.fillStyle = toWebColor(item.color);
             ctx.fill();
+
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
 
             startAngle += sliceAngle;
           });
 
           if (colors && colors.centerText) {
             ctx.fillStyle = '#0F172A';
-            ctx.font = 'bold 12px Segoe UI';
+            ctx.font = `bold ${Math.round(11 * scale)}px Segoe UI`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(colors.centerText, centerX, centerY);
           }
-
-          const legendX = width * 0.65;
-          let legendY = height * 0.15;
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'middle';
-          ctx.font = '8px Segoe UI';
-
-          data.forEach(item => {
-            ctx.fillStyle = item.color;
-            ctx.fillRect(legendX, legendY - 4, 8, 8);
-            ctx.fillStyle = '#475569';
-            ctx.fillText(`${item.label} (${item.value})`, legendX + 14, legendY);
-            legendY += 14;
-          });
         } else if (type === 'line') {
-          const padL = 30;
-          const padR = 10;
-          const padT = 15;
-          const padB = 20;
+          const padL = Math.round(35 * scale);
+          const padR = Math.round(15 * scale);
+          const padT = Math.round(20 * scale);
+          const padB = Math.round(25 * scale);
           const chartW = width - padL - padR;
           const chartH = height - padT - padB;
 
-          const maxVal = Math.max(...data.ideal, ...data.actual, 1) * 1.1;
+          const maxVal = Math.max(...data.ideal, ...data.actual, 1) * 1.15;
 
           ctx.strokeStyle = '#F1F5F9';
           ctx.lineWidth = 1;
-          ctx.font = '7.5px Segoe UI';
+          ctx.font = `${Math.round(8 * scale)}px Segoe UI`;
           ctx.fillStyle = '#94A3B8';
           ctx.textAlign = 'right';
           ctx.textBaseline = 'middle';
@@ -27801,7 +27812,7 @@
           ctx.setLineDash([]);
 
           const areaGrad = ctx.createLinearGradient(0, padT, 0, height - padB);
-          areaGrad.addColorStop(0, 'rgba(79, 70, 229, 0.15)');
+          areaGrad.addColorStop(0, 'rgba(79, 70, 229, 0.25)');
           areaGrad.addColorStop(1, 'rgba(79, 70, 229, 0.0)');
           ctx.fillStyle = areaGrad;
           ctx.beginPath();
@@ -27817,18 +27828,29 @@
           ctx.fill();
 
           ctx.strokeStyle = '#4F46E5';
-          ctx.lineWidth = 2;
+          ctx.lineWidth = 2.5;
           ctx.beginPath();
           data.actual.forEach((val, idx) => {
             const pt = getPt(idx, val);
             if (idx === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
           });
           ctx.stroke();
+
+          data.actual.forEach((val, idx) => {
+            const pt = getPt(idx, val);
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, Math.round(3.5 * scale), 0, 2 * Math.PI);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fill();
+            ctx.strokeStyle = '#4F46E5';
+            ctx.lineWidth = Math.round(1.5 * scale);
+            ctx.stroke();
+          });
         } else if (type === 'bar') {
-          const padL = 30;
-          const padR = 10;
-          const padT = 15;
-          const padB = 20;
+          const padL = Math.round(35 * scale);
+          const padR = Math.round(15 * scale);
+          const padT = Math.round(20 * scale);
+          const padB = Math.round(25 * scale);
           const chartW = width - padL - padR;
           const chartH = height - padT - padB;
 
@@ -27836,7 +27858,7 @@
 
           ctx.strokeStyle = '#F1F5F9';
           ctx.lineWidth = 1;
-          ctx.font = '7.5px Segoe UI';
+          ctx.font = `${Math.round(8 * scale)}px Segoe UI`;
           ctx.fillStyle = '#94A3B8';
           ctx.textAlign = 'right';
           ctx.textBaseline = 'middle';
@@ -27864,27 +27886,28 @@
             const y = padT + chartH * (1 - val / maxVal);
             const h = chartH * (val / maxVal);
 
+            const gradConf = VIBRANT_GRADIENTS[idx % VIBRANT_GRADIENTS.length];
             const barGrad = ctx.createLinearGradient(0, y, 0, height - padB);
-            barGrad.addColorStop(0, '#4F46E5');
-            barGrad.addColorStop(1, '#818CF8');
+            barGrad.addColorStop(0, gradConf.start);
+            barGrad.addColorStop(1, gradConf.end);
             ctx.fillStyle = barGrad;
             ctx.fillRect(x, y, barWidth, h);
 
             ctx.fillStyle = '#1E293B';
-            ctx.font = 'bold 8px Segoe UI';
+            ctx.font = `bold ${Math.round(8.5 * scale)}px Segoe UI`;
             ctx.textBaseline = 'bottom';
             ctx.fillText(String(Math.round(val)), xCenter, y - 2);
 
             ctx.fillStyle = '#64748B';
-            ctx.font = '7.5px Segoe UI';
+            ctx.font = `${Math.round(8 * scale)}px Segoe UI`;
             ctx.textBaseline = 'top';
             ctx.fillText(data.labels[idx], xCenter, height - padB + 4);
           });
         } else if (type === 'horizontalBar') {
-          const padL = 60;
-          const padR = 25;
-          const padT = 15;
-          const padB = 15;
+          const padL = Math.round(70 * scale);
+          const padR = Math.round(35 * scale);
+          const padT = Math.round(20 * scale);
+          const padB = Math.round(20 * scale);
           const chartW = width - padL - padR;
           const chartH = height - padT - padB;
 
@@ -27892,10 +27915,9 @@
           const barHeight = (chartH / numBars) * 0.55;
           const spacing = (chartH / numBars);
 
-          const isCount = colors && colors.isCount;
-          const maxVal = isCount ? Math.max(...data.values, 1) : 100;
+          const maxVal = 100;
 
-          ctx.font = '7.5px Segoe UI';
+          ctx.font = `${Math.round(8 * scale)}px Segoe UI`;
           ctx.textBaseline = 'middle';
 
           data.values.forEach((val, idx) => {
@@ -27903,132 +27925,77 @@
             const y = yCenter - barHeight / 2;
             const w = chartW * (Math.min(maxVal, Math.max(0, val)) / maxVal);
 
-            // Draw shadow/track bar
             ctx.fillStyle = '#F1F5F9';
             ctx.fillRect(padL, y, chartW, barHeight);
 
-            // Draw progress bar
             const barGrad = ctx.createLinearGradient(padL, 0, padL + chartW, 0);
-            if (isCount) {
-              barGrad.addColorStop(0, colors.barColorStart || '#EF4444');
-              barGrad.addColorStop(1, colors.barColorEnd || '#F87171');
-            } else {
-              barGrad.addColorStop(0, '#10B981');
-              barGrad.addColorStop(1, '#34D399');
-            }
+            const gradConf = VIBRANT_GRADIENTS[idx % VIBRANT_GRADIENTS.length];
+            barGrad.addColorStop(0, gradConf.start);
+            barGrad.addColorStop(1, gradConf.end);
             ctx.fillStyle = barGrad;
             ctx.fillRect(padL, y, w, barHeight);
 
-            // Draw Label
             ctx.fillStyle = '#475569';
             ctx.textAlign = 'right';
-            ctx.font = 'bold 7.5px Segoe UI';
-            const cleanLbl = String(data.labels[idx]).length > 11 ? String(data.labels[idx]).substring(0, 9) + '..' : data.labels[idx];
+            ctx.font = `bold ${Math.round(8 * scale)}px Segoe UI`;
+            const cleanLbl = String(data.labels[idx]).length > 15 ? String(data.labels[idx]).substring(0, 13) + '..' : data.labels[idx];
             ctx.fillText(cleanLbl, padL - 6, yCenter);
 
-            // Draw Value
             ctx.fillStyle = '#0F172A';
             ctx.textAlign = 'left';
-            ctx.font = 'bold 8px Segoe UI';
-            ctx.fillText(isCount ? String(Math.round(val)) : Math.round(val) + '%', padL + w + 4, yCenter);
+            ctx.font = `bold ${Math.round(8.5 * scale)}px Segoe UI`;
+            ctx.fillText(Math.round(val) + '%', padL + w + 4, yCenter);
           });
-        } else if (type === 'stackedArea') {
-          const padL = 30;
-          const padR = 75;
-          const padT = 15;
-          const padB = 20;
+        } else if (type === 'stackedHorizontalBar') {
+          const padL = Math.round(70 * scale);
+          const padR = Math.round(25 * scale);
+          const padT = Math.round(20 * scale);
+          const padB = Math.round(20 * scale);
           const chartW = width - padL - padR;
           const chartH = height - padT - padB;
 
-          const numPoints = data.labels.length || 1;
-          const accumulated = [];
+          const numBars = data.labels.length || 1;
+          const barHeight = (chartH / numBars) * 0.55;
+          const spacing = (chartH / numBars);
 
-          // Initialize accumulation
-          for (let pIdx = 0; pIdx < numPoints; pIdx++) {
-            accumulated[pIdx] = [];
+          let maxVal = 1;
+          for (let i = 0; i < numBars; i++) {
             let sum = 0;
+            data.series.forEach(s => { sum += (s.values[i] || 0); });
+            if (sum > maxVal) maxVal = sum;
+          }
+          maxVal = Math.max(maxVal, 1) * 1.1;
+
+          ctx.font = `${Math.round(8 * scale)}px Segoe UI`;
+          ctx.textBaseline = 'middle';
+
+          for (let i = 0; i < numBars; i++) {
+            const yCenter = padT + i * spacing + spacing / 2;
+            const y = yCenter - barHeight / 2;
+
+            ctx.fillStyle = '#F1F5F9';
+            ctx.fillRect(padL, y, chartW, barHeight);
+
+            let accumulatedW = 0;
             data.series.forEach((s, sIdx) => {
-              sum += (s.values[pIdx] || 0);
-              accumulated[pIdx][sIdx] = sum;
+              const val = s.values[i] || 0;
+              if (val <= 0) return;
+
+              const w = chartW * (val / maxVal);
+              const x = padL + accumulatedW;
+
+              ctx.fillStyle = toWebColor(s.color);
+              ctx.fillRect(x, y, w, barHeight);
+
+              accumulatedW += w;
             });
-          }
 
-          const maxVal = Math.max(...accumulated.map(row => row[row.length - 1] || 1)) * 1.15;
-
-          // Draw Grid
-          ctx.strokeStyle = '#F1F5F9';
-          ctx.lineWidth = 1;
-          ctx.font = '7.5px Segoe UI';
-          ctx.fillStyle = '#94A3B8';
-          ctx.textAlign = 'right';
-          ctx.textBaseline = 'middle';
-
-          for (let i = 0; i <= 4; i++) {
-            const y = padT + chartH * (1 - i / 4);
-            const v = Math.round(maxVal * (i / 4));
-            ctx.beginPath();
-            ctx.moveTo(padL, y);
-            ctx.lineTo(width - padR, y);
-            ctx.stroke();
-            ctx.fillText(String(v), padL - 4, y);
-          }
-
-          // X Labels
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'top';
-          data.labels.forEach((lbl, idx) => {
-            const x = padL + (idx / Math.max(1, numPoints - 1)) * chartW;
-            ctx.fillText(lbl, x, height - padB + 4);
-          });
-
-          const getPt = (idx, val) => {
-            const x = padL + (idx / Math.max(1, numPoints - 1)) * chartW;
-            const y = padT + chartH * (1 - val / maxVal);
-            return { x, y };
-          };
-
-          // Draw stacked areas from top (highest sum) to bottom (series 0)
-          for (let sIdx = data.series.length - 1; sIdx >= 0; sIdx--) {
-            const s = data.series[sIdx];
-            ctx.fillStyle = s.color;
-            ctx.beginPath();
-            for (let pIdx = 0; pIdx < numPoints; pIdx++) {
-              const pt = getPt(pIdx, accumulated[pIdx][sIdx]);
-              if (pIdx === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
-            }
-            // Close down to 0
-            const ptLast = getPt(numPoints - 1, 0);
-            const ptFirst = getPt(0, 0);
-            ctx.lineTo(ptLast.x, ptLast.y);
-            ctx.lineTo(ptFirst.x, ptFirst.y);
-            ctx.closePath();
-            ctx.fill();
-
-            // Draw line border
-            ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            for (let pIdx = 0; pIdx < numPoints; pIdx++) {
-              const pt = getPt(pIdx, accumulated[pIdx][sIdx]);
-              if (pIdx === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
-            }
-            ctx.stroke();
-          }
-
-          // Draw legend
-          const legendX = width - padR + 10;
-          let legendY = height * 0.15;
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'middle';
-          ctx.font = '7.5px Segoe UI';
-
-          data.series.slice().reverse().forEach(s => {
-            ctx.fillStyle = s.color;
-            ctx.fillRect(legendX, legendY - 3, 6, 6);
             ctx.fillStyle = '#475569';
-            ctx.fillText(s.label, legendX + 10, legendY);
-            legendY += 13;
-          });
+            ctx.textAlign = 'right';
+            ctx.font = `bold ${Math.round(8 * scale)}px Segoe UI`;
+            const cleanLbl = String(data.labels[i]).length > 15 ? String(data.labels[i]).substring(0, 13) + '..' : data.labels[i];
+            ctx.fillText(cleanLbl, padL - 6, yCenter);
+          }
         }
 
         return canvas.toDataURL('image/png');
@@ -28038,11 +28005,6 @@
         for (let r = row; r < row + h; r++) { ds.getRow(r).height = 28; for (let c = col; c < col + w; c++) applyBg(r, c, COLORS.surface); }
         ds.mergeCells(row, col, row + h - 1, col + w - 1);
         const cell = ds.getCell(row, col);
-        cell.fill = { 
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFFDFDFD' }
-        };
         cell.border = { 
           top: { style: 'thin', color: { argb: COLORS.divider } }, 
           left: { style: 'medium', color: { argb: accentColor } }, 
@@ -28051,92 +28013,55 @@
         };
         cell.value = {
           richText: [
-            { text: label.toUpperCase() + '\n', font: { name: 'Segoe UI', size: 8, bold: true, color: { argb: COLORS.muted } } },
-            { text: String(S(value)) + '\n', font: { name: 'Segoe UI', size: 20, bold: true, color: { argb: accentColor } } },
-            { text: String(S(subLabel)), font: { name: 'Segoe UI', size: 9, italic: true, color: { argb: COLORS.slate } } }
+            { text: label.toUpperCase() + '\n', font: { name: 'Segoe UI', size: 9, bold: true, color: { argb: COLORS.slate } } },
+            { text: String(value) + '\n', font: { name: 'Segoe UI', size: 20, bold: true, color: { argb: COLORS.textDark } } },
+            { text: subLabel || '', font: { name: 'Segoe UI', size: 8.5, italic: true, color: { argb: COLORS.slate } } }
           ]
         };
-        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
       };
 
-      const drawSectionTitle = (row, text, span) => {
-        ds.getRow(row).height = 36; ds.mergeCells(row, 2, row, span || 18);
-        const c = ds.getCell(row, 2); c.value = '  ' + String(S(text)).toUpperCase();
-        c.font = { name: 'Segoe UI', bold: true, size: 10.5, color: { argb: COLORS.navy } }; c.alignment = { vertical: 'middle', indent: 1 };
-        c.fill = { 
-          type: 'gradient', 
-          gradient: 'angle', 
-          degree: 90, 
-          stops: [
-            { position: 0, color: { argb: 'FFE2E8F0' } }, 
-            { position: 1, color: { argb: 'FFF8FAFC' } }
-          ] 
-        };
-        c.border = { 
-          bottom: { style: 'medium', color: { argb: COLORS.indigo } }, 
-          left: { style: 'medium', color: { argb: COLORS.indigo } } 
-        };
-        // Background for the rest of merged cells to ensure consistency in Excel
-        for (let col = 3; col <= (span || 18); col++) {
-          ds.getCell(row, col).fill = { 
-            type: 'gradient', 
-            gradient: 'angle', 
-            degree: 90, 
-            stops: [
-              { position: 0, color: { argb: 'FFE2E8F0' } }, 
-              { position: 1, color: { argb: 'FFF8FAFC' } }
-            ] 
-          };
-          ds.getCell(row, col).border = { bottom: { style: 'medium', color: { argb: COLORS.indigo } } };
-        }
+      const drawSectionTitle = (row, title) => {
+        ds.getRow(row).height = 28;
+        ds.mergeCells(row, 2, row, 24);
+        const cell = ds.getCell(row, 2);
+        cell.value = ' ' + title.toUpperCase();
+        cell.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: COLORS.navy } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.header } };
+        cell.border = { bottom: { style: 'medium', color: { argb: COLORS.indigo } } };
+        cell.alignment = { vertical: 'middle' };
       };
 
-      const drawTableHeader = (row, cols, startCol) => {
-        ds.getRow(row).height = 30;
-        cols.forEach((label, i) => {
-          const c = ds.getCell(row, startCol + i); c.value = label.toUpperCase();
-          c.font = { name: 'Segoe UI', bold: true, size: 8.5, color: { argb: 'FFFFFFFF' } };
-          c.fill = { 
-            type: 'gradient', 
-            gradient: 'angle', 
-            degree: 90, 
-            stops: [
-              { position: 0, color: { argb: COLORS.navy } }, 
-              { position: 1, color: { argb: COLORS.indigo } }
-            ] 
-          };
-          c.alignment = { vertical: 'middle', horizontal: 'center' }; 
-          c.border = { 
-            bottom: { style: 'medium', color: { argb: COLORS.navy } },
-            top: { style: 'thin', color: { argb: COLORS.navy } },
-            left: { style: 'thin', color: { argb: COLORS.indigo } },
-            right: { style: 'thin', color: { argb: COLORS.indigo } }
-          };
+      const drawTableHeader = (row, headers, startCol) => {
+        ds.getRow(row).height = 24;
+        headers.forEach((h, i) => {
+          const cell = ds.getCell(row, startCol + i);
+          cell.value = h;
+          cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: COLORS.surface } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.navy } };
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          cell.border = { bottom: { style: 'medium', color: { argb: COLORS.indigo } } };
         });
       };
 
-      const drawTableRow = (row, vals, startCol, isAlt) => {
-        ds.getRow(row).height = 26;
-        vals.forEach((v, i) => {
-          const c = ds.getCell(row, startCol + i);
-          let rawVal = v;
-          let isBold = false;
-          let color = COLORS.textDark;
-          if (typeof v === 'object' && v !== null && v._styled) {
-            rawVal = v.text;
-            isBold = !!v.bold;
-            color = (v.color || COLORS.textDark).replace('#', '');
-          }
-          c.value = S(rawVal);
-          c.font = { name: 'Segoe UI', size: 9.5, bold: isBold, color: { argb: color } };
-          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isAlt ? COLORS.surfaceAlt : COLORS.surface } };
+      const drawTableRow = (row, values, startCol, alternate) => {
+        ds.getRow(row).height = 22;
+        const bg = alternate ? COLORS.surfaceAlt : COLORS.surface;
+        values.forEach((val, i) => {
+          const cell = ds.getCell(row, startCol + i);
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
           
-          let align = 'center';
-          if (i === 0) align = 'left';
-          else if (typeof rawVal === 'number' || (typeof rawVal === 'string' && /^\d+[\d\s\.,%]*$/.test(rawVal.trim()))) align = 'right';
+          if (val && val._styled) {
+            cell.value = val.text;
+            cell.font = { name: 'Segoe UI', size: 9, bold: val.bold, color: { argb: val.color } };
+          } else {
+            cell.value = val;
+            cell.font = { name: 'Segoe UI', size: 9, color: { argb: COLORS.textDark } };
+          }
 
-          c.alignment = { vertical: 'middle', horizontal: align, indent: align === 'left' ? 1 : 0 };
-          c.border = { 
+          cell.border = { 
+            top: { style: 'thin', color: { argb: COLORS.divider } },
             bottom: { style: 'thin', color: { argb: COLORS.divider } },
             left: { style: 'thin', color: { argb: COLORS.divider } },
             right: { style: 'thin', color: { argb: COLORS.divider } }
@@ -28151,7 +28076,7 @@
       const blocked = tasks.filter(isBlocked).length; const inProg = tasks.filter(t => t.status === 'In Progress' || t.status === 'Under Review').length;
       const completionPct = total ? Math.round(done / total * 100) : 0; const healthScore = getHealthScore(tasks);
 
-      ds.mergeCells('B2:R3'); ds.getRow(2).height = 24; ds.getRow(3).height = 24;
+      ds.mergeCells('B2:X3'); ds.getRow(2).height = 24; ds.getRow(3).height = 24;
       const titleCell = ds.getCell('B2');
       titleCell.value = { richText: [{ text: '  ' + (P.name || 'Project').toUpperCase(), font: { name: 'Segoe UI', size: 17, bold: true, color: { argb: 'FFFFFFFF' } } }, { text: '   |   EXECUTIVE INSIGHTS PORTAL', font: { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FFC7D2FE' } } }] };
       titleCell.alignment = { vertical: 'middle', indent: 1 };
@@ -28166,17 +28091,17 @@
         ] 
       };
       
-      for (let c = 2; c <= 18; c++) {
+      for (let c = 2; c <= 24; c++) {
         ds.getCell(2, c).fill = gradFill;
         ds.getCell(3, c).fill = gradFill;
       }
 
       const avgP = total ? Math.round(tasks.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / total) : 0;
-      drawPremiumCard(2, 5, 3, 3, 'Health Score', healthScore + '%', healthScore > 80 ? 'On Track' : 'At Risk', healthScore > 80 ? COLORS.emerald : COLORS.amber);
-      drawPremiumCard(5, 5, 3, 3, 'Total Tasks', total, completionPct + '% complete', COLORS.indigo);
-      drawPremiumCard(8, 5, 3, 3, 'Completed', done, (total - done) + ' remaining', COLORS.emerald);
-      drawPremiumCard(11, 5, 3, 3, 'In Progress', inProg, inProg ? 'Active delivery' : 'Steady state', COLORS.blue);
-      drawPremiumCard(14, 5, 4, 3, 'Blocked / Overdue', blocked + overdueTasks.length, (blocked + overdueTasks.length) ? 'Attention required' : 'Free flow', COLORS.rose);
+      drawPremiumCard(2, 5, 4, 3, 'Health Score', healthScore + '%', healthScore > 80 ? 'On Track' : 'At Risk', healthScore > 80 ? COLORS.emerald : COLORS.amber);
+      drawPremiumCard(6, 5, 4, 3, 'Total Tasks', total, completionPct + '% complete', COLORS.indigo);
+      drawPremiumCard(10, 5, 4, 3, 'Completed', done, (total - done) + ' remaining', COLORS.emerald);
+      drawPremiumCard(14, 5, 4, 3, 'In Progress', inProg, inProg ? 'Active delivery' : 'Steady state', COLORS.blue);
+      drawPremiumCard(18, 5, 4, 3, 'Blocked / Overdue', blocked + overdueTasks.length, (blocked + overdueTasks.length) ? 'Attention required' : 'Free flow', COLORS.rose);
 
       drawSectionTitle(9, 'Project Health & Distribution Analysis');
       drawTableHeader(11, ['Status', 'Count', '%', 'Share'], 2);
@@ -28187,36 +28112,55 @@
       });
       ds.addConditionalFormatting({ ref: `E12:E${12 + STATUSES.length - 1}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 1 }], color: { argb: COLORS.indigo } }] });
 
-      drawTableHeader(11, ['Priority', 'Count', '%', 'Share'], 8);
+      drawTableHeader(11, ['Priority', 'Count', '%', 'Share'], 13);
       const priColors = { 'Critical': COLORS.rose, 'High': COLORS.amber, 'Medium': 'FFEAB308', 'Low': COLORS.muted };
       PRIORITIES.forEach((p, i) => {
         const cnt = tasks.filter(t => t.priority === p).length; const pct = total ? Math.round(cnt / total * 100) : 0;
-        drawTableRow(12 + i, [styledVal(p, priColors[p] || COLORS.textDark, true), cnt, pct + '%', pct / 100], 8, i % 2 === 1);
-        ds.getCell(12 + i, 11).numFmt = '0%';
+        drawTableRow(12 + i, [styledVal(p, priColors[p] || COLORS.textDark, true), cnt, pct + '%', pct / 100], 13, i % 2 === 1);
+        ds.getCell(12 + i, 16).numFmt = '0%';
       });
-      ds.addConditionalFormatting({ ref: `K12:K${12 + PRIORITIES.length - 1}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 1 }], color: { argb: COLORS.amber } }] });
-      drawPremiumCard(14, 11, 2, 3, 'Avg Progress', avgP + '%', 'Overall', COLORS.indigo);
-      drawPremiumCard(16, 11, 2, 3, 'Health Index', healthScore, healthScore > 80 ? 'Excellent' : healthScore > 50 ? 'Stable' : 'Critical', healthScore > 80 ? COLORS.emerald : healthScore > 50 ? COLORS.amber : COLORS.rose);
+      ds.addConditionalFormatting({ ref: `P12:P${12 + PRIORITIES.length - 1}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 1 }], color: { argb: COLORS.amber } }] });
+      
+      drawPremiumCard(21, 11, 3, 3, 'Avg Progress', avgP + '%', 'Overall', COLORS.indigo);
+      drawPremiumCard(21, 15, 3, 3, 'Health Index', healthScore, healthScore > 80 ? 'Excellent' : healthScore > 50 ? 'Stable' : 'Critical', healthScore > 80 ? COLORS.emerald : healthScore > 50 ? COLORS.amber : COLORS.rose);
 
       // Render Status Distribution Donut Chart
       const statusChartData = STATUSES.map(s => ({
         label: s,
         value: tasks.filter(t => t.status === s).length,
-        color: '#' + (STATUS_COLORS[s] || COLORS.textDark).replace('#', '')
+        color: STATUS_COLORS[s] || COLORS.textDark
       })).filter(item => item.value > 0);
 
       try {
-        const donutImgBase64 = generateCanvasChart(280, 150, 'donut', statusChartData, { centerText: total + ' Tasks' });
+        const donutImgBase64 = generateCanvasChart(360, 220, 'donut', statusChartData, { centerText: total + ' Tasks' });
         const donutImgId = wb.addImage({ base64: donutImgBase64, extension: 'png' });
         ds.addImage(donutImgId, {
-          tl: { col: 13, row: 10 },
-          ext: { width: 280, height: 150 }
+          tl: { col: 5, row: 10 },
+          ext: { width: 360, height: 220 }
         });
       } catch (err) {
         console.error('Error generating status donut chart', err);
       }
 
-      let curRow = 12 + Math.max(STATUSES.length, PRIORITIES.length) + 3;
+      // Render Priority Distribution Donut Chart
+      const priChartData = PRIORITIES.map(p => ({
+        label: p,
+        value: tasks.filter(t => t.priority === p).length,
+        color: priColors[p] || COLORS.textDark
+      })).filter(item => item.value > 0);
+
+      try {
+        const priDonutImgBase64 = generateCanvasChart(360, 220, 'donut', priChartData, { centerText: 'By Priority' });
+        const priDonutImgId = wb.addImage({ base64: priDonutImgBase64, extension: 'png' });
+        ds.addImage(priDonutImgId, {
+          tl: { col: 16, row: 10 },
+          ext: { width: 360, height: 220 }
+        });
+      } catch (err) {
+        console.error('Error generating priority donut chart', err);
+      }
+
+      let curRow = 12 + Math.max(STATUSES.length, PRIORITIES.length, 11) + 3;
 
       drawSectionTitle(curRow, 'Predictive Velocity & Remaining Effort Burndown'); curRow += 2;
       const vLs = []; for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); vLs.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) }); }
@@ -28230,43 +28174,44 @@
 
       drawTableHeader(curRow, ['Week', 'Velocity (Effort)'], 2); vLs.forEach((w, i) => { drawTableRow(curRow + 1 + i, [w.l, velData[i]], 2, i % 2 === 1); });
       ds.addConditionalFormatting({ ref: `C${curRow + 1}:C${curRow + vLs.length}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 100 }], color: { argb: COLORS.indigo } }] });
-      drawTableHeader(curRow, ['Week', 'Ideal Remaining', 'Actual Remaining'], 8); bLabels.slice(0, 10).forEach((l, i) => { drawTableRow(curRow + 1 + i, [l, Math.round(bIdeal[i]), Math.round(bActual[i])], 8, i % 2 === 1); });
-      drawPremiumCard(14, curRow, 2, 3, 'Total Effort', totalEffort + ' days', 'Estimated', COLORS.indigo); drawPremiumCard(16, curRow, 2, 3, 'Remaining', Math.round(bActual[bActual.length - 1] || 0) + ' days', 'Current', COLORS.amber);
+      drawTableHeader(curRow, ['Week', 'Ideal', 'Actual'], 13); bLabels.slice(0, 10).forEach((l, i) => { drawTableRow(curRow + 1 + i, [l, Math.round(bIdeal[i]), Math.round(bActual[i])], 13, i % 2 === 1); });
+      drawPremiumCard(21, curRow, 3, 3, 'Total Effort', totalEffort + ' days', 'Estimated', COLORS.indigo); 
+      drawPremiumCard(21, curRow + 4, 3, 3, 'Remaining', Math.round(bActual[bActual.length - 1] || 0) + ' days', 'Current', COLORS.amber);
 
-      // Render Velocity Bar Chart next to Velocity table
+      // Render Velocity Bar Chart next to Velocity table (F to L)
       try {
         const velocityData = {
           labels: vLs.map(w => w.l),
           values: velData
         };
-        const barImgBase64 = generateCanvasChart(240, 150, 'bar', velocityData);
+        const barImgBase64 = generateCanvasChart(480, 240, 'bar', velocityData);
         const barImgId = wb.addImage({ base64: barImgBase64, extension: 'png' });
         ds.addImage(barImgId, {
-          tl: { col: 4, row: curRow },
-          ext: { width: 240, height: 150 }
+          tl: { col: 5, row: curRow - 1 },
+          ext: { width: 480, height: 240 }
         });
       } catch (err) {
         console.error('Error generating velocity bar chart', err);
       }
 
-      // Render Burndown Line Chart next to Burndown table
+      // Render Burndown Line Chart next to Burndown table (Q to T)
       try {
         const burndownData = {
           labels: bLabels.slice(0, 10),
           ideal: bIdeal.slice(0, 10).map(Math.round),
           actual: bActual.slice(0, 10).map(Math.round)
         };
-        const lineImgBase64 = generateCanvasChart(310, 150, 'line', burndownData);
+        const lineImgBase64 = generateCanvasChart(480, 240, 'line', burndownData);
         const lineImgId = wb.addImage({ base64: lineImgBase64, extension: 'png' });
         ds.addImage(lineImgId, {
-          tl: { col: 12, row: curRow },
-          ext: { width: 310, height: 150 }
+          tl: { col: 16, row: curRow - 1 },
+          ext: { width: 480, height: 240 }
         });
       } catch (err) {
         console.error('Error generating burndown line chart', err);
       }
 
-      curRow = curRow + Math.max(vLs.length, 10) + 3;
+      curRow = curRow + Math.max(vLs.length, 10, 12) + 3;
 
       drawSectionTitle(curRow, 'Module & Feature Delivery Intelligence'); curRow += 2;
       const modSet = [...new Set(tasks.map(t => t.module).filter(Boolean))].slice(0, 12);
@@ -28278,13 +28223,13 @@
       if (modSet.length) ds.addConditionalFormatting({ ref: `E${curRow + 1}:E${curRow + modSet.length}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 1 }], color: { argb: COLORS.emerald } }] });
       const feats = (P.features || []).slice(0, 12);
       if (feats.length) {
-        drawTableHeader(curRow, ['Feature', 'Screens', 'Avg Progress', 'Share'], 8);
+        drawTableHeader(curRow, ['Feature', 'Screens', 'Avg Progress', 'Share'], 13);
         feats.forEach((feat, i) => {
           const scs = feat.screens || []; const screenData = tasks.filter(t => (t.subtasks || []).some(st => scs.includes(st.name)) || (t.guiScreens || []).some(sc => scs.includes(sc)));
           const fAvg = screenData.length ? Math.round(screenData.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / screenData.length) : 0;
-          drawTableRow(curRow + 1 + i, [feat.name, scs.length, fAvg + '%', fAvg / 100], 8, i % 2 === 1); ds.getCell(curRow + 1 + i, 11).numFmt = '0%';
+          drawTableRow(curRow + 1 + i, [feat.name, scs.length, fAvg + '%', fAvg / 100], 13, i % 2 === 1); ds.getCell(curRow + 1 + i, 16).numFmt = '0%';
         });
-        ds.addConditionalFormatting({ ref: `K${curRow + 1}:K${curRow + feats.length}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 1 }], color: { argb: COLORS.indigo } }] });
+        ds.addConditionalFormatting({ ref: `P${curRow + 1}:P${curRow + feats.length}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 1 }], color: { argb: COLORS.indigo } }] });
       }
 
       // Render Module Progress Horizontal Bar Chart
@@ -28298,21 +28243,47 @@
             modChartLabels.push(m);
             modChartValues.push(mAvg);
           });
-          const modBarImgBase64 = generateCanvasChart(280, 160, 'horizontalBar', {
+          const modBarImgBase64 = generateCanvasChart(360, 220, 'horizontalBar', {
             labels: modChartLabels,
             values: modChartValues
           });
           const modBarImgId = wb.addImage({ base64: modBarImgBase64, extension: 'png' });
           ds.addImage(modBarImgId, {
-            tl: { col: 12, row: curRow },
-            ext: { width: 280, height: 160 }
+            tl: { col: 5, row: curRow - 1 },
+            ext: { width: 360, height: 220 }
           });
         } catch (err) {
           console.error('Error generating module progress chart', err);
         }
       }
 
-      curRow = curRow + Math.max(modSet.length, feats.length, 7) + 3;
+      // Render Feature Progress Horizontal Bar Chart
+      if (feats.length) {
+        try {
+          const featChartLabels = [];
+          const featChartValues = [];
+          feats.forEach(feat => {
+            const scs = feat.screens || [];
+            const screenData = tasks.filter(t => (t.subtasks || []).some(st => scs.includes(st.name)) || (t.guiScreens || []).some(sc => scs.includes(sc)));
+            const fAvg = screenData.length ? Math.round(screenData.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / screenData.length) : 0;
+            featChartLabels.push(feat.name);
+            featChartValues.push(fAvg);
+          });
+          const featBarImgBase64 = generateCanvasChart(360, 220, 'horizontalBar', {
+            labels: featChartLabels,
+            values: featChartValues
+          });
+          const featBarImgId = wb.addImage({ base64: featBarImgBase64, extension: 'png' });
+          ds.addImage(featBarImgId, {
+            tl: { col: 16, row: curRow - 1 },
+            ext: { width: 360, height: 220 }
+          });
+        } catch (err) {
+          console.error('Error generating feature progress chart', err);
+        }
+      }
+
+      curRow = curRow + Math.max(modSet.length, feats.length, 11) + 3;
 
       drawSectionTitle(curRow, 'Team Workload & Capacity Analysis'); curRow += 2;
       const teamNames = [...new Set(tasks.map(t => t.assignee).filter(Boolean))].slice(0, 10);
@@ -28323,7 +28294,37 @@
         drawTableRow(curRow + 1 + i, [m, totalM, activeM, doneM, pct], 2, i % 2 === 1); ds.getCell(curRow + 1 + i, 6).numFmt = '0%';
       });
       if (teamNames.length) ds.addConditionalFormatting({ ref: `F${curRow + 1}:F${curRow + teamNames.length}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 1 }], color: { argb: COLORS.blue } }] });
-      curRow = curRow + teamNames.length + 3;
+
+      // Render Team Workload Stacked Horizontal Bar Chart (col I to T)
+      if (teamNames.length) {
+        try {
+          const doneMData = [];
+          const activeMData = [];
+          teamNames.forEach(m => {
+            const totalM = tasks.filter(t => t.assignee === m).length;
+            const doneM = tasks.filter(t => t.assignee === m && t.status === 'Completed').length;
+            doneMData.push(doneM);
+            activeMData.push(totalM - doneM);
+          });
+          const teamWorkloadData = {
+            labels: teamNames,
+            series: [
+              { label: 'Done', values: doneMData, color: '#10B981' },
+              { label: 'Active', values: activeMData, color: '#4F46E5' }
+            ]
+          };
+          const teamBarImgBase64 = generateCanvasChart(480, 240, 'stackedHorizontalBar', teamWorkloadData);
+          const teamBarImgId = wb.addImage({ base64: teamBarImgBase64, extension: 'png' });
+          ds.addImage(teamBarImgId, {
+            tl: { col: 8, row: curRow - 1 },
+            ext: { width: 480, height: 240 }
+          });
+        } catch (err) {
+          console.error('Error generating team workload chart', err);
+        }
+      }
+
+      curRow = curRow + Math.max(teamNames.length, 12) + 3;
 
       drawSectionTitle(curRow, 'Cumulative Flow History (8-Week Status Distribution)'); curRow += 2;
       const last8WeeksCFD = [];
@@ -28338,7 +28339,7 @@
       drawTableHeader(curRow, ['Week', ...STATUSES], 2);
       last8WeeksCFD.forEach((w, i) => { const rowVals = [w.l]; STATUSES.forEach((s, si) => rowVals.push(cfdStacks[si][i])); drawTableRow(curRow + 1 + i, rowVals, 2, i % 2 === 1); });
 
-      // Render Stacked Area CFD Chart
+      // Render Stacked Area CFD Chart (col J to R)
       try {
         const cfdSeries = STATUSES.map((s, si) => ({
           label: s,
@@ -28349,17 +28350,17 @@
           labels: last8WeeksCFD.map(w => w.l),
           series: cfdSeries
         };
-        const cfdImgBase64 = generateCanvasChart(350, 160, 'stackedArea', cfdChartData);
+        const cfdImgBase64 = generateCanvasChart(480, 240, 'stackedArea', cfdChartData);
         const cfdImgId = wb.addImage({ base64: cfdImgBase64, extension: 'png' });
         ds.addImage(cfdImgId, {
-          tl: { col: 10, row: curRow },
-          ext: { width: 350, height: 160 }
+          tl: { col: 9, row: curRow - 1 },
+          ext: { width: 480, height: 240 }
         });
       } catch (err) {
         console.error('Error generating CFD chart', err);
       }
 
-      curRow = curRow + last8WeeksCFD.length + 3;
+      curRow = curRow + Math.max(last8WeeksCFD.length, 12) + 3;
 
       const screens = tasks.flatMap(t => {
         const subs = (t.subtasks || []).filter(st => st.type === 'screen').map(st => ({ ...st, parent: t.name, module: t.module }));
@@ -28371,7 +28372,30 @@
         drawTableHeader(curRow, ['Screen', 'Module', 'Status', 'Progress', 'Share'], 2);
         screens.slice(0, 20).forEach((s, i) => { const r = curRow + 1 + i; const p = (parseInt(s.progress) || 0); drawTableRow(r, [s.name, s.module || '-', styledVal(s.status, STATUS_COLORS[s.status] || COLORS.textDark, true), p + '%', p / 100], 2, i % 2 === 1); ds.getCell(r, 6).numFmt = '0%'; });
         ds.addConditionalFormatting({ ref: `F${curRow + 1}:F${curRow + Math.min(20, screens.length)}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 1 }], color: { argb: COLORS.emerald } }] });
-        curRow = curRow + Math.min(20, screens.length) + 3;
+
+        // Render Screen Progress Donut Chart
+        try {
+          const screenStatusCounts = {};
+          screens.forEach(s => {
+            const status = s.status || 'Not Started';
+            screenStatusCounts[status] = (screenStatusCounts[status] || 0) + 1;
+          });
+          const screenChartData = Object.keys(screenStatusCounts).map(status => ({
+            label: status,
+            value: screenStatusCounts[status],
+            color: '#' + (STATUS_COLORS[status] || COLORS.textDark).replace('#', '')
+          }));
+          const scrImgBase64 = generateCanvasChart(360, 220, 'donut', screenChartData, { centerText: screens.length + ' Screens' });
+          const scrImgId = wb.addImage({ base64: scrImgBase64, extension: 'png' });
+          ds.addImage(scrImgId, {
+            tl: { col: 8, row: curRow - 1 },
+            ext: { width: 360, height: 220 }
+          });
+        } catch (err) {
+          console.error('Error generating screen progress donut chart', err);
+        }
+
+        curRow = curRow + Math.max(Math.min(20, screens.length), 11) + 3;
       }
 
       const msTasks = tasks.filter(t => (t.startDate && t.startDate === t.dueDate) || (t.tags && t.tags.includes('Milestone')));
@@ -28379,7 +28403,30 @@
         drawSectionTitle(curRow, 'Project Milestones & Key Roadmap Markers'); curRow += 2;
         drawTableHeader(curRow, ['ID', 'Milestone Name', 'Due Date', 'Status', 'Progress', 'Priority'], 2);
         msTasks.forEach((t, i) => { const r = curRow + 1 + i; drawTableRow(r, [t.id, t.name, cleanFmtDate(t.dueDate), styledVal(t.status, STATUS_COLORS[t.status] || COLORS.textDark, true), (t.progress || 0) + '%', styledVal(t.priority, priColors[t.priority] || COLORS.textDark, true)], 2, i % 2 === 1); });
-        curRow = curRow + msTasks.length + 3;
+
+        // Render Milestone Status Donut Chart
+        try {
+          const msStatusCounts = {};
+          msTasks.forEach(t => {
+            const status = t.status || 'Not Started';
+            msStatusCounts[status] = (msStatusCounts[status] || 0) + 1;
+          });
+          const msChartData = Object.keys(msStatusCounts).map(status => ({
+            label: status,
+            value: msStatusCounts[status],
+            color: '#' + (STATUS_COLORS[status] || COLORS.textDark).replace('#', '')
+          }));
+          const msImgBase64 = generateCanvasChart(360, 220, 'donut', msChartData, { centerText: msTasks.length + ' Milestones' });
+          const msImgId = wb.addImage({ base64: msImgBase64, extension: 'png' });
+          ds.addImage(msImgId, {
+            tl: { col: 9, row: curRow - 1 },
+            ext: { width: 360, height: 220 }
+          });
+        } catch (err) {
+          console.error('Error generating milestone chart', err);
+        }
+
+        curRow = curRow + Math.max(msTasks.length, 11) + 3;
       }
 
       drawSectionTitle(curRow, 'Strategic Module Delivery Matrix'); curRow += 2;
@@ -28399,7 +28446,31 @@
           });
           drawTableRow(r, rowVals, 2, i % 2 === 1);
         });
-        curRow = curRow + mMods.length + 3;
+
+        // Render Module Health Bar Chart
+        try {
+          const modHealthLabels = [];
+          const modHealthValues = [];
+          mMods.forEach(m => {
+            const mTasks = tasks.filter(t => t.module === m);
+            const mAvg = mTasks.length ? Math.round(mTasks.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / mTasks.length) : 0;
+            modHealthLabels.push(m);
+            modHealthValues.push(mAvg);
+          });
+          const modHealthBarImgBase64 = generateCanvasChart(480, 240, 'bar', {
+            labels: modHealthLabels,
+            values: modHealthValues
+          });
+          const modHealthBarImgId = wb.addImage({ base64: modHealthBarImgBase64, extension: 'png' });
+          ds.addImage(modHealthBarImgId, {
+            tl: { col: 9, row: curRow - 1 },
+            ext: { width: 480, height: 240 }
+          });
+        } catch (err) {
+          console.error('Error generating module health chart', err);
+        }
+
+        curRow = curRow + Math.max(mMods.length, 12) + 3;
       }
 
       const defs = P.defects || [];
@@ -28418,11 +28489,11 @@
           color: '#' + (priColors[s] || COLORS.textDark).replace('#', '')
         }));
         try {
-          const defDonutImgBase64 = generateCanvasChart(200, 130, 'donut', defSeverityChartData, { centerText: defs.length + ' Bugs' });
+          const defDonutImgBase64 = generateCanvasChart(240, 140, 'donut', defSeverityChartData, { centerText: defs.length + ' Bugs' });
           const defDonutImgId = wb.addImage({ base64: defDonutImgBase64, extension: 'png' });
           ds.addImage(defDonutImgId, {
-            tl: { col: 4, row: curRow },
-            ext: { width: 200, height: 130 }
+            tl: { col: 5, row: curRow - 1 },
+            ext: { width: 240, height: 140 }
           });
         } catch (err) {
           console.error('Error generating defect severity chart', err);
@@ -28432,7 +28503,7 @@
         try {
           const defModChartLabels = mbEntries.map(e => e[0]);
           const defModChartValues = mbEntries.map(e => e[1]);
-          const defModImgBase64 = generateCanvasChart(280, 130, 'horizontalBar', {
+          const defModImgBase64 = generateCanvasChart(300, 140, 'horizontalBar', {
             labels: defModChartLabels,
             values: defModChartValues
           }, {
@@ -28442,14 +28513,14 @@
           });
           const defModImgId = wb.addImage({ base64: defModImgBase64, extension: 'png' });
           ds.addImage(defModImgId, {
-            tl: { col: 11, row: curRow },
-            ext: { width: 280, height: 130 }
+            tl: { col: 11, row: curRow - 1 },
+            ext: { width: 300, height: 140 }
           });
         } catch (err) {
           console.error('Error generating defect module chart', err);
         }
 
-        curRow = curRow + Math.max(sevEntries.length, mbEntries.length, 6) + 3;
+        curRow = curRow + Math.max(sevEntries.length, mbEntries.length, 7) + 3;
       }
 
       if (overdueTasks.length) {
