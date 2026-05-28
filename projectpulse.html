@@ -27683,53 +27683,118 @@
     function buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate) {
       if (safeMode) return;
       const ds = wb.addWorksheet('Executive Dashboard', { views: safeMode ? [] : [{ showGridLines: false, state: 'frozen', ySplit: 3 }] });
-      ds.getColumn(1).width = 2.5; for (let i = 2; i <= 18; i++) ds.getColumn(i).width = 16; ds.getColumn(19).width = 2.5;
-      for (let i = 1; i <= 200; i++) ds.getRow(i).height = 18;
+      ds.getColumn(1).width = 3.0; for (let i = 2; i <= 18; i++) ds.getColumn(i).width = 17; ds.getColumn(19).width = 3.0;
+      for (let i = 1; i <= 250; i++) ds.getRow(i).height = 20;
 
       const applyBg = (r, c, color) => { ds.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } }; };
 
       const drawPremiumCard = (col, row, w, h, label, value, subLabel, accentColor) => {
-        for (let r = row; r < row + h; r++) { ds.getRow(r).height = 26; for (let c = col; c < col + w; c++) applyBg(r, c, COLORS.surface); }
+        for (let r = row; r < row + h; r++) { ds.getRow(r).height = 28; for (let c = col; c < col + w; c++) applyBg(r, c, COLORS.surface); }
         ds.mergeCells(row, col, row + h - 1, col + w - 1);
         const cell = ds.getCell(row, col);
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surface } };
-        cell.border = { top: { style: 'thin', color: { argb: COLORS.divider } }, left: { style: 'thick', color: { argb: accentColor } }, bottom: { style: 'thin', color: { argb: COLORS.divider } }, right: { style: 'thin', color: { argb: COLORS.divider } } };
+        cell.fill = { 
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFDFDFD' }
+        };
+        cell.border = { 
+          top: { style: 'thin', color: { argb: COLORS.divider } }, 
+          left: { style: 'medium', color: { argb: accentColor } }, 
+          bottom: { style: 'medium', color: { argb: COLORS.divider } }, 
+          right: { style: 'thin', color: { argb: COLORS.divider } } 
+        };
         cell.value = {
           richText: [
             { text: label.toUpperCase() + '\n', font: { name: 'Segoe UI', size: 8, bold: true, color: { argb: COLORS.muted } } },
-            { text: String(S(value)) + '\n', font: { name: 'Segoe UI', size: 18, bold: true, color: { argb: accentColor } } },
-            { text: String(S(subLabel)), font: { name: 'Segoe UI', size: 9, color: { argb: COLORS.slate } } }
+            { text: String(S(value)) + '\n', font: { name: 'Segoe UI', size: 20, bold: true, color: { argb: accentColor } } },
+            { text: String(S(subLabel)), font: { name: 'Segoe UI', size: 9, italic: true, color: { argb: COLORS.slate } } }
           ]
         };
         cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
       };
 
       const drawSectionTitle = (row, text, span) => {
-        ds.getRow(row).height = 32; ds.mergeCells(row, 2, row, span || 18);
-        const c = ds.getCell(row, 2); c.value = String(S(text)).toUpperCase();
-        c.font = { name: 'Segoe UI', bold: true, size: 11, color: { argb: COLORS.navy } }; c.alignment = { vertical: 'middle', indent: 1 };
-        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
-        c.border = { bottom: { style: 'medium', color: { argb: COLORS.indigo } }, left: { style: 'thick', color: { argb: COLORS.indigo } } };
+        ds.getRow(row).height = 36; ds.mergeCells(row, 2, row, span || 18);
+        const c = ds.getCell(row, 2); c.value = '  ' + String(S(text)).toUpperCase();
+        c.font = { name: 'Segoe UI', bold: true, size: 10.5, color: { argb: COLORS.navy } }; c.alignment = { vertical: 'middle', indent: 1 };
+        c.fill = { 
+          type: 'gradient', 
+          gradient: 'angle', 
+          degree: 90, 
+          stops: [
+            { position: 0, color: { argb: 'FFE2E8F0' } }, 
+            { position: 1, color: { argb: 'FFF8FAFC' } }
+          ] 
+        };
+        c.border = { 
+          bottom: { style: 'medium', color: { argb: COLORS.indigo } }, 
+          left: { style: 'medium', color: { argb: COLORS.indigo } } 
+        };
+        // Background for the rest of merged cells to ensure consistency in Excel
+        for (let col = 3; col <= (span || 18); col++) {
+          ds.getCell(row, col).fill = { 
+            type: 'gradient', 
+            gradient: 'angle', 
+            degree: 90, 
+            stops: [
+              { position: 0, color: { argb: 'FFE2E8F0' } }, 
+              { position: 1, color: { argb: 'FFF8FAFC' } }
+            ] 
+          };
+          ds.getCell(row, col).border = { bottom: { style: 'medium', color: { argb: COLORS.indigo } } };
+        }
       };
 
       const drawTableHeader = (row, cols, startCol) => {
-        ds.getRow(row).height = 28;
+        ds.getRow(row).height = 30;
         cols.forEach((label, i) => {
-          const c = ds.getCell(row, startCol + i); c.value = label;
-          c.font = { name: 'Segoe UI', bold: true, size: 9, color: { argb: 'FFFFFFFF' } }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.navy } };
-          c.alignment = { vertical: 'middle', horizontal: 'center' }; c.border = { bottom: { style: 'thin', color: { argb: COLORS.indigo } } };
+          const c = ds.getCell(row, startCol + i); c.value = label.toUpperCase();
+          c.font = { name: 'Segoe UI', bold: true, size: 8.5, color: { argb: 'FFFFFFFF' } };
+          c.fill = { 
+            type: 'gradient', 
+            gradient: 'angle', 
+            degree: 90, 
+            stops: [
+              { position: 0, color: { argb: COLORS.navy } }, 
+              { position: 1, color: { argb: COLORS.indigo } }
+            ] 
+          };
+          c.alignment = { vertical: 'middle', horizontal: 'center' }; 
+          c.border = { 
+            bottom: { style: 'medium', color: { argb: COLORS.navy } },
+            top: { style: 'thin', color: { argb: COLORS.navy } },
+            left: { style: 'thin', color: { argb: COLORS.indigo } },
+            right: { style: 'thin', color: { argb: COLORS.indigo } }
+          };
         });
       };
 
       const drawTableRow = (row, vals, startCol, isAlt) => {
-        ds.getRow(row).height = 24;
+        ds.getRow(row).height = 26;
         vals.forEach((v, i) => {
           const c = ds.getCell(row, startCol + i);
+          let rawVal = v;
+          let isBold = false;
+          let color = COLORS.textDark;
           if (typeof v === 'object' && v !== null && v._styled) {
-            c.value = S(v.text); c.font = { name: 'Segoe UI', size: 10, bold: !!v.bold, color: { argb: (v.color || COLORS.textDark).replace('#', '') } };
-          } else { c.value = S(v); c.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } }; }
+            rawVal = v.text;
+            isBold = !!v.bold;
+            color = (v.color || COLORS.textDark).replace('#', '');
+          }
+          c.value = S(rawVal);
+          c.font = { name: 'Segoe UI', size: 9.5, bold: isBold, color: { argb: color } };
           c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isAlt ? COLORS.surfaceAlt : COLORS.surface } };
-          c.alignment = { vertical: 'middle', horizontal: i === 0 ? 'left' : 'center' }; c.border = { bottom: { style: 'hair', color: { argb: COLORS.divider } } };
+          
+          let align = 'center';
+          if (i === 0) align = 'left';
+          else if (typeof rawVal === 'number' || (typeof rawVal === 'string' && /^\d+[\d\s\.,%]*$/.test(rawVal.trim()))) align = 'right';
+
+          c.alignment = { vertical: 'middle', horizontal: align, indent: align === 'left' ? 1 : 0 };
+          c.border = { 
+            bottom: { style: 'thin', color: { argb: COLORS.divider } },
+            left: { style: 'thin', color: { argb: COLORS.divider } },
+            right: { style: 'thin', color: { argb: COLORS.divider } }
+          };
         });
       };
 
@@ -27740,11 +27805,25 @@
       const blocked = tasks.filter(isBlocked).length; const inProg = tasks.filter(t => t.status === 'In Progress' || t.status === 'Under Review').length;
       const completionPct = total ? Math.round(done / total * 100) : 0; const healthScore = getHealthScore(tasks);
 
-      ds.mergeCells('B2:R3'); ds.getRow(2).height = 22; ds.getRow(3).height = 22;
+      ds.mergeCells('B2:R3'); ds.getRow(2).height = 24; ds.getRow(3).height = 24;
       const titleCell = ds.getCell('B2');
-      titleCell.value = { richText: [{ text: (P.name || 'Project').toUpperCase(), font: { name: 'Segoe UI', size: 16, bold: true, color: { argb: 'FFFFFFFF' } } }, { text: '  |  INSIGHTS', font: { name: 'Segoe UI', size: 11, color: { argb: 'FFC7D2FE' } } }] };
-      titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.navy } }; titleCell.alignment = { vertical: 'middle', indent: 2 };
-      for (let c = 2; c <= 18; c++) { applyBg(2, c, COLORS.navy); applyBg(3, c, COLORS.navy); }
+      titleCell.value = { richText: [{ text: '  ' + (P.name || 'Project').toUpperCase(), font: { name: 'Segoe UI', size: 17, bold: true, color: { argb: 'FFFFFFFF' } } }, { text: '   |   EXECUTIVE INSIGHTS PORTAL', font: { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FFC7D2FE' } } }] };
+      titleCell.alignment = { vertical: 'middle', indent: 1 };
+      
+      const gradFill = { 
+        type: 'gradient', 
+        gradient: 'angle', 
+        degree: 90, 
+        stops: [
+          { position: 0, color: { argb: 'FF1E1B4B' } }, 
+          { position: 1, color: { argb: 'FF4F46E5' } }
+        ] 
+      };
+      
+      for (let c = 2; c <= 18; c++) {
+        ds.getCell(2, c).fill = gradFill;
+        ds.getCell(3, c).fill = gradFill;
+      }
 
       const avgP = total ? Math.round(tasks.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / total) : 0;
       drawPremiumCard(2, 5, 3, 3, 'Health Score', healthScore + '%', healthScore > 80 ? 'On Track' : 'At Risk', healthScore > 80 ? COLORS.emerald : COLORS.amber);
