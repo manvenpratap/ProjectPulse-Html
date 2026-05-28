@@ -8981,8 +8981,8 @@
                   <button class="dd-item" onclick="triggerGlobalExport('email')">
                     <i data-lucide="mail"></i> Email / Outlook
                   </button>
-                  <div class="dd-sep"></div>
-                  <button class="dd-item" onclick="triggerGlobalExport('excel')">
+                  <div class="dd-sep" id="export-excel-sep"></div>
+                  <button class="dd-item" id="export-excel-btn" onclick="triggerGlobalExport('excel')">
                     <i data-lucide="file-spreadsheet"></i> Export to Excel
                   </button>
                 </div>
@@ -20150,6 +20150,10 @@
             row.style = 'padding:6px 4px;border-bottom:1px solid var(--color-divider);cursor:pointer;transition:background 0.15s;border-radius:var(--radius-md)';
             row.onmouseenter = () => row.style.background = 'var(--color-surface-2)';
             row.onmouseleave = () => row.style.background = 'transparent';
+            row.onclick = () => {
+              setView('reports');
+              viewReport(r.id);
+            };
             row.innerHTML = `<div style="font-size:11px;font-weight:600">${esc(r.title || 'Untitled')}</div><div style="font-size:9px;color:var(--color-text-faint);font-family:var(--mono)">${r.periodStart || '—'} → ${r.periodEnd || '—'}</div>`;
             rSec.appendChild(row);
           });
@@ -21825,6 +21829,43 @@
           const avgP = total ? Math.round(tasks.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / total) : 0;
           const score = getHealthScore(tasks, dashCache.taskById);
 
+          const activeTasks = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled');
+          const totalActive = activeTasks.length;
+          const overdueCount = activeTasks.filter(t => {
+            if (!t.dueDate) return false;
+            const dd = daysDiff(t.dueDate);
+            return dd !== null && dd < 0;
+          }).length;
+          const blockedCount = activeTasks.filter(t => isBlocked(t, dashCache.taskById)).length;
+          const onHoldCount = activeTasks.filter(t => String(t.status || '').toLowerCase() === 'on-hold' || String(t.status || '').toLowerCase() === 'on hold').length;
+
+          const overduePenalty = totalActive ? Math.round((overdueCount / totalActive) * 50) : 0;
+          const blockedPenalty = totalActive ? Math.round((blockedCount / totalActive) * 30) : 0;
+          const onHoldPenalty = totalActive ? Math.round((onHoldCount / totalActive) * 20) : 0;
+
+          let recommendation = '';
+          if (score >= 90) {
+            recommendation = `<div style="font-size:11px;color:var(--green);background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);padding:10px 14px;border-radius:var(--radius-md);margin-top:4px;display:flex;align-items:center;gap:8px">
+              <i data-lucide="check-circle" style="width:14px;height:14px;flex-shrink:0"></i>
+              <span><b>Optimal:</b> Project is running efficiently. Maintain current velocity.</span>
+            </div>`;
+          } else if (score >= 80) {
+            recommendation = `<div style="font-size:11px;color:var(--green);background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);padding:10px 14px;border-radius:var(--radius-md);margin-top:4px;display:flex;align-items:center;gap:8px">
+              <i data-lucide="info" style="width:14px;height:14px;flex-shrink:0"></i>
+              <span><b>Stable:</b> Minor bottlenecks detected. Keep monitoring active items.</span>
+            </div>`;
+          } else if (score >= 50) {
+            recommendation = `<div style="font-size:11px;color:var(--amber);background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.15);padding:10px 14px;border-radius:var(--radius-md);margin-top:4px;display:flex;align-items:center;gap:8px">
+              <i data-lucide="alert-triangle" style="width:14px;height:14px;flex-shrink:0"></i>
+              <span><b>At Risk:</b> Blocked or overdue items are dragging down health. Resolve blockers.</span>
+            </div>`;
+          } else {
+            recommendation = `<div style="font-size:11px;color:var(--red);background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);padding:10px 14px;border-radius:var(--radius-md);margin-top:4px;display:flex;align-items:center;gap:8px">
+              <i data-lucide="alert-octagon" style="width:14px;height:14px;flex-shrink:0"></i>
+              <span><b>Critical:</b> High penalty debt. Schedule an immediate triage to unblock.</span>
+            </div>`;
+          }
+
           const hId = 'dash-health-main';
           const hSpan = (P.widgetSpans && P.widgetSpans[hId]) || sec.span || 2;
           const hCard = mkCC('Overall Project Health', 'Composite score based on delays, blockers, and completion rate', hId, '', 'standard', "<b>Project Health Index (PHI):</b> A proprietary composite score (0-100) calculated from deadline variance, active blockers, priority debt, and overall completion velocity. Keep this score above 80 to ensure a smooth, predictable release.", 'View Explanation');
@@ -21832,31 +21873,77 @@
           grid.appendChild(hCard);
 
           hCard.querySelector('.cb').innerHTML = `
-                  <div style="display:flex;align-items:center;justify-content:space-around;padding:24px 16px;flex-wrap:wrap;gap:20px">
-                    <div style="position:relative;width:140px;height:140px;display:flex;align-items:center;justify-content:center">
-                      <canvas id="dash-ring" width="140" height="140" style="position:absolute;top:0;left:0"></canvas>
-                      <div style="text-align:center;z-index:1;background:var(--color-surface);border-radius:50%;width:110px;height:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:inset 0 2px 10px rgba(0,0,0,0.05)">
-                        <div style="font-size:32px;font-weight:900;color:var(--color-primary);line-height:1">${avgP}%</div>
-                        <div style="font-size:10px;font-weight:700;color:var(--color-text-faint);text-transform:uppercase;margin-top:4px;letter-spacing:1px">Avg Progress</div>
-                      </div>
-                    </div>
-                    <div style="display:flex;flex-direction:column;gap:12px;min-width:200px">
-                      <div class="enhanced-scard" style="padding:16px 20px;">
-                        <div style="font-size:11px;font-weight:700;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Health Status</div>
-                        <div style="font-size:22px;font-weight:900;color:${healthColor};display:flex;align-items:center;gap:10px">
-                          <span style="position:relative;width:14px;height:14px;border-radius:50%;background:${healthColor};display:inline-block;box-shadow:0 0 16px ${healthColor}">
-                             <span style="position:absolute;top:0;left:0;right:0;bottom:0;border-radius:50%;background:${healthColor};animation:ai-dot-bounce 2s infinite"></span>
-                          </span>
-                          ${healthLabel}
+                  <div style="display:flex;flex-direction:column;padding:20px;gap:16px">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px">
+                      <!-- Progress Ring -->
+                      <div style="position:relative;width:130px;height:130px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                        <canvas id="dash-ring" width="130" height="130" style="position:absolute;top:0;left:0"></canvas>
+                        <div style="text-align:center;z-index:1;background:var(--color-surface);border-radius:50%;width:102px;height:102px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:inset 0 2px 10px rgba(0,0,0,0.05)">
+                          <div style="font-size:28px;font-weight:900;color:var(--color-primary);line-height:1">${avgP}%</div>
+                          <div style="font-size:9px;font-weight:700;color:var(--color-text-faint);text-transform:uppercase;margin-top:4px;letter-spacing:1px">Avg Progress</div>
                         </div>
                       </div>
-                      <div class="enhanced-scard" style="padding:16px 20px;">
-                        <div style="font-size:11px;font-weight:700;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Health Score</div>
-                        <div style="font-size:28px;font-weight:900;color:${score >= 80 ? 'var(--green)' : score >= 50 ? 'var(--amber)' : 'var(--red)'};line-height:1">
-                          ${score}<span style="font-size:14px;color:var(--color-text-muted);font-weight:600;margin-left:4px">/100</span>
+
+                      <!-- Health Stats -->
+                      <div style="display:flex;flex-direction:column;gap:12px;flex-grow:1;min-width:180px">
+                        <div class="enhanced-scard" style="padding:12px 16px;">
+                          <div style="font-size:10px;font-weight:700;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Health Status</div>
+                          <div style="font-size:18px;font-weight:900;color:${healthColor};display:flex;align-items:center;gap:8px">
+                            <span style="position:relative;width:12px;height:12px;border-radius:50%;background:${healthColor};display:inline-block;box-shadow:0 0 12px ${healthColor}">
+                               <span style="position:absolute;top:0;left:0;right:0;bottom:0;border-radius:50%;background:${healthColor};animation:ai-dot-bounce 2s infinite"></span>
+                            </span>
+                            ${healthLabel}
+                          </div>
+                        </div>
+                        <div class="enhanced-scard" style="padding:12px 16px;">
+                          <div style="font-size:10px;font-weight:700;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Health Score</div>
+                          <div style="font-size:24px;font-weight:900;color:${score >= 80 ? 'var(--green)' : score >= 50 ? 'var(--amber)' : 'var(--red)'};line-height:1">
+                            ${score}<span style="font-size:12px;color:var(--color-text-muted);font-weight:600;margin-left:4px">/100 PHI</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Score Breakdown & Deductions -->
+                      <div style="display:flex;flex-direction:column;gap:8px;min-width:220px;flex-grow:1;padding:12px;background:var(--color-surface-2);border:1px solid var(--color-divider);border-radius:var(--radius-md)">
+                        <div style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">PHI Penalty Breakdown</div>
+                        
+                        <!-- Overdue Penalty -->
+                        <div style="display:flex;flex-direction:column;gap:3px">
+                          <div style="display:flex;justify-content:space-between;font-size:11px">
+                            <span style="display:flex;align-items:center;gap:4px;color:var(--color-text-muted)"><i data-lucide="calendar-x" style="width:12px;height:12px;color:var(--red)"></i> Overdue Tasks (${overdueCount})</span>
+                            <span style="font-weight:600;color:${overdueCount ? 'var(--red)' : 'var(--color-text-muted)'}">${overdueCount ? `-${overduePenalty} pts` : '0 pts'}</span>
+                          </div>
+                          <div style="height:4px;background:var(--color-divider);border-radius:2px;overflow:hidden">
+                            <div style="height:100%;width:${Math.min(100, (overduePenalty / 50) * 100)}%;background:var(--red);border-radius:2px"></div>
+                          </div>
+                        </div>
+
+                        <!-- Blocked Penalty -->
+                        <div style="display:flex;flex-direction:column;gap:3px">
+                          <div style="display:flex;justify-content:space-between;font-size:11px">
+                            <span style="display:flex;align-items:center;gap:4px;color:var(--color-text-muted)"><i data-lucide="alert-octagon" style="width:12px;height:12px;color:var(--amber)"></i> Blocked Tasks (${blockedCount})</span>
+                            <span style="font-weight:600;color:${blockedCount ? 'var(--amber)' : 'var(--color-text-muted)'}">${blockedCount ? `-${blockedPenalty} pts` : '0 pts'}</span>
+                          </div>
+                          <div style="height:4px;background:var(--color-divider);border-radius:2px;overflow:hidden">
+                            <div style="height:100%;width:${Math.min(100, (blockedPenalty / 30) * 100)}%;background:var(--amber);border-radius:2px"></div>
+                          </div>
+                        </div>
+
+                        <!-- On Hold Penalty -->
+                        <div style="display:flex;flex-direction:column;gap:3px">
+                          <div style="display:flex;justify-content:space-between;font-size:11px">
+                            <span style="display:flex;align-items:center;gap:4px;color:var(--color-text-muted)"><i data-lucide="pause-circle" style="width:12px;height:12px;color:var(--blue)"></i> On Hold Tasks (${onHoldCount})</span>
+                            <span style="font-weight:600;color:${onHoldCount ? 'var(--blue)' : 'var(--color-text-muted)'}">${onHoldCount ? `-${onHoldPenalty} pts` : '0 pts'}</span>
+                          </div>
+                          <div style="height:4px;background:var(--color-divider);border-radius:2px;overflow:hidden">
+                            <div style="height:100%;width:${Math.min(100, (onHoldPenalty / 20) * 100)}%;background:var(--blue);border-radius:2px"></div>
+                          </div>
                         </div>
                       </div>
                     </div>
+                    
+                    <!-- Recommendations Alert Box -->
+                    ${recommendation}
                   </div>`;
 
           dashDrawQueue.push(() => drawProgressRing($id('dash-ring'), avgP));
@@ -22018,27 +22105,85 @@
 
             const resDefs = defs.filter(d => d.status === 'Resolved' || d.status === 'Closed').length;
             const resPct = defs.length ? Math.round((resDefs / defs.length) * 100) : 0;
+            const openDefs = defs.length - resDefs;
+            const openCriticalMajor = defs.filter(d => (d.status !== 'Resolved' && d.status !== 'Closed') && (d.severity === 'Critical' || d.severity === 'Major')).length;
+
+            let rateRecommendation = '';
+            if (resPct >= 75) {
+              rateRecommendation = `<div style="font-size:11px;color:var(--green);background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);padding:10px 14px;border-radius:var(--radius-md);margin-top:4px;display:flex;align-items:center;gap:8px">
+                <i data-lucide="check-circle" style="width:14px;height:14px;flex-shrink:0"></i>
+                <span><b>Healthy:</b> Fix velocity matches inflow. Technical debt is minimal.</span>
+              </div>`;
+            } else if (resPct >= 50) {
+              rateRecommendation = `<div style="font-size:11px;color:var(--amber);background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.15);padding:10px 14px;border-radius:var(--radius-md);margin-top:4px;display:flex;align-items:center;gap:8px">
+                <i data-lucide="alert-triangle" style="width:14px;height:14px;flex-shrink:0"></i>
+                <span><b>Caution:</b> Defect backlog is growing. Prioritize critical bug fixes.</span>
+              </div>`;
+            } else {
+              rateRecommendation = `<div style="font-size:11px;color:var(--red);background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);padding:10px 14px;border-radius:var(--radius-md);margin-top:4px;display:flex;align-items:center;gap:8px">
+                <i data-lucide="alert-octagon" style="width:14px;height:14px;flex-shrink:0"></i>
+                <span><b>High Risk:</b> Discovery vastly outpaces fixes. Project stability is compromised.</span>
+              </div>`;
+            }
 
             rateCard.querySelector('.cb').innerHTML = `
-                    <div style="display:flex;align-items:center;justify-content:space-around;padding:20px;flex-wrap:wrap;gap:20px">
-                      <div style="position:relative;width:130px;height:130px;display:flex;align-items:center;justify-content:center">
-                        <canvas id="${rateId}-cvs" width="130" height="130" style="position:absolute;top:0;left:0"></canvas>
-                        <div style="text-align:center;z-index:1">
-                          <div style="font-size:28px;font-weight:800;color:var(--color-primary);line-height:1">${resPct}%</div>
-                          <div style="font-size:10px;color:var(--color-text-faint);text-transform:uppercase;margin-top:4px">Resolved</div>
+                    <div style="display:flex;flex-direction:column;padding:20px;gap:16px">
+                      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px">
+                        <!-- Progress Ring -->
+                        <div style="position:relative;width:130px;height:130px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                          <canvas id="${rateId}-cvs" width="130" height="130" style="position:absolute;top:0;left:0"></canvas>
+                          <div style="text-align:center;z-index:1;background:var(--color-surface);border-radius:50%;width:102px;height:102px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:inset 0 2px 10px rgba(0,0,0,0.05)">
+                            <div style="font-size:28px;font-weight:900;color:var(--color-primary);line-height:1">${resPct}%</div>
+                            <div style="font-size:9px;font-weight:700;color:var(--color-text-faint);text-transform:uppercase;margin-top:4px;letter-spacing:1px">Resolved</div>
+                          </div>
+                        </div>
+
+                        <!-- Statistics Grid -->
+                        <div style="display:flex;flex-direction:column;gap:10px;flex-grow:1;min-width:180px">
+                          <div class="enhanced-scard" style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+                            <span style="font-size:11px;color:var(--color-text-muted);font-weight:600;display:flex;align-items:center;gap:6px"><i data-lucide="tag" style="width:12px;height:12px"></i>Total Logged</span>
+                            <span style="font-size:16px;font-weight:800;color:var(--color-text);font-family:var(--font-mono)">${defs.length}</span>
+                          </div>
+                          <div class="enhanced-scard" style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+                            <span style="font-size:11px;color:var(--color-text-muted);font-weight:600;display:flex;align-items:center;gap:6px"><i data-lucide="check-square" style="width:12px;height:12px;color:var(--green)"></i>Resolved / Closed</span>
+                            <span style="font-size:16px;font-weight:800;color:var(--green);font-family:var(--font-mono)">${resDefs}</span>
+                          </div>
+                          <div class="enhanced-scard" style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+                            <span style="font-size:11px;color:var(--color-text-muted);font-weight:600;display:flex;align-items:center;gap:6px"><i data-lucide="alert-circle" style="width:12px;height:12px;color:${openDefs ? 'var(--amber)' : 'var(--color-text-muted)'}"></i>Open Backlog</span>
+                            <span style="font-size:16px;font-weight:800;color:${openDefs ? 'var(--amber)' : 'var(--color-text-muted)'};font-family:var(--font-mono)">${openDefs}</span>
+                          </div>
+                        </div>
+
+                        <!-- Backlog Risk Meter -->
+                        <div style="display:flex;flex-direction:column;gap:8px;min-width:200px;flex-grow:1;padding:12px;background:var(--color-surface-2);border:1px solid var(--color-divider);border-radius:var(--radius-md)">
+                          <div style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Backlog Risk Exposure</div>
+                          
+                          <div style="display:flex;flex-direction:column;gap:3px">
+                            <div style="display:flex;justify-content:space-between;font-size:11px">
+                              <span style="display:flex;align-items:center;gap:4px;color:var(--color-text-muted)"><i data-lucide="flame" style="width:12px;height:12px;color:var(--red)"></i> Critical/Major Open</span>
+                              <span style="font-weight:600;color:${openCriticalMajor ? 'var(--red)' : 'var(--color-text-muted)'}">${openCriticalMajor}</span>
+                            </div>
+                            <div style="height:4px;background:var(--color-divider);border-radius:2px;overflow:hidden">
+                              <div style="height:100%;width:${defs.length ? Math.min(100, (openCriticalMajor / defs.length) * 100) : 0}%;background:var(--red);border-radius:2px"></div>
+                            </div>
+                          </div>
+
+                          <div style="display:flex;flex-direction:column;gap:3px;margin-top:4px">
+                            <div style="display:flex;justify-content:space-between;font-size:11px">
+                              <span style="color:var(--color-text-muted)">Fix Rate Efficiency</span>
+                              <span style="font-weight:600;color:${resPct >= 75 ? 'var(--green)' : resPct >= 50 ? 'var(--amber)' : 'var(--red)'}">${resPct}%</span>
+                            </div>
+                            <div style="height:4px;background:var(--color-divider);border-radius:2px;overflow:hidden">
+                              <div style="height:100%;width:${resPct}%;background:${resPct >= 75 ? 'var(--green)' : resPct >= 50 ? 'var(--amber)' : 'var(--red)'};border-radius:2px"></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <div style="display:flex;flex-direction:column;gap:12px;min-width:160px">
-                        <div class="capture-html" style="background:var(--color-surface-2);padding:12px 16px;border-radius:var(--radius-md);border:1px solid var(--color-border);box-shadow:0 2px 8px rgba(0,0,0,0.04);display:flex;justify-content:space-between;align-items:center">
-                          <span style="font-size:12px;color:var(--color-text-muted);font-weight:600">Total Logged</span>
-                          <span style="font-size:18px;font-weight:800;color:var(--color-text);font-family:var(--font-mono)">${defs.length}</span>
-                        </div>
-                        <div class="capture-html" style="background:var(--color-surface-2);padding:12px 16px;border-radius:var(--radius-md);border:1px solid var(--color-border);box-shadow:0 2px 8px rgba(0,0,0,0.04);display:flex;justify-content:space-between;align-items:center">
-                          <span style="font-size:12px;color:var(--color-text-muted);font-weight:600">Resolved / Closed</span>
-                          <span style="font-size:18px;font-weight:800;color:var(--green);font-family:var(--font-mono)">${resDefs}</span>
-                        </div>
-                      </div>
+                      
+                      <!-- Recommendations Alert Box -->
+                      ${rateRecommendation}
                     </div>`;
+
             dashDrawQueue.push(() => drawProgressRing($id(`${rateId}-cvs`), resPct));
 
             const entityMap = {};
@@ -22280,29 +22425,82 @@
             const totalScreensMapped = feats.reduce((acc, f) => acc + (f.screens ? f.screens.length : 0), 0);
             const mappingRate = totalFeats ? Math.round((mappedFeats / totalFeats) * 100) : 0;
 
+            let fmRecommendation = '';
+            if (mappingRate >= 85) {
+              fmRecommendation = `<div style="font-size:11px;color:var(--green);background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);padding:10px 14px;border-radius:var(--radius-md);margin-top:4px;display:flex;align-items:center;gap:8px">
+                <i data-lucide="check-circle" style="width:14px;height:14px;flex-shrink:0"></i>
+                <span><b>Optimal:</b> Excellent trace density. Most features have screen layouts mapped.</span>
+              </div>`;
+            } else if (mappingRate >= 50) {
+              fmRecommendation = `<div style="font-size:11px;color:var(--amber);background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.15);padding:10px 14px;border-radius:var(--radius-md);margin-top:4px;display:flex;align-items:center;gap:8px">
+                <i data-lucide="info" style="width:14px;height:14px;flex-shrink:0"></i>
+                <span><b>Partial:</b> Link unmapped features to UI screens in the Scaffolder to improve analytics.</span>
+              </div>`;
+            } else {
+              fmRecommendation = `<div style="font-size:11px;color:var(--red);background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);padding:10px 14px;border-radius:var(--radius-md);margin-top:4px;display:flex;align-items:center;gap:8px">
+                <i data-lucide="alert-triangle" style="width:14px;height:14px;flex-shrink:0"></i>
+                <span><b>Sparse Mapping:</b> High ratio of unmapped features creates tracking blind spots.</span>
+              </div>`;
+            }
+
             fiCard.querySelector('.cb').innerHTML = `
-                    <div style="display:flex;align-items:center;justify-content:space-around;padding:20px;flex-wrap:wrap;gap:20px">
-                      <div style="position:relative;width:130px;height:130px;display:flex;align-items:center;justify-content:center">
-                        <canvas id="dash-feat-ring" width="130" height="130" style="position:absolute;top:0;left:0"></canvas>
-                        <div style="text-align:center;z-index:1">
-                          <div style="font-size:28px;font-weight:800;color:var(--color-primary);line-height:1">${mappingRate}%</div>
-                          <div style="font-size:10px;color:var(--color-text-faint);text-transform:uppercase;margin-top:4px">Mapped</div>
+                    <div style="display:flex;flex-direction:column;padding:20px;gap:16px">
+                      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px">
+                        <!-- Progress Ring -->
+                        <div style="position:relative;width:130px;height:130px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                          <canvas id="dash-feat-ring" width="130" height="130" style="position:absolute;top:0;left:0"></canvas>
+                          <div style="text-align:center;z-index:1;background:var(--color-surface);border-radius:50%;width:102px;height:102px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:inset 0 2px 10px rgba(0,0,0,0.05)">
+                            <div style="font-size:28px;font-weight:900;color:var(--color-primary);line-height:1">${mappingRate}%</div>
+                            <div style="font-size:9px;font-weight:700;color:var(--color-text-faint);text-transform:uppercase;margin-top:4px;letter-spacing:1px">Coverage</div>
+                          </div>
+                        </div>
+
+                        <!-- Statistics Grid -->
+                        <div style="display:flex;flex-direction:column;gap:10px;flex-grow:1;min-width:180px">
+                          <div class="enhanced-scard" style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+                            <span style="font-size:11px;color:var(--color-text-muted);font-weight:600;display:flex;align-items:center;gap:6px"><i data-lucide="box" style="width:12px;height:12px"></i>Total Features</span>
+                            <span style="font-size:16px;font-weight:800;color:var(--color-text);font-family:var(--font-mono)">${totalFeats}</span>
+                          </div>
+                          <div class="enhanced-scard" style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+                            <span style="font-size:11px;color:var(--color-text-muted);font-weight:600;display:flex;align-items:center;gap:6px"><i data-lucide="monitor" style="width:12px;height:12px;color:var(--color-primary)"></i>Mapped Screens</span>
+                            <span style="font-size:16px;font-weight:800;color:var(--color-primary);font-family:var(--font-mono)">${totalScreensMapped}</span>
+                          </div>
+                          <div class="enhanced-scard" style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+                            <span style="font-size:11px;color:var(--color-text-muted);font-weight:600;display:flex;align-items:center;gap:6px"><i data-lucide="slash" style="width:12px;height:12px;color:var(--color-text-muted)"></i>Unmapped</span>
+                            <span style="font-size:16px;font-weight:800;color:var(--color-text-muted);font-family:var(--font-mono)">${totalFeats - mappedFeats}</span>
+                          </div>
+                        </div>
+
+                        <!-- Mapping Density Health Panel -->
+                        <div style="display:flex;flex-direction:column;gap:8px;min-width:220px;flex-grow:1;padding:12px;background:var(--color-surface-2);border:1px solid var(--color-divider);border-radius:var(--radius-md)">
+                          <div style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Mapping Architecture</div>
+                          
+                          <!-- Mapped Ratio -->
+                          <div style="display:flex;flex-direction:column;gap:3px">
+                            <div style="display:flex;justify-content:space-between;font-size:11px">
+                              <span style="color:var(--color-text-muted)">Traceability Index</span>
+                              <span style="font-weight:600;color:${mappingRate >= 85 ? 'var(--green)' : mappingRate >= 50 ? 'var(--amber)' : 'var(--red)'}">${mappingRate}%</span>
+                            </div>
+                            <div style="height:4px;background:var(--color-divider);border-radius:2px;overflow:hidden">
+                              <div style="height:100%;width:${mappingRate}%;background:${mappingRate >= 85 ? 'var(--green)' : mappingRate >= 50 ? 'var(--amber)' : 'var(--red)'};border-radius:2px"></div>
+                            </div>
+                          </div>
+
+                          <!-- Unmapped features indicator -->
+                          <div style="display:flex;flex-direction:column;gap:3px;margin-top:4px">
+                            <div style="display:flex;justify-content:space-between;font-size:11px">
+                              <span style="color:var(--color-text-muted)">Traceability Gap</span>
+                              <span style="font-weight:600;color:var(--color-text-muted)">${totalFeats - mappedFeats} features left</span>
+                            </div>
+                            <div style="height:4px;background:var(--color-divider);border-radius:2px;overflow:hidden">
+                              <div style="height:100%;width:${totalFeats ? Math.round(((totalFeats - mappedFeats) / totalFeats) * 100) : 0}%;background:var(--color-text-muted);border-radius:2px"></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <div class="fi-stats" style="display:flex;flex-direction:column;gap:12px;min-width:180px">
-                        <div class="fi-stat-box" style="background:var(--color-surface-2);padding:12px 16px;border-radius:var(--radius-md);border:1px solid var(--color-border);box-shadow:0 2px 8px rgba(0,0,0,0.04);display:flex;justify-content:space-between;align-items:center">
-                          <span style="font-size:12px;color:var(--color-text-muted);font-weight:600">Total Features</span>
-                          <span class="fi-stat-val" style="font-size:18px;font-weight:800;color:var(--color-text);font-family:var(--font-mono)">${totalFeats}</span>
-                        </div>
-                        <div class="fi-stat-box" style="background:var(--color-surface-2);padding:12px 16px;border-radius:var(--radius-md);border:1px solid var(--color-border);box-shadow:0 2px 8px rgba(0,0,0,0.04);display:flex;justify-content:space-between;align-items:center">
-                          <span style="font-size:12px;color:var(--color-text-muted);font-weight:600">Mapped Screens</span>
-                          <span class="fi-stat-val" style="font-size:18px;font-weight:800;color:var(--color-primary);font-family:var(--font-mono)">${totalScreensMapped}</span>
-                        </div>
-                        <div class="fi-stat-box" style="background:var(--color-surface-2);padding:12px 16px;border-radius:var(--radius-md);border:1px solid var(--color-border);box-shadow:0 2px 8px rgba(0,0,0,0.04);display:flex;justify-content:space-between;align-items:center">
-                          <span style="font-size:12px;color:var(--color-text-muted);font-weight:600">Unmapped</span>
-                          <span class="fi-stat-val" style="font-size:18px;font-weight:800;color:var(--color-text-muted);font-family:var(--font-mono)">${totalFeats - mappedFeats}</span>
-                        </div>
-                      </div>
+                      
+                      <!-- Recommendations Alert Box -->
+                      ${fmRecommendation}
                     </div>`;
 
             dashDrawQueue.push(() => drawProgressRing($id('dash-feat-ring'), mappingRate));
@@ -23748,17 +23946,19 @@
       if (exWrap) exWrap.classList.remove('open');
 
       const viewMap = {
+        'overview': 'vw-overview',
+        'dash': 'vw-dash',
         'tasks': 'vw-tasks',
-        'defects': 'vw-defects',
-        'timeline': 'vw-tasks',
+        'risks': 'vw-risks',
         'team': 'vw-team',
         'reports': 'vw-reports',
-        'dash': 'vw-dash',
+        'defects': 'vw-defects',
         'admin': 'vw-admin',
         'features': 'vw-admin',
         'releases': 'vw-admin',
         'steps': 'vw-steps',
-        'log': 'vw-log'
+        'log': 'vw-log',
+        'share': 'vw-share'
       };
       const contId = viewMap[P.view];
       if (!contId) return;
@@ -23787,32 +23987,47 @@
         'reports': { label: 'New Report', icon: 'bar-chart-3', onclick: 'openNewReport()', showExport: true },
         'dash': { label: 'Refresh Dash', icon: 'refresh-cw', onclick: 'renderDash()', showExport: true },
         'features': { label: 'New Feature', icon: 'plus-square', onclick: 'openFeatFlyout()', showExport: true },
-        'releases': { label: 'New Release', icon: 'flag', onclick: 'addRelease()', showExport: false },
+        'releases': { label: 'New Release', icon: 'flag', onclick: 'addRelease()', showExport: true },
         'steps': { label: 'New Blueprint', icon: 'clipboard-list', onclick: 'openTplFlyout()', showExport: true },
-        'dropdowns': { label: 'New List', icon: 'check-square', onclick: 'createNewGlobalSet()', showExport: false },
-        'fields': { label: 'New Field', icon: 'layers', onclick: 'openFieldBuilderFlyout()', showExport: false },
-        'blueprint': { label: 'Add Module', icon: 'layers', onclick: 'addScaffoldRow()', showExport: false },
-        'screens': { label: 'Add Module', icon: 'layers', onclick: 'addScaffoldRow()', showExport: false },
-        'log': { label: 'Refresh Log', icon: 'refresh-cw', onclick: 'renderLog()', showExport: true }
+        'dropdowns': { label: 'New List', icon: 'check-square', onclick: 'createNewGlobalSet()', showExport: true },
+        'fields': { label: 'New Field', icon: 'layers', onclick: 'openFieldBuilderFlyout()', showExport: true },
+        'blueprint': { label: 'Add Module', icon: 'layers', onclick: 'addScaffoldRow()', showExport: true },
+        'screens': { label: 'Add Module', icon: 'layers', onclick: 'addScaffoldRow()', showExport: true },
+        'log': { label: 'Refresh Log', icon: 'refresh-cw', onclick: 'renderLog()', showExport: true },
+        'overview': { showExport: true },
+        'risks': { showExport: true },
+        'scaffolder': { showExport: true },
+        'settings': { showExport: true }
       };
 
       const a = actions[v];
       if (a) {
-        btn.style.display = 'flex';
-        btn.innerHTML = `
-          <div style="font-size:16px; margin-right:6px; display:flex; align-items:center; justify-content:center"><i data-lucide="${a.icon}"></i></div>
-          <span>${a.label}</span>
-        `;
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          eval(a.onclick);
-        };
-        if (window.lucide) lucide.createIcons(btn);
+        if (a.label) {
+          btn.style.display = 'flex';
+          btn.innerHTML = `
+            <div style="font-size:16px; margin-right:6px; display:flex; align-items:center; justify-content:center"><i data-lucide="${a.icon}"></i></div>
+            <span>${a.label}</span>
+          `;
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            eval(a.onclick);
+          };
+          if (window.lucide) lucide.createIcons(btn);
+        } else {
+          btn.style.display = 'none';
+        }
         if (exBtn) exBtn.style.display = a.showExport ? 'flex' : 'none';
       } else {
         btn.style.display = 'none';
-        if (exBtn) exBtn.style.display = 'none';
+        if (exBtn) exBtn.style.display = 'flex';
       }
+
+      // Tabular view check to show/hide Excel option in unified dropdown
+      const isTabular = (v === 'tasks' || v === 'defects');
+      const excelBtn = $id('export-excel-btn');
+      const excelSep = $id('export-excel-sep');
+      if (excelBtn) excelBtn.style.display = isTabular ? 'flex' : 'none';
+      if (excelSep) excelSep.style.display = isTabular ? 'block' : 'none';
     }
 
     function renderSkeleton(container, type) {
@@ -27379,24 +27594,30 @@
         } catch (e) { return '-'; }
       };
 
-      buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate);
-      buildReadmeSheet(wb, safeMode, COLORS, hdrStyle);
-      buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle);
-      registerNamedRanges(wb, safeMode);
-      buildDataDictionarySheet(wb, safeMode, COLORS, hdrStyle);
-      buildHelperMapsSheet(wb, safeMode, COLORS, hdrStyle);
-      buildTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
-      buildSubtasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
-      buildTeamSheet(wb, safeMode, COLORS, hdrStyle, S);
-      buildDefectsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
-      buildRaidRegisterSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
-      buildDecisionLogSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
-      buildBaselineHistorySheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
-      buildFeaturesSheet(wb, safeMode, COLORS, hdrStyle, S);
-      buildDropdownsSheet(wb, safeMode, COLORS, hdrStyle, S);
-      buildTemplateSheets(wb, safeMode, COLORS, hdrStyle, S);
-      buildRelationSheets(wb, safeMode, COLORS, hdrStyle, S);
-      buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S);
+      if (P.view === 'tasks') {
+        buildTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+      } else if (P.view === 'defects') {
+        buildDefectsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+      } else {
+        buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate);
+        buildReadmeSheet(wb, safeMode, COLORS, hdrStyle);
+        buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle);
+        registerNamedRanges(wb, safeMode);
+        buildDataDictionarySheet(wb, safeMode, COLORS, hdrStyle);
+        buildHelperMapsSheet(wb, safeMode, COLORS, hdrStyle);
+        buildTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+        buildSubtasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+        buildTeamSheet(wb, safeMode, COLORS, hdrStyle, S);
+        buildDefectsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+        buildRaidRegisterSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+        buildDecisionLogSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+        buildBaselineHistorySheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+        buildFeaturesSheet(wb, safeMode, COLORS, hdrStyle, S);
+        buildDropdownsSheet(wb, safeMode, COLORS, hdrStyle, S);
+        buildTemplateSheets(wb, safeMode, COLORS, hdrStyle, S);
+        buildRelationSheets(wb, safeMode, COLORS, hdrStyle, S);
+        buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S);
+      }
       applyWorkbookProtectionRules(wb, safeMode);
 
       return wb;
