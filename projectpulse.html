@@ -24316,7 +24316,7 @@
       if (type === 'pdf') printContainer(contId);
       if (type === 'excel') {
         if (P.view === 'log') exportLogCSV();
-        else exportProjectExcel();
+        else exportProjectExcel(false, true);
       }
       if (type === 'teams') shareToTeams(contId);
       if (type === 'email') exportEmail(contId);
@@ -26996,7 +26996,7 @@
       if (modal) modal.classList.remove('open');
     }
 
-    async function exportProjectExcel(safeMode = false) {
+    async function exportProjectExcel(safeMode = false, viewLevel = false) {
       if (typeof ExcelJS === 'undefined') { notify('Excel library not loaded yet. Please try again.', 'amber'); return; }
       try {
         const projectClean = (P.name || 'Project').replace(/[\\\/*?:"<>|\s]/g, '');
@@ -27006,10 +27006,10 @@
         showAppLock('Generating Smart Workbook...', 'Serializing application state, configurations, sequences, and helper sheets. Please wait...');
         await new Promise(r => setTimeout(r, 100));
 
-        console.log('[Excel Export] Starting...', { safeMode, projectName: P.name });
+        console.log('[Excel Export] Starting...', { safeMode, viewLevel, projectName: P.name });
 
         console.time('Excel Generation');
-        const wb = await generateProjectWorkbook(safeMode);
+        const wb = await generateProjectWorkbook(safeMode, viewLevel);
         console.timeEnd('Excel Generation');
 
         console.log('[Excel Export] Workbook generated, writing buffer...');
@@ -27020,7 +27020,14 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `ProjectPulse_${projectClean}_${ts}.xlsx`;
+
+        let filename = `ProjectPulse_${projectClean}_${ts}.xlsx`;
+        if (viewLevel) {
+          const viewLabel = P.view.charAt(0).toUpperCase() + P.view.slice(1);
+          filename = `ProjectPulse_${projectClean}_${viewLabel}_${ts}.xlsx`;
+        }
+        a.download = filename;
+
         a.click();
         URL.revokeObjectURL(url);
         console.log('[Excel Export] Download triggered.');
@@ -27366,6 +27373,295 @@
         ws.getCell(`J${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Priorities'] };
         ws.getCell(`K${r}`).dataValidation = { type: 'decimal', operator: 'between', formulae: [0, 1] };
       }
+    }
+
+    function buildFeatureRolloutsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
+      const ws = wb.addWorksheet('Feature Rollouts', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 3 }] });
+      ws.properties.tabColor = { argb: COLORS.indigo || 'FF6366F1' };
+
+      ws.properties.outlineProperties = {
+        summaryBelow: false
+      };
+
+      const cols = [
+        { header: '', key: '_spacer', width: 3 },
+        { header: 'ID / Release', key: 'id', width: 18 },
+        { header: 'Feature / Screen Name', key: 'name', width: 45 },
+        { header: 'Type', key: 'type', width: 15 },
+        { header: 'Module', key: 'module', width: 18 },
+        { header: 'Assignee', key: 'assignee', width: 25 },
+        { header: 'Status', key: 'status', width: 18 },
+        { header: 'Progress', key: 'progress', width: 12 }
+      ];
+      ws.columns = cols;
+      ws.getRow(1).height = 30;
+      ws.getRow(1).eachCell((c, colIdx) => {
+        if (colIdx === 1) return;
+        c.style = hdrStyle;
+      });
+
+      const tasks = P.tasks || [];
+
+      // Helper to resolve screen status, progress, assignee, module, and workflow steps
+      function resolveScreen(scName) {
+        let subMatches = [];
+        tasks.forEach(t => {
+          (t.subtasks || []).forEach(st => {
+            if (st.type === 'screen' && st.name === scName) {
+              subMatches.push({
+                progress: st.progress !== undefined ? st.progress : (st.status === 'Completed' ? 100 : 0),
+                status: st.status || 'Not Started',
+                assignee: st.assignee || t.assignee || '-',
+                module: t.module || '-',
+                workflow: st.workflow || []
+              });
+            }
+          });
+        });
+
+        if (subMatches.length > 0) {
+          const avgProg = Math.round(subMatches.reduce((sum, sm) => sum + sm.progress, 0) / subMatches.length);
+          let finalStatus = 'Not Started';
+          if (subMatches.every(sm => sm.status === 'Completed')) finalStatus = 'Completed';
+          else if (subMatches.some(sm => sm.status === 'Blocked')) finalStatus = 'Blocked';
+          else if (subMatches.some(sm => sm.status === 'In Progress' || sm.status === 'Under Review')) finalStatus = 'In Progress';
+          else finalStatus = subMatches[0].status;
+
+          // Merge workflows
+          let workflow = [];
+          subMatches.forEach(sm => {
+            if (sm.workflow && sm.workflow.length > 0) {
+              sm.workflow.forEach(w => {
+                if (!workflow.some(ew => ew.name === w.name)) {
+                  workflow.push(w);
+                }
+              });
+            }
+          });
+
+          return {
+            progress: avgProg / 100,
+            status: finalStatus,
+            assignee: [...new Set(subMatches.map(sm => sm.assignee).filter(a => a && a !== '-'))].join(', ') || '-',
+            module: subMatches[0].module,
+            workflow: workflow
+          };
+        }
+
+        let taskMatches = tasks.filter(t => t.guiScreens && t.guiScreens.includes(scName));
+        if (taskMatches.length > 0) {
+          const avgProg = Math.round(taskMatches.reduce((sum, tm) => sum + (tm.progress || 0), 0) / taskMatches.length);
+          let finalStatus = 'Not Started';
+          if (taskMatches.every(tm => tm.status === 'Completed')) finalStatus = 'Completed';
+          else if (taskMatches.some(tm => tm.status === 'Blocked')) finalStatus = 'Blocked';
+          else if (taskMatches.some(tm => tm.status === 'In Progress' || tm.status === 'Under Review')) finalStatus = 'In Progress';
+          else finalStatus = taskMatches[0].status;
+
+          let workflow = [];
+          taskMatches.forEach(tm => {
+            if (tm.workflow && tm.workflow.length > 0) {
+              tm.workflow.forEach(w => {
+                if (!workflow.some(ew => ew.name === w.name)) {
+                  workflow.push(w);
+                }
+              });
+            }
+          });
+
+          return {
+            progress: avgProg / 100,
+            status: finalStatus,
+            assignee: [...new Set(taskMatches.map(tm => tm.assignee).filter(Boolean))].join(', ') || '-',
+            module: taskMatches[0].module || '-',
+            workflow: workflow
+          };
+        }
+
+        return {
+          progress: 0,
+          status: 'Not Started',
+          assignee: '-',
+          module: '-',
+          workflow: []
+        };
+      }
+
+      // Group features by release
+      const releaseGroups = {};
+      (P.features || []).forEach(feat => {
+        const rel = feat.release ? S(feat.release).trim() : 'Future Release';
+        if (!releaseGroups[rel]) releaseGroups[rel] = [];
+        releaseGroups[rel].push(feat);
+      });
+
+      // Sort releases: put Future Release at the end
+      const sortedReleases = Object.keys(releaseGroups).sort((a, b) => {
+        if (a === 'Future Release') return 1;
+        if (b === 'Future Release') return -1;
+        return a.localeCompare(b);
+      });
+
+      let totalRowsAdded = 1;
+
+      sortedReleases.forEach(relName => {
+        const featsInRel = releaseGroups[relName];
+        
+        // Calculate Release metrics
+        let relTotalProgress = 0;
+        let relFeatsCount = 0;
+        const relStatuses = new Set();
+
+        featsInRel.forEach(feat => {
+          const scNames = feat.screens || [];
+          let featTotalProgress = 0;
+          let featScreensCount = 0;
+          
+          scNames.forEach(scName => {
+            const scInfo = resolveScreen(scName);
+            featTotalProgress += scInfo.progress;
+            featScreensCount++;
+            relStatuses.add(scInfo.status);
+          });
+
+          if (featScreensCount > 0) {
+            const featAvgProg = featTotalProgress / featScreensCount;
+            relTotalProgress += featAvgProg;
+            relFeatsCount++;
+          }
+        });
+
+        const relAvgProgress = relFeatsCount > 0 ? (relTotalProgress / relFeatsCount) : 0;
+        let relStatus = 'Not Started';
+        if (relStatuses.has('Blocked')) relStatus = 'Blocked';
+        else if (relStatuses.has('In Progress') || relStatuses.has('Under Review')) relStatus = 'In Progress';
+        else if (relStatuses.size === 1 && relStatuses.has('Completed')) relStatus = 'Completed';
+
+        // 1. Add Release Row (outlineLevel = 0)
+        const relRow = ws.addRow({
+          _spacer: '',
+          id: relName,
+          name: `Release ${relName}`,
+          type: 'Release',
+          module: '',
+          assignee: '',
+          status: relStatus,
+          progress: relAvgProgress
+        });
+        totalRowsAdded++;
+        relRow.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FF1E293B' } };
+        relRow.outlineLevel = 0;
+        relRow.eachCell((c, colIdx) => {
+          if (colIdx === 1) return;
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+          c.border = {
+            top: { style: 'medium', color: { argb: 'FF94A3B8' } },
+            bottom: { style: 'medium', color: { argb: 'FF94A3B8' } }
+          };
+        });
+        ws.getCell(`H${relRow.number}`).numFmt = '0%';
+
+        // 2. Add Features under this Release (outlineLevel = 1)
+        featsInRel.forEach(feat => {
+          const scNames = feat.screens || [];
+          let featTotalProgress = 0;
+          let featScreensCount = 0;
+          const featStatuses = new Set();
+          const featAssignees = new Set();
+
+          const resolvedScreensList = scNames.map(scName => {
+            const scInfo = resolveScreen(scName);
+            featTotalProgress += scInfo.progress;
+            featScreensCount++;
+            featStatuses.add(scInfo.status);
+            if (scInfo.assignee && scInfo.assignee !== '-') {
+              scInfo.assignee.split(', ').forEach(a => featAssignees.add(a));
+            }
+            return { name: scName, info: scInfo };
+          });
+
+          const featAvgProgress = featScreensCount > 0 ? (featTotalProgress / featScreensCount) : 0;
+          let featStatus = 'Not Started';
+          if (featStatuses.has('Blocked')) featStatus = 'Blocked';
+          else if (featStatuses.has('In Progress') || featStatuses.has('Under Review')) featStatus = 'In Progress';
+          else if (featStatuses.size === 1 && featStatuses.has('Completed')) featStatus = 'Completed';
+
+          const featRow = ws.addRow({
+            _spacer: '',
+            id: '',
+            name: '   ↳ ' + feat.name,
+            type: 'Feature',
+            module: '',
+            assignee: Array.from(featAssignees).join(', ') || '-',
+            status: featStatus,
+            progress: featAvgProgress
+          });
+          totalRowsAdded++;
+          featRow.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF334155' } };
+          featRow.outlineLevel = 1;
+          featRow.hidden = true;
+          featRow.eachCell((c, colIdx) => {
+            if (colIdx === 1) return;
+            c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+            c.border = {
+              bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+            };
+          });
+          ws.getCell(`H${featRow.number}`).numFmt = '0%';
+
+          // 3. Add Screens under this Feature (outlineLevel = 2)
+          resolvedScreensList.forEach((sc, scIdx) => {
+            const scInfo = sc.info;
+            const scRow = ws.addRow({
+              _spacer: '',
+              id: '',
+              name: '       ↳ ' + sc.name,
+              type: 'GUI Screen',
+              module: scInfo.module,
+              assignee: scInfo.assignee,
+              status: scInfo.status,
+              progress: scInfo.progress
+            });
+            totalRowsAdded++;
+            scRow.font = { name: 'Segoe UI', size: 9.5, color: { argb: 'FF475569' } };
+            scRow.outlineLevel = 2;
+            scRow.hidden = true;
+            scRow.eachCell((c, colIdx) => {
+              if (colIdx === 1) return;
+              c.border = {
+                bottom: { style: 'thin', color: { argb: 'FFF1F5F9' } }
+              };
+            });
+            ws.getCell(`H${scRow.number}`).numFmt = '0%';
+
+            // 4. Add Workflow Steps under this Screen (outlineLevel = 3)
+            if (scInfo.workflow && scInfo.workflow.length > 0) {
+              scInfo.workflow.forEach((step, stepIdx) => {
+                const stepRow = ws.addRow({
+                  _spacer: '',
+                  id: '',
+                  name: '           ↳ ' + S(step.name),
+                  type: 'Workflow Step',
+                  module: scInfo.module,
+                  assignee: scInfo.assignee,
+                  status: step.status || (step.done ? 'Completed' : 'Not Started'),
+                  progress: step.done ? 1.0 : 0.0
+                });
+                totalRowsAdded++;
+                stepRow.font = { name: 'Segoe UI', size: 8.5, italic: true, color: { argb: 'FF64748B' } };
+                stepRow.outlineLevel = 3;
+                stepRow.hidden = true;
+                stepRow.eachCell((c, colIdx) => {
+                  if (colIdx === 1) return;
+                  c.border = {
+                    bottom: { style: 'thin', color: { argb: 'FFF8FAFC' } }
+                  };
+                });
+                ws.getCell(`H${stepRow.number}`).numFmt = '0%';
+              });
+            }
+          });
+        });
+      });
     }
 
     function buildTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
@@ -28721,7 +29017,7 @@
       });
     }
 
-    async function generateProjectWorkbook(safeMode = false) {
+    async function generateProjectWorkbook(safeMode = false, viewLevel = false) {
       if (typeof ExcelJS === 'undefined') { notify('Excel library not loaded yet. Please try again.', 'amber'); return; }
       const wb = new ExcelJS.Workbook();
       wb.creator = 'ProjectPulse'; wb.lastModifiedBy = 'ProjectPulse'; wb.created = new Date(); wb.modified = new Date();
@@ -28750,12 +29046,7 @@
         } catch (e) { return '-'; }
       };
 
-      if (P.view === 'tasks') {
-        buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate);
-        buildUnifiedTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
-      } else if (P.view === 'defects') {
-        buildDefectsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
-      } else {
+      if (!viewLevel) {
         buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate);
         buildReadmeSheet(wb, safeMode, COLORS, hdrStyle);
         buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle);
@@ -28774,6 +29065,34 @@
         buildTemplateSheets(wb, safeMode, COLORS, hdrStyle, S);
         buildRelationSheets(wb, safeMode, COLORS, hdrStyle, S);
         buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S);
+      } else {
+        if (P.view === 'tasks') {
+          buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate);
+          buildUnifiedTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+          buildFeatureRolloutsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+        } else if (P.view === 'defects') {
+          buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate);
+          buildDefectsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+        } else {
+          buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate);
+          buildReadmeSheet(wb, safeMode, COLORS, hdrStyle);
+          buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle);
+          registerNamedRanges(wb, safeMode);
+          buildDataDictionarySheet(wb, safeMode, COLORS, hdrStyle);
+          buildHelperMapsSheet(wb, safeMode, COLORS, hdrStyle);
+          buildTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+          buildSubtasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+          buildTeamSheet(wb, safeMode, COLORS, hdrStyle, S);
+          buildDefectsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+          buildRaidRegisterSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+          buildDecisionLogSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+          buildBaselineHistorySheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+          buildFeaturesSheet(wb, safeMode, COLORS, hdrStyle, S);
+          buildDropdownsSheet(wb, safeMode, COLORS, hdrStyle, S);
+          buildTemplateSheets(wb, safeMode, COLORS, hdrStyle, S);
+          buildRelationSheets(wb, safeMode, COLORS, hdrStyle, S);
+          buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S);
+        }
       }
       applyWorkbookProtectionRules(wb, safeMode);
 
