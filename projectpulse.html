@@ -27206,9 +27206,15 @@
       const ws = wb.addWorksheet('Tasks & Subtasks', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 3 }] });
       ws.properties.tabColor = { argb: COLORS.emerald };
 
-      // Set outline properties to place expand/collapse button on the parent task row
       ws.properties.outlineProperties = {
         summaryBelow: false
+      };
+
+      const customHdrStyle = {
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E1B4B' } },
+        font: { name: 'Trebuchet MS', size: 10, bold: true, color: { argb: 'FFFFFFFF' } },
+        alignment: { vertical: 'middle', horizontal: 'center', wrapText: true },
+        border: { bottom: { style: 'medium', color: { argb: 'FF4F46E5' } } }
       };
 
       const cols = [
@@ -27235,16 +27241,97 @@
       (P.customFields || []).forEach(f => { cols.push({ header: f.name, key: f.name, width: 22 }); });
 
       ws.columns = cols;
-      ws.getRow(1).height = 30;
+      ws.getRow(1).height = 32;
       ws.getRow(1).eachCell((c, colIdx) => {
         if (colIdx === 1) return;
-        c.style = hdrStyle;
+        c.style = customHdrStyle;
       });
+
+      const styleRow = (row, level, statusVal) => {
+        row.height = 24;
+        let nameFont, otherFont, bgFill;
+        let borderStyle = { bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } } };
+
+        if (level === 0) {
+          nameFont = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF0F172A' } };
+          otherFont = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FF334155' } };
+          bgFill = 'FFF1F5F9';
+          borderStyle = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'medium', color: { argb: 'FF94A3B8' } }
+          };
+        } else if (level === 1) {
+          nameFont = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FF334155' } };
+          otherFont = { name: 'Segoe UI', size: 9, color: { argb: 'FF475569' } };
+          bgFill = 'FFFFFFFF';
+        } else {
+          nameFont = { name: 'Segoe UI', size: 8.5, italic: true, color: { argb: 'FF64748B' } };
+          otherFont = { name: 'Segoe UI', size: 8.5, italic: true, color: { argb: 'FF64748B' } };
+          bgFill = 'FFF8FAFC';
+          borderStyle = { bottom: { style: 'thin', color: { argb: 'FFF1F5F9' } } };
+        }
+
+        row.eachCell((c, colIdx) => {
+          if (colIdx === 1) return;
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgFill } };
+          c.border = borderStyle;
+          if (colIdx === 3) c.font = nameFont;
+          else c.font = otherFont;
+        });
+
+        const idCell = row.getCell('id');
+        idCell.font = { name: 'Consolas', size: 9, color: { argb: 'FF475569' }, bold: (level === 0) };
+        idCell.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        ['type', 'category', 'module', 'moduleType', 'priority', 'complexity'].forEach(k => {
+          const cell = row.getCell(k);
+          if (cell) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+
+        ['startDate', 'dueDate', 'actCompletionDate'].forEach(k => {
+          const cell = row.getCell(k);
+          if (cell) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+
+        ['estEffort', 'actEffort'].forEach(k => {
+          const cell = row.getCell(k);
+          if (cell) {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '#,##0.0';
+          }
+        });
+
+        const progCell = row.getCell('progress');
+        if (progCell) {
+          progCell.alignment = { horizontal: 'right', vertical: 'middle' };
+          progCell.numFmt = '0%';
+        }
+
+        const statusCell = row.getCell('status');
+        if (statusCell && statusVal) {
+          const STATUS_STYLES = {
+            'Completed': { fill: 'FFD1FAE5', fontColor: 'FF065F46' },
+            'In Progress': { fill: 'FFE0E7FF', fontColor: 'FF3730A3' },
+            'Under Review': { fill: 'FFE0F2FE', fontColor: 'FF0369A1' },
+            'On Hold': { fill: 'FFFEE2E2', fontColor: 'FF991B1B' },
+            'Blocked': { fill: 'FFFECDD3', fontColor: 'FF9F1239' },
+            'Not Started': { fill: 'FFF3F4F6', fontColor: 'FF4B5563' },
+            'Cancelled': { fill: 'FFF3F4F6', fontColor: 'FF9CA3AF' }
+          };
+          const st = STATUS_STYLES[statusVal];
+          if (st) {
+            statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: st.fill } };
+            statusCell.font = { name: 'Segoe UI', size: level === 0 ? 9.5 : 9, bold: true, color: { argb: st.fontColor } };
+            statusCell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else {
+            statusCell.alignment = { horizontal: 'center', vertical: 'middle' };
+          }
+        }
+      };
 
       let totalRowsAdded = 1;
 
       (P.tasks || []).forEach(t => {
-        // Add Task (Parent) Row
         const taskRowVals = {
           _spacer: '',
           id: S(t.id),
@@ -27269,19 +27356,9 @@
 
         const row = ws.addRow(taskRowVals);
         totalRowsAdded++;
-        row.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: COLORS.textDark } };
+        styleRow(row, 0, S(t.status));
         row.outlineLevel = 0;
-        row.eachCell((c, colIdx) => {
-          if (colIdx === 1) return;
-          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
-          c.border = {
-            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } }
-          };
-        });
-        ws.getCell(`K${row.number}`).numFmt = '0%';
 
-        // Add Subtasks (Children) Rows
         (t.subtasks || []).forEach(s => {
           const subRowVals = {
             _spacer: '',
@@ -27307,18 +27384,10 @@
 
           const sRow = ws.addRow(subRowVals);
           totalRowsAdded++;
-          sRow.font = { name: 'Segoe UI', size: 9, color: { argb: 'FF475569' } };
+          styleRow(sRow, 1, S(s.status));
           sRow.outlineLevel = 1;
-          sRow.hidden = true; // default collapsed
-          sRow.eachCell((c, colIdx) => {
-            if (colIdx === 1) return;
-            c.border = {
-              bottom: { style: 'thin', color: { argb: 'FFF1F5F9' } }
-            };
-          });
-          ws.getCell(`K${sRow.number}`).numFmt = '0%';
+          sRow.hidden = true;
 
-          // If GUI module, add Level 2 Screen Sub-tasks (workflow steps)
           if (t.moduleType === 'GUI' && s.workflow && s.workflow.length > 0) {
             s.workflow.forEach((step, stepIdx) => {
               const stepRowVals = {
@@ -27345,16 +27414,9 @@
 
               const stepRow = ws.addRow(stepRowVals);
               totalRowsAdded++;
-              stepRow.font = { name: 'Segoe UI', size: 8.5, italic: true, color: { argb: 'FF64748B' } };
+              styleRow(stepRow, 2, step.status || (step.done ? 'Completed' : 'Not Started'));
               stepRow.outlineLevel = 2;
-              stepRow.hidden = true; // default collapsed
-              stepRow.eachCell((c, colIdx) => {
-                if (colIdx === 1) return;
-                c.border = {
-                  bottom: { style: 'thin', color: { argb: 'FFF8FAFC' } }
-                };
-              });
-              ws.getCell(`K${stepRow.number}`).numFmt = '0%';
+              stepRow.hidden = true;
             });
           }
         });
@@ -27383,6 +27445,13 @@
         summaryBelow: false
       };
 
+      const customHdrStyle = {
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E1B4B' } },
+        font: { name: 'Trebuchet MS', size: 10, bold: true, color: { argb: 'FFFFFFFF' } },
+        alignment: { vertical: 'middle', horizontal: 'center', wrapText: true },
+        border: { bottom: { style: 'medium', color: { argb: 'FF4F46E5' } } }
+      };
+
       const cols = [
         { header: '', key: '_spacer', width: 3 },
         { header: 'ID / Release', key: 'id', width: 18 },
@@ -27394,15 +27463,88 @@
         { header: 'Progress', key: 'progress', width: 12 }
       ];
       ws.columns = cols;
-      ws.getRow(1).height = 30;
+      ws.getRow(1).height = 32;
       ws.getRow(1).eachCell((c, colIdx) => {
         if (colIdx === 1) return;
-        c.style = hdrStyle;
+        c.style = customHdrStyle;
       });
+
+      const styleRow = (row, level, statusVal) => {
+        row.height = 24;
+        let nameFont, otherFont, bgFill;
+        let borderStyle = { bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } } };
+
+        if (level === 0) {
+          nameFont = { name: 'Segoe UI', size: 10.5, bold: true, color: { argb: 'FF1E1B4B' } };
+          otherFont = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF1E1B4B' } };
+          bgFill = 'FFE0F2FE';
+          borderStyle = {
+            top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+            bottom: { style: 'medium', color: { argb: 'FF0284C7' } }
+          };
+        } else if (level === 1) {
+          nameFont = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF1E293B' } };
+          otherFont = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FF1E293B' } };
+          bgFill = 'FFF1F5F9';
+          borderStyle = { bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } } };
+        } else if (level === 2) {
+          nameFont = { name: 'Segoe UI', size: 9.5, color: { argb: 'FF334155' } };
+          otherFont = { name: 'Segoe UI', size: 9, color: { argb: 'FF475569' } };
+          bgFill = 'FFFFFFFF';
+        } else {
+          nameFont = { name: 'Segoe UI', size: 8.5, italic: true, color: { argb: 'FF64748B' } };
+          otherFont = { name: 'Segoe UI', size: 8.5, italic: true, color: { argb: 'FF64748B' } };
+          bgFill = 'FFF8FAFC';
+          borderStyle = { bottom: { style: 'thin', color: { argb: 'FFF1F5F9' } } };
+        }
+
+        row.eachCell((c, colIdx) => {
+          if (colIdx === 1) return;
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgFill } };
+          c.border = borderStyle;
+          if (colIdx === 3) c.font = nameFont;
+          else c.font = otherFont;
+        });
+
+        const idCell = row.getCell('id');
+        idCell.font = { name: 'Consolas', size: 9, color: { argb: 'FF64748B' }, bold: (level === 0 || level === 1) };
+        idCell.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        ['type', 'module'].forEach(k => {
+          const cell = row.getCell(k);
+          if (cell) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+
+        const progCell = row.getCell('progress');
+        if (progCell) {
+          progCell.alignment = { horizontal: 'right', vertical: 'middle' };
+          progCell.numFmt = '0%';
+        }
+
+        const statusCell = row.getCell('status');
+        if (statusCell && statusVal) {
+          const STATUS_STYLES = {
+            'Completed': { fill: 'FFD1FAE5', fontColor: 'FF065F46' },
+            'In Progress': { fill: 'FFE0E7FF', fontColor: 'FF3730A3' },
+            'Under Review': { fill: 'FFE0F2FE', fontColor: 'FF0369A1' },
+            'On Hold': { fill: 'FFFEE2E2', fontColor: 'FF991B1B' },
+            'Blocked': { fill: 'FFFECDD3', fontColor: 'FF9F1239' },
+            'Not Started': { fill: 'FFF3F4F6', fontColor: 'FF4B5563' },
+            'Cancelled': { fill: 'FFF3F4F6', fontColor: 'FF9CA3AF' }
+          };
+          const st = STATUS_STYLES[statusVal];
+          if (st) {
+            statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: st.fill } };
+            statusCell.font = { name: 'Segoe UI', size: level <= 1 ? 9.5 : 9, bold: true, color: { argb: st.fontColor } };
+            statusCell.alignment = { horizontal: 'center', vertical: 'middle' };
+          } else {
+            statusCell.alignment = { horizontal: 'center', vertical: 'middle' };
+          }
+        }
+      };
 
       const tasks = P.tasks || [];
 
-      // Helper to resolve screen status, progress, assignee, module, and workflow steps
       function resolveScreen(scName) {
         let subMatches = [];
         tasks.forEach(t => {
@@ -27427,7 +27569,6 @@
           else if (subMatches.some(sm => sm.status === 'In Progress' || sm.status === 'Under Review')) finalStatus = 'In Progress';
           else finalStatus = subMatches[0].status;
 
-          // Merge workflows
           let workflow = [];
           subMatches.forEach(sm => {
             if (sm.workflow && sm.workflow.length > 0) {
@@ -27486,7 +27627,6 @@
         };
       }
 
-      // Group features by release
       const releaseGroups = {};
       (P.features || []).forEach(feat => {
         const rel = feat.release ? S(feat.release).trim() : 'Future Release';
@@ -27494,7 +27634,6 @@
         releaseGroups[rel].push(feat);
       });
 
-      // Sort releases: put Future Release at the end
       const sortedReleases = Object.keys(releaseGroups).sort((a, b) => {
         if (a === 'Future Release') return 1;
         if (b === 'Future Release') return -1;
@@ -27506,7 +27645,6 @@
       sortedReleases.forEach(relName => {
         const featsInRel = releaseGroups[relName];
         
-        // Calculate Release metrics
         let relTotalProgress = 0;
         let relFeatsCount = 0;
         const relStatuses = new Set();
@@ -27536,7 +27674,6 @@
         else if (relStatuses.has('In Progress') || relStatuses.has('Under Review')) relStatus = 'In Progress';
         else if (relStatuses.size === 1 && relStatuses.has('Completed')) relStatus = 'Completed';
 
-        // 1. Add Release Row (outlineLevel = 0)
         const relRow = ws.addRow({
           _spacer: '',
           id: relName,
@@ -27548,19 +27685,9 @@
           progress: relAvgProgress
         });
         totalRowsAdded++;
-        relRow.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FF1E293B' } };
+        styleRow(relRow, 0, relStatus);
         relRow.outlineLevel = 0;
-        relRow.eachCell((c, colIdx) => {
-          if (colIdx === 1) return;
-          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
-          c.border = {
-            top: { style: 'medium', color: { argb: 'FF94A3B8' } },
-            bottom: { style: 'medium', color: { argb: 'FF94A3B8' } }
-          };
-        });
-        ws.getCell(`H${relRow.number}`).numFmt = '0%';
 
-        // 2. Add Features under this Release (outlineLevel = 1)
         featsInRel.forEach(feat => {
           const scNames = feat.screens || [];
           let featTotalProgress = 0;
@@ -27596,19 +27723,10 @@
             progress: featAvgProgress
           });
           totalRowsAdded++;
-          featRow.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF334155' } };
+          styleRow(featRow, 1, featStatus);
           featRow.outlineLevel = 1;
           featRow.hidden = true;
-          featRow.eachCell((c, colIdx) => {
-            if (colIdx === 1) return;
-            c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
-            c.border = {
-              bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } }
-            };
-          });
-          ws.getCell(`H${featRow.number}`).numFmt = '0%';
 
-          // 3. Add Screens under this Feature (outlineLevel = 2)
           resolvedScreensList.forEach((sc, scIdx) => {
             const scInfo = sc.info;
             const scRow = ws.addRow({
@@ -27622,18 +27740,10 @@
               progress: scInfo.progress
             });
             totalRowsAdded++;
-            scRow.font = { name: 'Segoe UI', size: 9.5, color: { argb: 'FF475569' } };
+            styleRow(scRow, 2, scInfo.status);
             scRow.outlineLevel = 2;
             scRow.hidden = true;
-            scRow.eachCell((c, colIdx) => {
-              if (colIdx === 1) return;
-              c.border = {
-                bottom: { style: 'thin', color: { argb: 'FFF1F5F9' } }
-              };
-            });
-            ws.getCell(`H${scRow.number}`).numFmt = '0%';
 
-            // 4. Add Workflow Steps under this Screen (outlineLevel = 3)
             if (scInfo.workflow && scInfo.workflow.length > 0) {
               scInfo.workflow.forEach((step, stepIdx) => {
                 const stepRow = ws.addRow({
@@ -27647,16 +27757,9 @@
                   progress: step.done ? 1.0 : 0.0
                 });
                 totalRowsAdded++;
-                stepRow.font = { name: 'Segoe UI', size: 8.5, italic: true, color: { argb: 'FF64748B' } };
+                styleRow(stepRow, 3, step.status || (step.done ? 'Completed' : 'Not Started'));
                 stepRow.outlineLevel = 3;
                 stepRow.hidden = true;
-                stepRow.eachCell((c, colIdx) => {
-                  if (colIdx === 1) return;
-                  c.border = {
-                    bottom: { style: 'thin', color: { argb: 'FFF8FAFC' } }
-                  };
-                });
-                ws.getCell(`H${stepRow.number}`).numFmt = '0%';
               });
             }
           });
@@ -28482,8 +28585,8 @@
         };
         cell.value = {
           richText: [
-            { text: label.toUpperCase() + '\n', font: { name: 'Segoe UI', size: 9, bold: true, color: { argb: COLORS.slate } } },
-            { text: String(value) + '\n', font: { name: 'Segoe UI', size: 20, bold: true, color: { argb: COLORS.textDark } } },
+            { text: label.toUpperCase() + '\n', font: { name: 'Trebuchet MS', size: 9, bold: true, color: { argb: COLORS.slate } } },
+            { text: String(value) + '\n', font: { name: 'Trebuchet MS', size: 20, bold: true, color: { argb: COLORS.textDark } } },
             { text: subLabel || '', font: { name: 'Segoe UI', size: 8.5, italic: true, color: { argb: COLORS.slate } } }
           ]
         };
@@ -28495,7 +28598,7 @@
         ds.mergeCells(row, 2, row, 24);
         const cell = ds.getCell(row, 2);
         cell.value = ' ' + title.toUpperCase();
-        cell.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: COLORS.navy } };
+        cell.font = { name: 'Trebuchet MS', size: 11, bold: true, color: { argb: COLORS.navy } };
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.header } };
         cell.border = { bottom: { style: 'medium', color: { argb: COLORS.indigo } } };
         cell.alignment = { vertical: 'middle' };
@@ -28506,7 +28609,7 @@
         headers.forEach((h, i) => {
           const cell = ds.getCell(row, startCol + i);
           cell.value = h;
-          cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: COLORS.surface } };
+          cell.font = { name: 'Trebuchet MS', size: 9.5, bold: true, color: { argb: COLORS.surface } };
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.navy } };
           cell.alignment = { vertical: 'middle', horizontal: 'center' };
           cell.border = { bottom: { style: 'medium', color: { argb: COLORS.indigo } } };
@@ -28547,7 +28650,7 @@
 
       ds.mergeCells('B2:X3'); ds.getRow(2).height = 24; ds.getRow(3).height = 24;
       const titleCell = ds.getCell('B2');
-      titleCell.value = { richText: [{ text: '  ' + (P.name || 'Project').toUpperCase(), font: { name: 'Segoe UI', size: 17, bold: true, color: { argb: 'FFFFFFFF' } } }, { text: '   |   EXECUTIVE INSIGHTS PORTAL', font: { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FFC7D2FE' } } }] };
+      titleCell.value = { richText: [{ text: '  ' + (P.name || 'Project').toUpperCase(), font: { name: 'Trebuchet MS', size: 17, bold: true, color: { argb: 'FFFFFFFF' } } }, { text: '   |   EXECUTIVE INSIGHTS PORTAL', font: { name: 'Trebuchet MS', size: 10, bold: true, color: { argb: 'FFC7D2FE' } } }] };
       titleCell.alignment = { vertical: 'middle', indent: 1 };
       
       const gradFill = { 
