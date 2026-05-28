@@ -27195,6 +27195,179 @@
       });
     }
 
+    function buildUnifiedTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
+      const ws = wb.addWorksheet('Tasks & Subtasks', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 3 }] });
+      ws.properties.tabColor = { argb: COLORS.emerald };
+
+      // Set outline properties to place expand/collapse button on the parent task row
+      ws.properties.outlineProperties = {
+        summaryBelow: false
+      };
+
+      const cols = [
+        { header: '', key: '_spacer', width: 3 },
+        { header: 'ID', key: 'id', width: 15 },
+        { header: 'Task / Subtask Name', key: 'name', width: 45 },
+        { header: 'Type', key: 'type', width: 12 },
+        { header: 'Category', key: 'category', width: 20 },
+        { header: 'Module', key: 'module', width: 18 },
+        { header: 'Module Type', key: 'moduleType', width: 15 },
+        { header: 'Assignee', key: 'assignee', width: 22 },
+        { header: 'Status', key: 'status', width: 18 },
+        { header: 'Priority', key: 'priority', width: 15 },
+        { header: 'Progress', key: 'progress', width: 12 },
+        { header: 'Start Date', key: 'startDate', width: 15 },
+        { header: 'Due Date', key: 'dueDate', width: 15 },
+        { header: 'Actual Completion Date', key: 'actCompletionDate', width: 22 },
+        { header: `Estimated ${effortUnitLabel('col')}`, key: 'estEffort', width: 18 },
+        { header: `Actual ${effortUnitLabel('col')}`, key: 'actEffort', width: 15 },
+        { header: 'Complexity', key: 'complexity', width: 15 },
+        { header: 'Notes', key: 'notes', width: 40 }
+      ];
+
+      (P.customFields || []).forEach(f => { cols.push({ header: f.name, key: f.name, width: 22 }); });
+
+      ws.columns = cols;
+      ws.getRow(1).height = 30;
+      ws.getRow(1).eachCell((c, colIdx) => {
+        if (colIdx === 1) return;
+        c.style = hdrStyle;
+      });
+
+      let totalRowsAdded = 1;
+
+      (P.tasks || []).forEach(t => {
+        // Add Task (Parent) Row
+        const taskRowVals = {
+          _spacer: '',
+          id: S(t.id),
+          name: S(t.name),
+          type: 'Task',
+          category: S(t.category),
+          module: S(t.module),
+          moduleType: S(t.moduleType),
+          assignee: S(t.assignee),
+          status: S(t.status),
+          priority: S(t.priority),
+          progress: t.progress !== undefined ? (t.progress / 100) : 0,
+          startDate: cleanFmtDate(t.startDate),
+          dueDate: cleanFmtDate(t.dueDate),
+          actCompletionDate: cleanFmtDate(t.actCompletionDate),
+          estEffort: t.estEffort || 0,
+          actEffort: t.actEffort || 0,
+          complexity: S(t.complexity),
+          notes: S(t.notes)
+        };
+        (P.customFields || []).forEach(f => { taskRowVals[f.name] = S(t[f.name]); });
+
+        const row = ws.addRow(taskRowVals);
+        totalRowsAdded++;
+        row.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: COLORS.textDark } };
+        row.outlineLevel = 0;
+        row.eachCell((c, colIdx) => {
+          if (colIdx === 1) return;
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+          c.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+          };
+        });
+        ws.getCell(`K${row.number}`).numFmt = '0%';
+
+        // Add Subtasks (Children) Rows
+        (t.subtasks || []).forEach(s => {
+          const subRowVals = {
+            _spacer: '',
+            id: S(s.id),
+            name: '   ↳ ' + S(s.name),
+            type: S(s.type) || 'Subtask',
+            category: '',
+            module: S(t.module),
+            moduleType: '',
+            assignee: S(s.assignee),
+            status: S(s.status),
+            priority: '',
+            progress: s.status === 'Completed' ? 1.0 : 0.0,
+            startDate: cleanFmtDate(s.startDate),
+            dueDate: cleanFmtDate(s.dueDate),
+            actCompletionDate: cleanFmtDate(s.actCompletionDate),
+            estEffort: s.estEffort || 0,
+            actEffort: s.actEffort || 0,
+            complexity: '',
+            notes: S(s.notes)
+          };
+          (P.customFields || []).forEach(f => { subRowVals[f.name] = ''; });
+
+          const sRow = ws.addRow(subRowVals);
+          totalRowsAdded++;
+          sRow.font = { name: 'Segoe UI', size: 9, color: { argb: 'FF475569' } };
+          sRow.outlineLevel = 1;
+          sRow.hidden = true; // default collapsed
+          sRow.eachCell((c, colIdx) => {
+            if (colIdx === 1) return;
+            c.border = {
+              bottom: { style: 'thin', color: { argb: 'FFF1F5F9' } }
+            };
+          });
+          ws.getCell(`K${sRow.number}`).numFmt = '0%';
+
+          // If GUI module, add Level 2 Screen Sub-tasks (workflow steps)
+          if (t.moduleType === 'GUI' && s.workflow && s.workflow.length > 0) {
+            s.workflow.forEach((step, stepIdx) => {
+              const stepRowVals = {
+                _spacer: '',
+                id: `${s.id}.${stepIdx + 1}`,
+                name: '       ↳ ' + S(step.name),
+                type: 'Workflow Step',
+                category: '',
+                module: S(t.module),
+                moduleType: '',
+                assignee: S(s.assignee),
+                status: step.status || (step.done ? 'Completed' : 'Not Started'),
+                priority: '',
+                progress: step.done ? 1.0 : 0.0,
+                startDate: '',
+                dueDate: '',
+                actCompletionDate: cleanFmtDate(step.actCompletionDate),
+                estEffort: step.effort || 0,
+                actEffort: step.actEffort || 0,
+                complexity: '',
+                notes: ''
+              };
+              (P.customFields || []).forEach(f => { stepRowVals[f.name] = ''; });
+
+              const stepRow = ws.addRow(stepRowVals);
+              totalRowsAdded++;
+              stepRow.font = { name: 'Segoe UI', size: 8.5, italic: true, color: { argb: 'FF64748B' } };
+              stepRow.outlineLevel = 2;
+              stepRow.hidden = true; // default collapsed
+              stepRow.eachCell((c, colIdx) => {
+                if (colIdx === 1) return;
+                c.border = {
+                  bottom: { style: 'thin', color: { argb: 'FFF8FAFC' } }
+                };
+              });
+              ws.getCell(`K${stepRow.number}`).numFmt = '0%';
+            });
+          }
+        });
+      });
+
+      applyUnifiedSheetValidations(ws, wb, totalRowsAdded);
+    }
+
+    function applyUnifiedSheetValidations(ws, wb, totalRows) {
+      for (let r = 2; r <= totalRows; r++) {
+        ws.getCell(`E${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Categories'] };
+        ws.getCell(`F${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Modules'] };
+        ws.getCell(`G${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_ModuleTypes'] };
+        ws.getCell(`H${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Team'] };
+        ws.getCell(`I${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['Val_Statuses'] };
+        ws.getCell(`J${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Priorities'] };
+        ws.getCell(`K${r}`).dataValidation = { type: 'decimal', operator: 'between', formulae: [0, 1] };
+      }
+    }
+
     function buildTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
       const ws = wb.addWorksheet('Tasks', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 2 }] });
       ws.properties.tabColor = { argb: COLORS.emerald };
@@ -28174,44 +28347,44 @@
 
       drawTableHeader(curRow, ['Week', 'Velocity (Effort)'], 2); vLs.forEach((w, i) => { drawTableRow(curRow + 1 + i, [w.l, velData[i]], 2, i % 2 === 1); });
       ds.addConditionalFormatting({ ref: `C${curRow + 1}:C${curRow + vLs.length}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 100 }], color: { argb: COLORS.indigo } }] });
-      drawTableHeader(curRow, ['Week', 'Ideal', 'Actual'], 13); bLabels.slice(0, 10).forEach((l, i) => { drawTableRow(curRow + 1 + i, [l, Math.round(bIdeal[i]), Math.round(bActual[i])], 13, i % 2 === 1); });
-      drawPremiumCard(21, curRow, 3, 3, 'Total Effort', totalEffort + ' days', 'Estimated', COLORS.indigo); 
-      drawPremiumCard(21, curRow + 4, 3, 3, 'Remaining', Math.round(bActual[bActual.length - 1] || 0) + ' days', 'Current', COLORS.amber);
+      drawTableHeader(curRow, ['Week', 'Ideal', 'Actual'], 10); bLabels.slice(0, 10).forEach((l, i) => { drawTableRow(curRow + 1 + i, [l, Math.round(bIdeal[i]), Math.round(bActual[i])], 10, i % 2 === 1); });
+      drawPremiumCard(19, curRow, 6, 3, 'Total Effort', totalEffort + ' days', 'Estimated', COLORS.indigo); 
+      drawPremiumCard(19, curRow + 4, 6, 3, 'Remaining', Math.round(bActual[bActual.length - 1] || 0) + ' days', 'Current', COLORS.amber);
 
-      // Render Velocity Bar Chart next to Velocity table (F to L)
+      // Render Velocity Bar Chart next to Velocity table (E to J)
       try {
         const velocityData = {
           labels: vLs.map(w => w.l),
           values: velData
         };
-        const barImgBase64 = generateCanvasChart(480, 240, 'bar', velocityData);
+        const barImgBase64 = generateCanvasChart(360, 220, 'bar', velocityData);
         const barImgId = wb.addImage({ base64: barImgBase64, extension: 'png' });
         ds.addImage(barImgId, {
-          tl: { col: 5, row: curRow - 1 },
-          ext: { width: 480, height: 240 }
+          tl: { col: 4, row: curRow - 1 },
+          ext: { width: 360, height: 220 }
         });
       } catch (err) {
         console.error('Error generating velocity bar chart', err);
       }
 
-      // Render Burndown Line Chart next to Burndown table (Q to T)
+      // Render Burndown Line Chart next to Burndown table (N to S)
       try {
         const burndownData = {
           labels: bLabels.slice(0, 10),
           ideal: bIdeal.slice(0, 10).map(Math.round),
           actual: bActual.slice(0, 10).map(Math.round)
         };
-        const lineImgBase64 = generateCanvasChart(480, 240, 'line', burndownData);
+        const lineImgBase64 = generateCanvasChart(360, 220, 'line', burndownData);
         const lineImgId = wb.addImage({ base64: lineImgBase64, extension: 'png' });
         ds.addImage(lineImgId, {
-          tl: { col: 16, row: curRow - 1 },
-          ext: { width: 480, height: 240 }
+          tl: { col: 13, row: curRow - 1 },
+          ext: { width: 360, height: 220 }
         });
       } catch (err) {
         console.error('Error generating burndown line chart', err);
       }
 
-      curRow = curRow + Math.max(vLs.length, 10, 12) + 3;
+      curRow = curRow + Math.max(vLs.length, 10, 11) + 3;
 
       drawSectionTitle(curRow, 'Module & Feature Delivery Intelligence'); curRow += 2;
       const modSet = [...new Set(tasks.map(t => t.module).filter(Boolean))].slice(0, 12);
@@ -28243,14 +28416,14 @@
             modChartLabels.push(m);
             modChartValues.push(mAvg);
           });
-          const modBarImgBase64 = generateCanvasChart(360, 220, 'horizontalBar', {
+          const modBarImgBase64 = generateCanvasChart(340, 200, 'horizontalBar', {
             labels: modChartLabels,
             values: modChartValues
           });
           const modBarImgId = wb.addImage({ base64: modBarImgBase64, extension: 'png' });
           ds.addImage(modBarImgId, {
-            tl: { col: 5, row: curRow - 1 },
-            ext: { width: 360, height: 220 }
+            tl: { col: 6, row: curRow - 1 },
+            ext: { width: 340, height: 200 }
           });
         } catch (err) {
           console.error('Error generating module progress chart', err);
@@ -28269,21 +28442,21 @@
             featChartLabels.push(feat.name);
             featChartValues.push(fAvg);
           });
-          const featBarImgBase64 = generateCanvasChart(360, 220, 'horizontalBar', {
+          const featBarImgBase64 = generateCanvasChart(340, 200, 'horizontalBar', {
             labels: featChartLabels,
             values: featChartValues
           });
           const featBarImgId = wb.addImage({ base64: featBarImgBase64, extension: 'png' });
           ds.addImage(featBarImgId, {
-            tl: { col: 16, row: curRow - 1 },
-            ext: { width: 360, height: 220 }
+            tl: { col: 17, row: curRow - 1 },
+            ext: { width: 340, height: 200 }
           });
         } catch (err) {
           console.error('Error generating feature progress chart', err);
         }
       }
 
-      curRow = curRow + Math.max(modSet.length, feats.length, 11) + 3;
+      curRow = curRow + Math.max(modSet.length, feats.length, 10) + 3;
 
       drawSectionTitle(curRow, 'Team Workload & Capacity Analysis'); curRow += 2;
       const teamNames = [...new Set(tasks.map(t => t.assignee).filter(Boolean))].slice(0, 10);
@@ -28313,11 +28486,11 @@
               { label: 'Active', values: activeMData, color: '#4F46E5' }
             ]
           };
-          const teamBarImgBase64 = generateCanvasChart(480, 240, 'stackedHorizontalBar', teamWorkloadData);
+          const teamBarImgBase64 = generateCanvasChart(600, 240, 'stackedHorizontalBar', teamWorkloadData);
           const teamBarImgId = wb.addImage({ base64: teamBarImgBase64, extension: 'png' });
           ds.addImage(teamBarImgId, {
-            tl: { col: 8, row: curRow - 1 },
-            ext: { width: 480, height: 240 }
+            tl: { col: 9, row: curRow - 1 },
+            ext: { width: 600, height: 240 }
           });
         } catch (err) {
           console.error('Error generating team workload chart', err);
@@ -28339,7 +28512,7 @@
       drawTableHeader(curRow, ['Week', ...STATUSES], 2);
       last8WeeksCFD.forEach((w, i) => { const rowVals = [w.l]; STATUSES.forEach((s, si) => rowVals.push(cfdStacks[si][i])); drawTableRow(curRow + 1 + i, rowVals, 2, i % 2 === 1); });
 
-      // Render Stacked Area CFD Chart (col J to R)
+      // Render Stacked Area CFD Chart (col K to X)
       try {
         const cfdSeries = STATUSES.map((s, si) => ({
           label: s,
@@ -28350,11 +28523,11 @@
           labels: last8WeeksCFD.map(w => w.l),
           series: cfdSeries
         };
-        const cfdImgBase64 = generateCanvasChart(480, 240, 'stackedArea', cfdChartData);
+        const cfdImgBase64 = generateCanvasChart(600, 240, 'stackedArea', cfdChartData);
         const cfdImgId = wb.addImage({ base64: cfdImgBase64, extension: 'png' });
         ds.addImage(cfdImgId, {
-          tl: { col: 9, row: curRow - 1 },
-          ext: { width: 480, height: 240 }
+          tl: { col: 11, row: curRow - 1 },
+          ext: { width: 600, height: 240 }
         });
       } catch (err) {
         console.error('Error generating CFD chart', err);
@@ -28373,7 +28546,7 @@
         screens.slice(0, 20).forEach((s, i) => { const r = curRow + 1 + i; const p = (parseInt(s.progress) || 0); drawTableRow(r, [s.name, s.module || '-', styledVal(s.status, STATUS_COLORS[s.status] || COLORS.textDark, true), p + '%', p / 100], 2, i % 2 === 1); ds.getCell(r, 6).numFmt = '0%'; });
         ds.addConditionalFormatting({ ref: `F${curRow + 1}:F${curRow + Math.min(20, screens.length)}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 1 }], color: { argb: COLORS.emerald } }] });
 
-        // Render Screen Progress Donut Chart
+        // Render Screen Progress Donut Chart (col K to X)
         try {
           const screenStatusCounts = {};
           screens.forEach(s => {
@@ -28385,11 +28558,11 @@
             value: screenStatusCounts[status],
             color: '#' + (STATUS_COLORS[status] || COLORS.textDark).replace('#', '')
           }));
-          const scrImgBase64 = generateCanvasChart(360, 220, 'donut', screenChartData, { centerText: screens.length + ' Screens' });
+          const scrImgBase64 = generateCanvasChart(550, 220, 'donut', screenChartData, { centerText: screens.length + ' Screens' });
           const scrImgId = wb.addImage({ base64: scrImgBase64, extension: 'png' });
           ds.addImage(scrImgId, {
-            tl: { col: 8, row: curRow - 1 },
-            ext: { width: 360, height: 220 }
+            tl: { col: 11, row: curRow - 1 },
+            ext: { width: 550, height: 220 }
           });
         } catch (err) {
           console.error('Error generating screen progress donut chart', err);
@@ -28404,7 +28577,7 @@
         drawTableHeader(curRow, ['ID', 'Milestone Name', 'Due Date', 'Status', 'Progress', 'Priority'], 2);
         msTasks.forEach((t, i) => { const r = curRow + 1 + i; drawTableRow(r, [t.id, t.name, cleanFmtDate(t.dueDate), styledVal(t.status, STATUS_COLORS[t.status] || COLORS.textDark, true), (t.progress || 0) + '%', styledVal(t.priority, priColors[t.priority] || COLORS.textDark, true)], 2, i % 2 === 1); });
 
-        // Render Milestone Status Donut Chart
+        // Render Milestone Status Donut Chart (col K to X)
         try {
           const msStatusCounts = {};
           msTasks.forEach(t => {
@@ -28416,11 +28589,11 @@
             value: msStatusCounts[status],
             color: '#' + (STATUS_COLORS[status] || COLORS.textDark).replace('#', '')
           }));
-          const msImgBase64 = generateCanvasChart(360, 220, 'donut', msChartData, { centerText: msTasks.length + ' Milestones' });
+          const msImgBase64 = generateCanvasChart(550, 220, 'donut', msChartData, { centerText: msTasks.length + ' Milestones' });
           const msImgId = wb.addImage({ base64: msImgBase64, extension: 'png' });
           ds.addImage(msImgId, {
-            tl: { col: 9, row: curRow - 1 },
-            ext: { width: 360, height: 220 }
+            tl: { col: 11, row: curRow - 1 },
+            ext: { width: 550, height: 220 }
           });
         } catch (err) {
           console.error('Error generating milestone chart', err);
@@ -28447,7 +28620,7 @@
           drawTableRow(r, rowVals, 2, i % 2 === 1);
         });
 
-        // Render Module Health Bar Chart
+        // Render Module Health Bar Chart (col K to X)
         try {
           const modHealthLabels = [];
           const modHealthValues = [];
@@ -28457,14 +28630,14 @@
             modHealthLabels.push(m);
             modHealthValues.push(mAvg);
           });
-          const modHealthBarImgBase64 = generateCanvasChart(480, 240, 'bar', {
+          const modHealthBarImgBase64 = generateCanvasChart(600, 240, 'bar', {
             labels: modHealthLabels,
             values: modHealthValues
           });
           const modHealthBarImgId = wb.addImage({ base64: modHealthBarImgBase64, extension: 'png' });
           ds.addImage(modHealthBarImgId, {
-            tl: { col: 9, row: curRow - 1 },
-            ext: { width: 480, height: 240 }
+            tl: { col: 11, row: curRow - 1 },
+            ext: { width: 600, height: 240 }
           });
         } catch (err) {
           console.error('Error generating module health chart', err);
@@ -28480,7 +28653,7 @@
         drawTableHeader(curRow, ['Severity', 'Count', '%'], 2); sevEntries.forEach(([s, cnt], i) => { drawTableRow(curRow + 1 + i, [styledVal(s, priColors[s] || COLORS.textDark, true), cnt, defs.length ? Math.round(cnt / defs.length * 100) + '%' : '0%'], 2, i % 2 === 1); });
 
         const pdfCache = buildDashCache(tasks, P.log); const modBugs = {}; defs.forEach(d => { let mod = 'General'; if (pdfCache.taskById[d.linkedId]) { mod = pdfCache.taskById[d.linkedId].module || 'General'; } else if (pdfCache.subtaskById[d.linkedId]) { mod = pdfCache.subtaskById[d.linkedId].parentTask.module || 'General'; } else if (pdfCache.screenByName[d.linkedId]) { mod = pdfCache.screenByName[d.linkedId].module || 'General'; } modBugs[mod] = (modBugs[mod] || 0) + 1; });
-        const mbEntries = Object.entries(modBugs).sort((a, b) => b[1] - a[1]).slice(0, 8); drawTableHeader(curRow, ['Module', 'Defects', '%'], 8); mbEntries.forEach(([m, cnt], i) => { drawTableRow(curRow + 1 + i, [m, cnt, defs.length ? Math.round(cnt / defs.length * 100) + '%' : '0%'], 8, i % 2 === 1); });
+        const mbEntries = Object.entries(modBugs).sort((a, b) => b[1] - a[1]).slice(0, 8); drawTableHeader(curRow, ['Module', 'Defects', '%'], 13); mbEntries.forEach(([m, cnt], i) => { drawTableRow(curRow + 1 + i, [m, cnt, defs.length ? Math.round(cnt / defs.length * 100) + '%' : '0%'], 13, i % 2 === 1); });
 
         // Render Defect Severity Donut Chart
         const defSeverityChartData = sevEntries.map(([s, cnt]) => ({
@@ -28489,11 +28662,11 @@
           color: '#' + (priColors[s] || COLORS.textDark).replace('#', '')
         }));
         try {
-          const defDonutImgBase64 = generateCanvasChart(240, 140, 'donut', defSeverityChartData, { centerText: defs.length + ' Bugs' });
+          const defDonutImgBase64 = generateCanvasChart(340, 160, 'donut', defSeverityChartData, { centerText: defs.length + ' Bugs' });
           const defDonutImgId = wb.addImage({ base64: defDonutImgBase64, extension: 'png' });
           ds.addImage(defDonutImgId, {
-            tl: { col: 5, row: curRow - 1 },
-            ext: { width: 240, height: 140 }
+            tl: { col: 6, row: curRow - 1 },
+            ext: { width: 340, height: 160 }
           });
         } catch (err) {
           console.error('Error generating defect severity chart', err);
@@ -28503,7 +28676,7 @@
         try {
           const defModChartLabels = mbEntries.map(e => e[0]);
           const defModChartValues = mbEntries.map(e => e[1]);
-          const defModImgBase64 = generateCanvasChart(300, 140, 'horizontalBar', {
+          const defModImgBase64 = generateCanvasChart(360, 160, 'horizontalBar', {
             labels: defModChartLabels,
             values: defModChartValues
           }, {
@@ -28513,8 +28686,8 @@
           });
           const defModImgId = wb.addImage({ base64: defModImgBase64, extension: 'png' });
           ds.addImage(defModImgId, {
-            tl: { col: 11, row: curRow - 1 },
-            ext: { width: 300, height: 140 }
+            tl: { col: 17, row: curRow - 1 },
+            ext: { width: 360, height: 160 }
           });
         } catch (err) {
           console.error('Error generating defect module chart', err);
@@ -28579,8 +28752,7 @@
 
       if (P.view === 'tasks') {
         buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate);
-        buildTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
-        buildSubtasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+        buildUnifiedTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
       } else if (P.view === 'defects') {
         buildDefectsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
       } else {
