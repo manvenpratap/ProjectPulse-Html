@@ -17626,7 +17626,7 @@
       if (!inner) return;
 
       if (P.activeReportId) {
-        if (!inner.innerHTML) viewReport(P.activeReportId);
+        viewReport(P.activeReportId);
         return;
       }
 
@@ -18039,7 +18039,8 @@
     function viewReport(id) {
       P.activeReportId = id;
       const r = P.reports.find(x => x.id === id); if (!r) return;
-      const inner = $id('rpt-inner'); inner.innerHTML = '';
+      const inner = $id('rpt-inner'); if (!inner) return;
+      inner.innerHTML = '';
       const tasks = P.tasks, now = new Date();
       const total = tasks.length, done = tasks.filter(t => t.status === 'Completed').length;
       const completionPct = total ? Math.round(done / total * 100) : 0;
@@ -20499,8 +20500,8 @@
             row.onmouseenter = () => row.style.background = 'var(--color-surface-2)';
             row.onmouseleave = () => row.style.background = 'transparent';
             row.onclick = () => {
+              P.activeReportId = r.id;
               setView('reports');
-              viewReport(r.id);
             };
             row.innerHTML = `<div style="font-size:11px;font-weight:600">${esc(r.title || 'Untitled')}</div><div style="font-size:9px;color:var(--color-text-faint);font-family:var(--mono)">${r.periodStart || '—'} → ${r.periodEnd || '—'}</div>`;
             rSec.appendChild(row);
@@ -24607,7 +24608,10 @@
         btn.className = 'btn';
         if (P.view === vid) btn.classList.add('active');
         btn.setAttribute('data-v', vid);
-        btn.onclick = () => setView(vid);
+        btn.onclick = () => {
+          if (vid === 'reports') P.activeReportId = null;
+          setView(vid);
+        };
         btn.title = viewDef.title;
         if (vid === 'log') {
           btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${viewDef.label} <span id="log-badge" class="badge" style="display:none;margin-left:6px;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">0</span>`;
@@ -24621,7 +24625,10 @@
         mBtn.className = 'mobile-nav-item';
         if (P.view === vid) mBtn.classList.add('active');
         mBtn.setAttribute('data-v', vid);
-        mBtn.onclick = () => setView(vid);
+        mBtn.onclick = () => {
+          if (vid === 'reports') P.activeReportId = null;
+          setView(vid);
+        };
         if (vid === 'log') {
           mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${viewDef.label}</span><span id="log-badge-mobile" class="badge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:white;font-size:9px;padding:1px 4px;border-radius:10px;line-height:1">0</span>`;
         } else {
@@ -27873,6 +27880,155 @@
             ctx.textBaseline = 'top';
             ctx.fillText(data.labels[idx], xCenter, height - padB + 4);
           });
+        } else if (type === 'horizontalBar') {
+          const padL = 60;
+          const padR = 25;
+          const padT = 15;
+          const padB = 15;
+          const chartW = width - padL - padR;
+          const chartH = height - padT - padB;
+
+          const numBars = data.labels.length || 1;
+          const barHeight = (chartH / numBars) * 0.55;
+          const spacing = (chartH / numBars);
+
+          const isCount = colors && colors.isCount;
+          const maxVal = isCount ? Math.max(...data.values, 1) : 100;
+
+          ctx.font = '7.5px Segoe UI';
+          ctx.textBaseline = 'middle';
+
+          data.values.forEach((val, idx) => {
+            const yCenter = padT + idx * spacing + spacing / 2;
+            const y = yCenter - barHeight / 2;
+            const w = chartW * (Math.min(maxVal, Math.max(0, val)) / maxVal);
+
+            // Draw shadow/track bar
+            ctx.fillStyle = '#F1F5F9';
+            ctx.fillRect(padL, y, chartW, barHeight);
+
+            // Draw progress bar
+            const barGrad = ctx.createLinearGradient(padL, 0, padL + chartW, 0);
+            if (isCount) {
+              barGrad.addColorStop(0, colors.barColorStart || '#EF4444');
+              barGrad.addColorStop(1, colors.barColorEnd || '#F87171');
+            } else {
+              barGrad.addColorStop(0, '#10B981');
+              barGrad.addColorStop(1, '#34D399');
+            }
+            ctx.fillStyle = barGrad;
+            ctx.fillRect(padL, y, w, barHeight);
+
+            // Draw Label
+            ctx.fillStyle = '#475569';
+            ctx.textAlign = 'right';
+            ctx.font = 'bold 7.5px Segoe UI';
+            const cleanLbl = String(data.labels[idx]).length > 11 ? String(data.labels[idx]).substring(0, 9) + '..' : data.labels[idx];
+            ctx.fillText(cleanLbl, padL - 6, yCenter);
+
+            // Draw Value
+            ctx.fillStyle = '#0F172A';
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 8px Segoe UI';
+            ctx.fillText(isCount ? String(Math.round(val)) : Math.round(val) + '%', padL + w + 4, yCenter);
+          });
+        } else if (type === 'stackedArea') {
+          const padL = 30;
+          const padR = 75;
+          const padT = 15;
+          const padB = 20;
+          const chartW = width - padL - padR;
+          const chartH = height - padT - padB;
+
+          const numPoints = data.labels.length || 1;
+          const accumulated = [];
+
+          // Initialize accumulation
+          for (let pIdx = 0; pIdx < numPoints; pIdx++) {
+            accumulated[pIdx] = [];
+            let sum = 0;
+            data.series.forEach((s, sIdx) => {
+              sum += (s.values[pIdx] || 0);
+              accumulated[pIdx][sIdx] = sum;
+            });
+          }
+
+          const maxVal = Math.max(...accumulated.map(row => row[row.length - 1] || 1)) * 1.15;
+
+          // Draw Grid
+          ctx.strokeStyle = '#F1F5F9';
+          ctx.lineWidth = 1;
+          ctx.font = '7.5px Segoe UI';
+          ctx.fillStyle = '#94A3B8';
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'middle';
+
+          for (let i = 0; i <= 4; i++) {
+            const y = padT + chartH * (1 - i / 4);
+            const v = Math.round(maxVal * (i / 4));
+            ctx.beginPath();
+            ctx.moveTo(padL, y);
+            ctx.lineTo(width - padR, y);
+            ctx.stroke();
+            ctx.fillText(String(v), padL - 4, y);
+          }
+
+          // X Labels
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          data.labels.forEach((lbl, idx) => {
+            const x = padL + (idx / Math.max(1, numPoints - 1)) * chartW;
+            ctx.fillText(lbl, x, height - padB + 4);
+          });
+
+          const getPt = (idx, val) => {
+            const x = padL + (idx / Math.max(1, numPoints - 1)) * chartW;
+            const y = padT + chartH * (1 - val / maxVal);
+            return { x, y };
+          };
+
+          // Draw stacked areas from top (highest sum) to bottom (series 0)
+          for (let sIdx = data.series.length - 1; sIdx >= 0; sIdx--) {
+            const s = data.series[sIdx];
+            ctx.fillStyle = s.color;
+            ctx.beginPath();
+            for (let pIdx = 0; pIdx < numPoints; pIdx++) {
+              const pt = getPt(pIdx, accumulated[pIdx][sIdx]);
+              if (pIdx === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+            }
+            // Close down to 0
+            const ptLast = getPt(numPoints - 1, 0);
+            const ptFirst = getPt(0, 0);
+            ctx.lineTo(ptLast.x, ptLast.y);
+            ctx.lineTo(ptFirst.x, ptFirst.y);
+            ctx.closePath();
+            ctx.fill();
+
+            // Draw line border
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let pIdx = 0; pIdx < numPoints; pIdx++) {
+              const pt = getPt(pIdx, accumulated[pIdx][sIdx]);
+              if (pIdx === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+            }
+            ctx.stroke();
+          }
+
+          // Draw legend
+          const legendX = width - padR + 10;
+          let legendY = height * 0.15;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.font = '7.5px Segoe UI';
+
+          data.series.slice().reverse().forEach(s => {
+            ctx.fillStyle = s.color;
+            ctx.fillRect(legendX, legendY - 3, 6, 6);
+            ctx.fillStyle = '#475569';
+            ctx.fillText(s.label, legendX + 10, legendY);
+            legendY += 13;
+          });
         }
 
         return canvas.toDataURL('image/png');
@@ -28130,7 +28286,33 @@
         });
         ds.addConditionalFormatting({ ref: `K${curRow + 1}:K${curRow + feats.length}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 1 }], color: { argb: COLORS.indigo } }] });
       }
-      curRow = curRow + Math.max(modSet.length, feats.length) + 3;
+
+      // Render Module Progress Horizontal Bar Chart
+      if (modSet.length) {
+        try {
+          const modChartLabels = [];
+          const modChartValues = [];
+          modSet.forEach(m => {
+            const mt = tasks.filter(t => t.module === m);
+            const mAvg = mt.length ? Math.round(mt.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / mt.length) : 0;
+            modChartLabels.push(m);
+            modChartValues.push(mAvg);
+          });
+          const modBarImgBase64 = generateCanvasChart(280, 160, 'horizontalBar', {
+            labels: modChartLabels,
+            values: modChartValues
+          });
+          const modBarImgId = wb.addImage({ base64: modBarImgBase64, extension: 'png' });
+          ds.addImage(modBarImgId, {
+            tl: { col: 12, row: curRow },
+            ext: { width: 280, height: 160 }
+          });
+        } catch (err) {
+          console.error('Error generating module progress chart', err);
+        }
+      }
+
+      curRow = curRow + Math.max(modSet.length, feats.length, 7) + 3;
 
       drawSectionTitle(curRow, 'Team Workload & Capacity Analysis'); curRow += 2;
       const teamNames = [...new Set(tasks.map(t => t.assignee).filter(Boolean))].slice(0, 10);
@@ -28155,6 +28337,28 @@
       }).length));
       drawTableHeader(curRow, ['Week', ...STATUSES], 2);
       last8WeeksCFD.forEach((w, i) => { const rowVals = [w.l]; STATUSES.forEach((s, si) => rowVals.push(cfdStacks[si][i])); drawTableRow(curRow + 1 + i, rowVals, 2, i % 2 === 1); });
+
+      // Render Stacked Area CFD Chart
+      try {
+        const cfdSeries = STATUSES.map((s, si) => ({
+          label: s,
+          values: cfdStacks[si],
+          color: '#' + (STATUS_COLORS[s] || COLORS.textDark).replace('#', '')
+        }));
+        const cfdChartData = {
+          labels: last8WeeksCFD.map(w => w.l),
+          series: cfdSeries
+        };
+        const cfdImgBase64 = generateCanvasChart(350, 160, 'stackedArea', cfdChartData);
+        const cfdImgId = wb.addImage({ base64: cfdImgBase64, extension: 'png' });
+        ds.addImage(cfdImgId, {
+          tl: { col: 10, row: curRow },
+          ext: { width: 350, height: 160 }
+        });
+      } catch (err) {
+        console.error('Error generating CFD chart', err);
+      }
+
       curRow = curRow + last8WeeksCFD.length + 3;
 
       const screens = tasks.flatMap(t => {
@@ -28206,7 +28410,46 @@
 
         const pdfCache = buildDashCache(tasks, P.log); const modBugs = {}; defs.forEach(d => { let mod = 'General'; if (pdfCache.taskById[d.linkedId]) { mod = pdfCache.taskById[d.linkedId].module || 'General'; } else if (pdfCache.subtaskById[d.linkedId]) { mod = pdfCache.subtaskById[d.linkedId].parentTask.module || 'General'; } else if (pdfCache.screenByName[d.linkedId]) { mod = pdfCache.screenByName[d.linkedId].module || 'General'; } modBugs[mod] = (modBugs[mod] || 0) + 1; });
         const mbEntries = Object.entries(modBugs).sort((a, b) => b[1] - a[1]).slice(0, 8); drawTableHeader(curRow, ['Module', 'Defects', '%'], 8); mbEntries.forEach(([m, cnt], i) => { drawTableRow(curRow + 1 + i, [m, cnt, defs.length ? Math.round(cnt / defs.length * 100) + '%' : '0%'], 8, i % 2 === 1); });
-        curRow = curRow + Math.max(sevEntries.length, mbEntries.length) + 2;
+
+        // Render Defect Severity Donut Chart
+        const defSeverityChartData = sevEntries.map(([s, cnt]) => ({
+          label: s,
+          value: cnt,
+          color: '#' + (priColors[s] || COLORS.textDark).replace('#', '')
+        }));
+        try {
+          const defDonutImgBase64 = generateCanvasChart(200, 130, 'donut', defSeverityChartData, { centerText: defs.length + ' Bugs' });
+          const defDonutImgId = wb.addImage({ base64: defDonutImgBase64, extension: 'png' });
+          ds.addImage(defDonutImgId, {
+            tl: { col: 4, row: curRow },
+            ext: { width: 200, height: 130 }
+          });
+        } catch (err) {
+          console.error('Error generating defect severity chart', err);
+        }
+
+        // Render Defect Module Horizontal Bar Chart (Count scale)
+        try {
+          const defModChartLabels = mbEntries.map(e => e[0]);
+          const defModChartValues = mbEntries.map(e => e[1]);
+          const defModImgBase64 = generateCanvasChart(280, 130, 'horizontalBar', {
+            labels: defModChartLabels,
+            values: defModChartValues
+          }, {
+            isCount: true,
+            barColorStart: '#EF4444',
+            barColorEnd: '#F87171'
+          });
+          const defModImgId = wb.addImage({ base64: defModImgBase64, extension: 'png' });
+          ds.addImage(defModImgId, {
+            tl: { col: 11, row: curRow },
+            ext: { width: 280, height: 130 }
+          });
+        } catch (err) {
+          console.error('Error generating defect module chart', err);
+        }
+
+        curRow = curRow + Math.max(sevEntries.length, mbEntries.length, 6) + 3;
       }
 
       if (overdueTasks.length) {
