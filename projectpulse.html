@@ -22298,10 +22298,155 @@
                           <span style="font-size:12px;color:var(--color-text-muted);font-weight:600">Mapped Screens</span>
                           <span class="fi-stat-val" style="font-size:18px;font-weight:800;color:var(--color-primary);font-family:var(--font-mono)">${totalScreensMapped}</span>
                         </div>
+                        <div class="fi-stat-box" style="background:var(--color-surface-2);padding:12px 16px;border-radius:var(--radius-md);border:1px solid var(--color-border);box-shadow:0 2px 8px rgba(0,0,0,0.04);display:flex;justify-content:space-between;align-items:center">
+                          <span style="font-size:12px;color:var(--color-text-muted);font-weight:600">Unmapped</span>
+                          <span class="fi-stat-val" style="font-size:18px;font-weight:800;color:var(--color-text-muted);font-family:var(--font-mono)">${totalFeats - mappedFeats}</span>
+                        </div>
                       </div>
                     </div>`;
 
             dashDrawQueue.push(() => drawProgressRing($id('dash-feat-ring'), mappingRate));
+
+            // ── Shared metrics pre-computation ────────────────────────────────────
+            const featMetrics = feats.map(f => {
+              const screenCount = (f.screens || []).length;
+              const fScreenTasks = [];
+              (f.screens || []).forEach(scName => {
+                if (dashCache.subtasksByScreen[scName]) fScreenTasks.push(...dashCache.subtasksByScreen[scName]);
+                else if (dashCache.screenByName[scName] && dashCache.screenByName[scName].parentTasks) fScreenTasks.push(...dashCache.screenByName[scName].parentTasks);
+              });
+              const tot = fScreenTasks.length;
+              const done = fScreenTasks.filter(s => s.status === 'Completed').length;
+              const avgP = tot ? Math.round(fScreenTasks.reduce((s, sc) => s + (sc.progress || 0), 0) / tot) : 0;
+              const overdue = fScreenTasks.filter(s => { const dd = daysDiff(s.dueDate); return dd !== null && dd < 0 && s.status !== 'Completed'; }).length;
+              return { f, screenCount, tot, done, avgP, overdue };
+            });
+
+            // ── Widget 2: Complexity Distribution ────────────────────────────────
+            const cxSimple = featMetrics.filter(m => m.screenCount <= 2).length;
+            const cxModerate = featMetrics.filter(m => m.screenCount >= 3 && m.screenCount <= 5).length;
+            const cxComplex = featMetrics.filter(m => m.screenCount >= 6).length;
+
+            const cxId = 'dash-feat-cx';
+            const cxSpan = (P.widgetSpans && P.widgetSpans[cxId]) || 1;
+            const cxCard = mkCC('Complexity Distribution', 'By screen density tier', cxId, '', 'standard', '<b>Complexity Tiers:</b> Groups features by their UI screen count. Simple (0-2 screens) have lower risk; Complex (6+ screens) represent intricate user flows needing early testing.', 'View Explanation', 'layers');
+            cxCard.style.gridColumn = `span ${cxSpan}`;
+            grid.appendChild(cxCard);
+            const cxCvs = mkCvs(240, 150); cxCard.querySelector('.cb').appendChild(cxCvs);
+            const cxLeg = document.createElement('div'); cxLeg.className = 'cleg'; cxCard.appendChild(cxLeg);
+            const cxData = [['Simple (0-2)', cxSimple], ['Moderate (3-5)', cxModerate], ['Complex (6+)', cxComplex]].filter(([, v]) => v > 0);
+            dashDrawQueue.push(() => {
+              drawDonut(cxCvs, cxData, ['var(--green)', 'var(--amber)', 'var(--red)']);
+              [['Simple (0-2)', 'var(--green)'], ['Moderate (3-5)', 'var(--amber)'], ['Complex (6+)', 'var(--red)']].forEach(([l, c]) => {
+                cxLeg.innerHTML += `<div class="cli"><div class="cdot" style="background:${c}"></div>${l}</div>`;
+              });
+            });
+
+            // ── Widget 3: Screen Density Leaderboard ──────────────────────────────
+            const sdId = 'dash-feat-sd';
+            const sdSpan = (P.widgetSpans && P.widgetSpans[sdId]) || 1;
+            const sdCard = mkCC('Screen Density Leaderboard', 'Features ranked by UI screen count', sdId, '', 'standard', '<b>Screen Density:</b> Ranks features by number of mapped UI screens. High-density features are the most architecturally complex and typically demand the most QA effort.', 'View Explanation', 'bar-chart-2');
+            sdCard.style.gridColumn = `span ${sdSpan}`;
+            grid.appendChild(sdCard);
+            const sdCvs = mkCvs(280, 160); sdCard.querySelector('.cb').appendChild(sdCvs);
+            const sdData = [...featMetrics].sort((a, b) => b.screenCount - a.screenCount).slice(0, 8).map(m => [m.f.name.length > 12 ? m.f.name.slice(0, 11) + '\u2026' : m.f.name, m.screenCount]);
+            dashDrawQueue.push(() => drawVBar(sdCvs, sdData, ['var(--color-primary)']));
+
+            // ── Widget 4: Feature Maturity Progression ────────────────────────────
+            const matId = 'dash-feat-mat';
+            const matSpan = (P.widgetSpans && P.widgetSpans[matId]) || 2;
+            const matCard = mkCC('Feature Maturity Progression', 'Completion rollup per feature', matId, '', 'standard', '<b>Maturity Rollup:</b> Aggregate task completion percentage per feature based on linked GUI screens and subtasks. 100% means all linked work is done.', 'View Explanation', 'trending-up');
+            matCard.style.gridColumn = `span ${matSpan}`;
+            grid.appendChild(matCard);
+            (() => {
+              const sorted = [...featMetrics].sort((a, b) => b.avgP - a.avgP);
+              let matHtml = '<div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px">';
+              sorted.slice(0, 10).forEach(m => {
+                const pct = m.avgP;
+                const barColor = m.overdue > 0 ? 'var(--red)' : pct === 100 ? 'var(--green)' : pct > 60 ? 'var(--color-primary)' : pct > 0 ? 'var(--amber)' : 'var(--color-surface-3)';
+                matHtml += `
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <div style="font-size:11px;font-weight:600;color:var(--color-text);width:110px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(m.f.name)}">${esc(m.f.name)}</div>
+                    <div style="flex:1;height:8px;background:var(--color-surface-3);border-radius:4px;overflow:hidden">
+                      <div style="width:${pct}%;height:100%;background:${barColor};border-radius:4px;transition:width 0.6s ease"></div>
+                    </div>
+                    <div style="font-size:11px;font-weight:800;color:${barColor};font-family:var(--font-mono);width:34px;text-align:right">${pct}%</div>
+                    ${m.overdue > 0 ? `<div title="${m.overdue} overdue" style="color:var(--red);display:flex;align-items:center"><i data-lucide="alert-triangle" style="width:13px;height:13px"></i></div>` : '<div style="width:13px"></div>'}
+                  </div>`;
+              });
+              matHtml += '</div>';
+              matCard.querySelector('.cb').innerHTML = matHtml;
+            })();
+
+            // ── Widget 5: Delivery Risk Register ──────────────────────────────────
+            const atRisk = featMetrics.filter(m => m.overdue > 0 || (m.tot > 0 && m.avgP < 30 && m.screenCount >= 3));
+            const riskId = 'dash-feat-risk';
+            const riskSpan = (P.widgetSpans && P.widgetSpans[riskId]) || 2;
+            const riskCard = mkCC('Delivery Risk Register', `${atRisk.length} feature${atRisk.length !== 1 ? 's' : ''} flagged`, riskId, '', 'standard', '<b>Delivery Risk:</b> Features with overdue tasks or low completion (<30%) despite having 3+ screens. These are highest-priority items for PM intervention.', 'View Explanation', 'alert-triangle');
+            riskCard.style.gridColumn = `span ${riskSpan}`;
+            grid.appendChild(riskCard);
+            if (atRisk.length > 0) {
+              let riskHtml = '<div style="padding:12px 16px;display:flex;flex-direction:column;gap:8px">';
+              riskHtml += `<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:8px 16px;padding:0 0 8px;border-bottom:1px solid var(--color-border)">
+                <span style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase">Feature</span>
+                <span style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;text-align:center">Screens</span>
+                <span style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;text-align:center">Done</span>
+                <span style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;text-align:center">Overdue</span>
+              </div>`;
+              atRisk.slice(0, 8).forEach(m => {
+                const riskColor = m.overdue > 2 ? 'var(--red)' : m.overdue > 0 ? 'var(--amber)' : 'var(--color-primary)';
+                riskHtml += `<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:8px 16px;align-items:center;padding:6px 0;border-bottom:1px solid var(--color-surface-3)">
+                  <div style="display:flex;align-items:center;gap:6px;min-width:0">
+                    <i data-lucide="alert-circle" style="width:13px;height:13px;color:${riskColor};flex-shrink:0"></i>
+                    <span style="font-size:12px;font-weight:600;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(m.f.name)}">${esc(m.f.name)}</span>
+                  </div>
+                  <span style="font-size:12px;font-weight:700;color:var(--color-text-muted);font-family:var(--font-mono);text-align:center">${m.screenCount}</span>
+                  <span style="font-size:12px;font-weight:700;color:var(--color-primary);font-family:var(--font-mono);text-align:center">${m.avgP}%</span>
+                  <span style="font-size:12px;font-weight:800;color:${m.overdue > 0 ? 'var(--red)' : 'var(--color-text-faint)'};font-family:var(--font-mono);text-align:center">${m.overdue}</span>
+                </div>`;
+              });
+              riskHtml += '</div>';
+              riskCard.querySelector('.cb').innerHTML = riskHtml;
+            } else {
+              riskCard.querySelector('.cb').innerHTML = `
+                <div style="padding:32px 20px;text-align:center">
+                  <div style="width:44px;height:44px;border-radius:50%;background:rgba(16,185,129,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;color:var(--green)"><i data-lucide="check-circle" style="width:22px;height:22px"></i></div>
+                  <div style="font-size:13px;font-weight:700;color:var(--color-text)">No Features At Risk</div>
+                  <div style="font-size:11px;color:var(--color-text-faint);margin-top:4px">All features are on track or have no linked tasks yet.</div>
+                </div>`;
+            }
+
+            // ── Widget 6: Feature Health Snapshot KPI strip ───────────────────────
+            const healthId = 'dash-feat-health';
+            const healthSpan = (P.widgetSpans && P.widgetSpans[healthId]) || 4;
+            const healthCard = mkCC('Feature Health Snapshot', 'Portfolio-level status distribution', healthId, '', 'standard', '<b>Feature Health:</b> Rapid portfolio overview. Completed = all linked tasks done. In Progress = partial completion. Planned = no tasks started. Unmapped = no screens linked yet.', 'View Explanation', 'activity');
+            healthCard.style.gridColumn = `span ${healthSpan}`;
+            grid.appendChild(healthCard);
+            (() => {
+              const fCompleted = featMetrics.filter(m => m.avgP === 100 && m.tot > 0).length;
+              const fInProgress = featMetrics.filter(m => m.avgP > 0 && m.avgP < 100).length;
+              const fPlanned = featMetrics.filter(m => m.avgP === 0 && m.tot === 0 && m.screenCount > 0).length;
+              const fUnmapped = featMetrics.filter(m => m.screenCount === 0).length;
+              const fAtRisk = atRisk.length;
+              const avgMaturity = totalFeats ? Math.round(featMetrics.reduce((s, m) => s + m.avgP, 0) / totalFeats) : 0;
+              const kpis = [
+                { label: 'Completed', val: fCompleted, color: 'var(--green)', icon: 'check-circle' },
+                { label: 'In Progress', val: fInProgress, color: 'var(--color-primary)', icon: 'clock' },
+                { label: 'Planned', val: fPlanned, color: 'var(--color-text-muted)', icon: 'circle' },
+                { label: 'Unmapped', val: fUnmapped, color: 'var(--amber)', icon: 'unlink' },
+                { label: 'At Risk', val: fAtRisk, color: fAtRisk > 0 ? 'var(--red)' : 'var(--color-text-muted)', icon: 'alert-triangle' },
+                { label: 'Avg Maturity', val: avgMaturity + '%', color: avgMaturity > 70 ? 'var(--green)' : avgMaturity > 40 ? 'var(--color-primary)' : 'var(--amber)', icon: 'trending-up' },
+              ];
+              healthCard.querySelector('.cb').innerHTML = `
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:0;padding:4px 8px 12px">
+                  ${kpis.map((k, ki) => `
+                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px 8px;gap:6px;${ki < kpis.length - 1 ? 'border-right:1px solid var(--color-surface-3)' : ''}">
+                      <div style="width:36px;height:36px;border-radius:10px;background:rgba(0,0,0,0.04);display:flex;align-items:center;justify-content:center;color:${k.color}"><i data-lucide="${k.icon}" style="width:18px;height:18px"></i></div>
+                      <div style="font-size:22px;font-weight:900;color:${k.color};font-family:var(--font-display);line-height:1">${k.val}</div>
+                      <div style="font-size:10px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.04em;text-align:center">${k.label}</div>
+                    </div>`).join('')}
+                </div>`;
+            })();
           } else {
             addST(inner, 'Feature Intelligence');
             const grid = addGrid(inner);
