@@ -27688,6 +27688,196 @@
 
       const applyBg = (r, c, color) => { ds.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } }; };
 
+      function generateCanvasChart(width, height, type, data, colors) {
+        const canvas = document.createElement('canvas');
+        canvas.width = width * 2;
+        canvas.height = height * 2;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(2, 2);
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, width, height);
+
+        if (type === 'donut') {
+          const total = data.reduce((sum, item) => sum + item.value, 0) || 1;
+          const centerX = width * 0.3;
+          const centerY = height * 0.5;
+          const radius = Math.min(centerX, centerY) * 0.8;
+          const innerRadius = radius * 0.55;
+
+          let startAngle = -Math.PI / 2;
+          data.forEach(item => {
+            const sliceAngle = (item.value / total) * 2 * Math.PI;
+            if (sliceAngle <= 0) return;
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
+            ctx.arc(centerX, centerY, innerRadius, startAngle + sliceAngle, startAngle, true);
+            ctx.closePath();
+            ctx.fillStyle = item.color;
+            ctx.fill();
+
+            startAngle += sliceAngle;
+          });
+
+          if (colors && colors.centerText) {
+            ctx.fillStyle = '#0F172A';
+            ctx.font = 'bold 12px Segoe UI';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(colors.centerText, centerX, centerY);
+          }
+
+          const legendX = width * 0.65;
+          let legendY = height * 0.15;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.font = '8px Segoe UI';
+
+          data.forEach(item => {
+            ctx.fillStyle = item.color;
+            ctx.fillRect(legendX, legendY - 4, 8, 8);
+            ctx.fillStyle = '#475569';
+            ctx.fillText(`${item.label} (${item.value})`, legendX + 14, legendY);
+            legendY += 14;
+          });
+        } else if (type === 'line') {
+          const padL = 30;
+          const padR = 10;
+          const padT = 15;
+          const padB = 20;
+          const chartW = width - padL - padR;
+          const chartH = height - padT - padB;
+
+          const maxVal = Math.max(...data.ideal, ...data.actual, 1) * 1.1;
+
+          ctx.strokeStyle = '#F1F5F9';
+          ctx.lineWidth = 1;
+          ctx.font = '7.5px Segoe UI';
+          ctx.fillStyle = '#94A3B8';
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'middle';
+
+          for (let i = 0; i <= 4; i++) {
+            const y = padT + chartH * (1 - i / 4);
+            const v = Math.round(maxVal * (i / 4));
+            ctx.beginPath();
+            ctx.moveTo(padL, y);
+            ctx.lineTo(width - padR, y);
+            ctx.stroke();
+            ctx.fillText(String(v), padL - 4, y);
+          }
+
+          const numPoints = data.labels.length;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          data.labels.forEach((lbl, idx) => {
+            const x = padL + (idx / Math.max(1, numPoints - 1)) * chartW;
+            ctx.fillText(lbl, x, height - padB + 4);
+          });
+
+          const getPt = (idx, val) => {
+            const x = padL + (idx / Math.max(1, numPoints - 1)) * chartW;
+            const y = padT + chartH * (1 - val / maxVal);
+            return { x, y };
+          };
+
+          ctx.strokeStyle = '#CBD5E1';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath();
+          data.ideal.forEach((val, idx) => {
+            const pt = getPt(idx, val);
+            if (idx === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+          });
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          const areaGrad = ctx.createLinearGradient(0, padT, 0, height - padB);
+          areaGrad.addColorStop(0, 'rgba(79, 70, 229, 0.15)');
+          areaGrad.addColorStop(1, 'rgba(79, 70, 229, 0.0)');
+          ctx.fillStyle = areaGrad;
+          ctx.beginPath();
+          data.actual.forEach((val, idx) => {
+            const pt = getPt(idx, val);
+            if (idx === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+          });
+          const ptLast = getPt(numPoints - 1, 0);
+          const ptFirst = getPt(0, 0);
+          ctx.lineTo(ptLast.x, ptLast.y);
+          ctx.lineTo(ptFirst.x, ptFirst.y);
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.strokeStyle = '#4F46E5';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          data.actual.forEach((val, idx) => {
+            const pt = getPt(idx, val);
+            if (idx === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+          });
+          ctx.stroke();
+        } else if (type === 'bar') {
+          const padL = 30;
+          const padR = 10;
+          const padT = 15;
+          const padB = 20;
+          const chartW = width - padL - padR;
+          const chartH = height - padT - padB;
+
+          const maxVal = Math.max(...data.values, 1) * 1.15;
+
+          ctx.strokeStyle = '#F1F5F9';
+          ctx.lineWidth = 1;
+          ctx.font = '7.5px Segoe UI';
+          ctx.fillStyle = '#94A3B8';
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'middle';
+
+          for (let i = 0; i <= 4; i++) {
+            const y = padT + chartH * (1 - i / 4);
+            const v = Math.round(maxVal * (i / 4));
+            ctx.beginPath();
+            ctx.moveTo(padL, y);
+            ctx.lineTo(width - padR, y);
+            ctx.stroke();
+            ctx.fillText(String(v), padL - 4, y);
+          }
+
+          const numBars = data.labels.length;
+          const barWidth = (chartW / numBars) * 0.55;
+          const spacing = (chartW / numBars);
+
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+
+          data.values.forEach((val, idx) => {
+            const xCenter = padL + idx * spacing + spacing / 2;
+            const x = xCenter - barWidth / 2;
+            const y = padT + chartH * (1 - val / maxVal);
+            const h = chartH * (val / maxVal);
+
+            const barGrad = ctx.createLinearGradient(0, y, 0, height - padB);
+            barGrad.addColorStop(0, '#4F46E5');
+            barGrad.addColorStop(1, '#818CF8');
+            ctx.fillStyle = barGrad;
+            ctx.fillRect(x, y, barWidth, h);
+
+            ctx.fillStyle = '#1E293B';
+            ctx.font = 'bold 8px Segoe UI';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(String(Math.round(val)), xCenter, y - 2);
+
+            ctx.fillStyle = '#64748B';
+            ctx.font = '7.5px Segoe UI';
+            ctx.textBaseline = 'top';
+            ctx.fillText(data.labels[idx], xCenter, height - padB + 4);
+          });
+        }
+
+        return canvas.toDataURL('image/png');
+      }
+
       const drawPremiumCard = (col, row, w, h, label, value, subLabel, accentColor) => {
         for (let r = row; r < row + h; r++) { ds.getRow(r).height = 28; for (let c = col; c < col + w; c++) applyBg(r, c, COLORS.surface); }
         ds.mergeCells(row, col, row + h - 1, col + w - 1);
@@ -27852,6 +28042,24 @@
       drawPremiumCard(14, 11, 2, 3, 'Avg Progress', avgP + '%', 'Overall', COLORS.indigo);
       drawPremiumCard(16, 11, 2, 3, 'Health Index', healthScore, healthScore > 80 ? 'Excellent' : healthScore > 50 ? 'Stable' : 'Critical', healthScore > 80 ? COLORS.emerald : healthScore > 50 ? COLORS.amber : COLORS.rose);
 
+      // Render Status Distribution Donut Chart
+      const statusChartData = STATUSES.map(s => ({
+        label: s,
+        value: tasks.filter(t => t.status === s).length,
+        color: '#' + (STATUS_COLORS[s] || COLORS.textDark).replace('#', '')
+      })).filter(item => item.value > 0);
+
+      try {
+        const donutImgBase64 = generateCanvasChart(280, 150, 'donut', statusChartData, { centerText: total + ' Tasks' });
+        const donutImgId = wb.addImage({ base64: donutImgBase64, extension: 'png' });
+        ds.addImage(donutImgId, {
+          tl: { col: 13, row: 10 },
+          ext: { width: 280, height: 150 }
+        });
+      } catch (err) {
+        console.error('Error generating status donut chart', err);
+      }
+
       let curRow = 12 + Math.max(STATUSES.length, PRIORITIES.length) + 3;
 
       drawSectionTitle(curRow, 'Predictive Velocity & Remaining Effort Burndown'); curRow += 2;
@@ -27868,6 +28076,40 @@
       ds.addConditionalFormatting({ ref: `C${curRow + 1}:C${curRow + vLs.length}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 100 }], color: { argb: COLORS.indigo } }] });
       drawTableHeader(curRow, ['Week', 'Ideal Remaining', 'Actual Remaining'], 8); bLabels.slice(0, 10).forEach((l, i) => { drawTableRow(curRow + 1 + i, [l, Math.round(bIdeal[i]), Math.round(bActual[i])], 8, i % 2 === 1); });
       drawPremiumCard(14, curRow, 2, 3, 'Total Effort', totalEffort + ' days', 'Estimated', COLORS.indigo); drawPremiumCard(16, curRow, 2, 3, 'Remaining', Math.round(bActual[bActual.length - 1] || 0) + ' days', 'Current', COLORS.amber);
+
+      // Render Velocity Bar Chart next to Velocity table
+      try {
+        const velocityData = {
+          labels: vLs.map(w => w.l),
+          values: velData
+        };
+        const barImgBase64 = generateCanvasChart(240, 150, 'bar', velocityData);
+        const barImgId = wb.addImage({ base64: barImgBase64, extension: 'png' });
+        ds.addImage(barImgId, {
+          tl: { col: 4, row: curRow },
+          ext: { width: 240, height: 150 }
+        });
+      } catch (err) {
+        console.error('Error generating velocity bar chart', err);
+      }
+
+      // Render Burndown Line Chart next to Burndown table
+      try {
+        const burndownData = {
+          labels: bLabels.slice(0, 10),
+          ideal: bIdeal.slice(0, 10).map(Math.round),
+          actual: bActual.slice(0, 10).map(Math.round)
+        };
+        const lineImgBase64 = generateCanvasChart(310, 150, 'line', burndownData);
+        const lineImgId = wb.addImage({ base64: lineImgBase64, extension: 'png' });
+        ds.addImage(lineImgId, {
+          tl: { col: 12, row: curRow },
+          ext: { width: 310, height: 150 }
+        });
+      } catch (err) {
+        console.error('Error generating burndown line chart', err);
+      }
+
       curRow = curRow + Math.max(vLs.length, 10) + 3;
 
       drawSectionTitle(curRow, 'Module & Feature Delivery Intelligence'); curRow += 2;
