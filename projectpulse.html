@@ -23117,13 +23117,82 @@
 
             // ── Widget 3: Screen Density Leaderboard ──────────────────────────────
             const sdId = 'dash-feat-sd';
-            const sdSpan = (P.widgetSpans && P.widgetSpans[sdId]) || 1;
+            const sdSpan = (P.widgetSpans && P.widgetSpans[sdId]) || 2;
             const sdCard = mkCC('Screen Density Leaderboard', 'Features ranked by UI screen count', sdId, '', 'standard', '<b>Screen Density:</b> Ranks features by number of mapped UI screens. High-density features are the most architecturally complex and typically demand the most QA effort.', 'View Explanation', 'bar-chart-2');
             sdCard.style.gridColumn = `span ${sdSpan}`;
             grid.appendChild(sdCard);
-            const sdCvs = mkCvs(280, 160); sdCard.querySelector('.cb').appendChild(sdCvs);
-            const sdData = [...featMetrics].sort((a, b) => b.screenCount - a.screenCount).slice(0, 8).map(m => [m.f.name.length > 12 ? m.f.name.slice(0, 11) + '\u2026' : m.f.name, m.screenCount]);
-            dashDrawQueue.push(() => drawVBar(sdCvs, sdData, ['var(--color-primary)']));
+
+            (() => {
+              const sdRanked = [...featMetrics].sort((a, b) => b.screenCount - a.screenCount).slice(0, 8);
+              const sdMax = sdRanked.length ? sdRanked[0].screenCount : 1;
+              const sdTotal = featMetrics.length;
+              const sdAvg = sdTotal ? (featMetrics.reduce((s, m) => s + m.screenCount, 0) / sdTotal).toFixed(1) : 0;
+              const sdLeader = sdRanked.length ? sdRanked[0].f.name : '—';
+
+              const medals = ['🥇', '🥈', '🥉'];
+              const rankColors = ['#f59e0b', '#94a3b8', '#cd7c3f'];
+
+              const getTier = sc => sc >= 6
+                ? { label: 'Complex', bg: '#ef444418', border: '#ef444444', text: '#ef4444' }
+                : sc >= 3
+                  ? { label: 'Moderate', bg: '#f59e0b18', border: '#f59e0b44', text: '#f59e0b' }
+                  : { label: 'Simple', bg: '#10b98118', border: '#10b98144', text: '#10b981' };
+
+              // ── KPI strip
+              let sdHtml = `
+                <div style="display:flex;gap:0;border-bottom:1px solid var(--color-divider);">
+                  <div style="flex:1;padding:10px 14px;border-right:1px solid var(--color-divider);">
+                    <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px">Features</div>
+                    <div style="font-size:20px;font-weight:900;color:var(--color-text);line-height:1">${sdTotal}</div>
+                  </div>
+                  <div style="flex:1;padding:10px 14px;border-right:1px solid var(--color-divider);">
+                    <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px">Avg Screens</div>
+                    <div style="font-size:20px;font-weight:900;color:var(--color-primary);line-height:1">${sdAvg}</div>
+                  </div>
+                  <div style="flex:2;padding:10px 14px;min-width:0;">
+                    <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px">Top Feature</div>
+                    <div style="font-size:12px;font-weight:800;color:#f59e0b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(sdLeader)}">🥇 ${esc(sdLeader)}</div>
+                  </div>
+                </div>`;
+
+              // ── Ranked rows
+              sdHtml += `<div style="padding:10px 14px;display:flex;flex-direction:column;gap:7px;">`;
+              sdRanked.forEach((m, i) => {
+                const sc = m.screenCount;
+                const barW = sdMax ? Math.round((sc / sdMax) * 100) : 0;
+                const tier = getTier(sc);
+                const rankIcon = i < 3 ? `<span style="font-size:14px;line-height:1;flex-shrink:0">${medals[i]}</span>`
+                  : `<span style="width:18px;text-align:center;font-size:10px;font-weight:800;color:var(--color-text-faint);flex-shrink:0">${i + 1}</span>`;
+                const barColor = i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7c3f' : 'var(--color-primary)';
+
+                sdHtml += `
+                  <div style="display:flex;align-items:center;gap:8px;border-radius:6px;padding:3px 4px;transition:background 0.15s;cursor:default" onmouseover="this.style.background='var(--color-surface-2)'" onmouseout="this.style.background='transparent'">
+                    ${rankIcon}
+                    <div style="flex:1;min-width:0;">
+                      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;">
+                        <span style="font-size:11px;font-weight:${i < 3 ? 700 : 600};color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55%" title="${esc(m.f.name)}">${esc(m.f.name)}</span>
+                        <span style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+                          <span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:${tier.bg};border:1px solid ${tier.border};color:${tier.text}">${tier.label}</span>
+                          <span style="font-size:11px;font-weight:800;color:${barColor};background:${barColor === 'var(--color-primary)' ? 'rgba(var(--color-primary-rgb),0.1)' : barColor + '18'};border:1px solid ${barColor === 'var(--color-primary)' ? 'rgba(var(--color-primary-rgb),0.25)' : barColor + '44'};border-radius:10px;padding:1px 8px;">${sc} screen${sc !== 1 ? 's' : ''}</span>
+                        </span>
+                      </div>
+                      <div style="height:5px;background:var(--color-surface-3);border-radius:3px;overflow:hidden;">
+                        <div style="height:100%;width:${barW}%;background:${barColor};border-radius:3px;transition:width 0.6s cubic-bezier(.4,0,.2,1);"></div>
+                      </div>
+                    </div>
+                  </div>`;
+              });
+              sdHtml += `</div>`;
+
+              // ── Complexity legend
+              sdHtml += `<div style="padding:0 14px 12px;border-top:1px solid var(--color-divider);padding-top:8px;display:flex;gap:10px;flex-wrap:wrap;">
+                ${[['Simple','#10b981','0–2'],['Moderate','#f59e0b','3–5'],['Complex','#ef4444','6+']].map(([l, c, r]) =>
+                  `<span style="display:flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:var(--color-text-muted)"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block"></span>${l} <span style="opacity:0.5">(${r})</span></span>`
+                ).join('')}
+              </div>`;
+
+              sdCard.querySelector('.cb').innerHTML = sdHtml;
+            })();
 
             // ── Widget 4: Feature Maturity Progression ────────────────────────────
             const matId = 'dash-feat-mat';
