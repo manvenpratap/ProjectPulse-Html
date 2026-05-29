@@ -5039,12 +5039,12 @@
     }
 
     .dash-inner .cb canvas:not([id$="-cvs"]):not(#dash-ring):not(#dash-feat-ring) {
-      max-height: 112px !important;
+      max-height: none !important;
     }
 
     .dash-inner .card[style*="span 4"] .cb canvas,
     .dash-inner .cc[style*="span 4"] .cb canvas {
-      max-height: 250px !important;
+      max-height: none !important;
     }
 
     .dash-widget-wrapper,
@@ -6135,23 +6135,37 @@
     .cleg {
       display: flex;
       flex-wrap: wrap;
-      gap: 4px;
-      padding: 5px 14px 12px
+      gap: 8px;
+      justify-content: center;
+      margin-top: 12px;
+      padding: 0 12px 12px;
     }
 
     .cli {
       display: flex;
       align-items: center;
-      gap: 3px;
-      font-size: 10.5px;
-      color: var(--color-text-muted)
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: var(--color-surface-2);
+      border: 1px solid var(--color-divider);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--color-text);
+      transition: background-color var(--tr-smooth);
+      margin-bottom: 4px;
+      cursor: pointer;
+    }
+
+    .cli:hover {
+      background: var(--color-surface-3);
     }
 
     .cdot {
-      width: 6px;
-      height: 6px;
-      border-radius: 2px;
-      flex-shrink: 0
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
     }
 
     .overdue-list {
@@ -14838,6 +14852,28 @@
       if (key === 'module') renderTasksView();
       if (typeof renderSidebar === 'function') renderSidebar();
     }
+    window.toggleModuleBreakdownOpt = function(modName) {
+      if (!P.settings) P.settings = {};
+      const cache = window.lastDashCache || {};
+      const allMods = Object.keys(cache.byModule || {});
+      if (!P.settings.moduleBreakdownSelected) P.settings.moduleBreakdownSelected = [...allMods];
+      let selected = P.settings.moduleBreakdownSelected;
+      if (selected.includes(modName)) {
+        P.settings.moduleBreakdownSelected = selected.filter(m => m !== modName);
+      } else {
+        P.settings.moduleBreakdownSelected = [...selected, modName];
+      }
+      renderDash();
+    }
+    window.toggleModuleBreakdownAll = function() {
+      if (!P.settings) P.settings = {};
+      const cache = window.lastDashCache || {};
+      const modSet = Object.keys(cache.byModule || {});
+      const selected = P.settings.moduleBreakdownSelected || [];
+      const allSelected = modSet.length > 0 && modSet.every(m => selected.includes(m));
+      P.settings.moduleBreakdownSelected = allSelected ? [] : [...modSet];
+      renderDash();
+    }
 
     function toggleExpand(id) { if (P.expanded.has(id)) P.expanded.delete(id); else P.expanded.add(id); renderTable(); }
     function doSort(col) { if (P.sort.col === col) P.sort.dir = P.sort.dir === 'asc' ? 'desc' : 'asc'; else { P.sort.col = col; P.sort.dir = 'asc'; } renderTable(); }
@@ -18378,7 +18414,7 @@
 
       if (w.view === 'chart' || w.chartType === 'metric') {
         const width = isReport ? 800 : (w.chartType === 'metric' ? 240 : (w.chartType === 'donut' || w.chartType === 'hbar' ? 340 : 700));
-        const height = isReport ? 240 : (w.chartType === 'metric' ? 175 : 250);
+        const height = isReport ? 300 : (w.chartType === 'metric' ? 175 : 320);
 
         if (w.chartType === 'metric') {
           const mVal = data.matrix[0][0][0].val;
@@ -18393,7 +18429,10 @@
               const stackLabels = data.colPaths.map(cp => cp.join(' / '));
               const stacks = data.colPaths.map((_, ci) => data.rowPaths.map((_, ri) => data.matrix[ri][ci][0].val));
               drawStackedBar(cvs, labels, stacks, stackLabels, CC);
-              stackLabels.forEach((l, i) => leg.innerHTML += `<div class="cli"><div class="cdot" style="background:${CC[i % CC.length]}"></div>${esc(l)}</div>`);
+              stackLabels.forEach((l, i) => {
+                const colTotal = data.rowPaths.reduce((sum, _, ri) => sum + (data.matrix[ri][i][0]?.val || 0), 0);
+                leg.innerHTML += `<div class="cli"><div class="cdot" style="background:${CC[i % CC.length]}"></div>${esc(l)} <span style="color:var(--color-text-muted);margin-left:4px">${colTotal}</span></div>`;
+              });
             } else if (w.chartType === 'line') {
               const chartData = data.rowPaths.map((rp, i) => {
                 const rowTotal = data.matrix[i].reduce((sum, col) => sum + (col[0]?.val || 0), 0);
@@ -18411,7 +18450,7 @@
               else if (w.chartType === 'vbar') drawVBar(cvs, chartData, CC);
               else drawHBar(cvs, chartData, CC);
 
-              chartData.forEach(([l], i) => leg.innerHTML += `<div class="cli"><div class="cdot" style="background:${CC[i % CC.length]}"></div>${esc(l)}</div>`);
+              chartData.forEach(([l, v], i) => leg.innerHTML += `<div class="cli"><div class="cdot" style="background:${CC[i % CC.length]}"></div>${esc(l)} <span style="color:var(--color-text-muted);margin-left:4px">${v}</span></div>`);
             }
           };
           if (dashDrawQueue) dashDrawQueue.push(drawFn);
@@ -22005,6 +22044,7 @@
 
       const tasks = P.tasks, now = new Date();
       const dashCache = buildDashCache(tasks, P.log);
+      window.lastDashCache = dashCache;
       const total = dashCache.total, done = dashCache.done;
       const overdueTasks = dashCache.overdueTasks;
       const completionPct = total ? Math.round(done / total * 100) : 0;
@@ -22429,7 +22469,7 @@
             const sevData = Object.entries(sevCounts);
             dashDrawQueue.push(() => {
               drawDonut(sevCvs, sevData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)']);
-              sevData.forEach(([l], j) => { sevLeg.innerHTML += `<div class="cli"><div class="cdot" style="background:${['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)'][j % 4]}"></div>${esc(l)}</div>`; });
+              sevData.forEach(([l, v], j) => { sevLeg.innerHTML += `<div class="cli"><div class="cdot" style="background:${['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)'][j % 4]}"></div>${esc(l)} <span style="color:var(--color-text-muted);margin-left:4px">${v}</span></div>`; });
             });
 
             const priId = 'dash-defect-pri';
@@ -22442,24 +22482,173 @@
             const priData = Object.entries(priCounts);
             dashDrawQueue.push(() => {
               drawDonut(priCvs, priData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)']);
-              priData.forEach(([l], j) => { priLeg.innerHTML += `<div class="cli"><div class="cdot" style="background:${['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)'][j % 4]}"></div>${esc(l)}</div>`; });
+              priData.forEach(([l, v], j) => { priLeg.innerHTML += `<div class="cli"><div class="cdot" style="background:${['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)'][j % 4]}"></div>${esc(l)} <span style="color:var(--color-text-muted);margin-left:4px">${v}</span></div>`; });
             });
 
             const typeId = 'dash-defect-type';
-            const typeSpan = (P.widgetSpans && P.widgetSpans[typeId]) || sec.span || 1;
+            const typeSpan = (P.widgetSpans && P.widgetSpans[typeId]) || sec.span || 2;
             const typeCard = mkCC('Defect Categories', 'Root cause classification', typeId, '', 'standard', "<b>Defect Root Cause Classification:</b> Groups defects by their architectural origin (e.g., UI/UX, Backend Logic, Data Integrity). Use this chart to identify systemic quality issues in specific engineering domains.", 'View Explanation', 'tag');
             typeCard.style.gridColumn = `span ${typeSpan}`;
             grid.appendChild(typeCard);
-            const typeCvs = mkCvs(240, 150); typeCard.querySelector('.cb').appendChild(typeCvs);
-            dashDrawQueue.push(() => drawVBar(typeCvs, Object.entries(typeCounts), ['var(--color-primary)']));
+
+            const typeEntries = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
+            const typeTotal = typeEntries.reduce((s, [, v]) => s + v, 0);
+            const typeMax = typeEntries.length ? typeEntries[0][1] : 1;
+            const typePalette = ['#8b5cf6','#3b82f6','#10b981','#f59e0b','#ec4899','#ef4444','#06b6d4','#f97316','#84cc16','#a78bfa'];
+            const dominantType = typeEntries.length ? typeEntries[0][0] : '—';
+            const uniqueTypes = typeEntries.length;
+
+            // ── KPI strip ──────────────────────────────────────────────
+            let typeCbHtml = `
+              <div style="display:flex;gap:0;border-bottom:1px solid var(--color-divider);">
+                <div style="flex:1;padding:12px 14px;border-right:1px solid var(--color-divider);">
+                  <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px">Total</div>
+                  <div style="font-size:22px;font-weight:900;color:var(--color-text);line-height:1">${typeTotal}</div>
+                </div>
+                <div style="flex:2;padding:12px 14px;border-right:1px solid var(--color-divider);min-width:0;">
+                  <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px">Dominant Type</div>
+                  <div style="font-size:13px;font-weight:800;color:${typePalette[0]};white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(dominantType)}">${esc(dominantType)}</div>
+                </div>
+                <div style="flex:1;padding:12px 14px;">
+                  <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px">Categories</div>
+                  <div style="font-size:22px;font-weight:900;color:var(--color-text);line-height:1">${uniqueTypes}</div>
+                </div>
+              </div>`;
+
+            // ── Horizontal bar rows ─────────────────────────────────────
+            typeCbHtml += `<div style="padding:10px 14px;display:flex;flex-direction:column;gap:7px;">`;
+            typeEntries.forEach(([cat, cnt], i) => {
+              const color = typePalette[i % typePalette.length];
+              const pct = typeTotal ? Math.round((cnt / typeTotal) * 100) : 0;
+              const barW = typeMax ? Math.round((cnt / typeMax) * 100) : 0;
+              typeCbHtml += `
+                <div style="display:flex;align-items:center;gap:8px;cursor:pointer;border-radius:6px;padding:3px 4px;transition:background 0.15s" onmouseover="this.style.background='var(--color-surface-2)'" onmouseout="this.style.background='transparent'" onclick="setView('defects')" title="View ${esc(cat)} defects">
+                  <div style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></div>
+                  <div style="flex:1;min-width:0;">
+                    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;">
+                      <span style="font-size:11px;font-weight:600;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:65%" title="${esc(cat)}">${esc(cat)}</span>
+                      <span style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+                        <span style="font-size:10px;font-weight:700;color:var(--color-text-muted)">${pct}%</span>
+                        <span style="font-size:11px;font-weight:800;color:${color};background:${color}18;border:1px solid ${color}33;border-radius:10px;padding:1px 7px">${cnt}</span>
+                      </span>
+                    </div>
+                    <div style="height:5px;background:var(--color-surface-3);border-radius:3px;overflow:hidden">
+                      <div style="height:100%;width:${barW}%;background:${color};border-radius:3px;transition:width 0.6s cubic-bezier(.4,0,.2,1)"></div>
+                    </div>
+                  </div>
+                </div>`;
+            });
+            typeCbHtml += `</div>`;
+
+            // ── Stacked proportion bar ─────────────────────────────────
+            if (typeEntries.length > 1) {
+              typeCbHtml += `<div style="padding:0 14px 12px;">
+                <div style="font-size:9px;font-weight:700;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px">Distribution</div>
+                <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;gap:1px">
+                  ${typeEntries.map(([, cnt], i) => {
+                    const w = typeTotal ? ((cnt / typeTotal) * 100).toFixed(1) : 0;
+                    return `<div style="flex:${w};background:${typePalette[i % typePalette.length]};height:100%;min-width:2px" title="${typeEntries[i][0]}: ${cnt}"></div>`;
+                  }).join('')}
+                </div>
+              </div>`;
+            }
+
+            // ── CTA ────────────────────────────────────────────────────
+            typeCbHtml += `<div style="padding:8px 14px 12px;border-top:1px solid var(--color-divider)">
+              <button onclick="setView('defects')" style="width:100%;padding:7px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid var(--color-border);background:var(--color-surface-2);color:var(--color-text-muted);display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.18s" onmouseover="this.style.borderColor='var(--color-primary)';this.style.color='var(--color-primary)'" onmouseout="this.style.borderColor='var(--color-border)';this.style.color='var(--color-text-muted)'">
+                <i data-lucide="external-link" style="width:12px;height:12px"></i> Navigate to Defects
+              </button>
+            </div>`;
+
+            typeCard.querySelector('.cb').innerHTML = typeCbHtml;
+            dashDrawQueue.push(() => lucide.createIcons(typeCard));
 
             const modId = 'dash-defect-mod';
-            const modSpan = (P.widgetSpans && P.widgetSpans[modId]) || sec.span || 1;
-            const modCard = mkCC('Defects by Module', 'Module heat map', modId, '', 'standard', "<b>Module Defect Heatmap:</b> Correlates defects with their parent project modules. Modules with disproportionately high defect counts represent architectural 'hotspots' that may require refactoring or additional QA coverage.", 'View Explanation', 'layers');
+            const modSpan = (P.widgetSpans && P.widgetSpans[modId]) || sec.span || 2;
+            const modCard = mkCC('Defects by Module', 'Module defect heatmap', modId, '', 'standard', "<b>Module Defect Heatmap:</b> Correlates defects with their parent project modules. Modules with disproportionately high defect counts represent architectural 'hotspots' that may require refactoring or additional QA coverage.", 'View Explanation', 'layers');
             modCard.style.gridColumn = `span ${modSpan}`;
             grid.appendChild(modCard);
-            const modCvs = mkCvs(240, 150); modCard.querySelector('.cb').appendChild(modCvs);
-            dashDrawQueue.push(() => drawVBar(modCvs, Object.entries(modCounts), ['var(--color-primary)']));
+
+            const modEntries = Object.entries(modCounts).sort((a, b) => b[1] - a[1]);
+            const modTotal = modEntries.reduce((s, [, v]) => s + v, 0);
+            const modMax = modEntries.length ? modEntries[0][1] : 1;
+            const modPalette = ['#ef4444','#f97316','#f59e0b','#84cc16','#10b981','#06b6d4','#3b82f6','#8b5cf6','#ec4899','#a78bfa'];
+            const worstMod = modEntries.length ? modEntries[0][0] : '—';
+
+            // Density score: avg defects per module
+            const modDensity = modEntries.length ? (modTotal / modEntries.length).toFixed(1) : 0;
+            const densityColor = modDensity > 5 ? 'var(--red)' : modDensity > 2 ? 'var(--amber)' : 'var(--green)';
+            const densityLabel = modDensity > 5 ? 'High Risk' : modDensity > 2 ? 'Moderate' : 'Healthy';
+
+            // ── KPI strip
+            let modCbHtml = `
+              <div style="display:flex;gap:0;border-bottom:1px solid var(--color-divider);">
+                <div style="flex:1;padding:12px 14px;border-right:1px solid var(--color-divider);">
+                  <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px">Total</div>
+                  <div style="font-size:22px;font-weight:900;color:var(--color-text);line-height:1">${modTotal}</div>
+                </div>
+                <div style="flex:2;padding:12px 14px;border-right:1px solid var(--color-divider);min-width:0;">
+                  <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px">Hotspot Module</div>
+                  <div style="font-size:13px;font-weight:800;color:${modPalette[0]};white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(worstMod)}">${esc(worstMod)}</div>
+                </div>
+                <div style="flex:1;padding:12px 14px;">
+                  <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px">Avg / Mod</div>
+                  <div style="font-size:18px;font-weight:900;color:${densityColor};line-height:1">${modDensity}</div>
+                  <div style="font-size:8px;font-weight:700;color:${densityColor};margin-top:2px">${densityLabel}</div>
+                </div>
+              </div>`;
+
+            // ── Heatmap rows
+            modCbHtml += `<div style="padding:10px 14px;display:flex;flex-direction:column;gap:7px;">`;
+            modEntries.forEach(([mod, cnt], i) => {
+              const color = modPalette[Math.min(i, modPalette.length - 1)];
+              const pct = modTotal ? Math.round((cnt / modTotal) * 100) : 0;
+              const barW = modMax ? Math.round((cnt / modMax) * 100) : 0;
+              const riskTier = cnt >= modMax * 0.7 ? { label: 'High', bg: '#ef444418', border: '#ef444444', text: '#ef4444' }
+                : cnt >= modMax * 0.35 ? { label: 'Med', bg: '#f59e0b18', border: '#f59e0b44', text: '#f59e0b' }
+                : { label: 'Low', bg: '#10b98118', border: '#10b98144', text: '#10b981' };
+              modCbHtml += `
+                <div style="display:flex;align-items:center;gap:8px;cursor:pointer;border-radius:6px;padding:3px 4px;transition:background 0.15s" onmouseover="this.style.background='var(--color-surface-2)'" onmouseout="this.style.background='transparent'" onclick="setView('defects')" title="${cnt} defect${cnt !== 1 ? 's' : ''} in ${esc(mod)}">
+                  <div style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></div>
+                  <div style="flex:1;min-width:0;">
+                    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;">
+                      <span style="font-size:11px;font-weight:600;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55%" title="${esc(mod)}">${esc(mod)}</span>
+                      <span style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+                        <span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:${riskTier.bg};border:1px solid ${riskTier.border};color:${riskTier.text}">${riskTier.label}</span>
+                        <span style="font-size:10px;font-weight:700;color:var(--color-text-muted)">${pct}%</span>
+                        <span style="font-size:11px;font-weight:800;color:${color};background:${color}18;border:1px solid ${color}33;border-radius:10px;padding:1px 7px">${cnt}</span>
+                      </span>
+                    </div>
+                    <div style="height:5px;background:var(--color-surface-3);border-radius:3px;overflow:hidden">
+                      <div style="height:100%;width:${barW}%;background:${color};border-radius:3px;transition:width 0.6s cubic-bezier(.4,0,.2,1)"></div>
+                    </div>
+                  </div>
+                </div>`;
+            });
+            modCbHtml += `</div>`;
+
+            // ── Stacked proportion bar
+            if (modEntries.length > 1) {
+              modCbHtml += `<div style="padding:0 14px 12px;">
+                <div style="font-size:9px;font-weight:700;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px">Module Distribution</div>
+                <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;gap:1px">
+                  ${modEntries.map(([mod, cnt], i) => {
+                    const w = modTotal ? ((cnt / modTotal) * 100).toFixed(1) : 0;
+                    return `<div style="flex:${w};background:${modPalette[Math.min(i, modPalette.length - 1)]};height:100%;min-width:2px" title="${esc(mod)}: ${cnt}"></div>`;
+                  }).join('')}
+                </div>
+              </div>`;
+            }
+
+            // ── CTA
+            modCbHtml += `<div style="padding:8px 14px 12px;border-top:1px solid var(--color-divider)">
+              <button onclick="setView('defects')" style="width:100%;padding:7px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid var(--color-border);background:var(--color-surface-2);color:var(--color-text-muted);display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.18s" onmouseover="this.style.borderColor='var(--color-primary)';this.style.color='var(--color-primary)'" onmouseout="this.style.borderColor='var(--color-border)';this.style.color='var(--color-text-muted)'">
+                <i data-lucide="external-link" style="width:12px;height:12px"></i> Navigate to Defects
+              </button>
+            </div>`;
+
+            modCard.querySelector('.cb').innerHTML = modCbHtml;
+            dashDrawQueue.push(() => lucide.createIcons(modCard));
 
             const trendId = 'dash-defect-trend';
             const trendSpan = (P.widgetSpans && P.widgetSpans[trendId]) || sec.span || 2;
@@ -22921,8 +23110,8 @@
             const cxData = [['Simple (0-2)', cxSimple], ['Moderate (3-5)', cxModerate], ['Complex (6+)', cxComplex]].filter(([, v]) => v > 0);
             dashDrawQueue.push(() => {
               drawDonut(cxCvs, cxData, ['var(--green)', 'var(--amber)', 'var(--red)']);
-              [['Simple (0-2)', 'var(--green)'], ['Moderate (3-5)', 'var(--amber)'], ['Complex (6+)', 'var(--red)']].forEach(([l, c]) => {
-                cxLeg.innerHTML += `<div class="cli"><div class="cdot" style="background:${c}"></div>${l}</div>`;
+              [['Simple (0-2)', 'var(--green)', cxSimple], ['Moderate (3-5)', 'var(--amber)', cxModerate], ['Complex (6+)', 'var(--red)', cxComplex]].forEach(([l, c, v]) => {
+                cxLeg.innerHTML += `<div class="cli"><div class="cdot" style="background:${c}"></div>${l} <span style="color:var(--color-text-muted);margin-left:4px">${v}</span></div>`;
               });
             });
 
@@ -22944,22 +23133,64 @@
             grid.appendChild(matCard);
             (() => {
               const sorted = [...featMetrics].sort((a, b) => b.avgP - a.avgP);
-              let matHtml = '<div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px">';
+              const avgMaturity = sorted.length ? Math.round(sorted.reduce((s, m) => s + m.avgP, 0) / sorted.length) : 0;
+              const completeCount = sorted.filter(m => m.avgP === 100).length;
+              const atRiskCount = sorted.filter(m => m.overdue > 0).length;
+              const matColor = avgMaturity >= 75 ? 'var(--green)' : avgMaturity >= 40 ? 'var(--amber)' : 'var(--red)';
+
+              // ── KPI strip
+              let matHtml = `
+                <div style="display:flex;gap:0;border-bottom:1px solid var(--color-divider);">
+                  <div style="flex:1;padding:10px 14px;border-right:1px solid var(--color-divider);">
+                    <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px">Avg Maturity</div>
+                    <div style="font-size:20px;font-weight:900;color:${matColor};line-height:1">${avgMaturity}%</div>
+                  </div>
+                  <div style="flex:1;padding:10px 14px;border-right:1px solid var(--color-divider);">
+                    <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px">Complete</div>
+                    <div style="font-size:20px;font-weight:900;color:var(--green);line-height:1">${completeCount}</div>
+                  </div>
+                  <div style="flex:1;padding:10px 14px;">
+                    <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px">At Risk</div>
+                    <div style="font-size:20px;font-weight:900;color:${atRiskCount > 0 ? 'var(--red)' : 'var(--color-text-faint)'};line-height:1">${atRiskCount}</div>
+                  </div>
+                </div>`;
+
+              // ── Feature rows
+              matHtml += '<div style="padding:10px 16px;display:flex;flex-direction:column;gap:8px;">';
               sorted.slice(0, 10).forEach(m => {
                 const pct = m.avgP;
-                const barColor = m.overdue > 0 ? 'var(--red)' : pct === 100 ? 'var(--green)' : pct > 60 ? 'var(--color-primary)' : pct > 0 ? 'var(--amber)' : 'var(--color-surface-3)';
+                const isComplete = pct === 100;
+                const isOverdue = m.overdue > 0;
+                const barColor = isOverdue ? 'var(--red)' : isComplete ? 'var(--green)' : pct > 60 ? 'var(--color-primary)' : pct > 0 ? 'var(--amber)' : 'var(--color-surface-3)';
+                const tier = isComplete ? { label: 'Done', bg: '#10b98118', border: '#10b98144', text: '#10b981' }
+                  : isOverdue ? { label: 'Overdue', bg: '#ef444418', border: '#ef444444', text: '#ef4444' }
+                  : pct > 60 ? { label: 'On Track', bg: '#3b82f618', border: '#3b82f644', text: '#3b82f6' }
+                  : pct > 0 ? { label: 'In Prog', bg: '#f59e0b18', border: '#f59e0b44', text: '#f59e0b' }
+                  : { label: 'Not Started', bg: 'var(--color-surface-2)', border: 'var(--color-border)', text: 'var(--color-text-faint)' };
                 matHtml += `
-                  <div style="display:flex;align-items:center;gap:12px">
-                    <div style="font-size:11px;font-weight:600;color:var(--color-text);width:110px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(m.f.name)}">${esc(m.f.name)}</div>
-                    <div style="flex:1;height:8px;background:var(--color-surface-3);border-radius:4px;overflow:hidden">
-                      <div style="width:${pct}%;height:100%;background:${barColor};border-radius:4px;transition:width 0.6s ease"></div>
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="font-size:11px;font-weight:600;color:var(--color-text);width:100px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(m.f.name)}">${esc(m.f.name)}</div>
+                    <div style="flex:1;height:7px;background:var(--color-surface-3);border-radius:4px;overflow:hidden">
+                      <div style="width:${pct}%;height:100%;background:${barColor};border-radius:4px;transition:width 0.6s cubic-bezier(.4,0,.2,1)"></div>
                     </div>
-                    <div style="font-size:11px;font-weight:800;color:${barColor};font-family:var(--font-mono);width:34px;text-align:right">${pct}%</div>
-                    ${m.overdue > 0 ? `<div title="${m.overdue} overdue" style="color:var(--red);display:flex;align-items:center"><i data-lucide="alert-triangle" style="width:13px;height:13px"></i></div>` : '<div style="width:13px"></div>'}
+                    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+                      <span style="font-size:11px;font-weight:800;color:${barColor};font-family:var(--font-mono);width:32px;text-align:right">${pct}%</span>
+                      <span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;background:${tier.bg};border:1px solid ${tier.border};color:${tier.text};white-space:nowrap">${tier.label}</span>
+                      ${isOverdue ? `<span title="${m.overdue} overdue task${m.overdue > 1 ? 's' : ''}" style="color:var(--red);display:flex;align-items:center"><i data-lucide="alert-triangle" style="width:12px;height:12px"></i></span>` : '<span style="width:12px"></span>'}
+                    </div>
                   </div>`;
               });
               matHtml += '</div>';
+
+              // ── Legend
+              matHtml += `<div style="padding:6px 16px 12px;border-top:1px solid var(--color-divider);display:flex;flex-wrap:wrap;gap:8px;">`;
+              [['Done','#10b981'],['On Track','#3b82f6'],['In Prog','#f59e0b'],['Overdue','#ef4444'],['Not Started','var(--color-surface-3)']].forEach(([l, c]) => {
+                matHtml += `<span style="display:flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:var(--color-text-muted)"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block"></span>${l}</span>`;
+              });
+              matHtml += `</div>`;
+
               matCard.querySelector('.cb').innerHTML = matHtml;
+              dashDrawQueue.push(() => lucide.createIcons(matCard));
             })();
 
             // ── Widget 5: Delivery Risk Register ──────────────────────────────────
@@ -23138,10 +23369,10 @@
           const bdCard = mkCC('📉 Burndown Chart', 'Ideal vs Actual Remaining Effort (' + uLabel + ')', bdId, '', 'standard', "<b>Trajectory Analysis:</b> Visualizes whether the team is on pace to meet the project deadline. The 'Ideal' path (Amber) represents the theoretical burn rate needed for on-time delivery.", 'View Explanation');
           bdCard.style.gridColumn = `span ${bdSpan}`;
           grid.appendChild(bdCard);
-          const bdCvs = mkCvs(700, 250); bdCard.querySelector('.cb').appendChild(bdCvs);
+          const bdCvs = mkCvs(700, 320); bdCard.querySelector('.cb').appendChild(bdCvs);
           const bdLeg = document.createElement('div');
-          bdLeg.style = 'display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:16px; padding:0 16px 16px;';
-          bdLeg.innerHTML = `<div style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--color-surface-2);border:1px solid var(--color-divider);font-size:11px;font-weight:600;color:var(--color-text)"><div style="width:8px;height:8px;border-radius:50%;background:var(--amber)"></div>Ideal Path</div><div style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--color-surface-2);border:1px solid var(--color-divider);font-size:11px;font-weight:600;color:var(--color-text)"><div style="width:8px;height:8px;border-radius:50%;background:var(--color-primary)"></div>Actual Effort</div>`;
+          bdLeg.className = 'cleg';
+          bdLeg.innerHTML = `<div class="cli"><div class="cdot" style="background:var(--amber)"></div>Ideal Path</div><div class="cli"><div class="cdot" style="background:var(--color-primary)"></div>Actual Effort</div>`;
           bdCard.appendChild(bdLeg);
 
           const startDates = tasks.map(t => new Date(t.startDate)).filter(d => !isNaN(d.getTime()));
@@ -23221,10 +23452,10 @@
           weeksToggle.innerHTML = selectHtml;
           vCard.querySelector('.ch').appendChild(weeksToggle);
 
-          const vCvs = mkCvs(700, 250); vCard.querySelector('.cb').appendChild(vCvs);
+          const vCvs = mkCvs(700, 320); vCard.querySelector('.cb').appendChild(vCvs);
           const vLeg = document.createElement('div');
-          vLeg.style = 'display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:16px; padding:0 16px 16px;';
-          vLeg.innerHTML = `<div style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--color-surface-2);border:1px solid var(--color-divider);font-size:11px;font-weight:600;color:var(--color-text)"><div style="width:8px;height:8px;border-radius:50%;background:var(--color-primary)"></div>Weekly Velocity</div><div style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--color-surface-2);border:1px solid var(--color-divider);font-size:11px;font-weight:600;color:var(--color-text)"><div style="width:16px;border-top:2px dashed var(--amber)"></div>3-Week Rolling Avg</div>`;
+          vLeg.className = 'cleg';
+          vLeg.innerHTML = `<div class="cli"><div class="cdot" style="background:var(--color-primary)"></div>Weekly Velocity</div><div class="cli"><div style="width:12px;border-top:2px dashed var(--amber);margin-right:6px"></div>3-Week Rolling Avg</div>`;
           vCard.appendChild(vLeg);
 
           const lastWeeks = []; for (let i = weeksCount - 1; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); lastWeeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) }); }
@@ -23296,7 +23527,7 @@
           cfdWeeksToggle.innerHTML = cfdSelectHtml;
           cfdCard.querySelector('.ch').appendChild(cfdWeeksToggle);
 
-          const cfdCvs = mkCvs(700, 250); cfdCard.querySelector('.cb').appendChild(cfdCvs);
+          const cfdCvs = mkCvs(700, 320); cfdCard.querySelector('.cb').appendChild(cfdCvs);
           const cfdLeg = document.createElement('div'); cfdLeg.className = 'cleg'; cfdCard.appendChild(cfdLeg);
 
           const cfdLastWeeks = [];
@@ -23356,7 +23587,10 @@
 
           dashDrawQueue.push(() => {
             drawAreaChart(cfdCvs, cfdLastWeeks.map(w => w.l), stacks, STATUSES, CC);
-            STATUSES.forEach((s, j) => { cfdLeg.innerHTML += `<div class="cli"><div class="cdot" style="background:${CC[j % CC.length]}"></div>${esc(s)}</div>`; });
+            STATUSES.forEach((s, j) => {
+              const latestVal = stacks[j][stacks[j].length - 1];
+              cfdLeg.innerHTML += `<div class="cli"><div class="cdot" style="background:${CC[j % CC.length]}"></div>${esc(s)} <span style="color:var(--color-text-muted);margin-left:4px">${latestVal}</span></div>`;
+            });
           });
         } else if (sec.id === 'milestone-timeline') {
           addST(inner, 'Project Milestones');
@@ -23380,67 +23614,106 @@
 
           dashDrawQueue.push(() => renderMilestoneRoadmap(tasks, roadmapContainer));
         } else if (sec.id === 'module_health') {
-          const modSet = Object.keys(dashCache.byModule);
+          const modSet = Object.keys(dashCache.byModule).sort();
           if (modSet.length) {
+            if (!P.settings) P.settings = {};
+            if (!P.settings.moduleBreakdownSelected) {
+              P.settings.moduleBreakdownSelected = [...modSet];
+            }
+            const existingSelected = P.settings.moduleBreakdownSelected.filter(m => modSet.includes(m));
+            const allSelected = existingSelected.length === modSet.length;
+
             addST(inner, 'Module & Release Progress');
             const grid = addGrid(inner);
+
             const mhCard = mkCC('Module Breakdown', 'Hierarchical Progress (Server + GUI)', 'dash-module-mh', '', 'standard', "Progress breakdown by module side.", 'View Explanation');
-            mhCard.style.gridColumn = `span 4`; grid.appendChild(mhCard);
-            const mhWrap = document.createElement('div'); mhWrap.style.padding = '12px';
-            const palette = [{ main: "linear-gradient(90deg, #8b5cf6, #3b82f6)", svr: "#8b5cf6", gui: "#3b82f6" }, { main: "linear-gradient(90deg, #10b981, #3b82f6)", svr: "#10b981", gui: "#3b82f6" }, { main: "linear-gradient(90deg, #f59e0b, #ef4444)", svr: "#f59e0b", gui: "#ef4444" }, { main: "linear-gradient(90deg, #ec4899, #8b5cf6)", svr: "#ec4899", gui: "#8b5cf6" }, { main: "linear-gradient(90deg, #06b6d4, #10b981)", svr: "#06b6d4", gui: "#10b981" }, { main: "linear-gradient(90deg, #f97316, #eab308)", svr: "#f97316", gui: "#eab308" }];
-            modSet.sort().forEach((m, mi) => {
-              const pal = palette[mi % palette.length];
-              const mTasks = dashCache.byModule[m].tasks;
-              const isSvr = t => {
-                const mt = String(t.moduleType || t.Side || t.side || '').trim().toLowerCase();
-                return mt.includes('server');
-              };
-              const isGui = t => {
-                const mt = String(t.moduleType || t.Side || t.side || '').trim().toLowerCase();
-                return mt.includes('gui');
-              };
+            mhCard.style.gridColumn = `span 4`;
+            grid.appendChild(mhCard);
 
-              const svr = mTasks.filter(isSvr);
-              const gui = mTasks.filter(isGui);
+            // ── Pill filter bar ──────────────────────────────────────────────────
+            const pillBar = document.createElement('div');
+            pillBar.id = 'mbf-pill-bar';
+            pillBar.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 16px 10px;border-bottom:1px solid var(--color-divider);';
 
-              const sP = svr.length ? Math.round(svr.reduce((a, b) => a + (parseInt(b.progress) || 0), 0) / svr.length) : 0;
-              const gP = gui.length ? Math.round(gui.reduce((a, b) => a + (parseInt(b.progress) || 0), 0) / gui.length) : 0;
+            const mkPill = (label, active, onclick, color) => {
+              const p = document.createElement('button');
+              p.className = 'mbf-pill' + (active ? ' mbf-pill-on' : '');
+              p.setAttribute('data-label', label);
+              p.style.cssText = `
+                display:inline-flex;align-items:center;gap:5px;
+                padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;
+                cursor:pointer;border:1.5px solid ${active ? color : 'var(--color-border)'};
+                background:${active ? color + '22' : 'transparent'};
+                color:${active ? color : 'var(--color-text-muted)'};
+                transition:all 0.18s cubic-bezier(.4,0,.2,1);
+                white-space:nowrap;
+              `;
+              if (color && active) p.style.boxShadow = `0 0 0 2px ${color}33`;
+              p.onclick = onclick;
+              p.onmouseover = () => { if (!p.classList.contains('mbf-pill-on')) { p.style.borderColor = color; p.style.color = color; } };
+              p.onmouseout  = () => { if (!p.classList.contains('mbf-pill-on')) { p.style.borderColor = 'var(--color-border)'; p.style.color = 'var(--color-text-muted)'; } };
+              p.innerHTML = label;
+              return p;
+            };
 
-              let modP = 0;
-              if (svr.length && gui.length) modP = Math.round((sP + gP) / 2);
-              else if (svr.length) modP = sP;
-              else if (gui.length) modP = gP;
+            const pillColors = ['#8b5cf6','#3b82f6','#10b981','#f59e0b','#ec4899','#06b6d4','#f97316','#84cc16','#e11d48','#a78bfa'];
 
-              const sItems = svr.flatMap(t => {
-                const subTasksList = (t.subtasks || []);
-                if (!subTasksList.length) return [{ name: t.name, progress: t.progress || 0, status: t.status, isTask: true }];
-                return subTasksList.map(st => ({ name: st.name, progress: parseInt(st.progress) || (st.status === 'Completed' ? 100 : 0), status: st.status }));
-              });
-              const gItems = gui.flatMap(t => {
-                const subTasksList = (t.subtasks || []);
-                if (!subTasksList.length) return [{ name: t.name, progress: t.progress || 0, status: t.status, isTask: true }];
-                return subTasksList.map(st => ({ name: st.name, progress: parseInt(st.progress) || (st.status === 'Completed' ? 100 : 0), status: st.status }));
-              });
+            // "All" pill
+            const allPill = mkPill('All Modules', allSelected, () => window.toggleModuleBreakdownAll(), 'var(--color-primary)');
+            pillBar.appendChild(allPill);
 
-              const buildPB = (v, c) => `<div class="p-wrap" style="height:6px;background:var(--color-surface-3);border-radius:3px;overflow:hidden;margin-top:4px"><div class="p-fill" style="width:${v}%;height:100%;background:${c};transition:width 0.5s ease"></div></div>`;
-              const renderItemList = (items) => `<div style="margin-top:8px; max-height:150px; overflow-y:auto; padding-right:4px" class="custom-scroll">
-                      ${items.map(item => {
-                const sCls = ST_CLS[item.status] || 'not-started';
-                const dotColor = sCls === 'completed' ? 'var(--green)' : sCls === 'in-progress' ? 'var(--blue)' : sCls === 'on-hold' ? 'var(--amber)' : sCls === 'under-review' ? 'var(--pink)' : 'var(--color-text-faint)';
-                const progVal = parseInt(item.progress) || 0;
-                return `<div style="display:flex;justify-content:space-between;font-size:10px;padding:4px 0;border-bottom:1px solid var(--color-border-faint);align-items:center"><span style="color:var(--color-text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:8px; display:flex; align-items:center; gap:6px"><span style="width:5px; height:5px; border-radius:50%; background:${dotColor}; flex-shrink:0"></span>${item.isTask ? '•' : '↳'} ${esc(item.name)}</span><span style="font-weight:800; color:${progVal === 100 ? 'var(--color-success)' : (progVal === 0 ? 'var(--red)' : 'inherit')}">${progVal === 100 ? '✓' : (progVal === 0 ? '✗' : progVal + '%')}</span></div>`;
-              }).join('')}</div>`;
+            // Divider tick
+            const sep = document.createElement('div');
+            sep.style.cssText = 'width:1px;height:18px;background:var(--color-divider);margin:0 2px;flex-shrink:0;';
+            pillBar.appendChild(sep);
 
-              mhWrap.innerHTML += `
-                      <div style="margin-bottom:24px;background:var(--color-surface-2);padding:16px;border-radius:var(--radius-lg);border:1px solid var(--color-border)">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:12px;align-items:center"><span style="font-weight:800;font-size:14px;color:var(--color-text)">${esc(m)}</span><span style="font-weight:800;font-size:16px;color:var(--color-primary)">${modP}%</span></div>
-                        ${buildPB(modP, pal.main)}
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:16px">
-                          <div style="display:flex; flex-direction:column"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin-bottom:4px;color:var(--color-text-muted)"><span>SERVER SIDE</span><span>${sP}%</span></div>${buildPB(sP, pal.svr)}${renderItemList(sItems)}</div>
-                          <div style="display:flex; flex-direction:column"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin-bottom:4px;color:var(--color-text-muted)"><span>GUI SIDE</span><span>${gP}%</span></div>${buildPB(gP, pal.gui)}${renderItemList(gItems)}</div>
-                        </div>
-                      </div>`;
+            // Per-module pills
+            modSet.forEach((m, mi) => {
+              const active = existingSelected.includes(m);
+              const color = pillColors[mi % pillColors.length];
+              const pill = mkPill(esc(m), active, (e) => { e.stopPropagation(); window.toggleModuleBreakdownOpt(m); }, color);
+              pillBar.appendChild(pill);
             });
+
+            mhCard.querySelector('.cb').prepend(pillBar);
+
+            // ── Content ──────────────────────────────────────────────────────────
+            const palette = [{ main: "linear-gradient(90deg, #8b5cf6, #3b82f6)", svr: "#8b5cf6", gui: "#3b82f6" }, { main: "linear-gradient(90deg, #10b981, #3b82f6)", svr: "#10b981", gui: "#3b82f6" }, { main: "linear-gradient(90deg, #f59e0b, #ef4444)", svr: "#f59e0b", gui: "#ef4444" }, { main: "linear-gradient(90deg, #ec4899, #8b5cf6)", svr: "#ec4899", gui: "#8b5cf6" }, { main: "linear-gradient(90deg, #06b6d4, #10b981)", svr: "#06b6d4", gui: "#10b981" }, { main: "linear-gradient(90deg, #f97316, #eab308)", svr: "#f97316", gui: "#eab308" }];
+            const mhWrap = document.createElement('div'); mhWrap.style.padding = '12px';
+
+            if (existingSelected.length === 0) {
+              mhWrap.innerHTML = `<div style="text-align:center; padding:48px 20px; color:var(--color-text-faint); display:flex; flex-direction:column; align-items:center; gap:12px"><span style="font-size:32px">🔍</span><span style="font-size:13px; font-weight:600;">No modules selected</span><span style="font-size:12px">Tap a module pill above to view its breakdown</span></div>`;
+            } else {
+              existingSelected.forEach((m, mi) => {
+                const pal = palette[mi % palette.length];
+                const mTasks = dashCache.byModule[m].tasks;
+                const isSvr = t => String(t.moduleType || t.Side || t.side || '').trim().toLowerCase().includes('server');
+                const isGui = t => String(t.moduleType || t.Side || t.side || '').trim().toLowerCase().includes('gui');
+                const svr = mTasks.filter(isSvr);
+                const gui = mTasks.filter(isGui);
+                const sP = svr.length ? Math.round(svr.reduce((a, b) => a + (parseInt(b.progress) || 0), 0) / svr.length) : 0;
+                const gP = gui.length ? Math.round(gui.reduce((a, b) => a + (parseInt(b.progress) || 0), 0) / gui.length) : 0;
+                let modP = 0;
+                if (svr.length && gui.length) modP = Math.round((sP + gP) / 2);
+                else if (svr.length) modP = sP;
+                else if (gui.length) modP = gP;
+
+                const sItems = svr.flatMap(t => { const subTasksList = (t.subtasks || []); if (!subTasksList.length) return [{ name: t.name, progress: t.progress || 0, status: t.status, isTask: true }]; return subTasksList.map(st => ({ name: st.name, progress: parseInt(st.progress) || (st.status === 'Completed' ? 100 : 0), status: st.status })); });
+                const gItems = gui.flatMap(t => { const subTasksList = (t.subtasks || []); if (!subTasksList.length) return [{ name: t.name, progress: t.progress || 0, status: t.status, isTask: true }]; return subTasksList.map(st => ({ name: st.name, progress: parseInt(st.progress) || (st.status === 'Completed' ? 100 : 0), status: st.status })); });
+                const buildPB = (v, c) => `<div class="p-wrap" style="height:6px;background:var(--color-surface-3);border-radius:3px;overflow:hidden;margin-top:4px"><div class="p-fill" style="width:${v}%;height:100%;background:${c};transition:width 0.5s ease"></div></div>`;
+                const renderItemList = (items) => `<div style="margin-top:8px; max-height:150px; overflow-y:auto; padding-right:4px" class="custom-scroll">${items.map(item => { const sCls = ST_CLS[item.status] || 'not-started'; const dotColor = sCls === 'completed' ? 'var(--green)' : sCls === 'in-progress' ? 'var(--blue)' : sCls === 'on-hold' ? 'var(--amber)' : sCls === 'under-review' ? 'var(--pink)' : 'var(--color-text-faint)'; const progVal = parseInt(item.progress) || 0; return `<div style="display:flex;justify-content:space-between;font-size:10px;padding:4px 0;border-bottom:1px solid var(--color-border-faint);align-items:center"><span style="color:var(--color-text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:8px; display:flex; align-items:center; gap:6px"><span style="width:5px; height:5px; border-radius:50%; background:${dotColor}; flex-shrink:0"></span>${item.isTask ? '•' : '↳'} ${esc(item.name)}</span><span style="font-weight:800; color:${progVal === 100 ? 'var(--color-success)' : (progVal === 0 ? 'var(--red)' : 'inherit')}">${progVal === 100 ? '✓' : (progVal === 0 ? '✗' : progVal + '%')}</span></div>`; }).join('')}</div>`;
+
+                mhWrap.innerHTML += `
+                  <div style="margin-bottom:24px;background:var(--color-surface-2);padding:16px;border-radius:var(--radius-lg);border:1px solid var(--color-border)">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:12px;align-items:center"><span style="font-weight:800;font-size:14px;color:var(--color-text)">${esc(m)}</span><span style="font-weight:800;font-size:16px;color:var(--color-primary)">${modP}%</span></div>
+                    ${buildPB(modP, pal.main)}
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:16px">
+                      <div style="display:flex; flex-direction:column"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin-bottom:4px;color:var(--color-text-muted)"><span>SERVER SIDE</span><span>${sP}%</span></div>${buildPB(sP, pal.svr)}${renderItemList(sItems)}</div>
+                      <div style="display:flex; flex-direction:column"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin-bottom:4px;color:var(--color-text-muted)"><span>GUI SIDE</span><span>${gP}%</span></div>${buildPB(gP, pal.gui)}${renderItemList(gItems)}</div>
+                    </div>
+                  </div>`;
+              });
+            }
             mhCard.querySelector('.cb').appendChild(mhWrap);
           } else {
             const emptyWrap = document.createElement('div');
@@ -23624,14 +23897,17 @@
             const twCard = mkCC('Tasks per Team Member', 'Stacked by status', twId, '', 'standard', "Shows task allocation across team members.", 'View Explanation');
             twCard.style.gridColumn = `span ${twSpan}`;
             grid.appendChild(twCard);
-            const twCvs = mkCvs(700, 220); twCard.querySelector('.cb').appendChild(twCvs);
+            const twCvs = mkCvs(700, 300); twCard.querySelector('.cb').appendChild(twCvs);
             const twLeg = document.createElement('div'); twLeg.className = 'cleg'; twCard.appendChild(twLeg);
 
             dashDrawQueue.push(() => {
               const stacks = STATUSES.map(s => teamNames.map(m => dashCache.byAssignee[m]?.byStatus[s]?.length || 0));
               const displayNames = teamNames.map(n => n.split(' ')[0]);
               drawStackedBar(twCvs, displayNames, stacks, STATUSES, CC);
-              const parts = STATUSES.map((s, j) => `<div class="cli"><div class="cdot" style="background:${CC[j % CC.length]}"></div>${esc(s)}</div>`);
+              const parts = STATUSES.map((s, j) => {
+                const totalForStatus = teamNames.reduce((sum, m) => sum + (dashCache.byAssignee[m]?.byStatus[s]?.length || 0), 0);
+                return `<div class="cli"><div class="cdot" style="background:${CC[j % CC.length]}"></div>${esc(s)} <span style="color:var(--color-text-muted);margin-left:4px">${totalForStatus}</span></div>`;
+              });
               twLeg.innerHTML = parts.join('');
             });
           } else {
@@ -23659,7 +23935,7 @@
             const catId = 'dash-cat-dist';
             const catCard = mkCC('Tasks by Category', 'Volume distribution', catId, '', 'standard', "Distribution by category.", '');
             catCard.style.gridColumn = 'span 2'; grid.appendChild(catCard);
-            const catCvs = mkCvs(400, 180); catCard.querySelector('.cb').appendChild(catCvs);
+            const catCvs = mkCvs(400, 240); catCard.querySelector('.cb').appendChild(catCvs);
 
             dashDrawQueue.push(() => {
               const cats = {}; catNames.forEach(c => { const cnt = dashCache.byCategory[c].length; if (cnt) cats[c] = cnt; });
@@ -23672,14 +23948,16 @@
             const hCard = mkCC('Effort: Estimated vs Actual', 'By category', hId, '', 'standard', "Compares estimates with actual spend.", 'View Explanation');
             hCard.style.gridColumn = `span ${hSpan}`;
             grid.appendChild(hCard);
-            const hCvs = mkCvs(400, 180); hCard.querySelector('.cb').appendChild(hCvs);
+            const hCvs = mkCvs(400, 240); hCard.querySelector('.cb').appendChild(hCvs);
             const hLeg = document.createElement('div'); hLeg.className = 'cleg'; hCard.appendChild(hLeg);
 
             dashDrawQueue.push(() => {
               const est = catNames.map(c => dashCache.byCategory[c].reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
               const act = catNames.map(c => dashCache.byCategory[c].reduce((s, t) => s + (parseFloat(t.actEffort) || 0), 0));
               drawGroupedBar(hCvs, catNames, est, act, ['Estimated', 'Actual'], ['#6366f1', '#22c55e']);
-              hLeg.innerHTML = '<div class="cli"><div class="cdot" style="background:#6366f1"></div>Estimated</div><div class="cli"><div class="cdot" style="background:#22c55e"></div>Actual</div>';
+              const totalEst = est.reduce((s, v) => s + v, 0).toFixed(1);
+              const totalAct = act.reduce((s, v) => s + v, 0).toFixed(1);
+              hLeg.innerHTML = `<div class="cli"><div class="cdot" style="background:#6366f1"></div>Estimated <span style="color:var(--color-text-muted);margin-left:4px">${totalEst}h</span></div><div class="cli"><div class="cdot" style="background:#22c55e"></div>Actual <span style="color:var(--color-text-muted);margin-left:4px">${totalAct}h</span></div>`;
             });
 
             const resCard = mkCC('Member Utilization', 'Active Load per Member', 'dash-gauges', '', 'standard', "Individual capacity utilization analysis.", '');
@@ -23829,7 +24107,7 @@
           const ageCard = mkCC('Task Aging', 'Days since last activity', 'dash-aging', '', 'standard', "Identifies 'stale' tasks by visualizing time elapsed since their last status update or log entry. Tasks in the red zone (30+ days) typically require immediate reassessment or cancellation.", 'View Explanation');
           ageCard.classList.add('ai-glow-card');
           grid.appendChild(ageCard);
-          const ageCvs = mkCvs(400, 150);
+          const ageCvs = mkCvs(400, 220);
           ageCard.querySelector('.cb').appendChild(ageCvs);
           const ageLeg = document.createElement('div');
           ageLeg.className = 'cleg';
@@ -23903,11 +24181,21 @@
             const keys = ['0-3d', '4-7d', '8-14d', '15-30d', '30d+'];
             const vals = keys.map(k => distributions[k] || 0);
             if (ageCvs) drawAgeBars(ageCvs, keys, vals);
+
+            const activeCount = distributions['0-3d'] + distributions['4-7d'] + distributions['8-14d'];
+            const staleCount = distributions['15-30d'];
+            const riskCount = distributions['30d+'];
+
+            ageLeg.innerHTML = `
+                    <div class="cli"><div class="cdot" style="background:var(--color-primary)"></div>Active (&lt; 14d) <span style="color:var(--color-text-muted);margin-left:4px">${activeCount}</span></div>
+                    <div class="cli"><div class="cdot" style="background:var(--amber)"></div>Stale (15-30d) <span style="color:var(--color-text-muted);margin-left:4px">${staleCount}</span></div>
+                    <div class="cli"><div class="cdot" style="background:var(--red)"></div>At Risk (30d+) <span style="color:var(--color-text-muted);margin-left:4px">${riskCount}</span></div>
+                  `;
           });
 
           const btlCard = mkCC('Bottleneck Analysis', 'Members blocking others', 'dash-btl', '', 'standard', "Analyzes dependency chains to identify team members who have the most 'downstream' tasks waiting on them. High bottleneck counts indicate potential single-points-of-failure in your delivery pipeline.", 'View Explanation');
           grid.appendChild(btlCard);
-          const btlCvs = mkCvs(400, 180);
+          const btlCvs = mkCvs(400, 240);
           btlCard.querySelector('.cb').appendChild(btlCvs);
 
           dashDrawQueue.push(() => {
