@@ -10570,6 +10570,7 @@
     }
 
     const $id = id => document.getElementById(id);
+    window.$id = $id;
     const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const fmtN = n => { /* reserved */ if (isNaN(n) || !isFinite(n)) return '–'; const a = Math.abs(n); if (a >= 1e6) return (n / 1e6).toFixed(1) + 'M'; if (a >= 1e3) return (n / 1e3).toFixed(1) + 'K'; return Math.round(n * 100) / 100; };
     const fmtDate = d => {
@@ -10606,6 +10607,7 @@
       }
       return trimmed;
     };
+    window.parseDateDMY = parseDateDMY;
 
     function addEmptyState(container, msg) {
       if (!container) return;
@@ -11284,6 +11286,7 @@
       sidebarCollapsed: {},
       defColOrder: null, defColWidths: null, defHiddenCols: [], defColFilters: {}, defSort: { col: 'id', dir: 'asc' }
     };
+    window.P = P;
 
     function getAllScreens() {
       const screens = new Set();
@@ -19328,150 +19331,7 @@
       }
     }
 
-    function renderStdFieldList() {
-      const list = $id('std-field-list'); if (!list) return;
-      list.innerHTML = P.cols.map((c, i) => `
-        <div style="display:grid; grid-template-columns:120px 1fr 80px; gap:8px; align-items:center; margin-bottom:8px">
-          <div style="font-size:11px; color:var(--color-text-muted); font-family:var(--mono)">${c.key}</div>
-          <input class="finp" style="font-size:12px; padding:4px 8px" value="${esc(c.label)}" onchange="P.cols[${i}].label=this.value; renderTable()">
-          <input type="number" class="finp" style="font-size:12px; padding:4px 8px" value="${c.w}" onchange="P.cols[${i}].w=parseInt(this.value); renderTable()">
-        </div>
-      `).join('');
-    }
 
-    function renderCFList() {
-      const list = $id('cf-list'); if (!list) return; list.innerHTML = '';
-      P.customFields.forEach((cf, i) => {
-        list.innerHTML += `
-          <div class="admin-list-item" style="display:flex; align-items:center; gap:10px; padding:10px; border-radius:var(--r); background:var(--color-surface-2); margin-bottom:8px">
-            <div style="flex:1">
-              <div style="font-weight:600; font-size:13px">${esc(cf.name)}</div>
-              <div style="font-size:11px; color:var(--color-text-muted)">${cf.type} ${cf.options?.length ? `• ${cf.options.length} options` : ''}</div>
-            </div>
-            <button class="btn ghost" style="font-size:16px" onclick="startEditCF(${i})"><i data-lucide="edit-2"></i></button>
-            <button class="btn ghost" style="font-size:16px; color:var(--red)" onclick="P.customFields.splice(${i},1);renderCFList()"><i data-lucide="trash-2"></i></button>
-          </div>
-        `;
-      });
-    }
-
-    function renderDDManagement() {
-      const list = $id('dd-management-list');
-      const ddFields = [
-        {
-          group: 'Task & Workflow', fields: [
-            { label: 'Task Statuses', key: 'status', opts: P.dropdowns.status },
-            { label: 'Priorities', key: 'priority', opts: P.dropdowns.priority },
-            { label: 'Categories', key: 'category', opts: P.dropdowns.category },
-            { label: 'Modules (Business Areas)', key: 'module', opts: P.dropdowns.module },
-            { label: 'Module Types', key: 'moduleType', opts: P.dropdowns.moduleType },
-            { label: 'Releases / Versions', key: 'version', opts: P.dropdowns.version }
-          ]
-        },
-        {
-          group: 'Team & Resource Management', fields: [
-            { label: 'Team Roles', key: 'role', opts: P.dropdowns.role },
-            { label: 'Member Statuses', key: 'memberStatus', opts: P.dropdowns.memberStatus }
-          ]
-        },
-        {
-          group: 'Defect Tracking Metadata', fields: [
-            { label: 'Defect Types', key: 'defectType', opts: P.dropdowns.defectType },
-            { label: 'Defect Statuses', key: 'defectStatus', opts: P.dropdowns.defectStatus },
-            { label: 'Defect Severities', key: 'defectSeverity', opts: P.dropdowns.defectSeverity },
-            { label: 'Defect Priorities', key: 'defectPriority', opts: P.dropdowns.defectPriority }
-          ]
-        }
-      ];
-      list.innerHTML = ddFields.map(g => `
-        <div style="margin-bottom:32px">
-          <div style="font-size:11px;font-weight:800;color:var(--color-primary);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;border-bottom:1px solid var(--color-divider);padding-bottom:4px;display:flex;align-items:center;gap:8px">
-            <span style="font-size:12px"><i data-lucide="building"></i></span>
-            ${g.group}
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
-            ${g.fields.map(f => `
-              <div class="fg" style="margin-bottom:0">
-                <label class="flbl" style="font-size:11px">${f.label}</label>
-                <textarea class="finp" style="font-family:var(--font); font-size:12px; min-height:60px" rows="2" onchange="updateDDOptions('${f.key}', this.value)">${(f.opts || []).join('; ')}</textarea>
-                <div style="font-size:9px; color:var(--color-text-faint); margin-top:2px">Semicolon separated list.</div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `).join('');
-    }
-
-    function updateDDOptions(key, value) {
-      const newOpts = value.split(';').map(s => s.trim()).filter(Boolean);
-      if (!newOpts.length) return;
-      if (P.dropdowns[key]) {
-        P.dropdowns[key] = newOpts;
-        syncDropdowns();
-        notify('Dropdown updated', 'ok');
-        save();
-        render(); // Refresh UI
-      }
-    }
-
-    function startEditCF(idx) {
-      P._editingCfIdx = idx; const cf = P.customFields[idx];
-      $id('cf-new-name').value = cf.name;
-      $id('cf-new-type').value = cf.type;
-      $id('cf-new-opts').value = (cf.options || []).join('; ');
-      $id('cf-add-btn').textContent = 'Update Field';
-      $id('cf-form-title').textContent = 'Edit Custom Field';
-      $id('cf-cancel-btn').style.display = 'inline-block';
-      toggleCfOpts();
-    }
-
-    function cancelEditCF() {
-      P._editingCfIdx = null;
-      $id('cf-new-name').value = '';
-      $id('cf-new-opts').value = '';
-      $id('cf-add-btn').textContent = 'Add Field';
-      $id('cf-form-title').textContent = 'Add New Custom Field';
-      $id('cf-cancel-btn').style.display = 'none';
-    }
-
-    function addCustomField() {
-      const name = $id('cf-new-name').value.trim(), type = $id('cf-new-type').value, opts = $id('cf-new-opts').value.split(';').map(s => s.trim()).filter(Boolean);
-      if (!name) { notify('Enter field name', 'err'); return; }
-      if (P._editingCfIdx === null) {
-        if (P.customFields.find(f => f.name === name)) { notify('Field already exists', 'err'); return; }
-        P.customFields.push({ name, type, options: opts, required: false });
-      } else {
-        const old = P.customFields[P._editingCfIdx];
-        if (old.name !== name) {
-          P.tasks.forEach(t => { if (t[old.name] !== undefined) { t[name] = t[old.name]; delete t[old.name]; } });
-        }
-        P.customFields[P._editingCfIdx] = { ...old, name, type, options: opts };
-        cancelEditCF();
-      }
-      renderCFList();
-    }
-
-    function toggleCfOpts() {
-      const type = $id('cf-new-type').value;
-      $id('cf-opts-wrap').style.display = (type === 'dropdown') ? 'block' : 'none';
-    }
-
-
-    function renderTplList() {
-      const list = $id('tpl-list'); if (!list) return; list.innerHTML = '';
-      P.stepTemplates.forEach((tpl, i) => {
-        list.innerHTML += `
-          <div class="admin-list-item" style="display:flex; align-items:center; gap:10px; padding:10px; border-radius:var(--r); background:var(--color-surface-2); margin-bottom:8px">
-            <div style="flex:1">
-              <div style="font-weight:600; font-size:13px">${esc(tpl.name)}</div>
-              <div style="font-size:11px; color:var(--color-text-muted)">${tpl.steps.length} steps ${tpl.category ? `• Category: ${tpl.category}` : ''}</div>
-            </div>
-            <button class="btn ghost" style="font-size:16px" onclick="startEditTpl(${i})" title="Edit template steps"><i data-lucide="edit-2"></i></button>
-            <button class="btn ghost" style="font-size:16px; color:var(--red)" onclick="P.stepTemplates.splice(${i},1);renderTplList()" title="Delete template permanently"><i data-lucide="x"></i></button>
-          </div>
-        `;
-      });
-    }
 
 
 
@@ -19628,43 +19488,7 @@
       }
     }
 
-    function startEditTpl(idx) {
-      P._editingTplIdx = idx; const tpl = P.stepTemplates[idx];
-      $id('tpl-new-name').value = tpl.name;
-      $id('tpl-new-cat').value = tpl.category || '';
-      $id('tpl-new-steps').value = tpl.steps.map(s => typeof s === 'string' ? s : `${s.name}:${s.effort}`).join('\n');
-      $id('tpl-add-btn').textContent = 'Update Template';
-      $id('tpl-form-title').textContent = 'Edit Template';
-      $id('tpl-cancel-btn').style.display = 'inline-block';
-    }
 
-    function cancelEditTpl() {
-      P._editingTplIdx = null;
-      $id('tpl-new-name').value = '';
-      $id('tpl-new-cat').value = '';
-      $id('tpl-new-steps').value = '';
-      $id('tpl-add-btn').textContent = 'Add Template';
-      $id('tpl-form-title').textContent = 'Add New Template';
-      $id('tpl-cancel-btn').style.display = 'none';
-    }
-
-    function addStepTemplate() {
-      const name = $id('tpl-new-name').value.trim();
-      const category = $id('tpl-new-cat').value;
-      const steps = $id('tpl-new-steps').value.split('\n').map(s => s.trim()).filter(Boolean).map(s => {
-        const parts = s.split(':');
-        return { name: parts[0].trim(), effort: parts.length > 1 ? parseFloat(parts[1]) || 1 : 1 };
-      });
-      if (!name || !steps.length) { notify('Enter template name and steps', 'err'); return; }
-      if (P._editingTplIdx === null) {
-        P.stepTemplates.push({ name, category, steps });
-      } else {
-        P.stepTemplates[P._editingTplIdx] = { name, category, steps };
-        cancelEditTpl();
-      }
-      syncAllTasksToTemplate(category);
-      renderTplList();
-    }
 
 
     function saveSettings() {
