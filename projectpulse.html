@@ -34873,6 +34873,10 @@
         const theme = document.documentElement.getAttribute('data-theme') || 'paper';
         const tbg = window.resolveColor('var(--color-bg)') || window.resolveColor('var(--bg)') || '#ffffff';
         
+        // Calculate true scroll height of target container element
+        const fullHeight = container.scrollHeight;
+        const fullWidth = container.scrollWidth || container.offsetWidth;
+
         const canvas = await html2canvas(container, {
           backgroundColor: tbg,
           scale: 2,
@@ -34880,14 +34884,18 @@
           allowTaint: true,
           logging: false,
           scrollX: 0,
-          scrollY: 0,
+          scrollY: -window.scrollY, // Negate current document scroll position to prevent clipping offsets
           windowWidth: document.documentElement.clientWidth,
-          windowHeight: document.documentElement.clientHeight,
+          windowHeight: Math.max(document.documentElement.clientHeight, fullHeight + 200),
+          height: fullHeight,
+          width: fullWidth,
           onclone: (clonedDoc) => {
-            // Force fonts/visibility in cloned tree if necessary
             const clonedCont = clonedDoc.getElementById(containerId);
             if (clonedCont) {
               clonedCont.style.padding = '20px';
+              clonedCont.style.height = 'auto'; // allow expansion of content container
+              clonedCont.style.overflow = 'visible'; // override hidden scrolls
+              clonedCont.style.maxHeight = 'none'; // release any viewport locking styles
               clonedCont.style.width = container.offsetWidth + 'px';
               clonedCont.querySelectorAll('.btn, .copy-btn, .dash-toolbar, .view-actions, .cw-ctrls, .dd-wrap').forEach(el => el.remove());
             }
