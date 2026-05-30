@@ -35895,6 +35895,9 @@
         { id: 'capacity_shortfalls', t: 'Predictive Capacity Shortfalls', on: true },
         { id: 'burn_rate', t: 'Effort & Budget Burn-Rate Trajectory', on: true },
         { id: 'team_velocity', t: 'Team Velocity', on: true },
+        { id: 'team_performance_scorecard', t: 'Team Performance Scorecard', on: true },
+        { id: 'activity_timeline', t: '30-Day Activity Timeline', on: true },
+        { id: 'skills_coverage', t: 'Skills & Role Coverage', on: true },
         { id: 'team_directory', t: 'Team Directory', on: true },
         { id: 'org_chart', t: 'Organization Chart', on: true }
       ];
@@ -37391,6 +37394,356 @@
             grid.appendChild(card);
           });
           widgetWrapper.appendChild(grid);
+        }
+
+        else if (cleanId === 'team_performance_scorecard') {
+          // ── Team Performance Scorecard ──────────────────────────────────────────────
+          const tpsCard = mkCC('Team Performance Scorecard', 'Ranked leaderboard — completion, cycle time, on-time delivery & health', 'tps-widget', '', 'standard',
+            '<b>Performance Leaderboard:</b> Ranks every active member across 5 key metrics.<br><br>Click any column header to sort. Hover rows for detail.',
+            'View Explanation', 'bar-chart-horizontal');
+          tpsCard.style.gridColumn = '1 / -1';
+          widgetWrapper.appendChild(tpsCard);
+          const tpsBody = tpsCard.querySelector('.cb');
+          tpsBody.style.padding = '0';
+          tpsBody.style.overflowX = 'auto';
+
+          if (!document.getElementById('tps-styles')) {
+            const tpsStyle = document.createElement('style');
+            tpsStyle.id = 'tps-styles';
+            tpsStyle.innerHTML = `
+              .tps-table{width:100%;border-collapse:collapse;min-width:820px}
+              .tps-table th{padding:11px 14px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--color-text-muted);background:var(--color-surface-2);border-bottom:2px solid var(--color-border);cursor:pointer;user-select:none;white-space:nowrap;transition:background .15s}
+              .tps-table th:hover{background:var(--color-surface-3);color:var(--color-primary)}
+              .tps-table th.sort-asc::after{content:' ↑';color:var(--color-primary)}
+              .tps-table th.sort-desc::after{content:' ↓';color:var(--color-primary)}
+              .tps-table td{padding:12px 14px;font-size:12px;border-bottom:1px solid var(--color-border-faint);color:var(--color-text);vertical-align:middle}
+              .tps-table tr:last-child td{border-bottom:none}
+              .tps-table tr:hover td{background:var(--color-surface-2)}
+              .tps-health-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:800}
+              .tps-metric-bar{height:5px;border-radius:3px;background:var(--color-surface-3);overflow:hidden;margin-top:3px}
+              .tps-metric-bar-fill{height:100%;border-radius:3px;transition:width .5s cubic-bezier(.34,1.56,.64,1)}
+            `;
+            document.head.appendChild(tpsStyle);
+          }
+
+          const q2 = (P.teamSearchQuery || '').toLowerCase();
+          const tpsMembers = P.members
+            .filter(function(m){ return m.status === 'Active' || m.status === 'Serving Notice Period'; })
+            .filter(function(m){ return !q2 || m.name.toLowerCase().includes(q2) || (m.role || '').toLowerCase().includes(q2); });
+
+          const now2 = new Date();
+          const tpsData = tpsMembers.map(function(m, idx) {
+            var allTasks = P.tasks.filter(function(t){ return t.assignee === m.name; });
+            var completed = allTasks.filter(function(t){ return t.status === 'Completed'; });
+            var pending = allTasks.filter(function(t){ return t.status !== 'Completed' && t.status !== 'Cancelled'; });
+            var blocked = pending.filter(function(t){ return t.status === 'Blocked'; }).length;
+            var total = allTasks.filter(function(t){ return t.status !== 'Cancelled'; }).length;
+            var completionRate = total > 0 ? Math.round((completed.length / total) * 100) : 0;
+
+            var cycleTimes = [];
+            completed.forEach(function(t){
+              if (t.createdAt && t.updatedAt) {
+                var diff = (new Date(t.updatedAt) - new Date(t.createdAt)) / 864e5;
+                if (diff >= 0 && diff < 365) cycleTimes.push(diff);
+              }
+            });
+            var avgCycle = cycleTimes.length ? (cycleTimes.reduce(function(s,v){ return s+v; }, 0) / cycleTimes.length).toFixed(1) : null;
+
+            var completedWithDue = completed.filter(function(t){ return t.dueDate; });
+            var onTime = completedWithDue.filter(function(t){ return new Date(t.updatedAt || now2) <= new Date(t.dueDate); }).length;
+            var onTimePct = completedWithDue.length > 0 ? Math.round((onTime / completedWithDue.length) * 100) : null;
+
+            var velocity7 = completed.filter(function(t){
+              var ts = t.updatedAt || t.completedAt;
+              return ts && (now2 - new Date(ts)) <= 7 * 864e5;
+            }).length;
+
+            var health = 'Great', healthColor = '#16a34a', healthBg = 'rgba(34,197,94,0.12)';
+            if (blocked > 0 || completionRate < 30) { health = 'At Risk'; healthColor = '#ef4444'; healthBg = 'rgba(239,68,68,0.12)'; }
+            else if (completionRate < 60) { health = 'Progressing'; healthColor = '#f59e0b'; healthBg = 'rgba(245,158,11,0.12)'; }
+            else if (completionRate < 80) { health = 'Good'; healthColor = '#3b82f6'; healthBg = 'rgba(59,130,246,0.12)'; }
+            if (m.status === 'Serving Notice Period') { health = 'Notice'; healthColor = '#f97316'; healthBg = 'rgba(249,115,22,0.12)'; }
+
+            return { m: m, idx: idx, completionRate: completionRate, avgCycle: avgCycle, onTimePct: onTimePct, velocity7: velocity7, blocked: blocked, health: health, healthColor: healthColor, healthBg: healthBg, completed: completed.length, total: total, pending: pending.length };
+          });
+
+          if (!window._tpsSortCol) window._tpsSortCol = 'completionRate';
+          if (window._tpsSortDir === undefined) window._tpsSortDir = -1;
+
+          window._tpsSortTbl = function(col) {
+            if (window._tpsSortCol === col) window._tpsSortDir *= -1;
+            else { window._tpsSortCol = col; window._tpsSortDir = -1; }
+            window._renderTpsTable();
+          };
+
+          window._renderTpsTable = function() {
+            var sorted = tpsData.slice().sort(function(a, b) {
+              var va = a[window._tpsSortCol]; var vb = b[window._tpsSortCol];
+              if (va === null || va === undefined) return 1;
+              if (vb === null || vb === undefined) return -1;
+              if (window._tpsSortCol === 'name') return window._tpsSortDir * String(va).localeCompare(String(vb));
+              return window._tpsSortDir * (parseFloat(va) - parseFloat(vb));
+            });
+
+            var html = '<table class="tps-table"><thead><tr>';
+            html += '<th style="width:40px;text-align:center">#</th>';
+            html += '<th onclick="window._tpsSortTbl(\'m\')" style="min-width:200px">Member</th>';
+            ['completionRate','avgCycle','onTimePct','blocked','velocity7','health'].forEach(function(col) {
+              var labels = { completionRate: 'Completion', avgCycle: 'Avg Cycle', onTimePct: 'On-Time', blocked: 'Blocked', velocity7: '7D Velocity', health: 'Health' };
+              var sortClass = window._tpsSortCol === col ? (window._tpsSortDir > 0 ? 'sort-asc' : 'sort-desc') : '';
+              html += '<th onclick="window._tpsSortTbl(\'' + col + '\')" class="' + sortClass + '">' + labels[col] + '</th>';
+            });
+            html += '</tr></thead><tbody>';
+
+            sorted.forEach(function(d, rank) {
+              var avatarBg = CC[d.idx % CC.length];
+              var initials = d.m.name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0, 2);
+              var rankEmoji = rank === 0 ? '🥇' : rank === 1 ? '🥈' : rank === 2 ? '🥉' : (rank + 1) + '.';
+              var crColor = d.completionRate >= 80 ? '#22c55e' : d.completionRate >= 50 ? '#3b82f6' : '#ef4444';
+              var otColor = d.onTimePct === null ? 'var(--color-text-faint)' : d.onTimePct >= 80 ? '#22c55e' : d.onTimePct >= 50 ? '#f59e0b' : '#ef4444';
+              html += '<tr>';
+              html += '<td style="text-align:center;font-weight:800;font-size:13px">' + rankEmoji + '</td>';
+              html += '<td><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:50%;background:' + avatarBg + ';color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">' + initials + '</div><div><div style="font-weight:800;font-size:13px">' + esc(d.m.name) + '</div><div style="font-size:10px;color:var(--color-text-faint)">' + esc(d.m.role || 'Member') + '</div></div></div></td>';
+              html += '<td><div style="font-weight:800;color:' + crColor + '">' + d.completionRate + '%</div><div class="tps-metric-bar"><div class="tps-metric-bar-fill" style="width:' + d.completionRate + '%;background:' + crColor + '"></div></div><div style="font-size:9px;color:var(--color-text-faint);margin-top:2px">' + d.completed + '/' + d.total + ' tasks</div></td>';
+              html += '<td style="font-weight:700;font-family:var(--font-mono)">' + (d.avgCycle !== null ? d.avgCycle + 'd' : '<span style="color:var(--color-text-faint)">—</span>') + '</td>';
+              html += '<td style="color:' + otColor + ';font-weight:700">' + (d.onTimePct !== null ? d.onTimePct + '%' : '<span style="color:var(--color-text-faint)">—</span>') + '</td>';
+              html += '<td>' + (d.blocked > 0 ? '<span style="background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.3);padding:2px 8px;border-radius:8px;font-size:11px;font-weight:800">' + d.blocked + ' blocked</span>' : '<span style="color:var(--color-text-faint);font-size:11px">None</span>') + '</td>';
+              html += '<td><div style="font-size:18px;font-weight:900;color:var(--color-primary);font-family:var(--font-mono)">' + d.velocity7 + '</div><div style="font-size:9px;color:var(--color-text-faint)">tasks closed</div></td>';
+              html += '<td><span class="tps-health-badge" style="background:' + d.healthBg + ';color:' + d.healthColor + ';border:1px solid ' + d.healthColor + '33">' + (d.health === 'Great' ? '✦' : d.health === 'Good' || d.health === 'Progressing' ? '◎' : d.health === 'Notice' ? '⏳' : '⚠') + ' ' + d.health + '</span></td>';
+              html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            tpsBody.innerHTML = html;
+            if (window.lucide) lucide.createIcons(tpsBody);
+          };
+
+          if (tpsMembers.length) {
+            window._renderTpsTable();
+          } else {
+            tpsBody.innerHTML = '<div style="padding:40px;text-align:center;color:var(--color-text-faint)">No active team members found.</div>';
+          }
+        }
+
+        else if (cleanId === 'activity_timeline') {
+          // ── 30-Day Activity Timeline ──────────────────────────────────────────────
+          var actCard = mkCC('30-Day Activity Timeline', 'GitHub-style daily contribution heatmap per member', 'act-timeline', '', 'standard',
+            '<b>Activity Heatmap:</b> Shows each member\'s daily log activity over the past 30 days. Darker = more actions. Click a cell for a summary.',
+            'View Explanation', 'activity');
+          actCard.style.gridColumn = '1 / -1';
+          widgetWrapper.appendChild(actCard);
+          var actBody = actCard.querySelector('.cb');
+          actBody.style.padding = '16px';
+          actBody.style.overflowX = 'auto';
+
+          if (!document.getElementById('act-tl-styles')) {
+            var actStyle = document.createElement('style');
+            actStyle.id = 'act-tl-styles';
+            actStyle.innerHTML = '.act-cell{width:18px;height:18px;border-radius:4px;cursor:pointer;transition:all .15s;border:1px solid transparent;flex-shrink:0;display:inline-block}.act-cell:hover{transform:scale(1.35);z-index:5;position:relative;box-shadow:0 2px 8px rgba(99,102,241,.4)}.act-row{display:flex;align-items:center;gap:4px;padding:5px 0;border-bottom:1px solid var(--color-border-faint)}.act-row:last-child{border-bottom:none}.act-member-label{width:150px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding-right:8px}.act-days-wrap{display:flex;gap:3px;flex-wrap:nowrap}';
+            document.head.appendChild(actStyle);
+          }
+
+          var q3 = (P.teamSearchQuery || '').toLowerCase();
+          var actMembers = P.members
+            .filter(function(m){ return m.status !== 'Departed'; })
+            .filter(function(m){ return !q3 || m.name.toLowerCase().includes(q3) || (m.role || '').toLowerCase().includes(q3); });
+
+          var actDays = [];
+          for (var dd = 29; dd >= 0; dd--) {
+            var dt = new Date(Date.now() - dd * 864e5);
+            actDays.push({ dt: dt, key: dt.toISOString().split('T')[0], isToday: dd === 0, dayOfWeek: dt.getDay() });
+          }
+
+          var globalMax = 1;
+          actMembers.forEach(function(m) {
+            actDays.forEach(function(d) {
+              var cnt = P.log.filter(function(l){ return l.user === m.name && l.ts && l.ts.startsWith(d.key); }).length;
+              if (cnt > globalMax) globalMax = cnt;
+            });
+          });
+
+          var actHtml = '<div style="display:flex;align-items:center;gap:4px;padding:0 0 8px 0;border-bottom:2px solid var(--color-border);margin-bottom:4px">';
+          actHtml += '<div style="width:150px;flex-shrink:0;font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase">MEMBER</div>';
+          actHtml += '<div class="act-days-wrap">';
+          actDays.forEach(function(d, di) {
+            var showLbl = d.isToday || d.dt.getDate() === 1 || di % 7 === 0;
+            actHtml += '<div style="width:18px;text-align:center;font-size:8px;font-weight:' + (d.isToday ? '800' : '600') + ';color:' + (d.isToday ? 'var(--color-primary)' : 'var(--color-text-faint)') + '">' + (showLbl ? (d.isToday ? 'T' : d.dt.getDate()) : '') + '</div>';
+          });
+          actHtml += '</div><div style="font-size:9px;color:var(--color-text-faint);margin-left:12px;white-space:nowrap">→ Today</div></div>';
+
+          if (!actMembers.length) {
+            actHtml += '<div style="padding:32px;text-align:center;color:var(--color-text-faint)">No members match.</div>';
+          } else {
+            actMembers.forEach(function(m, mIdx) {
+              var initials = m.name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0, 2);
+              var avatarBg = CC[mIdx % CC.length];
+              var total30 = P.log.filter(function(l){ return l.user === m.name && l.ts && new Date(l.ts) >= new Date(Date.now() - 30 * 864e5); }).length;
+              actHtml += '<div class="act-row"><div class="act-member-label"><div style="width:24px;height:24px;border-radius:50%;background:' + avatarBg + ';color:white;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0">' + initials + '</div><div style="min-width:0"><div style="font-size:11px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(m.name) + '</div><div style="font-size:8px;color:var(--color-text-faint)">' + total30 + ' actions</div></div></div><div class="act-days-wrap">';
+              actDays.forEach(function(d) {
+                var cnt = P.log.filter(function(l){ return l.user === m.name && l.ts && l.ts.startsWith(d.key); }).length;
+                var ratio = cnt / globalMax;
+                var bg, bdr;
+                if (cnt === 0) { bg = 'var(--color-surface-3)'; bdr = 'var(--color-border-faint)'; }
+                else if (ratio < 0.25) { bg = 'rgba(99,102,241,0.18)'; bdr = 'rgba(99,102,241,0.25)'; }
+                else if (ratio < 0.55) { bg = 'rgba(99,102,241,0.38)'; bdr = 'rgba(99,102,241,0.45)'; }
+                else if (ratio < 0.8) { bg = 'rgba(99,102,241,0.65)'; bdr = 'rgba(99,102,241,0.75)'; }
+                else { bg = 'var(--color-primary)'; bdr = 'var(--color-primary)'; }
+                var isWknd = d.dayOfWeek === 0 || d.dayOfWeek === 6;
+                var opacity = (isWknd && cnt === 0) ? '0.4' : '1';
+                actHtml += '<div class="act-cell" style="background:' + bg + ';border-color:' + (d.isToday ? 'var(--color-primary)' : bdr) + ';opacity:' + opacity + '" title="' + esc(m.name) + ' · ' + d.key + ' · ' + cnt + ' action' + (cnt !== 1 ? 's' : '') + '"></div>';
+              });
+              actHtml += '</div><div style="margin-left:12px;font-size:10px;font-weight:700;color:var(--color-text-faint);white-space:nowrap;min-width:36px">' + total30 + '</div></div>';
+            });
+          }
+
+          actHtml += '<div style="display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--color-border-faint)">';
+          actHtml += '<span style="font-size:10px;color:var(--color-text-faint);margin-right:4px">Less</span>';
+          ['var(--color-surface-3)','rgba(99,102,241,0.18)','rgba(99,102,241,0.38)','rgba(99,102,241,0.65)','var(--color-primary)'].forEach(function(c){
+            actHtml += '<div class="act-cell" style="background:' + c + ';border-color:rgba(99,102,241,0.3);cursor:default;display:inline-block"></div>';
+          });
+          actHtml += '<span style="font-size:10px;color:var(--color-text-faint)">More</span>';
+          actHtml += '<span style="margin-left:auto;font-size:9px;color:var(--color-text-faint)">Each cell = 1 calendar day · Intensity = log action count</span></div>';
+
+          actBody.innerHTML = actHtml;
+          if (window.lucide) lucide.createIcons(actBody);
+        }
+
+        else if (cleanId === 'skills_coverage') {
+          // ── Skills & Role Coverage Map ──────────────────────────────────────────────
+          var scCard = mkCC('Skills & Role Coverage', 'Matrix showing skill depth and role gaps across the team', 'skills-coverage', '', 'standard',
+            '<b>Coverage Matrix:</b> Aggregates skill tags from member profiles. Rows = roles, Columns = skills. Cell = member count with that skill.<br><br>Add a <b>skills</b> field (comma-separated) to member profiles to populate.',
+            'View Explanation', 'grid-3x3');
+          scCard.style.gridColumn = '1 / -1';
+          widgetWrapper.appendChild(scCard);
+          var scBody = scCard.querySelector('.cb');
+          scBody.style.padding = '16px';
+
+          if (!document.getElementById('sc-styles')) {
+            var scStyle = document.createElement('style');
+            scStyle.id = 'sc-styles';
+            scStyle.innerHTML = '.sc-cell{width:38px;height:30px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;border-radius:6px;cursor:default;transition:transform .15s}.sc-cell:hover{transform:scale(1.2);z-index:5;position:relative}.sc-table{border-collapse:separate;border-spacing:3px}.sc-table th{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--color-text-muted);padding:4px 6px}.sc-table td{padding:2px}.sc-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:var(--color-surface-2);border:1px solid var(--color-border-faint);border-radius:12px;font-size:10px;font-weight:700;color:var(--color-text-muted)}';
+            document.head.appendChild(scStyle);
+          }
+
+          var q4 = (P.teamSearchQuery || '').toLowerCase();
+          var scMembers = P.members
+            .filter(function(m){ return m.status !== 'Departed'; })
+            .filter(function(m){ return !q4 || m.name.toLowerCase().includes(q4) || (m.role || '').toLowerCase().includes(q4); });
+
+          var getSkills = function(m) {
+            var skills = m.skills || [];
+            if (typeof skills === 'string') { try { skills = JSON.parse(skills); } catch(e) { skills = skills.split(',').map(function(s){ return s.trim(); }).filter(Boolean); } }
+            return Array.isArray(skills) ? skills.map(function(s){ return String(s).trim(); }).filter(Boolean) : [];
+          };
+
+          var allSkillsSet = {};
+          scMembers.forEach(function(m){ getSkills(m).forEach(function(s){ allSkillsSet[s] = true; }); });
+          var skillsList = Object.keys(allSkillsSet).sort();
+
+          var roleGroupsMap = {};
+          scMembers.forEach(function(m) {
+            var role = m.role || 'General';
+            if (!roleGroupsMap[role]) roleGroupsMap[role] = [];
+            roleGroupsMap[role].push(m);
+          });
+
+          var noticeMembers = scMembers.filter(function(m){ return m.status === 'Serving Notice Period'; });
+          var now3 = new Date();
+
+          if (!skillsList.length) {
+            // Empty state — show role distribution + tenure + notice alert
+            var tenureSegs = { '< 3 mo': [], '3-12 mo': [], '1-2 yr': [], '2+ yr': [] };
+            scMembers.forEach(function(m) {
+              if (m.joinDate) {
+                var months = (now3 - new Date(m.joinDate)) / (864e5 * 30.5);
+                if (months < 3) tenureSegs['< 3 mo'].push(m);
+                else if (months < 12) tenureSegs['3-12 mo'].push(m);
+                else if (months < 24) tenureSegs['1-2 yr'].push(m);
+                else tenureSegs['2+ yr'].push(m);
+              }
+            });
+            var tColors = { '< 3 mo': '#06b6d4', '3-12 mo': '#6366f1', '1-2 yr': '#22c55e', '2+ yr': '#f59e0b' };
+            var scHtml = '<div style="padding:24px;background:var(--color-surface-2);border-radius:14px;border:1px dashed var(--color-border);text-align:center;margin-bottom:16px"><div style="font-size:28px;margin-bottom:8px">🎯</div><div style="font-weight:800;color:var(--color-text);margin-bottom:4px">No Skill Tags Found</div><div style="font-size:12px;color:var(--color-text-muted)">Add a <b>skills</b> field to member profiles to populate the coverage matrix.</div></div>';
+
+            scHtml += '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--color-text-muted);margin-bottom:10px">Role Distribution</div>';
+            scHtml += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">';
+            Object.entries(roleGroupsMap).forEach(function(kv) {
+              scHtml += '<div style="padding:8px 14px;background:var(--color-surface-2);border-radius:10px;border:1px solid var(--color-border-faint)"><div style="font-size:11px;font-weight:800;color:var(--color-text)">' + esc(kv[0]) + '</div><div style="font-size:10px;color:var(--color-text-faint)">' + kv[1].length + ' member' + (kv[1].length > 1 ? 's' : '') + '</div></div>';
+            });
+            scHtml += '</div>';
+
+            var totalWithJoin = Object.values(tenureSegs).reduce(function(s, a){ return s + a.length; }, 0);
+            if (totalWithJoin > 0) {
+              scHtml += '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--color-text-muted);margin-bottom:10px">Tenure Distribution</div>';
+              scHtml += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">';
+              Object.entries(tenureSegs).forEach(function(kv) {
+                var c = tColors[kv[0]];
+                scHtml += '<div style="padding:12px;background:' + c + '12;border:1px solid ' + c + '33;border-radius:12px;text-align:center"><div style="font-size:22px;font-weight:900;color:' + c + ';font-family:var(--font-mono)">' + kv[1].length + '</div><div style="font-size:10px;font-weight:700;color:var(--color-text-muted);margin-top:3px">' + kv[0] + '</div></div>';
+              });
+              scHtml += '</div>';
+            }
+
+            if (noticeMembers.length > 0) {
+              var noticePct = Math.round((noticeMembers.length / scMembers.length) * 100);
+              scHtml += '<div style="padding:12px 16px;background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.25);border-radius:12px;display:flex;align-items:center;gap:12px"><div style="font-size:20px">⏳</div><div><div style="font-weight:800;color:#f97316;font-size:13px">Notice Period Alert</div><div style="font-size:11px;color:var(--color-text-muted)">' + noticeMembers.length + ' member' + (noticeMembers.length > 1 ? 's' : '') + ' serving notice (' + noticePct + '% of team): ' + noticeMembers.map(function(m){ return esc(m.name); }).join(', ') + '</div></div>' + (noticePct > 25 ? '<span style="margin-left:auto;padding:3px 10px;background:rgba(239,68,68,.12);color:#ef4444;border-radius:12px;font-size:10px;font-weight:800">High Risk</span>' : '') + '</div>';
+            }
+
+            scBody.innerHTML = scHtml;
+          } else {
+            // Full matrix
+            var coveredCount = 0;
+            skillsList.forEach(function(skill) {
+              if (scMembers.some(function(m){ return getSkills(m).includes(skill); })) coveredCount++;
+            });
+            var coveragePct = Math.round((coveredCount / skillsList.length) * 100);
+            var totalSkillInstances = scMembers.reduce(function(s, m){ return s + getSkills(m).length; }, 0);
+            var avgDepth = (totalSkillInstances / skillsList.length).toFixed(1);
+
+            var scHtml2 = '<div style="display:flex;align-items:center;gap:20px;padding:12px 16px;background:var(--color-surface-2);border-radius:12px;border:1px solid var(--color-border-faint);margin-bottom:16px;flex-wrap:wrap">';
+            scHtml2 += '<div style="text-align:center"><div style="font-size:22px;font-weight:900;color:var(--color-primary)">' + coveragePct + '%</div><div style="font-size:9px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase">Skill Coverage</div></div>';
+            scHtml2 += '<div style="width:1px;height:32px;background:var(--color-border-faint)"></div>';
+            scHtml2 += '<div style="text-align:center"><div style="font-size:22px;font-weight:900;color:#22c55e">' + skillsList.length + '</div><div style="font-size:9px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase">Unique Skills</div></div>';
+            scHtml2 += '<div style="width:1px;height:32px;background:var(--color-border-faint)"></div>';
+            scHtml2 += '<div style="text-align:center"><div style="font-size:22px;font-weight:900;color:#f59e0b">' + avgDepth + '</div><div style="font-size:9px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase">Avg Depth/Skill</div></div>';
+            scHtml2 += '<div style="margin-left:auto;display:flex;flex-wrap:wrap;gap:6px;max-width:40%">';
+            skillsList.slice(0, 8).forEach(function(s){ scHtml2 += '<span class="sc-chip">' + esc(s) + '</span>'; });
+            if (skillsList.length > 8) scHtml2 += '<span class="sc-chip">+' + (skillsList.length - 8) + ' more</span>';
+            scHtml2 += '</div></div>';
+
+            scHtml2 += '<div style="overflow-x:auto"><table class="sc-table"><thead><tr><th style="text-align:left;min-width:140px">Role</th><th>Count</th>';
+            skillsList.forEach(function(s){ scHtml2 += '<th style="max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(s) + '">' + esc(s.length > 8 ? s.slice(0, 7) + '…' : s) + '</th>'; });
+            scHtml2 += '</tr></thead><tbody>';
+
+            Object.entries(roleGroupsMap).forEach(function(kv) {
+              var role = kv[0]; var members = kv[1];
+              scHtml2 += '<tr><td style="font-weight:800;font-size:12px;color:var(--color-text);white-space:nowrap">' + esc(role) + '</td>';
+              scHtml2 += '<td style="text-align:center"><span style="font-size:11px;font-weight:700;background:var(--color-surface-2);padding:2px 6px;border-radius:6px;color:var(--color-text-muted)">' + members.length + '</span></td>';
+              skillsList.forEach(function(skill) {
+                var count = members.filter(function(m){ return getSkills(m).includes(skill); }).length;
+                var bg, color;
+                if (count === 0) { bg = 'var(--color-surface-3)'; color = 'var(--color-text-faint)'; }
+                else if (count === 1) { bg = 'rgba(99,102,241,0.15)'; color = 'var(--color-primary)'; }
+                else if (count === 2) { bg = 'rgba(99,102,241,0.4)'; color = 'var(--color-primary)'; }
+                else { bg = 'var(--color-primary)'; color = 'white'; }
+                scHtml2 += '<td><div class="sc-cell" style="background:' + bg + ';color:' + color + '" title="' + count + ' ' + esc(role) + ' with \'' + esc(skill) + '\'">' + (count > 0 ? count : '') + '</div></td>';
+              });
+              scHtml2 += '</tr>';
+            });
+            scHtml2 += '</tbody></table></div>';
+            scHtml2 += '<div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:8px;border-top:1px solid var(--color-border-faint)">';
+            [['var(--color-surface-3)','0','None'],['rgba(99,102,241,0.15)','1','1 member'],['rgba(99,102,241,0.4)','2','2 members'],['var(--color-primary)','3+','3+ members']].forEach(function(item){
+              scHtml2 += '<div style="display:flex;align-items:center;gap:4px"><div class="sc-cell" style="background:' + item[0] + ';color:' + (item[1] === '3+' ? 'white' : 'var(--color-primary)') + ';cursor:default;width:24px;height:20px;font-size:9px">' + item[1] + '</div><span style="font-size:9px;color:var(--color-text-faint)">' + item[2] + '</span></div>';
+            });
+            scHtml2 += '</div>';
+
+            if (noticeMembers.length > 0) {
+              var noticePct2 = Math.round((noticeMembers.length / scMembers.length) * 100);
+              scHtml2 += '<div style="margin-top:12px;padding:12px 16px;background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.25);border-radius:12px;display:flex;align-items:center;gap:12px"><div style="font-size:16px">⏳</div><div style="font-weight:800;color:#f97316;font-size:12px">Notice Period: ' + noticeMembers.map(function(m){ return esc(m.name); }).join(', ') + ' (' + noticePct2 + '% of team)</div>' + (noticePct2 > 25 ? '<span style="margin-left:auto;padding:3px 10px;background:rgba(239,68,68,.12);color:#ef4444;border-radius:12px;font-size:10px;font-weight:800">High Risk</span>' : '') + '</div>';
+            }
+
+            scBody.innerHTML = scHtml2;
+          }
+          if (window.lucide) lucide.createIcons(scBody);
         }
 
         else if (cleanId === 'org_chart') {
