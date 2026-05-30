@@ -38176,7 +38176,8 @@
               this.ancestor = this; this.thread = null;
               this.change = 0; this.shift = 0;
               this.isCollapsed = P.collapsedNodes.has(m.id);
-              this.isVerticalLeaf = false; // flag indicating a child node stacked vertically
+              this.isVerticalLeaf = false;
+              this.verticalIndex = 0;
             }
             getLeftSibling() { return (this.parent && this.number > 0) ? this.parent.children[this.number - 1] : null; }
             getLeftMostSibling() { return (this.parent && this.number > 0) ? this.parent.children[0] : null; }
@@ -38196,31 +38197,36 @@
                 treeRoots.push(node);
               }
             });
+
+            // Tag vertical flag early
+            const checkVertical = (node) => {
+              if (node.children.length > 3 && !node.isCollapsed) {
+                node.children.forEach((c, idx) => {
+                  c.isVerticalLeaf = true;
+                  c.verticalIndex = idx;
+                });
+              }
+              node.children.forEach(checkVertical);
+            };
+            treeRoots.forEach(checkVertical);
+
             return treeRoots;
           };
 
           const firstWalk = (v, distance) => {
-            // If this node or parent has > 3 children, we format children vertically
-            // For vertical layout, children don't contribute to horizontal sibling spacing width
-            const hasVerticalChildren = v.children.length > 3 && !v.isCollapsed;
-            if (hasVerticalChildren) {
-              // Flag children as vertical leaves
-              v.children.forEach((c, idx) => {
-                c.isVerticalLeaf = true;
-                c.depth = v.depth + 1;
-                c.x = idx;
-                c.y = c.depth;
-              });
-              // Parent is placed directly, has no layout-critical subtree children width
-              const left = v.getLeftSibling();
-              v.prelim = left ? left.prelim + distance : 0;
-            } else if (v.children.length === 0 || v.isCollapsed) {
+            if (v.isVerticalLeaf) {
+              // Vertical leaves do not take up horizontal sibling spacing in the walk
+              v.prelim = 0;
+              return;
+            }
+
+            if (v.children.length === 0 || v.isCollapsed) {
               const left = v.getLeftSibling();
               v.prelim = left ? left.prelim + distance : 0;
             } else {
               let defaultAncestor = v.children[0];
-              // Filter out vertical leaves for standard horizontal spacing calculations
               const activeChildren = v.children.filter(c => !c.isVerticalLeaf);
+              
               if (activeChildren.length > 0) {
                 activeChildren.forEach(c => {
                   c.depth = v.depth + 1;
@@ -38237,6 +38243,7 @@
                   v.prelim = mid;
                 }
               } else {
+                // If it has children but all are vertical leaves, it behaves like a leaf horizontally
                 const left = v.getLeftSibling();
                 v.prelim = left ? left.prelim + distance : 0;
               }
@@ -38299,23 +38306,18 @@
           
           const secondWalk = (v, m) => {
             if (v.isVerticalLeaf) {
-              // Position vertically offset under parent
-              // x (which maps to Y-axis) = parent.x + offset
-              // y (which maps to X-axis) = parent.y + 1
-              v.x = v.parent.x + v.x * 0.85; 
+              // Correct overlapping coordinate calculation:
+              // For horizontal chart, Y-axis represents siblings. 
+              // Each sibling must step down by 1 unit offset on the sibling axis (v.x)
+              // X-axis represents depth. Vertical sibling nodes are placed 1 level deeper on X-axis (v.y)
+              v.x = v.parent.x + v.verticalIndex * 0.85; 
               v.y = v.parent.y + 1;
             } else {
               v.x = v.prelim + m; 
               v.y = v.depth;
             }
             
-            // If parent has vertical children, update parent layout offsets
-            const hasVerticalChildren = v.children.length > 3 && !v.isCollapsed;
             v.children.forEach(c => {
-              if (hasVerticalChildren) {
-                c.isVerticalLeaf = true;
-                c.depth = v.depth + 1;
-              }
               secondWalk(c, m + v.mod);
             });
           };
