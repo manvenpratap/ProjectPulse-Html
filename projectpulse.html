@@ -37908,7 +37908,15 @@
           if (!document.getElementById('sc-styles')) {
             var scStyle = document.createElement('style');
             scStyle.id = 'sc-styles';
-            scStyle.innerHTML = '.sc-cell{width:38px;height:30px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;border-radius:6px;cursor:default;transition:transform .15s}.sc-cell:hover{transform:scale(1.2);z-index:5;position:relative}.sc-table{border-collapse:separate;border-spacing:3px}.sc-table th{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--color-text-muted);padding:4px 6px}.sc-table td{padding:2px}.sc-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:var(--color-surface-2);border:1px solid var(--color-border-faint);border-radius:12px;font-size:10px;font-weight:700;color:var(--color-text-muted)}';
+            scStyle.innerHTML = `
+              .sc-cell { width:42px; height:32px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; border-radius:6px; cursor:pointer; transition:all 0.2s ease; position:relative; }
+              .sc-cell:hover { transform: scale(1.15); z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+              .sc-table { border-collapse: separate; border-spacing: 4px; width: 100%; }
+              .sc-table th { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--color-text-muted); padding: 8px 6px; background: var(--color-surface-2); border-radius: 4px; }
+              .sc-table td { padding: 2px; }
+              .sc-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: var(--color-surface-3); border: 1px solid var(--color-border); border-radius: 20px; font-size: 10px; font-weight: 700; color: var(--color-text); box-shadow: var(--shadow-sm); }
+              .sc-stat-card { background: var(--color-surface); border: 1px solid var(--color-border-faint); padding: 12px; border-radius: 12px; flex: 1; min-width: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: var(--shadow-sm); }
+            `;
             document.head.appendChild(scStyle);
           }
 
@@ -37950,7 +37958,7 @@
               }
             });
             var tColors = { '< 3 mo': '#06b6d4', '3-12 mo': '#6366f1', '1-2 yr': '#22c55e', '2+ yr': '#f59e0b' };
-            var scHtml = '<div style="padding:24px;background:var(--color-surface-2);border-radius:14px;border:1px dashed var(--color-border);text-align:center;margin-bottom:16px"><div style="font-size:28px;margin-bottom:8px">🎯</div><div style="font-weight:800;color:var(--color-text);margin-bottom:4px">No Skill Tags Found</div><div style="font-size:12px;color:var(--color-text-muted)">Add a <b>skills</b> field to member profiles to populate the coverage matrix.</div></div>';
+            var scHtml = '<div style="padding:32px 24px;background:var(--color-surface-2);border-radius:14px;border:1px dashed var(--color-border);text-align:center;margin-bottom:16px"><div style="font-size:32px;margin-bottom:8px">🎯</div><div style="font-weight:800;color:var(--color-text);margin-bottom:4px">No Skill Tags Found</div><div style="font-size:12px;color:var(--color-text-muted)">Add skills to member profiles using the Edit Member Profile drawer to populate this matrix.</div></div>';
 
             scHtml += '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--color-text-muted);margin-bottom:10px">Role Distribution</div>';
             scHtml += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">';
@@ -37986,46 +37994,69 @@
             var totalSkillInstances = scMembers.reduce(function(s, m){ return s + getSkills(m).length; }, 0);
             var avgDepth = (totalSkillInstances / skillsList.length).toFixed(1);
 
-            var scHtml2 = '<div style="display:flex;align-items:center;gap:20px;padding:12px 16px;background:var(--color-surface-2);border-radius:12px;border:1px solid var(--color-border-faint);margin-bottom:16px;flex-wrap:wrap">';
-            scHtml2 += '<div style="text-align:center"><div style="font-size:22px;font-weight:900;color:var(--color-primary)">' + coveragePct + '%</div><div style="font-size:9px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase">Skill Coverage</div></div>';
-            scHtml2 += '<div style="width:1px;height:32px;background:var(--color-border-faint)"></div>';
-            scHtml2 += '<div style="text-align:center"><div style="font-size:22px;font-weight:900;color:#22c55e">' + skillsList.length + '</div><div style="font-size:9px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase">Unique Skills</div></div>';
-            scHtml2 += '<div style="width:1px;height:32px;background:var(--color-border-faint)"></div>';
-            scHtml2 += '<div style="text-align:center"><div style="font-size:22px;font-weight:900;color:#f59e0b">' + avgDepth + '</div><div style="font-size:9px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase">Avg Depth/Skill</div></div>';
-            scHtml2 += '<div style="margin-left:auto;display:flex;flex-wrap:wrap;gap:6px;max-width:40%">';
-            skillsList.slice(0, 8).forEach(function(s){ scHtml2 += '<span class="sc-chip">' + esc(s) + '</span>'; });
-            if (skillsList.length > 8) scHtml2 += '<span class="sc-chip">+' + (skillsList.length - 8) + ' more</span>';
-            scHtml2 += '</div></div>';
+            var scHtml2 = '<div style="display:flex;align-items:stretch;gap:16px;margin-bottom:20px;flex-wrap:wrap">';
+            
+            scHtml2 += '<div class="sc-stat-card">';
+            scHtml2 += '<div style="font-size:24px;font-weight:900;color:var(--color-primary);font-family:var(--font-mono)">' + coveragePct + '%</div>';
+            scHtml2 += '<div style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;margin-top:4px">Coverage Rate</div>';
+            scHtml2 += '</div>';
 
-            scHtml2 += '<div style="overflow-x:auto"><table class="sc-table"><thead><tr><th style="text-align:left;min-width:140px">Role</th><th>Count</th>';
-            skillsList.forEach(function(s){ scHtml2 += '<th style="max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(s) + '">' + esc(s.length > 8 ? s.slice(0, 7) + '…' : s) + '</th>'; });
+            scHtml2 += '<div class="sc-stat-card">';
+            scHtml2 += '<div style="font-size:24px;font-weight:900;color:#22c55e;font-family:var(--font-mono)">' + skillsList.length + '</div>';
+            scHtml2 += '<div style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;margin-top:4px">Unique Skills</div>';
+            scHtml2 += '</div>';
+
+            scHtml2 += '<div class="sc-stat-card">';
+            scHtml2 += '<div style="font-size:24px;font-weight:900;color:#f59e0b;font-family:var(--font-mono)">' + avgDepth + '</div>';
+            scHtml2 += '<div style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;margin-top:4px">Avg Depth / Skill</div>';
+            scHtml2 += '</div>';
+
+            scHtml2 += '<div class="sc-stat-card" style="flex:2.5; align-items:flex-start; justify-content:flex-start;">';
+            scHtml2 += '<div style="font-size:10px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;margin-bottom:8px">Top Identified Tags</div>';
+            scHtml2 += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+            skillsList.slice(0, 10).forEach(function(s){ scHtml2 += '<span class="sc-chip">' + esc(s) + '</span>'; });
+            if (skillsList.length > 10) scHtml2 += '<span class="sc-chip" style="background:rgba(99,102,241,0.1); color:var(--color-primary)">+' + (skillsList.length - 10) + ' more</span>';
+            scHtml2 += '</div></div></div>';
+
+            scHtml2 += '<div style="overflow-x:auto; background:var(--color-surface-2); padding:16px; border-radius:12px; border:1px solid var(--color-border-faint)"><table class="sc-table"><thead><tr><th style="text-align:left;min-width:160px;padding-left:12px">Role</th><th style="width:70px">Headcount</th>';
+            skillsList.forEach(function(s){ scHtml2 += '<th style="max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center" title="' + esc(s) + '">' + esc(s) + '</th>'; });
             scHtml2 += '</tr></thead><tbody>';
 
             Object.entries(roleGroupsMap).forEach(function(kv) {
               var role = kv[0]; var members = kv[1];
-              scHtml2 += '<tr><td style="font-weight:800;font-size:12px;color:var(--color-text);white-space:nowrap">' + esc(role) + '</td>';
-              scHtml2 += '<td style="text-align:center"><span style="font-size:11px;font-weight:700;background:var(--color-surface-2);padding:2px 6px;border-radius:6px;color:var(--color-text-muted)">' + members.length + '</span></td>';
+              scHtml2 += '<tr><td style="font-weight:800;font-size:12px;color:var(--color-text);white-space:nowrap;padding-left:12px">' + esc(role) + '</td>';
+              scHtml2 += '<td style="text-align:center"><span style="font-size:11px;font-weight:700;background:var(--color-surface-3);padding:2px 8px;border-radius:20px;color:var(--color-text-muted)">' + members.length + '</span></td>';
               skillsList.forEach(function(skill) {
-                var count = members.filter(function(m){ return getSkills(m).includes(skill); }).length;
+                var skillMembers = members.filter(function(m){ return getSkills(m).includes(skill); });
+                var count = skillMembers.length;
                 var bg, color;
                 if (count === 0) { bg = 'var(--color-surface-3)'; color = 'var(--color-text-faint)'; }
-                else if (count === 1) { bg = 'rgba(99,102,241,0.15)'; color = 'var(--color-primary)'; }
-                else if (count === 2) { bg = 'rgba(99,102,241,0.4)'; color = 'var(--color-primary)'; }
+                else if (count === 1) { bg = 'rgba(99,102,241,0.12)'; color = 'var(--color-primary)'; }
+                else if (count === 2) { bg = 'rgba(99,102,241,0.3)'; color = 'var(--color-primary)'; }
                 else { bg = 'var(--color-primary)'; color = 'white'; }
-                scHtml2 += '<td><div class="sc-cell" style="background:' + bg + ';color:' + color + '" title="' + count + ' ' + esc(role) + ' with \'' + esc(skill) + '\'">' + (count > 0 ? count : '') + '</div></td>';
+
+                var tooltip = count + ' member' + (count > 1 ? 's' : '') + ' with ' + esc(skill) + ' in ' + esc(role) + ' group';
+                if (count > 0) {
+                  tooltip += ': ' + skillMembers.map(m => m.name).join(', ');
+                }
+                
+                scHtml2 += '<td><div class="sc-cell" style="background:' + bg + ';color:' + color + '" title="' + tooltip + '">' + (count > 0 ? count : '—') + '</div></td>';
               });
               scHtml2 += '</tr>';
             });
             scHtml2 += '</tbody></table></div>';
-            scHtml2 += '<div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:8px;border-top:1px solid var(--color-border-faint)">';
-            [['var(--color-surface-3)','0','None'],['rgba(99,102,241,0.15)','1','1 member'],['rgba(99,102,241,0.4)','2','2 members'],['var(--color-primary)','3+','3+ members']].forEach(function(item){
-              scHtml2 += '<div style="display:flex;align-items:center;gap:4px"><div class="sc-cell" style="background:' + item[0] + ';color:' + (item[1] === '3+' ? 'white' : 'var(--color-primary)') + ';cursor:default;width:24px;height:20px;font-size:9px">' + item[1] + '</div><span style="font-size:9px;color:var(--color-text-faint)">' + item[2] + '</span></div>';
+            
+            // Legend
+            scHtml2 += '<div style="display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:10px;border-top:1px solid var(--color-border-faint)">';
+            scHtml2 += '<span style="font-size:10px;font-weight:800;color:var(--color-text-faint);text-transform:uppercase">Density Index:</span>';
+            [['var(--color-surface-3)','—','Uncovered'],['rgba(99,102,241,0.12)','1','1 Member'],['rgba(99,102,241,0.3)','2','2 Members'],['var(--color-primary)','3+','3+ Members']].forEach(function(item){
+              scHtml2 += '<div style="display:flex;align-items:center;gap:6px"><div class="sc-cell" style="background:' + item[0] + ';color:' + (item[1] === '3+' ? 'white' : 'var(--color-primary)') + ';cursor:default;width:24px;height:20px;font-size:9px">' + item[1] + '</div><span style="font-size:10px;color:var(--color-text-muted)">' + item[2] + '</span></div>';
             });
             scHtml2 += '</div>';
 
             if (noticeMembers.length > 0) {
               var noticePct2 = Math.round((noticeMembers.length / scMembers.length) * 100);
-              scHtml2 += '<div style="margin-top:12px;padding:12px 16px;background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.25);border-radius:12px;display:flex;align-items:center;gap:12px"><div style="font-size:16px">⏳</div><div style="font-weight:800;color:#f97316;font-size:12px">Notice Period: ' + noticeMembers.map(function(m){ return esc(m.name); }).join(', ') + ' (' + noticePct2 + '% of team)</div>' + (noticePct2 > 25 ? '<span style="margin-left:auto;padding:3px 10px;background:rgba(239,68,68,.12);color:#ef4444;border-radius:12px;font-size:10px;font-weight:800">High Risk</span>' : '') + '</div>';
+              scHtml2 += '<div style="margin-top:14px;padding:12px 16px;background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.25);border-radius:12px;display:flex;align-items:center;gap:12px"><div style="font-size:16px">⏳</div><div style="font-weight:800;color:#f97316;font-size:12px">Notice Period Risk Alert: ' + noticeMembers.map(function(m){ return esc(m.name); }).join(', ') + ' (' + noticePct2 + '% of team)</div>' + (noticePct2 > 25 ? '<span style="margin-left:auto;padding:3px 10px;background:rgba(239,68,68,.12);color:#ef4444;border-radius:12px;font-size:10px;font-weight:800">High Risk</span>' : '') + '</div>';
             }
 
             scBody.innerHTML = scHtml2;
