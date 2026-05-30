@@ -16484,8 +16484,8 @@
       P._editingMemberId = editId || null; const m = editId ? P.members.find(x => String(x.id) === String(editId)) : null;
       $id('member-flyout-title').textContent = m ? 'Edit Team Member' : 'Add Team Member';
       const f = $id('member-fields'); f.innerHTML = '';
-      [{ k: 'name', l: 'Full Name', type: 'text' }, { k: 'phone', l: 'Phone', type: 'text' }, { k: 'birthday', l: 'Birthday (Day Month)', type: 'text', ph: 'e.g. 15 Mar' }, { k: 'role', l: 'Role', type: 'select', opts: ROLES }, { k: 'reportsTo', l: 'Reports To', type: 'select', opts: ['', ...P.members.filter(x => x.id !== editId).map(x => x.name)] }, { k: 'email', l: 'Email', type: 'text' }, { k: 'status', l: 'Status', type: 'select', opts: MEMBER_STATUSES }].forEach(col => {
-        const val = m ? m[col.k] || '' : ''; const wrap = document.createElement('div'); wrap.className = 'fg';
+      [{ k: 'name', l: 'Full Name', type: 'text' }, { k: 'phone', l: 'Phone', type: 'text' }, { k: 'birthday', l: 'Birthday (Day Month)', type: 'text', ph: 'e.g. 15 Mar' }, { k: 'role', l: 'Role', type: 'select', opts: ROLES }, { k: 'reportsTo', l: 'Reports To', type: 'select', opts: ['', ...P.members.filter(x => x.id !== editId).map(x => x.name)] }, { k: 'email', l: 'Email', type: 'text' }, { k: 'status', l: 'Status', type: 'select', opts: MEMBER_STATUSES }, { k: 'skills', l: 'Skills (comma-separated)', type: 'text', ph: 'e.g. JavaScript, CSS, Python' }].forEach(col => {
+        const val = m ? (col.k === 'skills' ? (Array.isArray(m[col.k]) ? m[col.k].join(', ') : m[col.k] || '') : m[col.k] || '') : ''; const wrap = document.createElement('div'); wrap.className = 'fg';
         let inp; if (col.type === 'select') inp = `<select class="fsel" id="mf_${col.k}"><option value="">Select…</option>${col.opts.map(o => `<option value="${esc(o)}" ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
         else inp = `<input type="text" class="finp" id="mf_${col.k}" value="${esc(val)}" placeholder="${col.ph || col.l}">`;
         wrap.innerHTML = `<label class="flbl">${col.l}</label>${inp}`; f.appendChild(wrap);
@@ -16518,6 +16518,10 @@
     }
     function saveMember() {
       const data = {};['name', 'phone', 'birthday', 'role', 'reportsTo', 'email', 'status'].forEach(k => { const el = $id('mf_' + k); data[k] = el ? el.value : ''; });
+      const skillsEl = $id('mf_skills');
+      if (skillsEl) {
+        data.skills = skillsEl.value.split(',').map(s => s.trim()).filter(Boolean);
+      }
       const mErrors = [];
       if (!data.name?.trim()) mErrors.push('Name is required.');
 
