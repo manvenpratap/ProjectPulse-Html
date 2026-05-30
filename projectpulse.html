@@ -37339,19 +37339,24 @@
               /* Grid View (Default) */
               .team-grid.view-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
               
-              /* List View */
-              .team-grid.view-list { display: flex; flex-direction: column; gap: 10px; }
-              .team-grid.view-list .member-card { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 12px 16px; gap: 20px; }
-              .team-grid.view-list .member-card .mc-head { padding: 0; border-bottom: none; width: 220px; flex-shrink: 0; }
-              .team-grid.view-list .member-card .mc-body-content { display: flex; align-items: center; justify-content: space-between; flex: 1; padding: 0; gap: 20px; }
-              .team-grid.view-list .member-card .mc-actions-footer { padding: 0; background: transparent; flex-direction: column; justify-content: center; gap: 4px; width: 100px; }
+              /* List View (Premium Tabular) */
+              .team-grid.view-list { display: block; overflow-x: auto; background: var(--color-surface); border: 1px solid var(--color-border-faint); border-radius: var(--radius-lg); }
+              .team-grid.view-list .td-list-table { width: 100%; border-collapse: collapse; min-width: 900px; }
+              .team-grid.view-list .td-list-table th { padding: 12px 16px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); background: var(--color-surface-2); border-bottom: 2px solid var(--color-border); text-align: left; }
+              .team-grid.view-list .td-list-table td { padding: 12px 16px; font-size: 12px; border-bottom: 1px solid var(--color-border-faint); vertical-align: middle; color: var(--color-text); }
+              .team-grid.view-list .td-list-table tr:last-child td { border-bottom: none; }
+              .team-grid.view-list .td-list-table tr:hover td { background: var(--color-surface-2); }
               
-              /* Compact View */
-              .team-grid.view-compact { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
-              .team-grid.view-compact .member-card { padding: 10px; }
-              .team-grid.view-compact .member-card .mc-body-content { display: none; }
-              .team-grid.view-compact .member-card .mc-head { border-bottom: none; padding-bottom: 0; }
-              .team-grid.view-compact .member-card .mc-actions-footer { display: none; }
+              /* Compact View (Pictorial) */
+              .team-grid.view-compact { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+              .team-grid.view-compact .member-card { padding: 16px 12px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; justify-content: center; }
+              .team-grid.view-compact .mc-head { border-bottom: none; padding: 0; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+              .team-grid.view-compact .mc-avatar { width: 64px !important; height: 64px !important; font-size: 20px !important; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.08); border: 2px solid var(--color-surface-2); }
+              .team-grid.view-compact .mc-name { text-align: center; width: 100%; font-size: 12px !important; }
+              .team-grid.view-compact .mc-role { text-align: center; width: 100%; font-size: 9px !important; }
+              .team-grid.view-compact .mc-status { margin-top: 4px; font-size: 8px !important; }
+              .team-grid.view-compact .mc-body-content { display: none !important; }
+              .team-grid.view-compact .mc-actions-footer { width: 100%; padding: 4px 0 0 0; background: transparent; border-top: 1px dashed var(--color-border-faint); margin-top: 4px; }
 
               /* Expanded Member Card Styles */
               .member-card { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid var(--color-border-faint); display: flex; flex-direction: column; overflow: hidden; background: var(--color-surface); border-radius: var(--radius-lg); }
@@ -37391,139 +37396,234 @@
           widgetWrapper.appendChild(controls);
           if (window.lucide) lucide.createIcons({ target: controls });
 
-          const grid = document.createElement('div');
-          grid.className = 'team-grid ' + window._teamViewMode;
-          
           const q = (P.teamSearchQuery || '').toLowerCase();
           const filteredMembers = P.members.filter(m => !q || m.name.toLowerCase().includes(q) || (m.role || '').toLowerCase().includes(q));
 
-          filteredMembers.forEach((m, i) => {
-            const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-            
-            // Gather stats
-            const mTasks = P.tasks.filter(t => t.assignee === m.name);
-            const totalCount = mTasks.filter(t => t.status !== 'Cancelled').length;
-            const doneCount = mTasks.filter(t => t.status === 'Completed').length;
-            const pendingCount = mTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
-            const blockedCount = mTasks.filter(t => t.status === 'Blocked').length;
-            const highCritCount = mTasks.filter(t => (t.priority === 'High' || t.priority === 'Critical') && t.status !== 'Completed').length;
-            
-            // Overdue tasks calculation
-            const nowTime = Date.now();
-            const overdueCount = mTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) < nowTime).length;
-            
-            // Planned leaves calculation
-            let plArray = m.plannedLeaves || [];
-            if (typeof plArray === 'string') { try { plArray = JSON.parse(plArray); } catch(e) { plArray = []; } }
-            let totalLeaveDays = 0;
-            if (Array.isArray(plArray)) {
-              plArray.forEach(lv => {
-                if (lv.from && lv.to) {
-                  const diff = (new Date(lv.to) - new Date(lv.from)) / 864e5 + 1;
-                  if (diff > 0) totalLeaveDays += diff;
-                }
-              });
-            }
-            totalLeaveDays = Math.round(totalLeaveDays);
+          if (window._teamViewMode === 'view-list') {
+            const tableWrap = document.createElement('div');
+            tableWrap.className = 'team-grid view-list';
+            let listHtml = `
+              <table class="td-list-table">
+                <thead>
+                  <tr>
+                    <th>Member</th>
+                    <th>Status</th>
+                    <th>Load</th>
+                    <th>Efficiency</th>
+                    <th>Tasks (P/D/B)</th>
+                    <th>Skills</th>
+                    <th style="width:140px">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+            `;
 
-            const stCls = m.status === 'Active' ? 'mc-active' : m.status === 'On Leave' ? 'mc-leave' : m.status === 'Serving Notice Period' ? 'mc-notice' : m.status === 'Other Assignment' ? 'mc-other' : 'mc-departed';
-            const card = document.createElement('div');
-            card.className = 'member-card';
-            card.style.animationDelay = (i * .04) + 's';
-            
-            const progress = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
-            const memberLogs = P.log.filter(l => l.user === m.name);
-            const recentActivity = memberLogs.filter(l => new Date(l.ts) > new Date(Date.now() - 7 * 864e5)).length;
+            filteredMembers.forEach((m, i) => {
+              const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+              const mTasks = P.tasks.filter(t => t.assignee === m.name);
+              const totalCount = mTasks.filter(t => t.status !== 'Cancelled').length;
+              const doneCount = mTasks.filter(t => t.status === 'Completed').length;
+              const pendingCount = mTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
+              const blockedCount = mTasks.filter(t => t.status === 'Blocked').length;
+              const progress = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
+              const stCls = m.status === 'Active' ? 'mc-active' : m.status === 'On Leave' ? 'mc-leave' : m.status === 'Serving Notice Period' ? 'mc-notice' : m.status === 'Other Assignment' ? 'mc-other' : 'mc-departed';
 
-            // Efficiency Score: (Done / Total) * (1 - Overdue / Pending)
-            let efficiency = 0;
-            if (totalCount > 0) {
-              const doneRatio = doneCount / totalCount;
-              const overduePenalty = pendingCount > 0 ? (overdueCount / pendingCount) : 0;
-              efficiency = Math.round(doneRatio * (1 - overduePenalty) * 100);
-              if (efficiency < 0) efficiency = 0;
-            }
+              let efficiency = 0;
+              if (totalCount > 0) {
+                const doneRatio = doneCount / totalCount;
+                const overdueCount = mTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) < Date.now()).length;
+                const overduePenalty = pendingCount > 0 ? (overdueCount / pendingCount) : 0;
+                efficiency = Math.round(doneRatio * (1 - overduePenalty) * 100);
+                if (efficiency < 0) efficiency = 0;
+              }
 
-            // Skills list
-            let skills = m.skills || [];
-            if (typeof skills === 'string') {
-              try { skills = JSON.parse(skills); } catch(e) { skills = skills.split(',').map(s => s.trim()).filter(Boolean); }
-            }
-            if (!Array.isArray(skills)) skills = [];
+              let skills = m.skills || [];
+              if (typeof skills === 'string') {
+                try { skills = JSON.parse(skills); } catch(e) { skills = skills.split(',').map(s => s.trim()).filter(Boolean); }
+              }
+              if (!Array.isArray(skills)) skills = [];
 
-            // Contact toggled block ID
-            const toggleId = `mc-info-wrap-${m.id}`;
+              listHtml += `
+                <tr>
+                  <td>
+                    <div style="display:flex; align-items:center; gap:10px">
+                      <div style="background:${CC[i % CC.length]}; width:32px; height:32px; border-radius:50%; color:white; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; flex-shrink:0">${initials}</div>
+                      <div>
+                        <div style="font-weight:800; font-size:13px">${esc(m.name)}</div>
+                        <div style="font-size:10px; color:var(--color-text-faint)">${esc(m.role || 'Member')}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="mc-status ${stCls}" style="font-size:9px; padding:2px 6px; border-radius:20px; font-weight:700">${esc(m.status)}</span>
+                  </td>
+                  <td>
+                    <div style="display:flex; align-items:center; gap:6px">
+                      <div style="width:40px; height:6px; background:var(--color-surface-3); border-radius:3px; overflow:hidden">
+                        <div style="width:${progress}%; height:100%; background:var(--color-primary)"></div>
+                      </div>
+                      <span style="font-weight:700; font-size:11px">${progress}%</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span style="font-weight:700; font-size:12px; color:var(--color-primary)">${efficiency}%</span>
+                  </td>
+                  <td>
+                    <span style="color:var(--color-text-muted)">${pendingCount} pending</span> · 
+                    <span style="color:#22c55e; font-weight:700">${doneCount} done</span> 
+                    ${blockedCount > 0 ? `· <span style="color:#ef4444; font-weight:700">${blockedCount} blocked</span>` : ''}
+                  </td>
+                  <td>
+                    <div style="display:flex; flex-wrap:wrap; gap:4px">
+                      ${skills.slice(0, 3).map(sk => `<span class="mc-skill-pill" style="font-size:9px">${esc(sk)}</span>`).join('')}
+                      ${skills.length > 3 ? `<span class="mc-skill-pill" style="opacity:0.8">+${skills.length - 3}</span>` : ''}
+                    </div>
+                  </td>
+                  <td>
+                    <div style="display:flex; gap:6px">
+                      <button class="btn ghost mini" style="font-size:10px; padding:2px 6px" onclick="if(!P.readonly) openAddMember('${m.id}')">Profile</button>
+                      <button class="btn ghost mini" style="font-size:10px; padding:2px 6px" onclick="filterTasksByAssignee('${m.name}'); setView('tasks')">Tasks</button>
+                    </div>
+                  </td>
+                </tr>
+              `;
+            });
 
-            card.innerHTML = `
-              <div class="mc-head" style="padding:12px; display:flex; gap:10px; align-items:center; border-bottom:1px solid var(--color-border-faint)">
-                <div class="mc-avatar" style="background:${CC[i % CC.length]}; width:36px; height:36px; border-radius:50%; color:white; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; flex-shrink:0">${initials}</div>
-                <div style="flex:1; min-width:0">
-                  <div class="mc-name" style="font-weight:800; font-size:13px; color:var(--color-text); text-overflow:ellipsis; overflow:hidden; white-space:nowrap">${esc(m.name)}</div>
-                  <div class="mc-role" style="font-size:10px; color:var(--color-text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap">${esc(m.role || 'Member')}</div>
-                </div>
-                <span class="mc-status ${stCls}" style="font-size:9px; padding:2px 6px; border-radius:20px; font-weight:700">${m.status === 'Serving Notice Period' ? 'Notice' : m.status === 'Other Assignment' ? 'Other' : esc(m.status)}</span>
-              </div>
+            listHtml += `</tbody></table>`;
+            tableWrap.innerHTML = listHtml;
+            widgetWrapper.appendChild(tableWrap);
+          } else {
+            // Grid and Compact (Pictorial) uses the card template
+            const grid = document.createElement('div');
+            grid.className = 'team-grid ' + window._teamViewMode;
+
+            filteredMembers.forEach((m, i) => {
+              const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
               
-              <div class="mc-body-content" style="padding:12px; flex:1; display:flex; flex-direction:column; gap:12px">
-                <!-- Utilization Meter & Efficiency Row -->
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; background:var(--color-surface-2); padding:8px 10px; border-radius:10px; border:1px solid var(--color-border-faint)">
-                  <div style="display:flex; align-items:center; gap:8px">
-                    <svg width="34" height="34" class="mc-ring-svg">
-                      <circle cx="17" cy="17" r="14" fill="none" stroke="var(--color-surface-3)" stroke-width="3" />
-                      <circle cx="17" cy="17" r="14" fill="none" stroke="var(--color-primary)" stroke-width="3" 
-                        stroke-dasharray="87.96" stroke-dashoffset="${87.96 - (87.96 * Math.min(progress, 100)) / 100}" stroke-linecap="round" />
-                    </svg>
-                    <div>
-                      <div style="font-size:8px; color:var(--color-text-faint); font-weight:700; text-transform:uppercase">LOAD</div>
-                      <div style="font-size:11px; font-weight:800">${progress}%</div>
+              // Gather stats
+              const mTasks = P.tasks.filter(t => t.assignee === m.name);
+              const totalCount = mTasks.filter(t => t.status !== 'Cancelled').length;
+              const doneCount = mTasks.filter(t => t.status === 'Completed').length;
+              const pendingCount = mTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
+              const blockedCount = mTasks.filter(t => t.status === 'Blocked').length;
+              const highCritCount = mTasks.filter(t => (t.priority === 'High' || t.priority === 'Critical') && t.status !== 'Completed').length;
+              
+              // Overdue tasks calculation
+              const nowTime = Date.now();
+              const overdueCount = mTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) < nowTime).length;
+              
+              // Planned leaves calculation
+              let plArray = m.plannedLeaves || [];
+              if (typeof plArray === 'string') { try { plArray = JSON.parse(plArray); } catch(e) { plArray = []; } }
+              let totalLeaveDays = 0;
+              if (Array.isArray(plArray)) {
+                plArray.forEach(lv => {
+                  if (lv.from && lv.to) {
+                    const diff = (new Date(lv.to) - new Date(lv.from)) / 864e5 + 1;
+                    if (diff > 0) totalLeaveDays += diff;
+                  }
+                });
+              }
+              totalLeaveDays = Math.round(totalLeaveDays);
+
+              const stCls = m.status === 'Active' ? 'mc-active' : m.status === 'On Leave' ? 'mc-leave' : m.status === 'Serving Notice Period' ? 'mc-notice' : m.status === 'Other Assignment' ? 'mc-other' : 'mc-departed';
+              const card = document.createElement('div');
+              card.className = 'member-card';
+              card.style.animationDelay = (i * .04) + 's';
+              
+              const progress = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
+              const memberLogs = P.log.filter(l => l.user === m.name);
+              const recentActivity = memberLogs.filter(l => new Date(l.ts) > new Date(Date.now() - 7 * 864e5)).length;
+
+              // Efficiency Score: (Done / Total) * (1 - Overdue / Pending)
+              let efficiency = 0;
+              if (totalCount > 0) {
+                const doneRatio = doneCount / totalCount;
+                const overduePenalty = pendingCount > 0 ? (overdueCount / pendingCount) : 0;
+                efficiency = Math.round(doneRatio * (1 - overduePenalty) * 100);
+                if (efficiency < 0) efficiency = 0;
+              }
+
+              // Skills list
+              let skills = m.skills || [];
+              if (typeof skills === 'string') {
+                try { skills = JSON.parse(skills); } catch(e) { skills = skills.split(',').map(s => s.trim()).filter(Boolean); }
+              }
+              if (!Array.isArray(skills)) skills = [];
+
+              // Contact toggled block ID
+              const toggleId = `mc-info-wrap-${m.id}`;
+
+              card.innerHTML = `
+                <div class="mc-head" style="padding:12px; display:flex; gap:10px; align-items:center; border-bottom:1px solid var(--color-border-faint)">
+                  <div class="mc-avatar" style="background:${CC[i % CC.length]}; width:36px; height:36px; border-radius:50%; color:white; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; flex-shrink:0">${initials}</div>
+                  <div style="flex:1; min-width:0">
+                    <div class="mc-name" style="font-weight:800; font-size:13px; color:var(--color-text); text-overflow:ellipsis; overflow:hidden; white-space:nowrap">${esc(m.name)}</div>
+                    <div class="mc-role" style="font-size:10px; color:var(--color-text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap">${esc(m.role || 'Member')}</div>
+                  </div>
+                  <span class="mc-status ${stCls}" style="font-size:9px; padding:2px 6px; border-radius:20px; font-weight:700">${m.status === 'Serving Notice Period' ? 'Notice' : m.status === 'Other Assignment' ? 'Other' : esc(m.status)}</span>
+                </div>
+                
+                <div class="mc-body-content" style="padding:12px; flex:1; display:flex; flex-direction:column; gap:12px">
+                  <!-- Utilization Meter & Efficiency Row -->
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; background:var(--color-surface-2); padding:8px 10px; border-radius:10px; border:1px solid var(--color-border-faint)">
+                    <div style="display:flex; align-items:center; gap:8px">
+                      <svg width="34" height="34" class="mc-ring-svg">
+                        <circle cx="17" cy="17" r="14" fill="none" stroke="var(--color-surface-3)" stroke-width="3" />
+                        <circle cx="17" cy="17" r="14" fill="none" stroke="var(--color-primary)" stroke-width="3" 
+                          stroke-dasharray="87.96" stroke-dashoffset="${87.96 - (87.96 * Math.min(progress, 100)) / 100}" stroke-linecap="round" />
+                      </svg>
+                      <div>
+                        <div style="font-size:8px; color:var(--color-text-faint); font-weight:700; text-transform:uppercase">LOAD</div>
+                        <div style="font-size:11px; font-weight:800">${progress}%</div>
+                      </div>
+                    </div>
+                    <div style="text-align:right">
+                      <div style="font-size:8px; color:var(--color-text-faint); font-weight:700; text-transform:uppercase">EFFICIENCY</div>
+                      <div style="font-size:11px; font-weight:800; color:var(--color-primary)">${efficiency}%</div>
                     </div>
                   </div>
-                  <div style="text-align:right">
-                    <div style="font-size:8px; color:var(--color-text-faint); font-weight:700; text-transform:uppercase">EFFICIENCY</div>
-                    <div style="font-size:11px; font-weight:800; color:var(--color-primary)">${efficiency}%</div>
-                  </div>
-                </div>
 
-                <!-- 6-Stat Grid -->
-                <div class="mc-stat-grid-6">
-                  <div class="mc-stat-cell">
-                    <div class="mc-stat-cell-title">Pending</div>
-                    <div class="mc-stat-cell-val" style="color:var(--color-text)">${pendingCount}</div>
+                  <!-- 6-Stat Grid -->
+                  <div class="mc-stat-grid-6">
+                    <div class="mc-stat-cell">
+                      <div class="mc-stat-cell-title">Pending</div>
+                      <div class="mc-stat-cell-val" style="color:var(--color-text)">${pendingCount}</div>
+                    </div>
+                    <div class="mc-stat-cell">
+                      <div class="mc-stat-cell-title">Done</div>
+                      <div class="mc-stat-cell-val" style="color:#22c55e">${doneCount}</div>
+                    </div>
+                    <div class="mc-stat-cell">
+                      <div class="mc-stat-cell-title">Blocked</div>
+                      <div class="mc-stat-cell-val" style="color:${blockedCount > 0 ? '#ef4444' : 'var(--color-text-faint)'}">${blockedCount}</div>
+                    </div>
+                    <div class="mc-stat-cell">
+                      <div class="mc-stat-cell-title">Overdue</div>
+                      <div class="mc-stat-cell-val" style="color:${overdueCount > 0 ? '#ef4444' : 'var(--color-text-faint)'}">${overdueCount}</div>
+                    </div>
+                    <div class="mc-stat-cell">
+                      <div class="mc-stat-cell-title">Hi/Crit</div>
+                      <div class="mc-stat-cell-val" style="color:${highCritCount > 0 ? '#f59e0b' : 'var(--color-text-faint)'}">${highCritCount}</div>
+                    </div>
+                    <div class="mc-stat-cell">
+                      <div class="mc-stat-cell-title">Leave Days</div>
+                      <div class="mc-stat-cell-val" style="color:var(--color-text-muted)">${totalLeaveDays}d</div>
+                    </div>
                   </div>
-                  <div class="mc-stat-cell">
-                    <div class="mc-stat-cell-title">Done</div>
-                    <div class="mc-stat-cell-val" style="color:#22c55e">${doneCount}</div>
-                  </div>
-                  <div class="mc-stat-cell">
-                    <div class="mc-stat-cell-title">Blocked</div>
-                    <div class="mc-stat-cell-val" style="color:${blockedCount > 0 ? '#ef4444' : 'var(--color-text-faint)'}">${blockedCount}</div>
-                  </div>
-                  <div class="mc-stat-cell">
-                    <div class="mc-stat-cell-title">Overdue</div>
-                    <div class="mc-stat-cell-val" style="color:${overdueCount > 0 ? '#ef4444' : 'var(--color-text-faint)'}">${overdueCount}</div>
-                  </div>
-                  <div class="mc-stat-cell">
-                    <div class="mc-stat-cell-title">Hi/Crit</div>
-                    <div class="mc-stat-cell-val" style="color:${highCritCount > 0 ? '#f59e0b' : 'var(--color-text-faint)'}">${highCritCount}</div>
-                  </div>
-                  <div class="mc-stat-cell">
-                    <div class="mc-stat-cell-title">Leave Days</div>
-                    <div class="mc-stat-cell-val" style="color:var(--color-text-muted)">${totalLeaveDays}d</div>
-                  </div>
-                </div>
 
-                <!-- Skill Tags -->
-                ${skills.length > 0 ? `
-                  <div style="display:flex; flex-wrap:wrap; gap:4px">
-                    ${skills.slice(0, 3).map(sk => `<span class="mc-skill-pill">${esc(sk)}</span>`).join('')}
-                    ${skills.length > 3 ? `<span class="mc-skill-pill" style="opacity:0.8">+${skills.length - 3}</span>` : ''}
-                  </div>
-                ` : ''}
+                  <!-- Skill Tags -->
+                  ${skills.length > 0 ? `
+                    <div style="display:flex; flex-wrap:wrap; gap:4px">
+                      ${skills.slice(0, 3).map(sk => `<span class="mc-skill-pill">${esc(sk)}</span>`).join('')}
+                      ${skills.length > 3 ? `<span class="mc-skill-pill" style="opacity:0.8">+${skills.length - 3}</span>` : ''}
+                    </div>
+                  ` : ''}
 
-                <!-- Contact & Additional Details Row Toggle -->
-                <div>
-                  <button class="mc-info-toggle-btn" onclick="const w = document.getElementById('${toggleId}'); w.style.display = w.style.display === 'none' ? 'flex' : 'none';">
-                    <i data-lucide="chevron-down" style="width:10px;height:10px"></i> Contact & Details
+                  <!-- Contact & Additional Details Row Toggle -->
+                  <div>
+                    <button class="mc-info-toggle-btn" onclick="const w = document.getElementById('${toggleId}'); w.style.display = w.style.display === 'none' ? 'flex' : 'none';">
+                      <i data-lucide="chevron-down" style="width:10px;height:10px"></i> Contact & Details
                   </button>
                   <div id="${toggleId}" class="mc-contact-row" style="display:none">
                     <div class="mc-contact-item" title="${esc(m.email || 'No email')}"><i data-lucide="mail" style="width:10px;height:10px"></i> ${esc(m.email || '—')}</div>
@@ -37547,23 +37647,25 @@
               </div>
             `;
 
-            setTimeout(() => {
-              const mcvs = $id(`m-perf-${m.id}`);
-              if (mcvs) {
-                const { ctx: mctx } = gCtx(mcvs);
-                const data = [];
-                for (let j = 6; j >= 0; j--) {
-                  const dStr = new Date(Date.now() - j * 864e5).toISOString().split('T')[0];
-                  data.push(memberLogs.filter(l => l.ts && typeof l.ts === 'string' && l.ts.startsWith(dStr)).length);
+              setTimeout(() => {
+                const mcvs = $id(`m-perf-${m.id}`);
+                if (mcvs) {
+                  const { ctx: mctx } = gCtx(mcvs);
+                  const data = [];
+                  for (let j = 6; j >= 0; j--) {
+                    const dStr = new Date(Date.now() - j * 864e5).toISOString().split('T')[0];
+                    data.push(memberLogs.filter(l => l.ts && typeof l.ts === 'string' && l.ts.startsWith(dStr)).length);
+                  }
+                  drawSpark(mctx, data);
                 }
-                drawSpark(mctx, data);
-              }
-            }, 400);
-            grid.appendChild(card);
-          });
-          widgetWrapper.appendChild(grid);
-          if (window.lucide) lucide.createIcons({ target: grid });
+              }, 400);
+              grid.appendChild(card);
+            });
+            widgetWrapper.appendChild(grid);
+            if (window.lucide) lucide.createIcons({ target: grid });
+          }
         }
+
 
         else if (cleanId === 'team_performance_scorecard') {
           // ── Team Performance Scorecard ──────────────────────────────────────────────
