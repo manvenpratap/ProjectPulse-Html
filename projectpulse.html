@@ -37348,15 +37348,15 @@
               .team-grid.view-list .td-list-table tr:hover td { background: var(--color-surface-2); }
               
               /* Compact View (Pictorial) */
-              .team-grid.view-compact { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
-              .team-grid.view-compact .member-card { padding: 16px 12px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; justify-content: center; }
+              .team-grid.view-compact { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+              .team-grid.view-compact .member-card { padding: 16px 12px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; justify-content: flex-start; }
               .team-grid.view-compact .mc-head { border-bottom: none; padding: 0; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-              .team-grid.view-compact .mc-avatar { width: 64px !important; height: 64px !important; font-size: 20px !important; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.08); border: 2px solid var(--color-surface-2); }
+              .team-grid.view-compact .mc-avatar { width: 56px !important; height: 56px !important; font-size: 18px !important; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.08); border: 2px solid var(--color-surface-2); }
               .team-grid.view-compact .mc-name { text-align: center; width: 100%; font-size: 12px !important; }
               .team-grid.view-compact .mc-role { text-align: center; width: 100%; font-size: 9px !important; }
               .team-grid.view-compact .mc-status { margin-top: 4px; font-size: 8px !important; }
-              .team-grid.view-compact .mc-body-content { display: none !important; }
-              .team-grid.view-compact .mc-actions-footer { width: 100%; padding: 4px 0 0 0; background: transparent; border-top: 1px dashed var(--color-border-faint); margin-top: 4px; }
+              .team-grid.view-compact .mc-body-content { width: 100%; }
+              .team-grid.view-compact .mc-actions-footer { width: 100%; }
 
               /* Expanded Member Card Styles */
               .member-card { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid var(--color-border-faint); display: flex; flex-direction: column; overflow: hidden; background: var(--color-surface); border-radius: var(--radius-lg); }
@@ -37530,6 +37530,18 @@
               const card = document.createElement('div');
               card.className = 'member-card';
               card.style.animationDelay = (i * .04) + 's';
+              if (window._teamViewMode === 'view-compact') {
+                card.style.cursor = 'pointer';
+                card.onclick = (e) => {
+                  // Only toggle if they didn't click inside profile/tasks buttons
+                  if (e.target.closest('button')) return;
+                  const body = card.querySelector('.mc-body-content');
+                  const footer = card.querySelector('.mc-actions-footer');
+                  const isHidden = !body.style.display || body.style.display === 'none';
+                  body.style.display = isHidden ? 'flex' : 'none';
+                  footer.style.display = isHidden ? 'flex' : 'none';
+                };
+              }
               
               const progress = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
               const memberLogs = P.log.filter(l => l.user === m.name);
@@ -37554,6 +37566,10 @@
               // Contact toggled block ID
               const toggleId = `mc-info-wrap-${m.id}`;
 
+              // Determine default CSS displays for sections
+              const bodyDisplay = window._teamViewMode === 'view-compact' ? 'none' : 'flex';
+              const footerDisplay = window._teamViewMode === 'view-compact' ? 'none' : 'flex';
+
               card.innerHTML = `
                 <div class="mc-head" style="padding:12px; display:flex; gap:10px; align-items:center; border-bottom:1px solid var(--color-border-faint)">
                   <div class="mc-avatar" style="background:${CC[i % CC.length]}; width:36px; height:36px; border-radius:50%; color:white; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; flex-shrink:0">${initials}</div>
@@ -37564,7 +37580,7 @@
                   <span class="mc-status ${stCls}" style="font-size:9px; padding:2px 6px; border-radius:20px; font-weight:700">${m.status === 'Serving Notice Period' ? 'Notice' : m.status === 'Other Assignment' ? 'Other' : esc(m.status)}</span>
                 </div>
                 
-                <div class="mc-body-content" style="padding:12px; flex:1; display:flex; flex-direction:column; gap:12px">
+                <div class="mc-body-content" style="padding:12px; flex:1; display:${bodyDisplay}; flex-direction:column; gap:12px">
                   <!-- Utilization Meter & Efficiency Row -->
                   <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; background:var(--color-surface-2); padding:8px 10px; border-radius:10px; border:1px solid var(--color-border-faint)">
                     <div style="display:flex; align-items:center; gap:8px">
@@ -37622,7 +37638,7 @@
 
                   <!-- Contact & Additional Details Row Toggle -->
                   <div>
-                    <button class="mc-info-toggle-btn" onclick="const w = document.getElementById('${toggleId}'); w.style.display = w.style.display === 'none' ? 'flex' : 'none';">
+                    <button class="mc-info-toggle-btn" onclick="event.stopPropagation(); const w = document.getElementById('${toggleId}'); w.style.display = w.style.display === 'none' ? 'flex' : 'none';">
                       <i data-lucide="chevron-down" style="width:10px;height:10px"></i> Contact & Details
                   </button>
                   <div id="${toggleId}" class="mc-contact-row" style="display:none">
@@ -37641,7 +37657,7 @@
                 </div>
               </div>
               
-              <div class="mc-actions-footer" style="padding:8px 12px; background:var(--color-surface-2); display:flex; gap:6px; border-top:1px solid var(--color-border-faint)">
+              <div class="mc-actions-footer" style="padding:8px 12px; background:var(--color-surface-2); display:${footerDisplay}; gap:6px; border-top:1px solid var(--color-border-faint)">
                 <button class="btn ghost mini" style="flex:1; font-size:10px; padding:4px 8px; font-weight:700" onclick="if(!P.readonly) openAddMember('${m.id}')">Profile</button>
                 <button class="btn ghost mini" style="flex:1; font-size:10px; padding:4px 8px; font-weight:700" onclick="filterTasksByAssignee('${m.name}'); setView('tasks')">Tasks</button>
               </div>
