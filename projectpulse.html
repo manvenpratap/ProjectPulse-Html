@@ -38176,6 +38176,7 @@
               this.ancestor = this; this.thread = null;
               this.change = 0; this.shift = 0;
               this.isCollapsed = P.collapsedNodes.has(m.id);
+              this.isVerticalLeaf = false; // flag indicating a child node stacked vertically
             }
             getLeftSibling() { return (this.parent && this.number > 0) ? this.parent.children[this.number - 1] : null; }
             getLeftMostSibling() { return (this.parent && this.number > 0) ? this.parent.children[0] : null; }
@@ -38199,24 +38200,45 @@
           };
 
           const firstWalk = (v, distance) => {
-            if (v.children.length === 0 || v.isCollapsed) {
+            // If this node or parent has > 3 children, we format children vertically
+            // For vertical layout, children don't contribute to horizontal sibling spacing width
+            const hasVerticalChildren = v.children.length > 3 && !v.isCollapsed;
+            if (hasVerticalChildren) {
+              // Flag children as vertical leaves
+              v.children.forEach((c, idx) => {
+                c.isVerticalLeaf = true;
+                c.depth = v.depth + 1;
+                c.x = idx;
+                c.y = c.depth;
+              });
+              // Parent is placed directly, has no layout-critical subtree children width
+              const left = v.getLeftSibling();
+              v.prelim = left ? left.prelim + distance : 0;
+            } else if (v.children.length === 0 || v.isCollapsed) {
               const left = v.getLeftSibling();
               v.prelim = left ? left.prelim + distance : 0;
             } else {
               let defaultAncestor = v.children[0];
-              v.children.forEach(c => {
-                c.depth = v.depth + 1;
-                firstWalk(c, distance);
-                defaultAncestor = apportion(c, defaultAncestor, distance);
-              });
-              executeShifts(v);
-              const mid = (v.children[0].prelim + v.children[v.children.length - 1].prelim) / 2;
-              const left = v.getLeftSibling();
-              if (left) {
-                v.prelim = left.prelim + distance;
-                v.mod = v.prelim - mid;
+              // Filter out vertical leaves for standard horizontal spacing calculations
+              const activeChildren = v.children.filter(c => !c.isVerticalLeaf);
+              if (activeChildren.length > 0) {
+                activeChildren.forEach(c => {
+                  c.depth = v.depth + 1;
+                  firstWalk(c, distance);
+                  defaultAncestor = apportion(c, defaultAncestor, distance);
+                });
+                executeShifts(v);
+                const mid = (activeChildren[0].prelim + activeChildren[activeChildren.length - 1].prelim) / 2;
+                const left = v.getLeftSibling();
+                if (left) {
+                  v.prelim = left.prelim + distance;
+                  v.mod = v.prelim - mid;
+                } else {
+                  v.prelim = mid;
+                }
               } else {
-                v.prelim = mid;
+                const left = v.getLeftSibling();
+                v.prelim = left ? left.prelim + distance : 0;
               }
             }
           };
@@ -38257,19 +38279,45 @@
 
           const executeShifts = (v) => {
             let shift = 0, change = 0;
-            for (let i = v.children.length - 1; i >= 0; i--) {
-              const c = v.children[i];
+            const activeChildren = v.children.filter(c => !c.isVerticalLeaf);
+            for (let i = activeChildren.length - 1; i >= 0; i--) {
+              const c = activeChildren[i];
               c.prelim += shift; c.mod += shift;
               change += c.change; shift += c.shift + change;
             }
           };
 
-          const nextLeft = (v) => v.children.length > 0 && !v.isCollapsed ? v.children[0] : v.thread;
-          const nextRight = (v) => v.children.length > 0 && !v.isCollapsed ? v.children[v.children.length - 1] : v.thread;
+          const nextLeft = (v) => {
+            const activeChildren = v.children.filter(c => !c.isVerticalLeaf);
+            return activeChildren.length > 0 && !v.isCollapsed ? activeChildren[0] : v.thread;
+          };
+          const nextRight = (v) => {
+            const activeChildren = v.children.filter(c => !c.isVerticalLeaf);
+            return activeChildren.length > 0 && !v.isCollapsed ? activeChildren[activeChildren.length - 1] : v.thread;
+          };
           const ancestor = (v_i_m, v, defaultAncestor) => v_i_m.ancestor.parent === v.parent ? v_i_m.ancestor : defaultAncestor;
+          
           const secondWalk = (v, m) => {
-            v.x = v.prelim + m; v.y = v.depth;
-            v.children.forEach(c => secondWalk(c, m + v.mod));
+            if (v.isVerticalLeaf) {
+              // Position vertically offset under parent
+              // x (which maps to Y-axis) = parent.x + offset
+              // y (which maps to X-axis) = parent.y + 1
+              v.x = v.parent.x + v.x * 0.85; 
+              v.y = v.parent.y + 1;
+            } else {
+              v.x = v.prelim + m; 
+              v.y = v.depth;
+            }
+            
+            // If parent has vertical children, update parent layout offsets
+            const hasVerticalChildren = v.children.length > 3 && !v.isCollapsed;
+            v.children.forEach(c => {
+              if (hasVerticalChildren) {
+                c.isVerticalLeaf = true;
+                c.depth = v.depth + 1;
+              }
+              secondWalk(c, m + v.mod);
+            });
           };
 
           const ctx = canvas.getContext('2d');
