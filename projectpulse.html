@@ -38306,11 +38306,13 @@
           
           const secondWalk = (v, m) => {
             if (v.isVerticalLeaf) {
-              // Correct overlapping coordinate calculation:
-              // For horizontal chart, Y-axis represents siblings. 
-              // Each sibling must step down by 1 unit offset on the sibling axis (v.x)
-              // X-axis represents depth. Vertical sibling nodes are placed 1 level deeper on X-axis (v.y)
+              // Y-axis (vertical) represents sibling coordinates (v.x)
+              // We stack them vertically: parent's horizontal Y position + vertical Index offset
+              // We need each node to be separated by at least 1 full card height plus vertical spacing.
+              // Since py = n.x * DIST_Y, we want the physical separation to be ~50px.
+              // 50px / DIST_Y (60px) = 0.85 spacing step size.
               v.x = v.parent.x + v.verticalIndex * 0.85; 
+              // X-axis (horizontal) represents depth (v.y). Stacked children are shifted 1 level deeper on X-axis.
               v.y = v.parent.y + 1;
             } else {
               v.x = v.prelim + m; 
@@ -38340,7 +38342,11 @@
             ctx.clearRect(0, 0, w, h);
 
             const treeRoots = buildTree();
-            const NODE_W = 120, NODE_H = 40, DIST_X = 160, DIST_Y = 60;
+            // Let's use clean layout units:
+            // NODE_W = 120, NODE_H = 40.
+            // DIST_X = 160 (horizontal spacing column gap).
+            // DIST_Y = 60 (vertical spacing row gap).
+            const NODE_W = 120, NODE_H = 40, DIST_X = 170, DIST_Y = 55;
 
             treeRoots.forEach((root, i) => {
               firstWalk(root, 1);
@@ -38372,16 +38378,37 @@
             const drawLines = (n) => {
               if (n.isCollapsed) return;
               n.children.forEach(c => {
-                const x1 = n.y * DIST_X + NODE_W, y1 = n.x * DIST_Y + NODE_H / 2;
-                const x2 = c.y * DIST_X, y2 = c.x * DIST_Y + NODE_H / 2;
-                ctx.beginPath();
-                ctx.moveTo(x1, y1);
-                const midX = (x1 + x2) / 2;
-                ctx.lineTo(midX, y1);
-                ctx.lineTo(midX, y2);
-                ctx.lineTo(x2, y2);
-                ctx.strokeStyle = cBorder; ctx.lineWidth = 1.2;
-                ctx.stroke();
+                let x1, y1, x2, y2;
+                if (c.isVerticalLeaf) {
+                  // For vertical children, draw L-shaped orthogonal lines starting from the bottom-left of parent node
+                  // Or mid-bottom going to left edge of stacked child node
+                  x1 = n.y * DIST_X + NODE_W / 2;
+                  y1 = n.x * DIST_Y + NODE_H;
+                  x2 = c.y * DIST_X;
+                  y2 = c.x * DIST_Y + NODE_H / 2;
+                  
+                  ctx.beginPath();
+                  ctx.moveTo(x1, y1);
+                  // Drop down to the Y level of the child node, then draw horizontally to its left edge
+                  ctx.lineTo(x1, y2);
+                  ctx.lineTo(x2, y2);
+                  ctx.strokeStyle = cBorder; ctx.lineWidth = 1.2;
+                  ctx.stroke();
+                } else {
+                  x1 = n.y * DIST_X + NODE_W;
+                  y1 = n.x * DIST_Y + NODE_H / 2;
+                  x2 = c.y * DIST_X;
+                  y2 = c.x * DIST_Y + NODE_H / 2;
+                  
+                  ctx.beginPath();
+                  ctx.moveTo(x1, y1);
+                  const midX = (x1 + x2) / 2;
+                  ctx.lineTo(midX, y1);
+                  ctx.lineTo(midX, y2);
+                  ctx.lineTo(x2, y2);
+                  ctx.strokeStyle = cBorder; ctx.lineWidth = 1.2;
+                  ctx.stroke();
+                }
                 drawLines(c);
               });
             };
@@ -38404,11 +38431,15 @@
               ctx.fillText(n.role.toUpperCase(), px + 10, py + 28);
 
               if (n.children.length > 0) {
-                ctx.beginPath(); ctx.arc(px + NODE_W, py + NODE_H / 2, 8, 0, Math.PI * 2);
+                // If vertical stacked, place collapse toggle button under the manager card
+                const toggleX = n.children[0].isVerticalLeaf ? px + NODE_W / 2 : px + NODE_W;
+                const toggleY = n.children[0].isVerticalLeaf ? py + NODE_H : py + NODE_H / 2;
+                
+                ctx.beginPath(); ctx.arc(toggleX, toggleY, 8, 0, Math.PI * 2);
                 ctx.fillStyle = cBg; ctx.fill();
                 ctx.strokeStyle = cBorder; ctx.lineWidth = 1; ctx.stroke();
                 ctx.fillStyle = cText; ctx.font = 'bold 9px var(--font-body)'; ctx.textAlign = 'center';
-                ctx.fillText(n.isCollapsed ? '+' : '−', px + NODE_W, py + NODE_H / 2 + 3);
+                ctx.fillText(n.isCollapsed ? '+' : '−', toggleX, toggleY + 3);
                 ctx.textAlign = 'left';
               }
               if (!n.isCollapsed) n.children.forEach(drawNodes);
