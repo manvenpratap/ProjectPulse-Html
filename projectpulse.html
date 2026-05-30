@@ -37322,60 +37322,224 @@
         }
 
         else if (cleanId === 'team_directory') {
-          addST(widgetWrapper, 'Team Directory');
-          const grid = document.createElement('div'); grid.className = 'team-grid';
+          // Add styles for the directory views & redesigned cards
+          if (!document.getElementById('td-dir-styles')) {
+            const style = document.createElement('style');
+            style.id = 'td-dir-styles';
+            style.innerHTML = `
+              .td-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+              .td-view-toggles { display: flex; background: var(--color-surface-2); padding: 2px; border-radius: var(--radius-md); border: 1px solid var(--color-border-faint); }
+              .td-view-btn { padding: 4px 10px; font-size: 11px; font-weight: 700; border-radius: 6px; border: none; background: transparent; color: var(--color-text-muted); cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 4px; }
+              .td-view-btn.active { background: var(--color-surface); color: var(--color-primary); box-shadow: var(--shadow-sm); }
+              
+              /* Grid View (Default) */
+              .team-grid.view-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
+              
+              /* List View */
+              .team-grid.view-list { display: flex; flex-direction: column; gap: 10px; }
+              .team-grid.view-list .member-card { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 12px 16px; gap: 20px; }
+              .team-grid.view-list .member-card .mc-head { padding: 0; border-bottom: none; width: 220px; flex-shrink: 0; }
+              .team-grid.view-list .member-card .mc-body-content { display: flex; align-items: center; justify-content: space-between; flex: 1; padding: 0; gap: 20px; }
+              .team-grid.view-list .member-card .mc-actions-footer { padding: 0; background: transparent; flex-direction: column; justify-content: center; gap: 4px; width: 100px; }
+              
+              /* Compact View */
+              .team-grid.view-compact { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+              .team-grid.view-compact .member-card { padding: 10px; }
+              .team-grid.view-compact .member-card .mc-body-content { display: none; }
+              .team-grid.view-compact .member-card .mc-head { border-bottom: none; padding-bottom: 0; }
+              .team-grid.view-compact .member-card .mc-actions-footer { display: none; }
+
+              /* Expanded Member Card Styles */
+              .member-card { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid var(--color-border-faint); display: flex; flex-direction: column; overflow: hidden; background: var(--color-surface); border-radius: var(--radius-lg); }
+              .member-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: var(--color-border); }
+              .mc-ring-svg { transform: rotate(-90deg); }
+              .mc-stat-grid-6 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+              .mc-stat-cell { background: var(--color-surface-2); padding: 5px; border-radius: 6px; text-align: center; border: 1px solid var(--color-border-faint); }
+              .mc-stat-cell-title { font-size: 8px; color: var(--color-text-faint); font-weight: 700; text-transform: uppercase; margin-bottom: 2px; }
+              .mc-stat-cell-val { font-size: 11px; font-weight: 800; font-family: var(--font-mono); }
+              .mc-skill-pill { display: inline-block; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 20px; background: var(--color-surface-3); color: var(--color-text-muted); border: 1px solid var(--color-border-faint); }
+              .mc-info-toggle-btn { background: none; border: none; color: var(--color-primary); font-size: 9px; font-weight: 800; cursor: pointer; padding: 4px 0; display: inline-flex; align-items: center; gap: 3px; }
+              .mc-info-toggle-btn:hover { text-decoration: underline; }
+              .mc-contact-row { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; border-top: 1px dashed var(--color-border-faint); margin-top: 8px; font-size: 10px; color: var(--color-text-muted); }
+              .mc-contact-item { display: flex; align-items: center; gap: 6px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+            `;
+            document.head.appendChild(style);
+          }
+
+          if (!window._teamViewMode) window._teamViewMode = 'view-grid';
+
+          const controls = document.createElement('div');
+          controls.className = 'td-controls';
+          controls.innerHTML = `
+            <div style="font-size: 14px; font-weight: 800; color: var(--color-text)">Members Directory</div>
+            <div class="td-view-toggles">
+              <button class="td-view-btn ${window._teamViewMode === 'view-grid' ? 'active' : ''}" onclick="window._teamViewMode='view-grid'; renderTeamPlannerWidgets();">
+                <i data-lucide="layout-grid" style="width:12px;height:12px"></i> Grid
+              </button>
+              <button class="td-view-btn ${window._teamViewMode === 'view-list' ? 'active' : ''}" onclick="window._teamViewMode='view-list'; renderTeamPlannerWidgets();">
+                <i data-lucide="list" style="width:12px;height:12px"></i> List
+              </button>
+              <button class="td-view-btn ${window._teamViewMode === 'view-compact' ? 'active' : ''}" onclick="window._teamViewMode='view-compact'; renderTeamPlannerWidgets();">
+                <i data-lucide="align-justify" style="width:12px;height:12px"></i> Compact
+              </button>
+            </div>
+          `;
+          widgetWrapper.appendChild(controls);
+          if (window.lucide) lucide.createIcons({ target: controls });
+
+          const grid = document.createElement('div');
+          grid.className = 'team-grid ' + window._teamViewMode;
+          
           const q = (P.teamSearchQuery || '').toLowerCase();
           const filteredMembers = P.members.filter(m => !q || m.name.toLowerCase().includes(q) || (m.role || '').toLowerCase().includes(q));
+
           filteredMembers.forEach((m, i) => {
             const initials = m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-            const taskCount = P.tasks.filter(t => t.assignee === m.name).length;
-            const doneCount = P.tasks.filter(t => t.assignee === m.name && t.status === 'Completed').length;
+            
+            // Gather stats
+            const mTasks = P.tasks.filter(t => t.assignee === m.name);
+            const totalCount = mTasks.filter(t => t.status !== 'Cancelled').length;
+            const doneCount = mTasks.filter(t => t.status === 'Completed').length;
+            const pendingCount = mTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
+            const blockedCount = mTasks.filter(t => t.status === 'Blocked').length;
+            const highCritCount = mTasks.filter(t => (t.priority === 'High' || t.priority === 'Critical') && t.status !== 'Completed').length;
+            
+            // Overdue tasks calculation
+            const nowTime = Date.now();
+            const overdueCount = mTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) < nowTime).length;
+            
+            // Planned leaves calculation
+            let plArray = m.plannedLeaves || [];
+            if (typeof plArray === 'string') { try { plArray = JSON.parse(plArray); } catch(e) { plArray = []; } }
+            let totalLeaveDays = 0;
+            if (Array.isArray(plArray)) {
+              plArray.forEach(lv => {
+                if (lv.from && lv.to) {
+                  const diff = (new Date(lv.to) - new Date(lv.from)) / 864e5 + 1;
+                  if (diff > 0) totalLeaveDays += diff;
+                }
+              });
+            }
+            totalLeaveDays = Math.round(totalLeaveDays);
+
             const stCls = m.status === 'Active' ? 'mc-active' : m.status === 'On Leave' ? 'mc-leave' : m.status === 'Serving Notice Period' ? 'mc-notice' : m.status === 'Other Assignment' ? 'mc-other' : 'mc-departed';
-            const card = document.createElement('div'); card.className = 'member-card'; card.style.animationDelay = (i * .05) + 's';
-            const prog = taskCount ? Math.round((doneCount / taskCount) * 100) : 0;
+            const card = document.createElement('div');
+            card.className = 'member-card';
+            card.style.animationDelay = (i * .04) + 's';
+            
+            const progress = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
             const memberLogs = P.log.filter(l => l.user === m.name);
             const recentActivity = memberLogs.filter(l => new Date(l.ts) > new Date(Date.now() - 7 * 864e5)).length;
 
+            // Efficiency Score: (Done / Total) * (1 - Overdue / Pending)
+            let efficiency = 0;
+            if (totalCount > 0) {
+              const doneRatio = doneCount / totalCount;
+              const overduePenalty = pendingCount > 0 ? (overdueCount / pendingCount) : 0;
+              efficiency = Math.round(doneRatio * (1 - overduePenalty) * 100);
+              if (efficiency < 0) efficiency = 0;
+            }
+
+            // Skills list
+            let skills = m.skills || [];
+            if (typeof skills === 'string') {
+              try { skills = JSON.parse(skills); } catch(e) { skills = skills.split(',').map(s => s.trim()).filter(Boolean); }
+            }
+            if (!Array.isArray(skills)) skills = [];
+
+            // Contact toggled block ID
+            const toggleId = `mc-info-wrap-${m.id}`;
+
             card.innerHTML = `
-              <div class="mc-head">
-                <div class="mc-avatar" style="background:${CC[i % CC.length]}">${initials}</div>
-                <div style="flex:1;min-width:0">
-                  <div class="mc-name">${esc(m.name)}</div>
-                  <div class="mc-role">${esc(m.role || '—')}</div>
+              <div class="mc-head" style="padding:12px; display:flex; gap:10px; align-items:center; border-bottom:1px solid var(--color-border-faint)">
+                <div class="mc-avatar" style="background:${CC[i % CC.length]}; width:36px; height:36px; border-radius:50%; color:white; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; flex-shrink:0">${initials}</div>
+                <div style="flex:1; min-width:0">
+                  <div class="mc-name" style="font-weight:800; font-size:13px; color:var(--color-text); text-overflow:ellipsis; overflow:hidden; white-space:nowrap">${esc(m.name)}</div>
+                  <div class="mc-role" style="font-size:10px; color:var(--color-text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap">${esc(m.role || 'Member')}</div>
                 </div>
-                <span class="mc-status ${stCls}" style="font-size:8px;padding:1px 5px">${m.status === 'Serving Notice Period' ? 'Notice' : m.status === 'Other Assignment' ? 'Other' : esc(m.status)}</span>
+                <span class="mc-status ${stCls}" style="font-size:9px; padding:2px 6px; border-radius:20px; font-weight:700">${m.status === 'Serving Notice Period' ? 'Notice' : m.status === 'Other Assignment' ? 'Other' : esc(m.status)}</span>
               </div>
-              <div style="padding:12px">
-                <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-                   <span style="font-size:10px;font-weight:700;color:var(--color-text-muted)">TASK PROGRESS</span>
-                   <span style="font-size:10px;font-weight:700;color:var(--color-primary)">${prog}%</span>
-                </div>
-                <div style="height:6px;background:var(--color-surface-3);border-radius:3px;overflow:hidden;margin-bottom:12px">
-                   <div style="width:${prog}%;height:100%;background:linear-gradient(90deg, var(--color-primary), #a855f7)"></div>
-                </div>
-                
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-                   <div style="background:var(--color-surface-2);padding:6px;border-radius:var(--radius-md);text-align:center">
-                      <div style="font-size:8px;color:var(--color-text-faint)">TOTAL</div>
-                      <div style="font-size:12px;font-weight:800">${taskCount}</div>
-                   </div>
-                   <div style="background:var(--color-surface-2);padding:6px;border-radius:var(--radius-md);text-align:center">
-                      <div style="font-size:8px;color:var(--color-text-faint)">DONE</div>
-                      <div style="font-size:12px;font-weight:800;color:var(--green)">${doneCount}</div>
-                   </div>
+              
+              <div class="mc-body-content" style="padding:12px; flex:1; display:flex; flex-direction:column; gap:12px">
+                <!-- Utilization Meter & Efficiency Row -->
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; background:var(--color-surface-2); padding:8px 10px; border-radius:10px; border:1px solid var(--color-border-faint)">
+                  <div style="display:flex; align-items:center; gap:8px">
+                    <svg width="34" height="34" class="mc-ring-svg">
+                      <circle cx="17" cy="17" r="14" fill="none" stroke="var(--color-surface-3)" stroke-width="3" />
+                      <circle cx="17" cy="17" r="14" fill="none" stroke="var(--color-primary)" stroke-width="3" 
+                        stroke-dasharray="87.96" stroke-dashoffset="${87.96 - (87.96 * Math.min(progress, 100)) / 100}" stroke-linecap="round" />
+                    </svg>
+                    <div>
+                      <div style="font-size:8px; color:var(--color-text-faint); font-weight:700; text-transform:uppercase">LOAD</div>
+                      <div style="font-size:11px; font-weight:800">${progress}%</div>
+                    </div>
+                  </div>
+                  <div style="text-align:right">
+                    <div style="font-size:8px; color:var(--color-text-faint); font-weight:700; text-transform:uppercase">EFFICIENCY</div>
+                    <div style="font-size:11px; font-weight:800; color:var(--color-primary)">${efficiency}%</div>
+                  </div>
                 </div>
 
-                <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--color-divider)">
+                <!-- 6-Stat Grid -->
+                <div class="mc-stat-grid-6">
+                  <div class="mc-stat-cell">
+                    <div class="mc-stat-cell-title">Pending</div>
+                    <div class="mc-stat-cell-val" style="color:var(--color-text)">${pendingCount}</div>
+                  </div>
+                  <div class="mc-stat-cell">
+                    <div class="mc-stat-cell-title">Done</div>
+                    <div class="mc-stat-cell-val" style="color:#22c55e">${doneCount}</div>
+                  </div>
+                  <div class="mc-stat-cell">
+                    <div class="mc-stat-cell-title">Blocked</div>
+                    <div class="mc-stat-cell-val" style="color:${blockedCount > 0 ? '#ef4444' : 'var(--color-text-faint)'}">${blockedCount}</div>
+                  </div>
+                  <div class="mc-stat-cell">
+                    <div class="mc-stat-cell-title">Overdue</div>
+                    <div class="mc-stat-cell-val" style="color:${overdueCount > 0 ? '#ef4444' : 'var(--color-text-faint)'}">${overdueCount}</div>
+                  </div>
+                  <div class="mc-stat-cell">
+                    <div class="mc-stat-cell-title">Hi/Crit</div>
+                    <div class="mc-stat-cell-val" style="color:${highCritCount > 0 ? '#f59e0b' : 'var(--color-text-faint)'}">${highCritCount}</div>
+                  </div>
+                  <div class="mc-stat-cell">
+                    <div class="mc-stat-cell-title">Leave Days</div>
+                    <div class="mc-stat-cell-val" style="color:var(--color-text-muted)">${totalLeaveDays}d</div>
+                  </div>
+                </div>
+
+                <!-- Skill Tags -->
+                ${skills.length > 0 ? `
+                  <div style="display:flex; flex-wrap:wrap; gap:4px">
+                    ${skills.slice(0, 3).map(sk => `<span class="mc-skill-pill">${esc(sk)}</span>`).join('')}
+                    ${skills.length > 3 ? `<span class="mc-skill-pill" style="opacity:0.8">+${skills.length - 3}</span>` : ''}
+                  </div>
+                ` : ''}
+
+                <!-- Contact & Additional Details Row Toggle -->
+                <div>
+                  <button class="mc-info-toggle-btn" onclick="const w = document.getElementById('${toggleId}'); w.style.display = w.style.display === 'none' ? 'flex' : 'none';">
+                    <i data-lucide="chevron-down" style="width:10px;height:10px"></i> Contact & Details
+                  </button>
+                  <div id="${toggleId}" class="mc-contact-row" style="display:none">
+                    <div class="mc-contact-item" title="${esc(m.email || 'No email')}"><i data-lucide="mail" style="width:10px;height:10px"></i> ${esc(m.email || '—')}</div>
+                    <div class="mc-contact-item"><i data-lucide="calendar" style="width:10px;height:10px"></i> Joined: ${esc(m.joinDate || '—')}</div>
+                    <div class="mc-contact-item"><i data-lucide="map-pin" style="width:10px;height:10px"></i> ${esc(m.location || 'Remote')}</div>
+                  </div>
+                </div>
+
+                <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--color-border-faint)">
                    <div>
-                      <div style="font-size:8px;color:var(--color-text-faint);text-transform:uppercase">7D Activity</div>
-                      <div style="font-size:10px;font-weight:700">${recentActivity} actions</div>
+                      <div style="font-size:8px;color:var(--color-text-faint);text-transform:uppercase;font-weight:700">7D Activity</div>
+                      <div style="font-size:10px;font-weight:700;color:var(--color-text-muted)">${recentActivity} actions</div>
                    </div>
                    <canvas id="m-perf-${m.id}" width="60" height="20" style="width:60px;height:20px"></canvas>
                 </div>
               </div>
-              <div style="padding:8px 12px;background:var(--color-surface-2);display:flex;gap:4px;border-radius:0 0 var(--radius-lg) var(--radius-lg)">
-                <button class="btn ghost mini" style="flex:1;font-size:10px" onclick="if(!P.readonly) openAddMember('${m.id}')">Profile</button>
-                <button class="btn ghost mini" style="flex:1;font-size:10px" onclick="filterTasksByAssignee('${m.name}'); setView('tasks')">Tasks</button>
+              
+              <div class="mc-actions-footer" style="padding:8px 12px; background:var(--color-surface-2); display:flex; gap:6px; border-top:1px solid var(--color-border-faint)">
+                <button class="btn ghost mini" style="flex:1; font-size:10px; padding:4px 8px; font-weight:700" onclick="if(!P.readonly) openAddMember('${m.id}')">Profile</button>
+                <button class="btn ghost mini" style="flex:1; font-size:10px; padding:4px 8px; font-weight:700" onclick="filterTasksByAssignee('${m.name}'); setView('tasks')">Tasks</button>
               </div>
             `;
 
@@ -37394,6 +37558,7 @@
             grid.appendChild(card);
           });
           widgetWrapper.appendChild(grid);
+          if (window.lucide) lucide.createIcons({ target: grid });
         }
 
         else if (cleanId === 'team_performance_scorecard') {
