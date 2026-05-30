@@ -38306,11 +38306,13 @@
           
           const secondWalk = (v, m) => {
             if (v.isVerticalLeaf) {
-              // Stacked nodes are placed side-by-side horizontally:
-              // X-axis (width coordinate v.x) = parent's X position + horizontal Index offset
-              // Y-axis (depth coordinate v.y) = parent's depth + 1
-              v.x = v.parent.x + v.verticalIndex * 0.85; 
-              v.y = v.parent.y + 1;
+              // Stacked nodes are placed vertically below each other:
+              // X-axis (width coordinate v.x) = parent's X position. We can offset slightly to the right to show hierarchy (e.g. parent.x + 0.25)
+              // Y-axis (depth coordinate v.y) = parent's Y position + 1 + offset based on index
+              // We need each node to be separated by at least 1 full card height (40px) plus vertical gap.
+              // Since py = v.y * DIST_Y (75px), each vertical step corresponds to ~48px separation if step is 0.65.
+              v.x = v.parent.x + 0.25; 
+              v.y = v.parent.y + 1 + v.verticalIndex * 0.65;
             } else {
               v.x = v.prelim + m; 
               v.y = v.depth;
@@ -38377,17 +38379,17 @@
                 let x1, y1, x2, y2;
                 // px = v.x * DIST_X, py = v.y * DIST_Y
                 if (c.isVerticalLeaf) {
-                  // Connect stacked branch elements (which are offset side-by-side horizontally now)
+                  // Connect stacked branch elements (stacked vertically under each other)
+                  // Draw line from parent's bottom center, drop down, and route horizontally to the left edge of child node
                   x1 = n.x * DIST_X + NODE_W / 2;
                   y1 = n.y * DIST_Y + NODE_H;
-                  x2 = c.x * DIST_X + NODE_W / 2;
-                  y2 = c.y * DIST_Y;
+                  x2 = c.x * DIST_X;
+                  y2 = c.y * DIST_Y + NODE_H / 2;
                   
                   ctx.beginPath();
                   ctx.moveTo(x1, y1);
-                  const midY = (y1 + y2) / 2;
-                  ctx.lineTo(x1, midY);
-                  ctx.lineTo(x2, midY);
+                  // Drop vertically down to the center Y-level of this child, then run horizontal to left edge
+                  ctx.lineTo(x1, y2);
                   ctx.lineTo(x2, y2);
                   ctx.strokeStyle = cBorder; ctx.lineWidth = 1.2;
                   ctx.stroke();
