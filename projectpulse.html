@@ -34966,10 +34966,11 @@
       const fullCanvas = await captureAreaAsCanvas(containerId);
       if (!fullCanvas) return null;
 
-      // If capturing the main Insights dashboard view, split the full PNG canvas vertically into 4 parts
+      // If capturing the main Insights dashboard view, export 4 vertical parts as download files 
+      // while also copying the full view image directly to the clipboard.
       if (containerId === 'vw-dash' && !silent) {
         try {
-          notify('Splitting dashboard capture into 4 vertical parts...', 'info');
+          notify('Splitting dashboard capture and triggering 4 downloads...', 'info');
           const fullW = fullCanvas.width;
           const fullH = fullCanvas.height;
           const sliceH = Math.floor(fullH / 4);
@@ -34977,7 +34978,6 @@
           for (let i = 0; i < 4; i++) {
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = fullW;
-            // The last slice consumes the remaining pixels due to rounding
             const currentSliceH = (i === 3) ? (fullH - sliceH * 3) : sliceH;
             tempCanvas.height = currentSliceH;
 
@@ -34985,28 +34985,30 @@
             if (tempCtx) {
               tempCtx.drawImage(
                 fullCanvas,
-                0, i * sliceH, fullW, currentSliceH, // Source dimensions
-                0, 0, fullW, currentSliceH          // Destination dimensions
+                0, i * sliceH, fullW, currentSliceH,
+                0, 0, fullW, currentSliceH
               );
 
-              const blob = await new Promise(res => tempCanvas.toBlob(res, 'image/png'));
-              if (blob) {
-                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-                notify(`Copied Part ${i + 1}/4 to clipboard!`, 'ok');
-                // Timeout delay to let clipboard sequence settle
-                await new Promise(r => setTimeout(r, 600));
-              }
+              const dataUrl = tempCanvas.toDataURL('image/png');
+              const link = document.createElement('a');
+              link.download = `insights_part_${i + 1}.png`;
+              link.href = dataUrl;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              
+              // Small delay to prevent browser download queue blockage
+              await new Promise(r => setTimeout(r, 300));
             }
           }
-          notify('All 4 parts copied to clipboard successfully!', 'ok');
-          return null;
+          notify('All 4 image parts downloaded successfully!', 'ok');
         } catch (e) {
-          console.error('Split image canvas partition error', e);
-          notify('Split copy failed. Copying full view image instead.', 'amber');
+          console.error('Split image download partition error', e);
+          notify('Failed to split images.', 'amber');
         }
       }
 
-      // Default single capture fallback
+      // Always write the full unified canvas to the clipboard as well
       try {
         const blob = await new Promise(res => fullCanvas.toBlob(res, 'image/png'));
         if (blob && !silent) {
