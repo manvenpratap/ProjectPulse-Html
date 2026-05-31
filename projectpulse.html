@@ -34962,72 +34962,53 @@
     async function copyAllShares(containerId, silent = false) {
       if (!silent) notify('Generating high-fidelity capture...', 'info');
       
-      // Split the Insights view into 4 segments to avoid huge height clip/resolution limit issues
+      // Capturing the canvas first
+      const fullCanvas = await captureAreaAsCanvas(containerId);
+      if (!fullCanvas) return null;
+
+      // If capturing the main Insights dashboard view, split the full PNG canvas vertically into 4 parts
       if (containerId === 'vw-dash' && !silent) {
         try {
-          const rootNode = document.getElementById(containerId);
-          if (!rootNode) return null;
-          const cards = Array.from(rootNode.querySelectorAll('.card.cc'));
-          if (cards.length === 0) {
-            return await captureAndCopySingle(containerId, silent);
-          }
-          
-          notify('Splitting dashboard view into 4 logical parts...', 'info');
-          const qSize = Math.ceil(cards.length / 4);
-          
-          // Generate the 4 sequential slices
-          const quadrants = [
-            cards.slice(0, qSize),
-            cards.slice(qSize, qSize * 2),
-            cards.slice(qSize * 2, qSize * 3),
-            cards.slice(qSize * 3)
-          ];
-          
+          notify('Splitting dashboard capture into 4 vertical parts...', 'info');
+          const fullW = fullCanvas.width;
+          const fullH = fullCanvas.height;
+          const sliceH = Math.floor(fullH / 4);
+
           for (let i = 0; i < 4; i++) {
-            const targetCards = quadrants[i];
-            if (!targetCards || targetCards.length === 0) continue;
-            
-            // Set elements not in current quadrant to display: none
-            cards.forEach(c => {
-              if (!targetCards.includes(c)) {
-                c.style.display = 'none';
-              }
-            });
-            
-            notify(`Capturing Part ${i + 1} of 4...`, 'info');
-            const ex = await captureAreaAsCanvas(containerId);
-            
-            // Restore visibility immediately
-            cards.forEach(c => {
-              c.style.display = '';
-            });
-            
-            if (ex) {
-              const blob = await new Promise(res => ex.toBlob(res, 'image/png'));
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = fullW;
+            // The last slice consumes the remaining pixels due to rounding
+            const currentSliceH = (i === 3) ? (fullH - sliceH * 3) : sliceH;
+            tempCanvas.height = currentSliceH;
+
+            const tempCtx = tempCanvas.getContext('2d');
+            if (tempCtx) {
+              tempCtx.drawImage(
+                fullCanvas,
+                0, i * sliceH, fullW, currentSliceH, // Source dimensions
+                0, 0, fullW, currentSliceH          // Destination dimensions
+              );
+
+              const blob = await new Promise(res => tempCanvas.toBlob(res, 'image/png'));
               if (blob) {
                 await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
                 notify(`Copied Part ${i + 1}/4 to clipboard!`, 'ok');
-                // Tiny timeout delay to allow clipboard write/buffer cycle
+                // Timeout delay to let clipboard sequence settle
                 await new Promise(r => setTimeout(r, 600));
               }
             }
           }
-          notify('All 4 parts copied to clipboard!', 'ok');
+          notify('All 4 parts copied to clipboard successfully!', 'ok');
           return null;
         } catch (e) {
-          console.error('Quadrant capture failed', e);
-          notify('Split copy failed. Falling back to default single copy.', 'amber');
+          console.error('Split image canvas partition error', e);
+          notify('Split copy failed. Copying full view image instead.', 'amber');
         }
       }
-      
-      return await captureAndCopySingle(containerId, silent);
-    }
 
-    async function captureAndCopySingle(containerId, silent = false) {
-      const ex = await captureAreaAsCanvas(containerId);
-      if (!ex) return null;
+      // Default single capture fallback
       try {
-        const blob = await new Promise(res => ex.toBlob(res, 'image/png'));
+        const blob = await new Promise(res => fullCanvas.toBlob(res, 'image/png'));
         if (blob && !silent) {
           await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
           notify('Copied full view Image to clipboard!', 'ok');
@@ -35039,6 +35020,7 @@
         return null;
       }
     }
+
 
     async function printContainer(containerId) {
       notify('Preparing high-fidelity print view...', 'info');
