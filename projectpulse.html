@@ -19212,7 +19212,7 @@
       let html = '';
 
       // Copy
-      html += `<div class="ctxitem ctx-copy" onclick="copyWidgetAsImage(document.getElementById('${card.id}'));closeCtx()"><span style="font-size:16px;margin-right:8px"><i data-lucide="camera"></i></span>Copy as Image</div>`;
+      html += `<div class="ctxitem ctx-copy" onclick="copyWidgetAsImage(document.getElementById('${card.id}') || this.closest('.cc') || this.closest('.card'));closeCtx()"><span style="font-size:16px;margin-right:8px"><i data-lucide="camera"></i></span>Copy as Image</div>`;
 
       // Resize
       if (id) {
@@ -35178,8 +35178,9 @@
     }
 
     async function copyWidgetAsImage(el) {
-      const card = el.classList.contains('card') ? el : el.closest('.card');
-      if (!card) return;
+      if (!el) return notify('Invalid widget element', 'err');
+      const card = el.classList.contains('card') ? el : el.closest('.card') || el.closest('.cc');
+      if (!card) return notify('Widget card wrapper not found', 'err');
       const originalId = card.id;
       const tempId = 'copy-tmp-' + Date.now();
       card.id = tempId;
@@ -35188,11 +35189,18 @@
         if (blob) {
           await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
           notify('Copied high-fidelity Image to clipboard!', 'ok');
+        } else {
+          notify('Failed to generate image blob.', 'err');
         }
       } catch (err) {
-        notify('Copy blocked by browser.', 'err');
+        console.error('Clipboard copy error', err);
+        notify('Copy blocked by browser permissions.', 'err');
       } finally {
-        card.id = originalId;
+        if (originalId) {
+          card.id = originalId;
+        } else {
+          card.removeAttribute('id');
+        }
       }
     }
 
