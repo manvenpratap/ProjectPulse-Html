@@ -13371,7 +13371,19 @@
       let mod = '', ass = '';
       const t = P.tasks.find(x => x.id === taskId);
       if (t) { mod = t.module; ass = t.assignee; }
-      P.log.push({ ts: nowISO(), action, taskId, taskName, field: field || '', oldVal: oldVal || '', newVal: newVal || '', comment: comment || '', module: mod || 'General', assignee: ass || 'Unassigned' });
+      P.log.push({ 
+        ts: nowISO(), 
+        user: ass || 'System',
+        action, 
+        taskId, 
+        taskName, 
+        field: field || '', 
+        oldVal: oldVal || '', 
+        newVal: newVal || '', 
+        comment: comment || '', 
+        module: mod || 'General', 
+        assignee: ass || 'Unassigned' 
+      });
       save();
       const cnt = P.log.filter(l => l.ts && typeof l.ts === 'string' && l.ts.startsWith(todayStr())).length;
       ['log-badge', 'log-badge-mobile'].forEach(id => {
@@ -13389,6 +13401,7 @@
         let oldField = l.field;
         let oldAssignee = l.assignee;
         let oldModule = l.module;
+        let oldUser = l.user;
 
         if (!l.field) {
           if (l.action === 'Status Changed') l.field = 'status';
@@ -13404,8 +13417,11 @@
         if (!l.module || l.module === 'General') {
           l.module = (t && t.module ? t.module : 'General');
         }
+        if (!l.user) {
+          l.user = l.assignee !== 'Unassigned' ? l.assignee : (l.member || 'System');
+        }
 
-        if (oldField !== l.field || oldAssignee !== l.assignee || oldModule !== l.module) {
+        if (oldField !== l.field || oldAssignee !== l.assignee || oldModule !== l.module || oldUser !== l.user) {
           changed = true;
         }
       });
@@ -37340,9 +37356,14 @@
             .filter(function(m){ return !q3 || m.name.toLowerCase().includes(q3) || (m.role || '').toLowerCase().includes(q3); });
 
           var actDays = [];
+          var nowRef = new Date();
           for (var dd = 29; dd >= 0; dd--) {
-            var dt = new Date(Date.now() - dd * 864e5);
-            actDays.push({ dt: dt, key: dt.toISOString().split('T')[0], isToday: dd === 0, dayOfWeek: dt.getDay() });
+            var dt = new Date(nowRef.getTime() - dd * 864e5);
+            var yr = dt.getFullYear();
+            var mo = String(dt.getMonth() + 1).padStart(2, '0');
+            var dy = String(dt.getDate()).padStart(2, '0');
+            var key = yr + '-' + mo + '-' + dy;
+            actDays.push({ dt: dt, key: key, isToday: dd === 0, dayOfWeek: dt.getDay() });
           }
 
           var globalMax = 1;
