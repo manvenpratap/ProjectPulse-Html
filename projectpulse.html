@@ -34961,56 +34961,10 @@
 
     async function copyAllShares(containerId, silent = false) {
       if (!silent) notify('Generating high-fidelity capture...', 'info');
-      
-      // Capturing the canvas first
-      const fullCanvas = await captureAreaAsCanvas(containerId);
-      if (!fullCanvas) return null;
-
-      // If capturing the main Insights dashboard view, export 4 vertical parts as download files 
-      // while also copying the full view image directly to the clipboard.
-      if (containerId === 'vw-dash' && !silent) {
-        try {
-          notify('Splitting dashboard capture and triggering 4 downloads...', 'info');
-          const fullW = fullCanvas.width;
-          const fullH = fullCanvas.height;
-          const sliceH = Math.floor(fullH / 4);
-
-          for (let i = 0; i < 4; i++) {
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = fullW;
-            const currentSliceH = (i === 3) ? (fullH - sliceH * 3) : sliceH;
-            tempCanvas.height = currentSliceH;
-
-            const tempCtx = tempCanvas.getContext('2d');
-            if (tempCtx) {
-              tempCtx.drawImage(
-                fullCanvas,
-                0, i * sliceH, fullW, currentSliceH,
-                0, 0, fullW, currentSliceH
-              );
-
-              const dataUrl = tempCanvas.toDataURL('image/png');
-              const link = document.createElement('a');
-              link.download = `insights_part_${i + 1}.png`;
-              link.href = dataUrl;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              
-              // Small delay to prevent browser download queue blockage
-              await new Promise(r => setTimeout(r, 300));
-            }
-          }
-          notify('All 4 image parts downloaded successfully!', 'ok');
-        } catch (e) {
-          console.error('Split image download partition error', e);
-          notify('Failed to split images.', 'amber');
-        }
-      }
-
-      // Always write the full unified canvas to the clipboard as well
+      const ex = await captureAreaAsCanvas(containerId);
+      if (!ex) return null;
       try {
-        const blob = await new Promise(res => fullCanvas.toBlob(res, 'image/png'));
+        const blob = await new Promise(res => ex.toBlob(res, 'image/png'));
         if (blob && !silent) {
           await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
           notify('Copied full view Image to clipboard!', 'ok');
