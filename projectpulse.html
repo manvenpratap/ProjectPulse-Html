@@ -10753,57 +10753,126 @@
   </div>
 
   <script>
-    // ── PROJECT DATA SCHEMA & RELATIONAL MODEL (Global Registry) ──
-    const ALL_VIEWS = [
-      { id: 'overview', icon: 'presentation', label: 'Overview', title: 'Executive Overview Dashboard' },
-      { id: 'dash', icon: 'trending-up', label: 'Insights', title: 'Live Project Insights & Dashboard' },
-      { id: 'reports', icon: 'file-bar-chart', label: 'Reports', title: 'Board Pack & Stakeholder Reports' },
-      { id: 'risks', icon: 'shield-alert', label: 'Risks', title: 'Unified RAID Register' },
-      { id: 'tasks', icon: 'list-todo', label: 'Delivery', title: 'Hierarchical Delivery Matrix' },
-      { id: 'team', icon: 'users', label: 'Team', title: 'Resource Hub & Workload' },
-      { id: 'defects', icon: 'bug', label: 'Defects', title: 'Defects Tracker' },
-      { id: 'log', icon: 'history', label: 'Activity', title: 'Audit & Activity Log' }
-    ];
-
-    window.PROJECT_SCHEMA = {
-      labels: {
-        id: 'ID', taskId: 'Task ID', parentId: 'Parent ID', subtaskId: 'Subtask ID', memberId: 'Member ID',
-        dependencyId: 'Dependency ID', dependsOn: 'Dependencies', guiScreens: 'GUI Screens',
-        oldVal: 'Old Value', newVal: 'New Value', periodStart: 'Period Start',
-        periodEnd: 'Period End', linkedType: 'Linked Type', linkedId: 'Linked ID',
-        createdAt: 'Created At', updatedAt: 'Updated At', startDate: 'Start Date',
-        dueDate: 'Due Date', actCompletionDate: 'Actual Completion Date',
-        estEffort: 'Estimated Effort', actEffort: 'Actual Effort', isNewWindow: 'Is New Window',
-        windowName: 'Window Name', screenName: 'Screen Name', name: 'Task Name',
-        globalKey: 'Global Key', taskName: 'Log Reference',
-        module: 'Module', moduleType: 'Module Type', releaseVersion: 'Release Version',
-        status: 'Status', priority: 'Priority', assignee: 'Assignee', progress: 'Progress',
-        category: 'Category', title: 'Summary', type: 'Type', role: 'Role', email: 'Email',
-        phone: 'Phone', birthday: 'Birthday', reportsTo: 'Reports To', notes: 'Notes',
-        severity: 'Severity', reporter: 'Reporter', desc: 'Description', steps: 'Steps to Reproduce',
-        release: 'Target Release', widgetId: 'Widget ID', view: 'View', x: 'X', y: 'Y', w: 'W', h: 'H',
-        step: 'Step Name', field: 'Field Name', opt: 'Option', effort: 'Effort', cat: 'Category', val: 'Value', src: 'Source',
-        impact: 'Impact', probability: 'Probability', owner: 'Owner', mitigation: 'Mitigation Plan',
-        linkedTask: 'Linked Task', linkedMilestone: 'Linked Milestone',
-        approver: 'Approver', proposedBy: 'Proposed By', rationale: 'Rationale', alternatives: 'Alternatives Considered',
-        baselineStartDate: 'Baseline Start Date', baselineDueDate: 'Baseline Due Date', baselineEffort: 'Baseline Effort',
-        actStartDate: 'Actual Start Date', actDueDate: 'Actual Due Date', varianceDays: 'Variance Days',
-        slippageReason: 'Slippage Reason', snapshotDate: 'Snapshot Date'
+    // ── PROJECT PULSE CONSTANTS SYSTEM ──
+    const PulseConstants = {
+      CC: ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899', '#14b8a6', '#f97316', '#8b5cf6', '#06b6d4'],
+      ST_CLS: {
+        'Not Started': 'not-started',
+        'In Progress': 'in-progress',
+        'On Hold': 'on-hold',
+        'Under Review': 'under-review',
+        'Completed': 'completed',
+        'Cancelled': 'cancelled'
       },
-      getRevMap() {
-        const m = {};
-        Object.entries(this.labels).forEach(([k, v]) => m[v.toLowerCase().replace(/\s/g, '')] = k);
-        return m;
-      }
+      DEF_ST_CLS: {
+        'New': 'not-started',
+        'Assigned': 'in-progress',
+        'Fixed': 'under-review',
+        'Retest': 'in-progress',
+        'Closed': 'completed',
+        'Rejected': 'cancelled',
+        'Deferred': 'on-hold'
+      },
+      PRI_CLS: {
+        'Critical': 'critical',
+        'High': 'high',
+        'Medium': 'medium',
+        'Low': 'low'
+      },
+      VALID_TRANSITIONS: {
+        'Not Started': ['In Progress', 'On Hold', 'Cancelled'],
+        'In Progress': ['On Hold', 'Under Review', 'Completed', 'Cancelled'],
+        'On Hold': ['In Progress', 'Under Review', 'Cancelled'],
+        'Under Review': ['In Progress', 'On Hold', 'Completed', 'Cancelled'],
+        'Completed': ['In Progress', 'Under Review'],
+        'Cancelled': ['Not Started']
+      },
+      COMMENT_REQUIRED: ['On Hold', 'Cancelled', 'Under Review'],
+      THEMES: {
+        // ── ✦ FEATURED THEMES — 6 Distinct Design Systems ──
+        'origin':          { n: 'Origin',          bg: '#faf9f6', ac: '#0f4c5c', bg2: '#111613', ac2: '#4fb8a8', f: 'Fraunces / Inter',       p: 'Classic enterprise. Sharp corners, editorial serif, restraint.',   emoji: '🏛',  isDark: false, featured: true },
+        'nova':            { n: 'Nova',             bg: '#f5f6ff', ac: '#6366f1', bg2: '#07070f', ac2: '#a78bfa', f: 'Outfit / Inter',          p: 'Modern SaaS. Rounded, glassy, vibrant indigo energy.',             emoji: '✦',   isDark: false, featured: true },
+        'terminal':        { n: 'Terminal',         bg: '#f6f8fa', ac: '#0969da', bg2: '#0d1117', ac2: '#58a6ff', f: 'JetBrains Mono / Inter',  p: 'Developer-first. Monospace precision, standard daily heatmap layout.', emoji: '⌨',   isDark: false, featured: true },
+        'aurora-studio':   { n: 'Aurora',           bg: '#fafafe', ac: '#8b5cf6', bg2: '#0a0518', ac2: '#c084fc', f: 'Satoshi / Inter',         p: 'Creative studio. Gradient-rich, glassmorphic, expressive.',        emoji: '🌌',  isDark: false, featured: true },
+        'obsidian-dark':   { n: 'Obsidian',         bg: '#040404', ac: '#00e87a', bg2: '#040404', ac2: '#00e87a', f: 'JetBrains Mono',          p: 'Night operator. Void black, neon green. Pure dark experience.',    emoji: '◼',   isDark: true,  featured: true },
+        'paper-editorial': { n: 'Paper',            bg: '#fdf8f0', ac: '#b5451b', bg2: '#1a1410', ac2: '#e07050', f: 'Fraunces / Lora',         p: 'Editorial warmth. Double serif, warm cream, quiet elegance.',      emoji: '📄',  isDark: false, featured: true },
+
+        // ── LEGACY THEMES — All 20 preserved & fully functional ──
+        nexus:      { n: 'Nexus',           bg: '#f8f7f3', ac: '#0f4c5c', f: 'Fraunces',          p: 'Classical elegance with serif titles and soft neutral tones.',                                                              isDark: false, legacy: true },
+        obsidian:   { n: 'Obsidian',        bg: '#050505', ac: '#00ff7f', f: 'JetBrains Mono',    p: 'Deep neon industrial vibe with tactical monospace typography.',                                                             isDark: true,  legacy: true },
+        paper:      { n: 'Paper',           bg: '#fcfaf7', ac: '#44403c', f: 'Fraunces',          p: 'Editorial layout with clean lines and academic sophistication.',                                                            isDark: false, legacy: true },
+        aurora:     { n: 'Aurora',          bg: '#f8fafc', ac: '#6366f1', f: 'Outfit',            p: 'Vibrant and energetic with soft curves and playful colors.',                                                               isDark: false, legacy: true },
+        chrome:     { n: 'Chrome',          bg: '#030712', ac: '#22d3ee', f: 'Orbitron',          p: 'Futuristic sci-fi interface with sharp edges and glowing accents.',                                                        isDark: true,  legacy: true },
+        titan:      { n: 'Titan',           bg: '#ffffff', ac: '#1e293b', f: 'Outfit',            p: 'Corporate minimalist design focused on clarity and precision.',                                                            isDark: false, legacy: true },
+        lumina:     { n: 'Lumina',          bg: '#f8fafc', ac: '#3b82f6', f: 'Satoshi',           p: 'Premium modern light experience with airy whitespace and glassmorphism.',                                                  isDark: false, legacy: true },
+        cyberpunk:  { n: 'Cyberpunk',       bg: '#0b051a', ac: '#00f5d4', f: 'DM Mono',           p: 'High-contrast neon glitch aesthetic with monospace precision.',                                                            isDark: true,  legacy: true },
+        midnight:   { n: 'Midnight',        bg: '#010409', ac: '#58a6ff', f: 'Inter',             p: 'Deep ocean dark mode with high readability and blue accents.',                                                             isDark: true,  legacy: true },
+        champagne:  { n: 'Champagne',       bg: '#fcfaf2', ac: '#c19a6b', f: 'Fraunces',          p: 'Royal elite aesthetic with gold accents and ivory tones.',                                                                 isDark: false, legacy: true },
+        carbon:     { n: 'Carbon',          bg: '#0a0a0c', ac: '#ff3e3e', f: 'Satoshi',           p: 'High-performance dark mode with monospace details and bold red accents.',                                                  isDark: true,  legacy: true },
+        emerald:    { n: 'Emerald',         bg: '#f0fdf4', ac: '#10b981', f: 'Fraunces',          p: 'Lush and refreshing light mode with deep emerald tones and soft curves.',                                                  isDark: false, legacy: true },
+        prism:      { n: 'Prism',           bg: '#ffffff', ac: '#ff006e', f: 'Outfit',            p: 'Multi-color iconography and vibrant accents for a playful, energetic experience.',                                         isDark: false, legacy: true },
+        play:       { n: 'Play',            bg: '#fef2f2', ac: '#ef4444', f: 'Nunito',            p: 'A fun, casual theme using only emoji icons for a simplified workspace.',                                                    isDark: false, legacy: true },
+        slate:      { n: 'Slate',           bg: '#1a1b2e', ac: '#f59e0b', f: 'Outfit + Work Sans', p: 'A premium warm amber dark theme for sophisticated SaaS workflows.',                                                       isDark: true,  legacy: true },
+        terracotta: { n: 'Terra Cotta',     bg: '#f3f4f6', ac: '#e05a47', f: 'Inter',             p: 'Executive financial dashboard with warm terracotta accents, crisp white cards, and distinct hierarchy.',                  isDark: false, legacy: true },
+        fintech:    { n: 'Fintech Gold',    bg: '#f8f9fa', ac: '#0b192c', f: 'Fraunces + Satoshi', p: 'High-end editorial banking experience combining elegant serif headers with deep navy slate and soft gold accents.',        isDark: false, legacy: true },
+        bento:      { n: 'Vibrant Bento',   bg: '#e2e8f0', ac: '#ff5722', f: 'Outfit',            p: 'Bold, high-contrast bento grid layout with saturated primary orange/blue cards and playful pill badges.',                  isDark: false, legacy: true },
+        codename:   { n: 'Codename SaaS',   bg: '#f4f4f5', ac: '#e11d48', f: 'Inter',             p: 'Premium dark-accented SaaS dashboard with a crisp light outer shell and rose crimson highlights.',                         isDark: false, legacy: true },
+        workflow:   { n: 'Workflow Glass',  bg: '#eef2ff', ac: '#6366f1', f: 'Satoshi',           p: 'Smooth glassmorphism SaaS interface with floating violet containers, soft rounded corners, and duotone icon blobs.',        isDark: false, legacy: true }
+      },
+      ALL_VIEWS: [
+        { id: 'overview', icon: 'presentation', label: 'Overview', title: 'Executive Overview Dashboard' },
+        { id: 'dash', icon: 'trending-up', label: 'Insights', title: 'Live Project Insights & Dashboard' },
+        { id: 'reports', icon: 'file-bar-chart', label: 'Reports', title: 'Board Pack & Stakeholder Reports' },
+        { id: 'risks', icon: 'shield-alert', label: 'Risks', title: 'Unified RAID Register' },
+        { id: 'tasks', icon: 'list-todo', label: 'Delivery', title: 'Hierarchical Delivery Matrix' },
+        { id: 'team', icon: 'users', label: 'Team', title: 'Resource Hub & Workload' },
+        { id: 'defects', icon: 'bug', label: 'Defects', title: 'Defects Tracker' },
+        { id: 'log', icon: 'history', label: 'Activity', title: 'Audit & Activity Log' }
+      ],
+      PROJECT_SCHEMA: {
+        labels: {
+          id: 'ID', taskId: 'Task ID', parentId: 'Parent ID', subtaskId: 'Subtask ID', memberId: 'Member ID',
+          dependencyId: 'Dependency ID', dependsOn: 'Dependencies', guiScreens: 'GUI Screens',
+          oldVal: 'Old Value', newVal: 'New Value', periodStart: 'Period Start',
+          periodEnd: 'Period End', linkedType: 'Linked Type', linkedId: 'Linked ID',
+          createdAt: 'Created At', updatedAt: 'Updated At', startDate: 'Start Date',
+          dueDate: 'Due Date', actCompletionDate: 'Actual Completion Date',
+          estEffort: 'Estimated Effort', actEffort: 'Actual Effort', isNewWindow: 'Is New Window',
+          windowName: 'Window Name', screenName: 'Screen Name', name: 'Task Name',
+          globalKey: 'Global Key', taskName: 'Log Reference',
+          module: 'Module', moduleType: 'Module Type', releaseVersion: 'Release Version',
+          status: 'Status', priority: 'Priority', assignee: 'Assignee', progress: 'Progress',
+          category: 'Category', title: 'Summary', type: 'Type', role: 'Role', email: 'Email',
+          phone: 'Phone', birthday: 'Birthday', reportsTo: 'Reports To', notes: 'Notes',
+          severity: 'Severity', reporter: 'Reporter', desc: 'Description', steps: 'Steps to Reproduce',
+          release: 'Target Release', widgetId: 'Widget ID', view: 'View', x: 'X', y: 'Y', w: 'W', h: 'H',
+          step: 'Step Name', field: 'Field Name', opt: 'Option', effort: 'Effort', cat: 'Category', val: 'Value', src: 'Source',
+          impact: 'Impact', probability: 'Probability', owner: 'Owner', mitigation: 'Mitigation Plan',
+          linkedTask: 'Linked Task', linkedMilestone: 'Linked Milestone',
+          approver: 'Approver', proposedBy: 'Proposed By', rationale: 'Rationale', alternatives: 'Alternatives Considered',
+          baselineStartDate: 'Baseline Start Date', baselineDueDate: 'Baseline Due Date', baselineEffort: 'Baseline Effort',
+          actStartDate: 'Actual Start Date', actDueDate: 'Actual Due Date', varianceDays: 'Variance Days',
+          slippageReason: 'Slippage Reason', snapshotDate: 'Snapshot Date'
+        },
+        getRevMap() {
+          const m = {};
+          Object.entries(this.labels).forEach(([k, v]) => m[v.toLowerCase().replace(/\s/g, '')] = k);
+          return m;
+        }
+      },
+      PROJECT_RELATIONAL_MODEL: [
+        { sheet: 'Data_TaskWorkflows', parent: 'Tasks', pKey: 'taskId', target: 'workflow' },
+        { sheet: 'Data_TaskDependencies', parent: 'Tasks', pKey: 'taskId', target: 'dependsOn', valueKey: 'dependencyId' },
+        { sheet: 'Data_TaskGUIScreens', parent: 'Tasks', pKey: 'taskId', target: 'guiScreens', valueKey: 'screen' },
+        { sheet: 'Data_SubTaskWorkflows', parent: 'Subtasks', pKey: 'subtaskId', target: 'workflow' },
+        { sheet: 'Data_MemberLeaves', parent: 'Team', pKey: 'memberId', target: 'plannedLeaves' },
+        { sheet: 'Data_FeatureScreens', parent: 'Features', pKey: 'feature', target: 'screens', valueKey: 'screen' }
+      ]
     };
-    window.PROJECT_RELATIONAL_MODEL = [
-      { sheet: 'Data_TaskWorkflows', parent: 'Tasks', pKey: 'taskId', target: 'workflow' },
-      { sheet: 'Data_TaskDependencies', parent: 'Tasks', pKey: 'taskId', target: 'dependsOn', valueKey: 'dependencyId' },
-      { sheet: 'Data_TaskGUIScreens', parent: 'Tasks', pKey: 'taskId', target: 'guiScreens', valueKey: 'screen' },
-      { sheet: 'Data_SubTaskWorkflows', parent: 'Subtasks', pKey: 'subtaskId', target: 'workflow' },
-      { sheet: 'Data_MemberLeaves', parent: 'Team', pKey: 'memberId', target: 'plannedLeaves' },
-      { sheet: 'Data_FeatureScreens', parent: 'Features', pKey: 'feature', target: 'screens', valueKey: 'screen' }
-    ];
+
+    const ALL_VIEWS = PulseConstants.ALL_VIEWS;
+    window.PROJECT_SCHEMA = PulseConstants.PROJECT_SCHEMA;
+    window.PROJECT_RELATIONAL_MODEL = PulseConstants.PROJECT_RELATIONAL_MODEL;
 
     function getWeekNumber(d) {
       d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -10979,37 +11048,53 @@
       return d;
     }
 
-    function isBlocked(t, taskByIdMap = null) {
-      if (!t.dependsOn || !t.dependsOn.length) return false;
-      const deps = Array.isArray(t.dependsOn) ? t.dependsOn : String(t.dependsOn).split(',').map(s => s.trim()).filter(Boolean);
-      return deps.some(id => {
-        const dep = taskByIdMap ? taskByIdMap[id] : P.tasks.find(x => x.id === id);
-        return dep && dep.status !== 'Completed';
-      });
-    }
+    // ── PROJECT PULSE DASHBOARD SYSTEM ──
+    const PulseDashboard = {
+      isBlocked(t, taskByIdMap = null) {
+        if (!t.dependsOn || !t.dependsOn.length) return false;
+        const deps = Array.isArray(t.dependsOn) ? t.dependsOn : String(t.dependsOn).split(',').map(s => s.trim()).filter(Boolean);
+        return deps.some(id => {
+          const dep = taskByIdMap ? taskByIdMap[id] : P.tasks.find(x => x.id === id);
+          return dep && dep.status !== 'Completed';
+        });
+      },
+      getHealthScore(tasks, taskByIdMap = null) {
+        if (!tasks || !tasks.length) return 100;
+        const active = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled');
+        if (!active.length) return 100;
 
-    function getHealthScore(tasks, taskByIdMap = null) {
-      if (!tasks || !tasks.length) return 100;
-      const active = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled');
-      if (!active.length) return 100;
+        const totalActive = active.length;
+        const overdue = active.filter(t => {
+          if (!t.dueDate) return false;
+          const dd = PulseDashboard.daysDiff(t.dueDate);
+          return dd !== null && dd < 0;
+        }).length;
+        const blocked = active.filter(t => PulseDashboard.isBlocked(t, taskByIdMap)).length;
+        const onHold = active.filter(t => String(t.status || '').toLowerCase() === 'on hold').length;
 
-      const totalActive = active.length;
-      const overdue = active.filter(t => {
-        if (!t.dueDate) return false;
-        const dd = daysDiff(t.dueDate);
-        return dd !== null && dd < 0;
-      }).length;
-      const blocked = active.filter(t => isBlocked(t, taskByIdMap)).length;
-      const onHold = active.filter(t => String(t.status || '').toLowerCase() === 'on hold').length;
+        let score = 100;
+        // Penalties are weighted against active tasks
+        if (overdue > 0) score -= (overdue / totalActive) * 50;
+        if (blocked > 0) score -= (blocked / totalActive) * 30;
+        if (onHold > 0) score -= (onHold / totalActive) * 20;
 
-      let score = 100;
-      // Penalties are weighted against active tasks
-      if (overdue > 0) score -= (overdue / totalActive) * 50;
-      if (blocked > 0) score -= (blocked / totalActive) * 30;
-      if (onHold > 0) score -= (onHold / totalActive) * 20;
+        return Math.max(0, Math.min(100, Math.round(score)));
+      },
+      daysDiff(dateString) {
+        if (!dateString) return null;
+        const dt = new Date(dateString);
+        if (isNaN(dt.getTime())) return null;
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        dt.setHours(0, 0, 0, 0);
+        return Math.floor((dt - now) / 864e5);
+      },
+      buildDashCache: null
+    };
 
-      return Math.max(0, Math.min(100, Math.round(score)));
-    }
+    const isBlocked = PulseDashboard.isBlocked;
+    const getHealthScore = PulseDashboard.getHealthScore;
+    const daysDiff = PulseDashboard.daysDiff;
 
     const $id = id => document.getElementById(id);
     window.$id = $id;
@@ -11060,73 +11145,79 @@
         </div>
       `;
     }
-    const daysDiff = dateString => {
-      if (!dateString) return null;
-      const dt = new Date(dateString);
-      if (isNaN(dt.getTime())) return null;
-      const now = new Date();
-      now.setHours(0, 0, 0, 0);
-      dt.setHours(0, 0, 0, 0);
-      return Math.floor((dt - now) / 864e5);
-    };
+
     const nowISO = () => new Date().toISOString();
     const todayStr = () => new Date().toISOString().split('T')[0];
-    const isWorkDay = (date) => {
-      const day = date.getDay();
-      const days = P.settings?.daysPerWeek ?? 5;
-      if (days === 7) return true;
-      if (days === 6) return day !== 0; // Mon-Sat
-      return day !== 0 && day !== 6; // Mon-Fri
+    // ── PROJECT PULSE SCHEDULER SYSTEM ──
+    const PulseScheduler = {
+      isWorkDay(date) {
+        const day = date.getDay();
+        const days = P.settings?.daysPerWeek ?? 5;
+        if (days === 7) return true;
+        if (days === 6) return day !== 0; // Mon-Sat
+        return day !== 0 && day !== 6; // Mon-Fri
+      },
+      convertEffortToDays(effort) {
+        const val = parseFloat(effort) || 0;
+        const unit = P.settings?.effortUnit ?? 'days';
+        const hpd = P.settings?.hoursPerDay ?? 8;
+        const dpw = P.settings?.daysPerWeek ?? 5;
+        if (unit === 'hrs') return val / hpd;
+        if (unit === 'months') return val * dpw * 4;
+        return val;
+      },
+      convertDaysToEffort(days) {
+        const val = parseFloat(days) || 0;
+        const unit = P.settings?.effortUnit ?? 'days';
+        const hpd = P.settings?.hoursPerDay ?? 8;
+        const dpw = P.settings?.daysPerWeek ?? 5;
+        if (unit === 'hrs') return val * hpd;
+        if (unit === 'months') return val / (dpw * 4);
+        return val;
+      },
+      effortUnitLabel(style = 'short') {
+        const u = P.settings?.effortUnit ?? 'days';
+        const map = { hrs: { short: 'hrs', col: 'Hrs', full: 'Hours' }, days: { short: 'd', col: 'Days', full: 'Days' }, months: { short: 'mo', col: 'Months', full: 'Months' } };
+        return (map[u] || map.days)[style] || u;
+      },
+      syncEffortColumnLabels() {
+        const ul = PulseScheduler.effortUnitLabel('col');
+        const labelMap = { baselineEffort: `Base ${ul}`, estEffort: `Est. ${ul}`, actEffort: `Act. ${ul}` };
+        if (P.cols && Array.isArray(P.cols)) {
+          P.cols.forEach(c => { if (labelMap[c.key]) c.label = labelMap[c.key]; });
+        }
+      },
+      addBusDays(date, days) {
+        let d = new Date(date);
+        let effortDays = PulseScheduler.convertEffortToDays(days);
+        let effort = Math.max(1, Math.ceil(effortDays));
+        let added = 1;
+        while (added < effort) {
+          d.setDate(d.getDate() + 1);
+          if (PulseScheduler.isWorkDay(d)) added++;
+        }
+        return d.toISOString().split('T')[0];
+      },
+      getNextBusDay(date) {
+        let d = new Date(date);
+        do {
+          d.setDate(d.getDate() + 1);
+        } while (d.getDay() === 0 || d.getDay() === 6);
+        return d.toISOString().split('T')[0];
+      },
+      recalcGUIScreen: null,
+      getBusinessDays: null,
+      recalcDatesAndStatus: null
     };
-    const convertEffortToDays = (effort) => {
-      const val = parseFloat(effort) || 0;
-      const unit = P.settings?.effortUnit ?? 'days';
-      const hpd = P.settings?.hoursPerDay ?? 8;
-      const dpw = P.settings?.daysPerWeek ?? 5;
-      if (unit === 'hrs') return val / hpd;
-      if (unit === 'months') return val * dpw * 4;
-      return val;
-    };
-    const convertDaysToEffort = (days) => {
-      const val = parseFloat(days) || 0;
-      const unit = P.settings?.effortUnit ?? 'days';
-      const hpd = P.settings?.hoursPerDay ?? 8;
-      const dpw = P.settings?.daysPerWeek ?? 5;
-      if (unit === 'hrs') return val * hpd;
-      if (unit === 'months') return val / (dpw * 4);
-      return val;
-    };
-    const effortUnitLabel = (style = 'short') => {
-      const u = P.settings?.effortUnit ?? 'days';
-      const map = { hrs: { short: 'hrs', col: 'Hrs', full: 'Hours' }, days: { short: 'd', col: 'Days', full: 'Days' }, months: { short: 'mo', col: 'Months', full: 'Months' } };
-      return (map[u] || map.days)[style] || u;
-    };
-    const syncEffortColumnLabels = () => {
-      const ul = effortUnitLabel('col');
-      const labelMap = { baselineEffort: `Base ${ul}`, estEffort: `Est. ${ul}`, actEffort: `Act. ${ul}` };
-      if (P.cols && Array.isArray(P.cols)) {
-        P.cols.forEach(c => { if (labelMap[c.key]) c.label = labelMap[c.key]; });
-      }
-    };
-    const addBusDays = (date, days) => {
-      let d = new Date(date);
-      let effortDays = convertEffortToDays(days);
-      let effort = Math.max(1, Math.ceil(effortDays));
-      let added = 1;
-      while (added < effort) {
-        d.setDate(d.getDate() + 1);
-        if (isWorkDay(d)) added++;
-      }
-      return d.toISOString().split('T')[0];
-    };
-    const getNextBusDay = (date) => {
-      let d = new Date(date);
-      do {
-        d.setDate(d.getDate() + 1);
-      } while (d.getDay() === 0 || d.getDay() === 6);
-      return d.toISOString().split('T')[0];
-    };
-    const CC = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899', '#14b8a6', '#f97316', '#8b5cf6', '#06b6d4'];
+
+    const isWorkDay = PulseScheduler.isWorkDay;
+    const convertEffortToDays = PulseScheduler.convertEffortToDays;
+    const convertDaysToEffort = PulseScheduler.convertDaysToEffort;
+    const effortUnitLabel = PulseScheduler.effortUnitLabel;
+    const syncEffortColumnLabels = PulseScheduler.syncEffortColumnLabels;
+    const addBusDays = PulseScheduler.addBusDays;
+    const getNextBusDay = PulseScheduler.getNextBusDay;
+    const CC = PulseConstants.CC;
     // Legacy globals (pointing to current state for compat)
     let STATUSES = [];
     let PRIORITIES = [];
@@ -11136,69 +11227,12 @@
     let VERSIONS = [];
     let ROLES = [];
     let MEMBER_STATUSES = [];
-    const ST_CLS = {
-      'Not Started': 'not-started',
-      'In Progress': 'in-progress',
-      'On Hold': 'on-hold',
-      'Under Review': 'under-review',
-      'Completed': 'completed',
-      'Cancelled': 'cancelled'
-    };
-    const DEF_ST_CLS = {
-      'New': 'not-started',
-      'Assigned': 'in-progress',
-      'Fixed': 'under-review',
-      'Retest': 'in-progress',
-      'Closed': 'completed',
-      'Rejected': 'cancelled',
-      'Deferred': 'on-hold'
-    };
-    const PRI_CLS = {
-      'Critical': 'critical',
-      'High': 'high',
-      'Medium': 'medium',
-      'Low': 'low'
-    };
-    const VALID_TRANSITIONS = {
-      'Not Started': ['In Progress', 'Completed', 'Cancelled'],
-      'In Progress': ['On Hold', 'Under Review', 'Completed', 'Cancelled'],
-      'On Hold': ['In Progress', 'Under Review', 'Cancelled'],
-      'Under Review': ['In Progress', 'On Hold', 'Completed', 'Cancelled'],
-      'Completed': ['In Progress', 'Under Review'],
-      'Cancelled': ['Not Started']
-    };
-    const COMMENT_REQUIRED = ['On Hold', 'Cancelled', 'Under Review'];
-    const THEMES = {
-      // ── ✦ FEATURED THEMES — 6 Distinct Design Systems ──
-      'origin':          { n: 'Origin',          bg: '#faf9f6', ac: '#0f4c5c', bg2: '#111613', ac2: '#4fb8a8', f: 'Fraunces / Inter',       p: 'Classic enterprise. Sharp corners, editorial serif, restraint.',   emoji: '🏛',  isDark: false, featured: true },
-      'nova':            { n: 'Nova',             bg: '#f5f6ff', ac: '#6366f1', bg2: '#07070f', ac2: '#a78bfa', f: 'Outfit / Inter',          p: 'Modern SaaS. Rounded, glassy, vibrant indigo energy.',             emoji: '✦',   isDark: false, featured: true },
-      'terminal':        { n: 'Terminal',         bg: '#f6f8fa', ac: '#0969da', bg2: '#0d1117', ac2: '#58a6ff', f: 'JetBrains Mono / Inter',  p: 'Developer-first. Monospace precision, standard daily heatmap layout.', emoji: '⌨',   isDark: false, featured: true },
-      'aurora-studio':   { n: 'Aurora',           bg: '#fafafe', ac: '#8b5cf6', bg2: '#0a0518', ac2: '#c084fc', f: 'Satoshi / Inter',         p: 'Creative studio. Gradient-rich, glassmorphic, expressive.',        emoji: '🌌',  isDark: false, featured: true },
-      'obsidian-dark':   { n: 'Obsidian',         bg: '#040404', ac: '#00e87a', bg2: '#040404', ac2: '#00e87a', f: 'JetBrains Mono',          p: 'Night operator. Void black, neon green. Pure dark experience.',    emoji: '◼',   isDark: true,  featured: true },
-      'paper-editorial': { n: 'Paper',            bg: '#fdf8f0', ac: '#b5451b', bg2: '#1a1410', ac2: '#e07050', f: 'Fraunces / Lora',         p: 'Editorial warmth. Double serif, warm cream, quiet elegance.',      emoji: '📄',  isDark: false, featured: true },
-
-      // ── LEGACY THEMES — All 20 preserved & fully functional ──
-      nexus:      { n: 'Nexus',           bg: '#f8f7f3', ac: '#0f4c5c', f: 'Fraunces',          p: 'Classical elegance with serif titles and soft neutral tones.',                                                              isDark: false, legacy: true },
-      obsidian:   { n: 'Obsidian',        bg: '#050505', ac: '#00ff7f', f: 'JetBrains Mono',    p: 'Deep neon industrial vibe with tactical monospace typography.',                                                             isDark: true,  legacy: true },
-      paper:      { n: 'Paper',           bg: '#fcfaf7', ac: '#44403c', f: 'Fraunces',          p: 'Editorial layout with clean lines and academic sophistication.',                                                            isDark: false, legacy: true },
-      aurora:     { n: 'Aurora',          bg: '#f8fafc', ac: '#6366f1', f: 'Outfit',            p: 'Vibrant and energetic with soft curves and playful colors.',                                                               isDark: false, legacy: true },
-      chrome:     { n: 'Chrome',          bg: '#030712', ac: '#22d3ee', f: 'Orbitron',          p: 'Futuristic sci-fi interface with sharp edges and glowing accents.',                                                        isDark: true,  legacy: true },
-      titan:      { n: 'Titan',           bg: '#ffffff', ac: '#1e293b', f: 'Outfit',            p: 'Corporate minimalist design focused on clarity and precision.',                                                            isDark: false, legacy: true },
-      lumina:     { n: 'Lumina',          bg: '#f8fafc', ac: '#3b82f6', f: 'Satoshi',           p: 'Premium modern light experience with airy whitespace and glassmorphism.',                                                  isDark: false, legacy: true },
-      cyberpunk:  { n: 'Cyberpunk',       bg: '#0b051a', ac: '#00f5d4', f: 'DM Mono',           p: 'High-contrast neon glitch aesthetic with monospace precision.',                                                            isDark: true,  legacy: true },
-      midnight:   { n: 'Midnight',        bg: '#010409', ac: '#58a6ff', f: 'Inter',             p: 'Deep ocean dark mode with high readability and blue accents.',                                                             isDark: true,  legacy: true },
-      champagne:  { n: 'Champagne',       bg: '#fcfaf2', ac: '#c19a6b', f: 'Fraunces',          p: 'Royal elite aesthetic with gold accents and ivory tones.',                                                                 isDark: false, legacy: true },
-      carbon:     { n: 'Carbon',          bg: '#0a0a0c', ac: '#ff3e3e', f: 'Satoshi',           p: 'High-performance dark mode with monospace details and bold red accents.',                                                  isDark: true,  legacy: true },
-      emerald:    { n: 'Emerald',         bg: '#f0fdf4', ac: '#10b981', f: 'Fraunces',          p: 'Lush and refreshing light mode with deep emerald tones and soft curves.',                                                  isDark: false, legacy: true },
-      prism:      { n: 'Prism',           bg: '#ffffff', ac: '#ff006e', f: 'Outfit',            p: 'Multi-color iconography and vibrant accents for a playful, energetic experience.',                                         isDark: false, legacy: true },
-      play:       { n: 'Play',            bg: '#fef2f2', ac: '#ef4444', f: 'Nunito',            p: 'A fun, casual theme using only emoji icons for a simplified workspace.',                                                    isDark: false, legacy: true },
-      slate:      { n: 'Slate',           bg: '#1a1b2e', ac: '#f59e0b', f: 'Outfit + Work Sans', p: 'A premium warm amber dark theme for sophisticated SaaS workflows.',                                                       isDark: true,  legacy: true },
-      terracotta: { n: 'Terra Cotta',     bg: '#f3f4f6', ac: '#e05a47', f: 'Inter',             p: 'Executive financial dashboard with warm terra cotta accents, crisp white cards, and distinct hierarchy.',                  isDark: false, legacy: true },
-      fintech:    { n: 'Fintech Gold',    bg: '#f8f9fa', ac: '#0b192c', f: 'Fraunces + Satoshi', p: 'High-end editorial banking experience combining elegant serif headers with deep navy slate and soft gold accents.',        isDark: false, legacy: true },
-      bento:      { n: 'Vibrant Bento',   bg: '#e2e8f0', ac: '#ff5722', f: 'Outfit',            p: 'Bold, high-contrast bento grid layout with saturated primary orange/blue cards and playful pill badges.',                  isDark: false, legacy: true },
-      codename:   { n: 'Codename SaaS',   bg: '#f4f4f5', ac: '#e11d48', f: 'Inter',             p: 'Premium dark-accented SaaS dashboard with a crisp light outer shell and rose crimson highlights.',                         isDark: false, legacy: true },
-      workflow:   { n: 'Workflow Glass',  bg: '#eef2ff', ac: '#6366f1', f: 'Satoshi',           p: 'Smooth glassmorphism SaaS interface with floating violet containers, soft rounded corners, and duotone icon blobs.',        isDark: false, legacy: true }
-    };
+    const ST_CLS = PulseConstants.ST_CLS;
+    const DEF_ST_CLS = PulseConstants.DEF_ST_CLS;
+    const PRI_CLS = PulseConstants.PRI_CLS;
+    const VALID_TRANSITIONS = PulseConstants.VALID_TRANSITIONS;
+    const COMMENT_REQUIRED = PulseConstants.COMMENT_REQUIRED;
+    const THEMES = PulseConstants.THEMES;
 
     const STEP_TEMPLATES = [
       {
@@ -11621,124 +11655,165 @@
       analytics: 'Advanced Analytics'
     };
 
-    const P = {
-      lastView: null,
-      name: '', desc: '',
-      tasks: [], defects: [], log: [], members: [], reports: [],
-      raids: [], decisions: [], baselines: [], healthHistory: [], reportSnapshots: [],
-      customFields: [], defCustomFields: [], stepTemplates: JSON.parse(JSON.stringify(STEP_TEMPLATES)),
-      hiddenCols: [], defHiddenCols: [],
-      releases: [],
-      _fieldsActiveTab: 'tasks',
-      dropdowns: {
-        status: ['Not Started', 'In Progress', 'On Hold', 'Under Review', 'Completed', 'Cancelled'],
-        priority: ['Critical', 'High', 'Medium', 'Low'],
-        category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Screen'],
-        module: ['Account Management (AM)', 'Portfolio Management (PM)', 'Market Data', 'Shared Services', 'Core Engine', 'Authentication', 'User Interface', 'API Gateway', 'Analytics Service', 'Payment Module', 'Database Migration', 'Infrastructure'],
-        moduleType: ['Server', 'GUI', 'Interface'],
-        role: ['Engineering Manager', 'Lead Architect', 'Lead Frontend', 'Lead Design', 'Jr Lead UX', 'Jr Lead Research', 'Developer', 'Designer', 'QA', 'PM', 'DevOps', 'Analyst'],
-        memberStatus: ['Active', 'Other Assignment', 'On Leave', 'Serving Notice Period', 'Departed'],
-        defectStatus: ['New', 'Assigned', 'Fixed', 'Retest', 'Closed', 'Rejected', 'Deferred'],
-        defectPriority: ['Critical', 'High', 'Medium', 'Low'],
-        defectSeverity: ['S1 - Blocker', 'S2 - High', 'S3 - Medium', 'S4 - Low'],
-        defectType: ['Functional Bug', 'UI/UX Issue', 'Performance', 'Security', 'Data Issue', 'Suggestion'],
-        complexity: ['Easy', 'Medium', 'Complex'],
-        raidType: ['Risk', 'Assumption', 'Issue', 'Dependency'],
-        raidImpact: ['High', 'Medium', 'Low'],
-        raidProbability: ['High', 'Medium', 'Low'],
-        raidSeverity: ['S1 - Critical', 'S2 - Major', 'S3 - Moderate', 'S4 - Minor'],
-        raidStatus: ['Identified', 'Active', 'Mitigated', 'Closed', 'Realized'],
-        decisionStatus: ['Pending Sign-off', 'Approved', 'Rejected', 'Appealed']
+    // ── PROJECT PULSE STATE SYSTEM ──
+    const PulseState = {
+      P: {
+        lastView: null,
+        name: '', desc: '',
+        tasks: [], defects: [], log: [], members: [], reports: [],
+        raids: [], decisions: [], baselines: [], healthHistory: [], reportSnapshots: [],
+        customFields: [], defCustomFields: [], stepTemplates: JSON.parse(JSON.stringify(STEP_TEMPLATES)),
+        hiddenCols: [], defHiddenCols: [],
+        releases: [],
+        _fieldsActiveTab: 'tasks',
+        dropdowns: {
+          status: ['Not Started', 'In Progress', 'On Hold', 'Under Review', 'Completed', 'Cancelled'],
+          priority: ['Critical', 'High', 'Medium', 'Low'],
+          category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Screen'],
+          module: ['Account Management (AM)', 'Portfolio Management (PM)', 'Market Data', 'Shared Services', 'Core Engine', 'Authentication', 'User Interface', 'API Gateway', 'Analytics Service', 'Payment Module', 'Database Migration', 'Infrastructure'],
+          moduleType: ['Server', 'GUI', 'Interface'],
+          role: ['Engineering Manager', 'Lead Architect', 'Lead Frontend', 'Lead Design', 'Jr Lead UX', 'Jr Lead Research', 'Developer', 'Designer', 'QA', 'PM', 'DevOps', 'Analyst'],
+          memberStatus: ['Active', 'Other Assignment', 'On Leave', 'Serving Notice Period', 'Departed'],
+          defectStatus: ['New', 'Assigned', 'Fixed', 'Retest', 'Closed', 'Rejected', 'Deferred'],
+          defectPriority: ['Critical', 'High', 'Medium', 'Low'],
+          defectSeverity: ['S1 - Blocker', 'S2 - High', 'S3 - Medium', 'S4 - Low'],
+          defectType: ['Functional Bug', 'UI/UX Issue', 'Performance', 'Security', 'Data Issue', 'Suggestion'],
+          complexity: ['Easy', 'Medium', 'Complex'],
+          raidType: ['Risk', 'Assumption', 'Issue', 'Dependency'],
+          raidImpact: ['High', 'Medium', 'Low'],
+          raidProbability: ['High', 'Medium', 'Low'],
+          raidSeverity: ['S1 - Critical', 'S2 - Major', 'S3 - Moderate', 'S4 - Minor'],
+          raidStatus: ['Identified', 'Active', 'Mitigated', 'Closed', 'Realized'],
+          decisionStatus: ['Pending Sign-off', 'Approved', 'Rejected', 'Appealed']
+        },
+        cols: [
+          { key: 'id', label: 'ID', w: 60, type: 'text', edit: false },
+          { key: 'releaseVersion', label: 'Release Version', w: 110, type: 'select', opts: [], edit: true },
+          { key: 'module', label: 'Module', w: 120, type: 'select', opts: [], edit: true, required: true },
+          { key: 'moduleType', label: 'Module Type', w: 105, type: 'select', opts: [], edit: true, required: true },
+          { key: 'name', label: 'Task Name', w: 180, type: 'text', edit: true, required: true },
+          { key: 'assignee', label: 'Assignee', w: 105, type: 'select', opts: [], edit: true },
+          { key: 'category', label: 'Category', w: 110, type: 'select', opts: [], edit: true },
+          { key: 'status', label: 'Status', w: 120, type: 'select', opts: [], edit: true },
+          { key: 'priority', label: 'Priority', w: 90, type: 'select', opts: [], edit: true },
+          { key: 'startDate', label: 'Start', w: 95, type: 'date', edit: true },
+          { key: 'dueDate', label: 'Due', w: 95, type: 'date', edit: true },
+          { key: 'actCompletionDate', label: 'Comp. Date', w: 95, type: 'date', edit: true },
+          { key: 'baselineStartDate', label: 'Base Start', w: 95, type: 'date', edit: true },
+          { key: 'baselineDueDate', label: 'Base Due', w: 95, type: 'date', edit: true },
+          { key: 'baselineEffort', label: 'Base Days', w: 80, type: 'number', edit: true },
+          { key: 'forecastDueDate', label: 'Forecast Due', w: 95, type: 'date', edit: true },
+          { key: 'slippageReason', label: 'Slippage Rationale', w: 150, type: 'text', edit: true },
+          { key: 'complexity', label: 'Complexity', w: 100, type: 'select', opts: ['Easy', 'Medium', 'Complex'], edit: true },
+          { key: 'estEffort', label: 'Est. Days', w: 80, type: 'number', edit: true },
+          { key: 'actEffort', label: 'Act. Days', w: 80, type: 'number', edit: true },
+          { key: 'progress', label: 'Progress', w: 110, type: 'progress', edit: true },
+          { key: 'dependsOn', label: 'Deps', w: 50, type: 'text', edit: true },
+          { key: 'notes', label: 'Notes', w: 140, type: 'text', edit: true },
+        ],
+        defCols: [
+          { key: 'id', label: 'ID', w: 75, type: 'text', edit: false },
+          { key: 'title', label: 'Defect Title', w: 220, type: 'text', edit: true, required: true },
+          { key: 'type', label: 'Type', w: 110, type: 'select', edit: true },
+          { key: 'severity', label: 'Severity', w: 120, type: 'select', edit: true },
+          { key: 'priority', label: 'Priority', w: 100, type: 'select', edit: true },
+          { key: 'status', label: 'Status', w: 120, type: 'select', edit: true },
+          { key: 'linkedType', label: 'Link Type', w: 100, type: 'select', edit: true },
+          { key: 'linkedId', label: 'Linked ID', w: 100, type: 'text', edit: true },
+          { key: 'assignee', label: 'Assignee', w: 110, type: 'select', edit: true },
+          { key: 'reporter', label: 'Reporter', w: 110, type: 'select', edit: true },
+          { key: 'createdAt', label: 'Created', w: 90, type: 'date', edit: false },
+          { key: 'updatedAt', label: 'Updated', w: 90, type: 'date', edit: false },
+        ],
+        features: [
+          { name: 'Core Infrastructure', screens: ['Database Schema', 'Core Services', 'API Gateway'], desc: 'Fundamental system services and architecture.' },
+          { name: 'User Management', screens: ['Cash Accounts', 'Security Accounts', 'Authentication'], desc: 'User lifecycle and account security.' },
+          { name: 'Market Intelligence', screens: ['Portfolio Valuations', 'Market Data Feed', 'Analytics Dashboard'], desc: 'Data processing and reporting.' }
+        ],
+        nextTaskId: 1, nextMemberId: 1, nextReportId: 1, nextSubId: 1, nextDefectId: 1,
+        nextRaidId: 1, nextDecisionId: 1,
+        search: '', filters: { status: new Set(), priority: new Set(), assignee: new Set(), module: new Set(), feature: new Set(), category: new Set() },
+        collapsedNodes: new Set(),
+        sort: { col: 'id', dir: 'asc' }, view: 'tasks', sbOpen: true,
+        theme: localStorage.getItem('pp-theme') || 'paper',
+        colorMode: localStorage.getItem('pp-color-mode') || 'default',
+        expanded: new Set(), fsHandle: null, fsDirHandle: null, fsDirName: '',
+        lastSynced: null, lastBackup: null, ganttZoom: 'week',
+        _pendingComment: null, _editingTaskId: null, _editingMemberId: null, _editingReportId: null,
+        _editingCfIdx: null, _editingDashWidgetIdx: null, _editingRptWidgetIdx: null,
+        _editingFeatureId: null,
+        dismissedAlerts: new Set(),
+        showExplanations: false,
+        settings: {
+          effortUnit: 'days',
+          hoursPerDay: 8,
+          daysPerWeek: 5,
+          hoursPerWeek: 40,
+          workDays: 5,
+          alertPrefs: { overdue: true, dueSoon: true, blocked: true, overloaded: true, leave: true, stale: true, milestone: true, daysUntilDue: 3, staleDays: 7 }
+        },
+        activeReportId: null,
+        widgetSpans: {},
+        showInlineFilters: false,
+        displayLevel: 1,
+        _pvS: { rows: [], cols: [], vals: [] },
+        colOrder: null,
+        colWidths: null,
+        dashLayout: null,
+        reportLayout: null,
+        readonly: false,
+        colFilters: {},
+        _isSaving: false,
+        _isLoading: false,
+        _fsPermissionError: false,
+        showGanttDeps: true,
+        showGanttActuals: true,
+        taskViewMode: 'table',
+        complexityFactors: { Easy: 0.5, Medium: 1.0, Complex: 1.5 },
+        quickTipsCollapsed: true,
+        sidebarCollapsed: {},
+        defColOrder: null, defColWidths: null, defHiddenCols: [], defColFilters: {}, defSort: { col: 'id', dir: 'asc' }
       },
-      cols: [
-        { key: 'id', label: 'ID', w: 60, type: 'text', edit: false },
-        { key: 'releaseVersion', label: 'Release Version', w: 110, type: 'select', opts: [], edit: true },
-        { key: 'module', label: 'Module', w: 120, type: 'select', opts: [], edit: true, required: true },
-        { key: 'moduleType', label: 'Module Type', w: 105, type: 'select', opts: [], edit: true, required: true },
-        { key: 'name', label: 'Task Name', w: 180, type: 'text', edit: true, required: true },
-        { key: 'assignee', label: 'Assignee', w: 105, type: 'select', opts: [], edit: true },
-        { key: 'category', label: 'Category', w: 110, type: 'select', opts: [], edit: true },
-        { key: 'status', label: 'Status', w: 120, type: 'select', opts: [], edit: true },
-        { key: 'priority', label: 'Priority', w: 90, type: 'select', opts: [], edit: true },
-        { key: 'startDate', label: 'Start', w: 95, type: 'date', edit: true },
-        { key: 'dueDate', label: 'Due', w: 95, type: 'date', edit: true },
-        { key: 'actCompletionDate', label: 'Comp. Date', w: 95, type: 'date', edit: true },
-        { key: 'baselineStartDate', label: 'Base Start', w: 95, type: 'date', edit: true },
-        { key: 'baselineDueDate', label: 'Base Due', w: 95, type: 'date', edit: true },
-        { key: 'baselineEffort', label: 'Base Days', w: 80, type: 'number', edit: true },
-        { key: 'forecastDueDate', label: 'Forecast Due', w: 95, type: 'date', edit: true },
-        { key: 'slippageReason', label: 'Slippage Rationale', w: 150, type: 'text', edit: true },
-        { key: 'complexity', label: 'Complexity', w: 100, type: 'select', opts: ['Easy', 'Medium', 'Complex'], edit: true },
-        { key: 'estEffort', label: 'Est. Days', w: 80, type: 'number', edit: true },
-        { key: 'actEffort', label: 'Act. Days', w: 80, type: 'number', edit: true },
-        { key: 'progress', label: 'Progress', w: 110, type: 'progress', edit: true },
-        { key: 'dependsOn', label: 'Deps', w: 50, type: 'text', edit: true },
-        { key: 'notes', label: 'Notes', w: 140, type: 'text', edit: true },
-      ],
-      defCols: [
-        { key: 'id', label: 'ID', w: 75, type: 'text', edit: false },
-        { key: 'title', label: 'Defect Title', w: 220, type: 'text', edit: true, required: true },
-        { key: 'type', label: 'Type', w: 110, type: 'select', edit: true },
-        { key: 'severity', label: 'Severity', w: 120, type: 'select', edit: true },
-        { key: 'priority', label: 'Priority', w: 100, type: 'select', edit: true },
-        { key: 'status', label: 'Status', w: 120, type: 'select', edit: true },
-        { key: 'linkedType', label: 'Link Type', w: 100, type: 'select', edit: true },
-        { key: 'linkedId', label: 'Linked ID', w: 100, type: 'text', edit: true },
-        { key: 'assignee', label: 'Assignee', w: 110, type: 'select', edit: true },
-        { key: 'reporter', label: 'Reporter', w: 110, type: 'select', edit: true },
-        { key: 'createdAt', label: 'Created', w: 90, type: 'date', edit: false },
-        { key: 'updatedAt', label: 'Updated', w: 90, type: 'date', edit: false },
-      ],
-      features: [
-        { name: 'Core Infrastructure', screens: ['Database Schema', 'Core Services', 'API Gateway'], desc: 'Fundamental system services and architecture.' },
-        { name: 'User Management', screens: ['Cash Accounts', 'Security Accounts', 'Authentication'], desc: 'User lifecycle and account security.' },
-        { name: 'Market Intelligence', screens: ['Portfolio Valuations', 'Market Data Feed', 'Analytics Dashboard'], desc: 'Data processing and reporting.' }
-      ],
-      nextTaskId: 1, nextMemberId: 1, nextReportId: 1, nextSubId: 1, nextDefectId: 1,
-      nextRaidId: 1, nextDecisionId: 1,
-      search: '', filters: { status: new Set(), priority: new Set(), assignee: new Set(), module: new Set(), feature: new Set(), category: new Set() },
-      collapsedNodes: new Set(),
-      sort: { col: 'id', dir: 'asc' }, view: 'tasks', sbOpen: true,
-      theme: localStorage.getItem('pp-theme') || 'paper',
-      colorMode: localStorage.getItem('pp-color-mode') || 'default',
-      expanded: new Set(), fsHandle: null, fsDirHandle: null, fsDirName: '',
-      lastSynced: null, lastBackup: null, ganttZoom: 'week',
-      _pendingComment: null, _editingTaskId: null, _editingMemberId: null, _editingReportId: null,
-      _editingCfIdx: null, _editingDashWidgetIdx: null, _editingRptWidgetIdx: null,
-      _editingFeatureId: null,
-      dismissedAlerts: new Set(),
-      showExplanations: false,
-      settings: {
-        effortUnit: 'days',
-        hoursPerDay: 8,
-        daysPerWeek: 5,
-        hoursPerWeek: 40,
-        workDays: 5,
-        alertPrefs: { overdue: true, dueSoon: true, blocked: true, overloaded: true, leave: true, stale: true, milestone: true, daysUntilDue: 3, staleDays: 7 }
-      },
-      activeReportId: null,
-      widgetSpans: {},
-      showInlineFilters: false,
-      displayLevel: 1,
-      _pvS: { rows: [], cols: [], vals: [] },
-      colOrder: null,
-      colWidths: null,
-      dashLayout: null,
-      reportLayout: null,
-      readonly: false,
-      colFilters: {},
-      _isSaving: false,
-      _isLoading: false,
-      _fsPermissionError: false,
-      showGanttDeps: true,
-      showGanttActuals: true,
-      taskViewMode: 'table',
-      complexityFactors: { Easy: 0.5, Medium: 1.0, Complex: 1.5 },
-      quickTipsCollapsed: true,
-      sidebarCollapsed: {},
-      defColOrder: null, defColWidths: null, defHiddenCols: [], defColFilters: {}, defSort: { col: 'id', dir: 'asc' }
+      syncDropdowns() {
+        const stateP = PulseState.P;
+        // Sync P.dropdowns back to legacy globals for existing logic compatibility
+        STATUSES.splice(0, STATUSES.length, ...stateP.dropdowns.status);
+        PRIORITIES.splice(0, PRIORITIES.length, ...stateP.dropdowns.priority);
+        CATEGORIES.splice(0, CATEGORIES.length, ...stateP.dropdowns.category);
+        MODULES.splice(0, MODULES.length, ...stateP.dropdowns.module);
+        MODULE_TYPES.splice(0, MODULE_TYPES.length, ...stateP.dropdowns.moduleType);
+        VERSIONS.splice(0, VERSIONS.length, ...(stateP.releases || []).map(r => r.name));
+        if (stateP.dropdowns) stateP.dropdowns.version = [...VERSIONS];
+        ROLES.splice(0, ROLES.length, ...stateP.dropdowns.role);
+        MEMBER_STATUSES.splice(0, MEMBER_STATUSES.length, ...stateP.dropdowns.memberStatus);
+
+        // Update P.cols options
+        const colStatus = stateP.cols.find(c => c.key === 'status'); if (colStatus) colStatus.opts = STATUSES;
+        const colPri = stateP.cols.find(c => c.key === 'priority'); if (colPri) colPri.opts = PRIORITIES;
+        const colMod = stateP.cols.find(c => c.key === 'module'); if (colMod) colMod.opts = MODULES;
+        const colModType = stateP.cols.find(c => c.key === 'moduleType'); if (colModType) colModType.opts = MODULE_TYPES;
+        const colVer = stateP.cols.find(c => c.key === 'releaseVersion'); if (colVer) colVer.opts = VERSIONS;
+
+        // Assignee sync
+        const colAsg = stateP.cols.find(c => c.key === 'assignee');
+        if (colAsg) colAsg.opts = stateP.members.map(m => m.name);
+
+        // Defect Column Sync
+        const dType = stateP.defCols.find(c => c.key === 'type'); if (dType) dType.opts = stateP.dropdowns.defectType;
+        const dStatus = stateP.defCols.find(c => c.key === 'status'); if (dStatus) dStatus.opts = stateP.dropdowns.defectStatus;
+        const dSev = stateP.defCols.find(c => c.key === 'severity'); if (dSev) dSev.opts = stateP.dropdowns.defectSeverity;
+        const dPri = stateP.defCols.find(c => c.key === 'priority'); if (dPri) dPri.opts = stateP.dropdowns.defectPriority;
+        const dLType = stateP.defCols.find(c => c.key === 'linkedType'); if (dLType) dLType.opts = ['Task', 'Subtask', 'Screen'];
+        const dAsg = stateP.defCols.find(c => c.key === 'assignee'); if (dAsg) dAsg.opts = stateP.members.map(m => m.name);
+        const dRep = stateP.defCols.find(c => c.key === 'reporter'); if (dRep) dRep.opts = stateP.members.map(m => m.name);
+      }
     };
+
+    const P = PulseState.P;
     window.P = P;
+    const syncDropdowns = PulseState.syncDropdowns;
+    window.syncDropdowns = syncDropdowns;
+    syncDropdowns();
 
     function getAllScreens() {
       const screens = new Set();
@@ -11754,40 +11829,6 @@
       });
       return Array.from(screens).sort();
     }
-
-    function syncDropdowns() {
-      // Sync P.dropdowns back to legacy globals for existing logic compatibility
-      STATUSES.splice(0, STATUSES.length, ...P.dropdowns.status);
-      PRIORITIES.splice(0, PRIORITIES.length, ...P.dropdowns.priority);
-      CATEGORIES.splice(0, CATEGORIES.length, ...P.dropdowns.category);
-      MODULES.splice(0, MODULES.length, ...P.dropdowns.module);
-      MODULE_TYPES.splice(0, MODULE_TYPES.length, ...P.dropdowns.moduleType);
-      VERSIONS.splice(0, VERSIONS.length, ...(P.releases || []).map(r => r.name));
-      if (P.dropdowns) P.dropdowns.version = [...VERSIONS];
-      ROLES.splice(0, ROLES.length, ...P.dropdowns.role);
-      MEMBER_STATUSES.splice(0, MEMBER_STATUSES.length, ...P.dropdowns.memberStatus);
-
-      // Update P.cols options
-      const colStatus = P.cols.find(c => c.key === 'status'); if (colStatus) colStatus.opts = STATUSES;
-      const colPri = P.cols.find(c => c.key === 'priority'); if (colPri) colPri.opts = PRIORITIES;
-      const colMod = P.cols.find(c => c.key === 'module'); if (colMod) colMod.opts = MODULES;
-      const colModType = P.cols.find(c => c.key === 'moduleType'); if (colModType) colModType.opts = MODULE_TYPES;
-      const colVer = P.cols.find(c => c.key === 'releaseVersion'); if (colVer) colVer.opts = VERSIONS;
-
-      // Assignee sync
-      const colAsg = P.cols.find(c => c.key === 'assignee');
-      if (colAsg) colAsg.opts = P.members.map(m => m.name);
-
-      // Defect Column Sync
-      const dType = P.defCols.find(c => c.key === 'type'); if (dType) dType.opts = P.dropdowns.defectType;
-      const dStatus = P.defCols.find(c => c.key === 'status'); if (dStatus) dStatus.opts = P.dropdowns.defectStatus;
-      const dSev = P.defCols.find(c => c.key === 'severity'); if (dSev) dSev.opts = P.dropdowns.defectSeverity;
-      const dPri = P.defCols.find(c => c.key === 'priority'); if (dPri) dPri.opts = P.dropdowns.defectPriority;
-      const dLType = P.defCols.find(c => c.key === 'linkedType'); if (dLType) dLType.opts = ['Task', 'Subtask', 'Screen'];
-      const dAsg = P.defCols.find(c => c.key === 'assignee'); if (dAsg) dAsg.opts = P.members.map(m => m.name);
-      const dRep = P.defCols.find(c => c.key === 'reporter'); if (dRep) dRep.opts = P.members.map(m => m.name);
-    }
-    syncDropdowns();
 
 
     function closeDynamicModal(id) {
@@ -13407,7 +13448,7 @@
       }
     }
 
-    function recalcGUIScreen(st) {
+    PulseScheduler.recalcGUIScreen = function (st) {
       if (!st.workflow || !st.workflow.length) return;
 
       const compFactor = (P.complexityFactors && st.complexity) ? (P.complexityFactors[st.complexity] || 1) : 1;
@@ -13435,9 +13476,9 @@
       st.progress = Math.round((doneEffort / totalEffort) * 100);
       st.status = st.progress === 100 ? 'Completed' : st.progress > 0 ? 'In Progress' : 'Not Started';
       st.dueDate = runningDate;
-    }
+    };
 
-    function getBusinessDays(startDate, endDate) {
+    PulseScheduler.getBusinessDays = function (startDate, endDate) {
       if (!startDate || !endDate) return 0;
       let start = new Date(startDate);
       let end = new Date(endDate);
@@ -13449,7 +13490,10 @@
         cur.setDate(cur.getDate() + 1);
       }
       return convertDaysToEffort(Math.max(0.1, count));
-    }
+    };
+
+    const recalcGUIScreen = PulseScheduler.recalcGUIScreen;
+    const getBusinessDays = PulseScheduler.getBusinessDays;
 
     function validateTaskData(data, isEdit = false, existingTask = null) {
       const errors = [];
@@ -13921,7 +13965,7 @@
       t.subtasks = (t.subtasks || []).filter(s => s.id !== stId);
       recalcDatesAndStatus(t); save(); addLog('Updated', taskId, t.name, 'subtask', '', 'Removed subtask');
     }
-    function recalcDatesAndStatus(task, skipLog = false) {
+    PulseScheduler.recalcDatesAndStatus = function (task, skipLog = false) {
       const subs = task.subtasks || [];
       const factor = P.complexityFactors?.[task.complexity] ?? 1.0;
       if (!subs.length) {
@@ -14047,7 +14091,9 @@
         const valid = VALID_TRANSITIONS[task.status] || [];
         if (valid.includes('In Progress')) updateField(task.id, 'status', 'In Progress', 'Sub-task started');
       }
-    }
+    };
+
+    const recalcDatesAndStatus = PulseScheduler.recalcDatesAndStatus;
     function applyTemplate(taskId, tplIdx) {
       const tpl = P.stepTemplates[tplIdx]; if (!tpl) return;
       tpl.steps.forEach(s => {
@@ -21482,7 +21528,7 @@
       notify(P.customRearrangeMode ? 'Rearrange Mode active. Drag widgets to reorder!' : 'Rearrange mode closed.', 'ok');
     }
 
-    function buildDashCache(tasks, log = P.log) {
+    PulseDashboard.buildDashCache = function (tasks, log = P.log) {
       const cache = {
         total: tasks.length,
         done: 0,
@@ -21588,7 +21634,9 @@
       }
 
       return cache;
-    }
+    };
+
+    const buildDashCache = PulseDashboard.buildDashCache;
 
     // ══════ AUTOMATED EARLY WARNING SYSTEM (EWS) ══════
     window.runEarlyWarningScanners = function () {
@@ -34985,10 +35033,19 @@
       }, 500);
     }
 
+    async function getExcelFileBlob() {
+      if (typeof ExcelJS === 'undefined') return null;
+      const wb = await generateProjectWorkbook(false, true);
+      const buf = await wb.xlsx.writeBuffer();
+      return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    }
+
     async function exportEmail(containerId) {
       const el = document.getElementById(containerId);
       if (!el) return notify('Container not found', 'err');
-      const sub = prompt('Email subject:', 'ProjectPulse Report - ' + new Date().toLocaleDateString());
+      
+      const isExcelView = (P.view === 'tasks' || P.view === 'defects');
+      const sub = prompt(isExcelView ? 'Email subject (with Excel attachment):' : 'Email subject:', 'ProjectPulse Report - ' + new Date().toLocaleDateString());
       if (sub === null) return;
 
       let reportText = "";
@@ -34998,7 +35055,36 @@
         reportText = `${title}\n${subH}\n\n`;
       }
 
-      notify('Preparing report email...', 'info');
+      notify(isExcelView ? 'Generating Excel report...' : 'Preparing report email...', 'info');
+
+      if (isExcelView) {
+        try {
+          const blob = await getExcelFileBlob();
+          if (blob && navigator.share && navigator.canShare) {
+            const projectClean = (P.name || 'Project').replace(/[\\\/*?:"<>|\s]/g, '');
+            const ts = new Date().toISOString().replace(/[-:T]/g, '').split('.')[0];
+            const file = new File([blob], `ProjectPulse_${projectClean}_${P.view}_${ts}.xlsx`, { type: blob.type });
+
+            if (navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                title: sub,
+                text: reportText + `Attached is the ProjectPulse ${P.view} Excel export.`,
+                files: [file]
+              });
+              notify('Excel report shared successfully!', 'ok');
+              return;
+            }
+          }
+        } catch (e) {
+          if (e.name !== 'AbortError') console.error('Share error', e);
+        }
+        
+        // Fallback for Excel
+        notify('Native file sharing is not supported by your browser. Exporting Excel directly...', 'info');
+        exportProjectExcel(false, true);
+        return;
+      }
+
       const blob = await copyAllShares(containerId, true);
       if (blob && navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], 'report.png', { type: 'image/png' })] })) {
         try {
@@ -35033,10 +35119,41 @@
     async function shareToTeams(containerId) {
       const el = document.getElementById(containerId);
       if (!el) return notify('Container not found', 'err');
-      const sub = prompt('Teams message text:', 'Check out this ProjectPulse Report');
+
+      const isExcelView = (P.view === 'tasks' || P.view === 'defects');
+      const sub = prompt(isExcelView ? 'Teams message (with Excel attachment):' : 'Teams message text:', 'Check out this ProjectPulse Report');
       if (sub === null) return;
 
-      notify('Preparing Teams share...', 'info');
+      notify(isExcelView ? 'Generating Excel report...' : 'Preparing Teams share...', 'info');
+
+      if (isExcelView) {
+        try {
+          const blob = await getExcelFileBlob();
+          if (blob && navigator.share && navigator.canShare) {
+            const projectClean = (P.name || 'Project').replace(/[\\\/*?:"<>|\s]/g, '');
+            const ts = new Date().toISOString().replace(/[-:T]/g, '').split('.')[0];
+            const file = new File([blob], `ProjectPulse_${projectClean}_${P.view}_${ts}.xlsx`, { type: blob.type });
+
+            if (navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                title: 'ProjectPulse Excel Share',
+                text: sub,
+                files: [file]
+              });
+              notify('Excel report shared to Teams successfully!', 'ok');
+              return;
+            }
+          }
+        } catch (e) {
+          if (e.name !== 'AbortError') console.error('Share error', e);
+        }
+
+        // Fallback for Excel
+        notify('Native file sharing is not supported by your browser. Exporting Excel directly...', 'info');
+        exportProjectExcel(false, true);
+        return;
+      }
+
       const blob = await copyAllShares(containerId, true);
       if (blob && navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], 'report.png', { type: 'image/png' })] })) {
         try {
