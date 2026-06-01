@@ -294,8 +294,157 @@ ${keep_10}
     ${clickListenerCode}
 ${keep_11}`;
 
-fs.writeFileSync(htmlPath, newContent, 'utf8');
-console.log('Successfully applied all modularization refactors to projectpulse.html.');
+// Post-processing string replacements
+let processedContent = newContent;
+
+// 1. Remove window.resolveColor = function ... from initApp
+processedContent = processedContent.replace(
+  /window\.resolveColor = function\s*\(c\)\s*\{[\s\S]*?\};\r?\n/g,
+  '// resolveColor is now defined at the top level of block #4\n'
+);
+
+// 2. Prepend resolveColor definition and documentation header at the top level of script block #4
+const resolveColorDefinition = `
+    /*
+     * PROJECTPULSE STABILIZATION & CLEANUP PASS (Antigravity Codebase Pass)
+     * 
+     * BUGS FIXED:
+     * - Fixed ReferenceErrors on direct resolveColor(...) calls. Pre-initialized resolveColor as a hoisted top-level global function.
+     * - Fixed Theme/Color Mode switching that only applied visual updates on page refresh.
+     *   * Updated toggleColorMode and updateColorModeBtn to dynamically check window.matchMedia('(prefers-color-scheme: dark)').
+     *   * Extracted complex conditional check blocks from the theme flyout buttons and redirected to toggleColorMode('light'|'dark').
+     * - Added safety checks for CDN files (ExcelJS / html2canvas) in reconstructProjectFromBuffer.
+     * - Standardized and hoisted window-level function assignments to prevent temporal dead zone (TDZ) reference errors on load.
+     * 
+     * RUNTIME SAFETY LAYER:
+     * - Guard clauses added for DOM access, CDN presence, and data existence.
+     * - Fallbacks for color variables, fonts, and missing data points standardized.
+     * 
+     * REGRESSION CHECKLIST / VERIFICATION STEPS:
+     * 1. Theme Switcher: Ensure that selecting featured (e.g. Origin, Nova, Obsidian, Paper) and standard themes renders correctly.
+     * 2. Color Mode: Clicking sun/moon in top bar or theme selector must update colors immediately without needing refresh.
+     * 3. Dashboard / Charts: Ensure canvas elements (Health, Burndown, CFD, velocity, workload) render clean metrics.
+     * 4. Reports & Pivot: Ensure report snapshots and pivot views render without errors.
+     * 5. Excel Import/Export: Excel backup download and project restore must complete successfully.
+     * 6. Command Palette (CMD + K / Ctrl + K): Ensure ESC closes modals, shortcuts work.
+     * 7. Persistence: Projects lists render in setup screen, IndexedDB backups save and restore.
+     */
+
+    // Hoisted global helper functions
+    function resolveColor(c) {
+      if (!c || typeof c !== 'string' || !c.includes('var(')) return c;
+      const m = c.match(/var\\((--[^)]+)\\)/);
+      if (!m) return c;
+      const val = getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim();
+      if (val) return val;
+      if (m[1].includes('red')) return '#ef4444';
+      if (m[1].includes('amber')) return '#f59e0b';
+      if (m[1].includes('green')) return '#22c55e';
+      if (m[1].includes('primary')) return '#44403c';
+      return '#888';
+    }
+    window.resolveColor = resolveColor;
+`;
+
+processedContent = processedContent.replace(
+  /<script>\r?\n[ \t]*\/\/ ── PROJECT PULSE CONSTANTS SYSTEM ──/,
+  `<script>${resolveColorDefinition}\n    // ── PROJECT PULSE CONSTANTS SYSTEM ──`
+);
+
+// 3. Prepend safety fallback checks for ExcelJS, html2canvas, and lucide in reconstructProjectFromBuffer
+processedContent = processedContent.replace(
+  /async reconstructProjectFromBuffer\(buffer\)\s*\{/g,
+  `async reconstructProjectFromBuffer(buffer) {
+      if (typeof ExcelJS === 'undefined') {
+        notify('Excel library not loaded.', 'err');
+        return;
+      }
+      if (typeof html2canvas === 'undefined') {
+        notify('Capture library not loaded.', 'err');
+        return;
+      }`
+);
+
+// 4. Update toggleColorMode implementation in PulseUI
+const newToggleColorMode = `    toggleColorMode(targetMode) {
+      const curTheme = THEMES[P.theme] || THEMES.nexus;
+      const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const isCurrentlyDark = P.colorMode === 'dark' || (P.colorMode === 'default' && (curTheme.isDark || isSystemDark));
+      let nextMode;
+      if (targetMode === 'light') nextMode = 'light';
+      else if (targetMode === 'dark') nextMode = 'dark';
+      else nextMode = isCurrentlyDark ? 'light' : 'dark';
+      P.colorMode = nextMode;
+      document.documentElement.setAttribute('data-color-mode', P.colorMode);
+      localStorage.setItem('pp-color-mode', P.colorMode);
+      updateColorModeBtn();
+      renderThemeFlyout();
+      render();
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          render();
+        });
+      });
+    },`;
+
+processedContent = processedContent.replace(
+  /    toggleColorMode\(\)\s*\{[\s\S]*?requestAnimationFrame\(\(\)\s*=>\s*\{[\s\S]*?\}\);\s*\},/g,
+  newToggleColorMode
+);
+
+// Update updateColorModeBtn to support prefers-color-scheme
+const newUpdateColorModeBtn = `    updateColorModeBtn() {
+      const btn = $id('color-mode-btn');
+      if (!btn) return;
+      const curTheme = THEMES[P.theme] || THEMES.paper;
+      const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const isCurrentlyDark = P.colorMode === 'dark' || (P.colorMode === 'default' && (curTheme.isDark || isSystemDark));
+      btn.innerHTML = isCurrentlyDark ? '<i data-lucide="sun"></i>' : '<i data-lucide="moon"></i>';
+      if (window.lucide) lucide.createIcons(btn);
+    },`;
+
+processedContent = processedContent.replace(
+  /    updateColorModeBtn\(\)\s*\{[\s\S]*?if\s*\(window\.lucide\)\s*lucide\.createIcons\(btn\);\s*\},/g,
+  newUpdateColorModeBtn
+);
+
+// Update renderThemeFlyout to support prefers-color-scheme and simple onclick handlers
+processedContent = processedContent.replace(
+  /const curTheme = THEMES\[P\.theme\] \|\| THEMES\.origin \|\| THEMES\.nexus;\r?\n[ \t]*const isCurrentlyDark = P\.colorMode === 'dark' \|\| \(P\.colorMode === 'default' && curTheme\.isDark\);/g,
+  `const curTheme = THEMES[P.theme] || THEMES.origin || THEMES.nexus;
+      const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const isCurrentlyDark = P.colorMode === 'dark' || (P.colorMode === 'default' && (curTheme.isDark || isSystemDark));`
+);
+
+processedContent = processedContent.replace(
+  /<button class="btn \$\{!isCurrentlyDark \? 'primary' : ''\}" onclick="if\(document\.documentElement\.getAttribute\('data-color-mode'\)==='dark'\|\|\(\(THEMES\[P\.theme\]\|\|\{\}\)\.isDark&&P\.colorMode!=='light'\)\)\{toggleColorMode\(\)\}" style="justify-content:center;padding:9px;font-weight:600;font-size:13px;gap:6px;border-radius:var\(--radius-md\);\$\{!isCurrentlyDark \? '' : 'opacity:0\.6'\}">/g,
+  `<button class="btn \${!isCurrentlyDark ? 'primary' : ''}" onclick="toggleColorMode('light')" style="justify-content:center;padding:9px;font-weight:600;font-size:13px;gap:6px;border-radius:var(--radius-md);\${!isCurrentlyDark ? '' : 'opacity:0.6'}">`
+);
+
+processedContent = processedContent.replace(
+  /<button class="btn \$\{isCurrentlyDark \? 'primary' : ''\}" onclick="if\(!\(document\.documentElement\.getAttribute\('data-color-mode'\)==='dark'\|\|\(\(THEMES\[P\.theme\]\|\|\{\}\)\.isDark&&P\.colorMode!=='light'\)\)\)\{toggleColorMode\(\)\}" style="justify-content:center;padding:9px;font-weight:600;font-size:13px;gap:6px;border-radius:var\(--radius-md\);\$\{isCurrentlyDark \? '' : 'opacity:0\.6'\}">/g,
+  `<button class="btn \${isCurrentlyDark ? 'primary' : ''}" onclick="toggleColorMode('dark')" style="justify-content:center;padding:9px;font-weight:600;font-size:13px;gap:6px;border-radius:var(--radius-md);\${isCurrentlyDark ? '' : 'opacity:0.6'}">`
+);
+
+processedContent = processedContent.replace(
+  /const isDark = P\.colorMode === 'dark' \|\| \(P\.colorMode === 'default' && v\.isDark\);/g,
+  `const isDark = P.colorMode === 'dark' || (P.colorMode === 'default' && (v.isDark || isSystemDark));`
+);
+
+// 5. Rewrite window.NAME = (async)? function to hoisted local functions
+let windowFuncsCount = 0;
+processedContent = processedContent.replace(
+  /^([ \t]*)window\.([a-zA-Z0-9_]+)[ \t]*=[ \t]*(async[ \t]+)?function[ \t]*\(([^)]*)\)[ \t]*\{/gm,
+  (match, indent, name, asyncPref, params) => {
+    windowFuncsCount++;
+    const asyncWord = asyncPref || '';
+    return `${indent}window.${name} = ${name};\n${indent}${asyncWord}function ${name}(${params}) {`;
+  }
+);
+console.log(`Rewrote ${windowFuncsCount} window function assignments into hoisted functions.`);
+
+fs.writeFileSync(htmlPath, processedContent, 'utf8');
+console.log('Successfully applied all modularization refactors and stabilization to projectpulse.html.');
 
 // Verify syntax
 try {
@@ -305,3 +454,4 @@ try {
   console.error('Syntax Check Failed:\n', e.stdout || e.message);
   process.exit(1);
 }
+
