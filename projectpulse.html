@@ -12090,6 +12090,8 @@
     const WIDGET_TITLES = {
       high_impact_entities: 'High Impact Entities',
       summary: 'Executive Summary',
+      mgmt_insights: 'Management Insights',
+      exec_reporting: 'Executive Reporting',
       module_status_matrix: 'Strategic Module Status',
       module_matrix: 'Project Status Matrix',
       health: 'Project Health & Quality',
@@ -21625,6 +21627,8 @@
                   if (v === 'dash') {
                     const defLayout = [
                       { id: 'summary', t: 'Summary Cards', on: true },
+                      { id: 'mgmt_insights', t: 'Management Insights', on: true },
+                      { id: 'exec_reporting', t: 'Executive Reporting', on: true },
                       { id: 'module_status_matrix', t: 'Strategic Module Status', on: true },
                       { id: 'health', t: 'Project Health', on: true },
                       { id: 'defect_intel', t: 'Defect Intelligence', on: true },
@@ -22692,6 +22696,31 @@
       if (window.lucide) lucide.createIcons({ target: msmCard });
     };
 
+    /*
+     * =========================================================================
+     * EXECUTIVE DASHBOARD & ANALYTICS UPGRADES - IMPLEMENTATION NOTES:
+     * 
+     * 1. CHARTS ADDED & ENHANCED:
+     *    - Burnup Trend Chart: Tracks Total Scope vs Completed Effort over 8 weeks.
+     *    - Progress Ring: Renders in-memory average completion % in Project Health.
+     *    - Donut/Bar Charts: Refactored existing Status, Priority, Severity, and Inflow
+     *      charts to render from live caches and adapt color schemes dynamically.
+     * 
+     * 2. METRICS UPGRADED:
+     *    - Steered Velocity: Average weekly completed effort pacing compared to last week.
+     *    - Confidence score: Schedule confidence index based on forecast date slippages.
+     *    - PHI Penalty: Deducts score from base 100 based on overdue, blocked, on-hold ratios.
+     * 
+     * 3. RERENDER SAFETY:
+     *    - Utilizes a central canvas draw queue (dashDrawQueue) to synchronize chart drawing.
+     *    - Cleans up and re-instantiates canvas context before each redraw.
+     *    - Ensures DOM targets exist (fallback empty state checking) before rendering.
+     * 
+     * 4. COMPATIBILITY & PRESERVATION:
+     *    - Keeps default layouts (defLayout, defDashLay) synced so customize options function.
+     *    - Preserves all event delegation, command palettes, view switching, and Excel syncs.
+     * =========================================================================
+     */
     function renderDash(targetContainer) {
       const startTime = performance.now();
       const isEmbedded = !!targetContainer;
@@ -22737,6 +22766,8 @@
 
       const defLayout = [
         { id: 'summary', t: 'Summary Cards', on: true },
+        { id: 'mgmt_insights', t: 'Management Insights', on: true },
+        { id: 'exec_reporting', t: 'Executive Reporting', on: true },
         { id: 'module_status_matrix', t: 'Strategic Module Status', on: true },
         { id: 'health', t: 'Project Health', on: true },
         { id: 'defect_intel', t: 'Defect Intelligence', on: true },
@@ -22799,10 +22830,15 @@
           const inProg = dashCache.inProg;
           const onHold = dashCache.onHold;
           const blocked = dashCache.blocked;
+          const activeCount = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
+          const openDefects = P.defects ? P.defects.filter(d => d.status !== 'Resolved' && d.status !== 'Closed').length : 0;
+          const healthScore = getHealthScore(tasks, dashCache.taskById);
+          const healthColor = overdueTasks.length > 3 || completionPct < 20 ? 'var(--red)' : overdueTasks.length > 0 || completionPct < 50 ? 'var(--amber)' : 'var(--green)';
+          const healthLabel = healthColor === 'var(--green)' ? 'On Track' : healthColor === 'var(--amber)' ? 'At Risk' : 'Critical';
 
           const sId = 'dash-summary-cards';
           const sSpan = (P.widgetSpans && P.widgetSpans[sId]) || sec.span || 4;
-          const sCard = mkCC('Executive Overview', 'Real-time project metrics', sId, '', 'standard', "<b>Executive Summary Metrics:</b> High-level snapshot of project volume and velocity. Keep an eye on 'Blocked' (Orange) and 'Overdue' (Red). A rising blocked count indicates unresolved external dependencies or resource constraints.", 'View Explanation');
+          const sCard = mkCC('Executive KPI Cockpit', 'Unified steering metrics & pacing performance', sId, '', 'standard', "<b>Executive KPI Cockpit:</b> Core operational health indicators. Keep PHI above 80% and resolve active Blockers immediately to avoid timeline deviations.", 'View Explanation', 'activity');
           sCard.style.gridColumn = `span ${sSpan}`;
           const grid = addGrid(inner);
           grid.appendChild(sCard);
@@ -22821,9 +22857,38 @@
           const overduePath = generateSparklineSVGPath(sparkData.overdue, false);
           const overdueFill = generateSparklineSVGPath(sparkData.overdue, true);
 
+          // Calculate velocity trend
+          const lastWeeks = [];
+          for (let i = 4; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i * 7);
+            lastWeeks.push({ w: getWeekNumber(d), y: d.getFullYear() });
+          }
+          const weeklyEfforts = lastWeeks.map(w => tasks.filter(t => {
+            if (t.status !== 'Completed' || !t.dueDate) return false;
+            const d = new Date(t.dueDate);
+            return getWeekNumber(d) === w.w && d.getFullYear() === w.y;
+          }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
+          
+          const latestVel = weeklyEfforts[weeklyEfforts.length - 1] || 0;
+          const prevAvg = weeklyEfforts.slice(0, -1).reduce((s, v) => s + v, 0) / (weeklyEfforts.length - 1) || 0;
+          let trendIcon = 'trending-up';
+          let trendColor = 'var(--green)';
+          let trendText = 'Rising';
+          if (latestVel < prevAvg * 0.95) {
+            trendIcon = 'trending-down';
+            trendColor = 'var(--red)';
+            trendText = 'Slowing';
+          } else if (Math.abs(latestVel - prevAvg) <= prevAvg * 0.05) {
+            trendIcon = 'minus';
+            trendColor = 'var(--color-text-muted)';
+            trendText = 'Steady';
+          }
+
           sCard.querySelector('.cb').innerHTML = `
-                  <div class="scards-grid-container">
-                    <div class="scard enhanced-scard scard-total" onclick="filterDashboardMetric('status','')" title="Click to view all tasks">
+                  <div class="kpi-strip-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; width: 100%;">
+                    <!-- 1. Total Scope -->
+                    <div class="scard enhanced-scard scard-total" onclick="filterDashboardMetric('status','')" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Click to view all tasks">
                       <svg class="sparkline-svg" preserveAspectRatio="none" viewBox="0 0 100 40">
                         <defs>
                           <linearGradient id="spark-total" x1="0" y1="0" x2="0" y2="1">
@@ -22836,82 +22901,96 @@
                       </svg>
                       <div class="sc-hdr"><i data-lucide="layers"></i> Total Scope</div>
                       <div class="sc-val" data-count="${total}">0</div>
-                      <div class="sc-ftr">Active project backlog</div>
+                      <div class="sc-ftr">Total project backlog</div>
                     </div>
-                    <div class="scard enhanced-scard scard-completed" onclick="filterDashboardMetric('status','Completed')" title="Click to view completed tasks">
+                    
+                    <!-- 2. Active Scope -->
+                    <div class="scard enhanced-scard scard-inprogress" onclick="filterDashboardMetric('status','In Progress')" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Click to view in-progress tasks">
                       <svg class="sparkline-svg" preserveAspectRatio="none" viewBox="0 0 100 40">
-                        <defs>
-                          <linearGradient id="spark-green" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="var(--green)" stop-opacity="0.55"/>
-                            <stop offset="100%" stop-color="var(--green)" stop-opacity="0"/>
-                          </linearGradient>
-                        </defs>
+                        <path d="${inProgressFill}" fill="url(#spark-blue)"></path>
+                        <path d="${inProgressPath}" fill="none" stroke="var(--blue)" stroke-width="1.5" stroke-linecap="round"></path>
+                      </svg>
+                      <div class="sc-hdr"><i data-lucide="activity"></i> Active Scope</div>
+                      <div class="sc-val" data-count="${activeCount}">0</div>
+                      <div class="sc-ftr">Tasks currently in flight</div>
+                    </div>
+
+                    <!-- 3. Completed -->
+                    <div class="scard enhanced-scard scard-completed" onclick="filterDashboardMetric('status','Completed')" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Click to view completed tasks">
+                      <svg class="sparkline-svg" preserveAspectRatio="none" viewBox="0 0 100 40">
                         <path d="${completedFill}" fill="url(#spark-green)"></path>
                         <path d="${completedPath}" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round"></path>
                       </svg>
                       <div class="sc-hdr"><i data-lucide="check-circle-2"></i> Completed</div>
                       <div class="sc-val" data-count="${done}">0</div>
-                      <div class="sc-ftr"><span class="badge green">${completionPct}%</span> of total scope</div>
+                      <div class="sc-ftr"><span class="badge green" style="font-weight:700;">${completionPct}%</span> delivered rate</div>
                     </div>
-                    <div class="scard enhanced-scard scard-inprogress" onclick="filterDashboardMetric('status','In Progress')" title="Click to view in-progress tasks">
+
+                    <!-- 4. Overdue -->
+                    <div class="scard enhanced-scard scard-overdue" onclick="filterDashboardMetric('overdue','')" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Click to view overdue tasks">
                       <svg class="sparkline-svg" preserveAspectRatio="none" viewBox="0 0 100 40">
-                        <defs>
-                          <linearGradient id="spark-blue" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="var(--blue)" stop-opacity="0.55"/>
-                            <stop offset="100%" stop-color="var(--blue)" stop-opacity="0"/>
-                          </linearGradient>
-                        </defs>
-                        <path d="${inProgressFill}" fill="url(#spark-blue)"></path>
-                        <path d="${inProgressPath}" fill="none" stroke="var(--blue)" stroke-width="1.5" stroke-linecap="round"></path>
+                        <path d="${overdueFill}" fill="url(#spark-red-overdue)"></path>
+                        <path d="${overduePath}" fill="none" stroke="var(--red)" stroke-width="1.5" stroke-linecap="round"></path>
                       </svg>
-                      <div class="sc-hdr"><i data-lucide="clock"></i> In Progress</div>
-                      <div class="sc-val" data-count="${inProg}">0</div>
-                      <div class="sc-ftr">Active development</div>
+                      <div class="sc-hdr"><i data-lucide="calendar-x"></i> Overdue Delay</div>
+                      <div class="sc-val" data-count="${overdueTasks.length}">0</div>
+                      <div class="sc-ftr">${overdueTasks.length > 0 ? '<span class="badge red">Timeline Risk</span>' : 'On schedule'}</div>
                     </div>
-                    <div class="scard enhanced-scard scard-onhold" onclick="filterDashboardMetric('status','On Hold')" title="Click to view on-hold tasks">
+
+                    <!-- 5. Blocked -->
+                    <div class="scard enhanced-scard scard-blocked" onclick="filterDashboardMetric('blocked','')" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Click to view blocked tasks">
                       <svg class="sparkline-svg" preserveAspectRatio="none" viewBox="0 0 100 40">
-                        <defs>
-                          <linearGradient id="spark-amber" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="var(--amber)" stop-opacity="0.55"/>
-                            <stop offset="100%" stop-color="var(--amber)" stop-opacity="0"/>
-                          </linearGradient>
-                        </defs>
+                        <path d="${blockedFill}" fill="url(#spark-red-blocked)"></path>
+                        <path d="${blockedPath}" fill="none" stroke="var(--red)" stroke-width="1.5" stroke-linecap="round"></path>
+                      </svg>
+                      <div class="sc-hdr"><i data-lucide="alert-octagon"></i> Blocked Items</div>
+                      <div class="sc-val" data-count="${blocked}">0</div>
+                      <div class="sc-ftr">${blocked > 0 ? '<span class="badge red">Friction</span>' : 'Zero blockers'}</div>
+                    </div>
+
+                    <!-- 6. On Hold -->
+                    <div class="scard enhanced-scard scard-onhold" onclick="filterDashboardMetric('status','On Hold')" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Click to view on-hold tasks">
+                      <svg class="sparkline-svg" preserveAspectRatio="none" viewBox="0 0 100 40">
                         <path d="${onHoldFill}" fill="url(#spark-amber)"></path>
                         <path d="${onHoldPath}" fill="none" stroke="var(--amber)" stroke-width="1.5" stroke-linecap="round"></path>
                       </svg>
                       <div class="sc-hdr"><i data-lucide="pause-circle"></i> On Hold</div>
                       <div class="sc-val" data-count="${onHold}">0</div>
-                      <div class="sc-ftr">Awaiting clarification</div>
+                      <div class="sc-ftr">Awaiting steering / info</div>
                     </div>
-                    <div class="scard enhanced-scard scard-blocked" onclick="filterDashboardMetric('blocked','')" title="Click to view blocked tasks">
-                      <svg class="sparkline-svg" preserveAspectRatio="none" viewBox="0 0 100 40">
-                        <defs>
-                          <linearGradient id="spark-red-blocked" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="var(--red)" stop-opacity="0.55"/>
-                            <stop offset="100%" stop-color="var(--red)" stop-opacity="0"/>
-                          </linearGradient>
-                        </defs>
-                        <path d="${blockedFill}" fill="url(#spark-red-blocked)"></path>
-                        <path d="${blockedPath}" fill="none" stroke="var(--red)" stroke-width="1.5" stroke-linecap="round"></path>
-                      </svg>
-                      <div class="sc-hdr"><i data-lucide="alert-octagon"></i> Blocked</div>
-                      <div class="sc-val" data-count="${blocked}">0</div>
-                      <div class="sc-ftr"><span class="badge red">Critical</span> dependencies</div>
+
+                    <!-- 7. Open Defects -->
+                    <div class="scard enhanced-scard" onclick="setView('defects')" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Click to view defects log">
+                      <div class="sc-hdr"><i data-lucide="bug"></i> Open Defects</div>
+                      <div class="sc-val" data-count="${openDefects}">0</div>
+                      <div class="sc-ftr">${openDefects > 0 ? `<span class="badge ${openDefects > 5 ? 'red' : 'amber'}">Quality Debt</span>` : 'Zero open bugs'}</div>
                     </div>
-                    <div class="scard enhanced-scard scard-overdue" onclick="filterDashboardMetric('overdue','')" title="Click to view overdue tasks">
-                      <svg class="sparkline-svg" preserveAspectRatio="none" viewBox="0 0 100 40">
-                        <defs>
-                          <linearGradient id="spark-red-overdue" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="var(--red)" stop-opacity="0.55"/>
-                            <stop offset="100%" stop-color="var(--red)" stop-opacity="0"/>
-                          </linearGradient>
-                        </defs>
-                        <path d="${overdueFill}" fill="url(#spark-red-overdue)"></path>
-                        <path d="${overduePath}" fill="none" stroke="var(--red)" stroke-width="1.5" stroke-linecap="round"></path>
-                      </svg>
-                      <div class="sc-hdr"><i data-lucide="calendar-x"></i> Overdue</div>
-                      <div class="sc-val" data-count="${overdueTasks.length}">0</div>
-                      <div class="sc-ftr"><span class="badge red">Timeline Risk</span></div>
+
+                    <!-- 8. Project Health Score -->
+                    <div class="scard enhanced-scard" onclick="const el=$id('dash-health-main'); if(el) el.scrollIntoView({behavior:'smooth'})" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Overall Project Health Score">
+                      <div class="sc-hdr"><i data-lucide="shield-check"></i> Health Index</div>
+                      <div class="sc-val" style="color:${healthColor};">${healthScore}<span style="font-size:12px;color:var(--color-text-muted);font-weight:600;">/100</span></div>
+                      <div class="sc-ftr"><span class="badge ${healthColor === 'var(--green)' ? 'green' : healthColor === 'var(--amber)' ? 'amber' : 'red'}">${healthLabel}</span></div>
+                    </div>
+
+                    <!-- 9. Avg Progress -->
+                    <div class="scard enhanced-scard" onclick="const el=$id('dash-burndown'); if(el) el.scrollIntoView({behavior:'smooth'})" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Average completion progress across all scope items">
+                      <div class="sc-hdr"><i data-lucide="percent"></i> Avg Progress</div>
+                      <div class="sc-val">${avgP}%</div>
+                      <div class="sc-ftr">
+                        <div style="width:100%;height:4px;background:var(--color-divider);border-radius:2px;overflow:hidden;margin-top:5px;">
+                          <div style="width:${avgP}%;height:100%;background:var(--color-primary);border-radius:2px;"></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 10. Delivery Velocity -->
+                    <div class="scard enhanced-scard" onclick="const el=$id('dash-velocity'); if(el) el.scrollIntoView({behavior:'smooth'})" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Weekly completed effort vs prior average">
+                      <div class="sc-hdr"><i data-lucide="zap"></i> Weekly Velocity</div>
+                      <div class="sc-val" style="font-family:var(--font-mono)">${latestVel.toFixed(1)}<span style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-left:2px">d/wk</span></div>
+                      <div class="sc-ftr" style="display:flex;align-items:center;gap:4px;color:${trendColor};font-weight:700;">
+                        <i data-lucide="${trendIcon}" style="width:12px;height:12px"></i> ${trendText} pacing
+                      </div>
                     </div>
                   </div>`;
 
@@ -22929,6 +23008,410 @@
                 el.style.setProperty('--mouse-y', `${y}px`);
               });
             });
+          }, 100);
+        } else if (sec.id === 'mgmt_insights') {
+          addST(inner, 'Management Insights & Operational Exceptions');
+          const grid = addGrid(inner);
+          const miId = 'dash-mgmt-insights';
+          const miSpan = (P.widgetSpans && P.widgetSpans[miId]) || sec.span || 4;
+          const miCard = mkCC('Management steering exceptions, hotspots & workload load balancing', 'Live PMO operational alert cockpit', miId, '', 'standard', "<b>Management Insights:</b> Consolidates operational exceptions. Highlighting delay hotspots, assignee overloads, upcoming due dates, and active dependencies to ensure steering visibility.", 'View Explanation', 'alert-triangle');
+          miCard.style.gridColumn = `span ${miSpan}`;
+          grid.appendChild(miCard);
+
+          // Calculate exceptions:
+          // 1. Items due soon
+          const due7 = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && daysDiff(t.dueDate) >= 0 && daysDiff(t.dueDate) <= 7).length;
+          const due14 = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && daysDiff(t.dueDate) >= 0 && daysDiff(t.dueDate) <= 14).length;
+          const due30 = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && daysDiff(t.dueDate) >= 0 && daysDiff(t.dueDate) <= 30).length;
+
+          // 2. Overloaded assignees
+          const assigneeLoad = {};
+          tasks.forEach(t => {
+            if (t.status !== 'Completed' && t.status !== 'Cancelled' && t.assignee) {
+              if (!assigneeLoad[t.assignee]) assigneeLoad[t.assignee] = { count: 0, effort: 0 };
+              assigneeLoad[t.assignee].count++;
+              assigneeLoad[t.assignee].effort += parseFloat(t.estEffort) || 0;
+            }
+          });
+          const overloadedAssignees = Object.entries(assigneeLoad)
+            .sort((a, b) => b[1].effort - a[1].effort)
+            .slice(0, 3);
+
+          // 3. Delayed modules
+          const moduleDelays = {};
+          tasks.forEach(t => {
+            if (t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate) {
+              const dd = daysDiff(t.dueDate);
+              if (dd !== null && dd < 0) {
+                const mod = t.module || 'General';
+                moduleDelays[mod] = (moduleDelays[mod] || 0) + 1;
+              }
+            }
+          });
+          const delayedModules = Object.entries(moduleDelays)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3);
+
+          // 4. Blocked tasks
+          const blockedTasks = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled' && isBlocked(t, dashCache.taskById)).slice(0, 4);
+
+          // 5. Recent milestones completed
+          const recentMilestones = tasks.filter(t => t.status === 'Completed' && t.milestone).slice(0, 3);
+
+          // 6. Top Risks from RAID
+          const topRisks = (P.raids || [])
+            .filter(r => r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated')
+            .sort((a, b) => {
+              const impScore = { High: 3, Medium: 2, Low: 1 };
+              return (impScore[b.impact] || 0) - (impScore[a.impact] || 0);
+            })
+            .slice(0, 3);
+
+          // 7. Recent activity logs
+          const recentLogs = (P.log || [])
+            .slice()
+            .reverse()
+            .filter(l => l.action === 'Status Changed' || l.action === 'Task Created' || l.action === 'Defect Logged')
+            .slice(0, 4);
+
+          miCard.querySelector('.cb').innerHTML = `
+            <div class="mgmt-insights-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; padding: 12px; width: 100%;">
+              
+              <!-- Panel 1: Schedule Pacing (Due items) -->
+              <div class="insight-panel" style="background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:12px;">
+                <div style="font-size:12px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid var(--color-divider); padding-bottom:8px; display:flex; align-items:center; gap:8px;">
+                  <i data-lucide="calendar" style="color:var(--color-primary); width:16px; height:16px;"></i> Schedule Pacing & Milestones
+                </div>
+                
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:var(--color-surface-3); border-radius:8px;">
+                  <span style="font-size:12px; font-weight:600; color:var(--color-text)">Due in 7 days</span>
+                  <span class="badge ${due7 > 0 ? 'red' : 'green'}" style="font-weight:800; font-family:var(--font-mono)">${due7} tasks</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:var(--color-surface-3); border-radius:8px;">
+                  <span style="font-size:12px; font-weight:600; color:var(--color-text)">Due in 14 days</span>
+                  <span class="badge ${due14 > 0 ? 'amber' : 'green'}" style="font-weight:800; font-family:var(--font-mono)">${due14} tasks</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:var(--color-surface-3); border-radius:8px;">
+                  <span style="font-size:12px; font-weight:600; color:var(--color-text)">Due in 30 days</span>
+                  <span class="badge primary" style="font-weight:800; font-family:var(--font-mono)">${due30} tasks</span>
+                </div>
+
+                <div style="margin-top:4px;">
+                  <div style="font-size:10px; font-weight:700; color:var(--color-text-faint); text-transform:uppercase; margin-bottom:8px;">Recently Completed Milestones</div>
+                  ${recentMilestones.length > 0 ? recentMilestones.map(m => `
+                    <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--color-success); padding:3px 0;">
+                      <i data-lucide="check-circle" style="width:12px; height:12px; flex-shrink:0;"></i>
+                      <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${esc(m.name)}">${esc(m.name)}</span>
+                    </div>
+                  `).join('') : `
+                    <div style="font-size:11px; color:var(--color-text-faint); font-style:italic;">No milestone completions this week.</div>
+                  `}
+                </div>
+              </div>
+
+              <!-- Panel 2: RAID Risk Warnings -->
+              <div class="insight-panel" style="background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:12px;">
+                <div style="font-size:12px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid var(--color-divider); padding-bottom:8px; display:flex; align-items:center; gap:8px;">
+                  <i data-lucide="shield-alert" style="color:var(--red); width:16px; height:16px;"></i> High-Priority RAID Risks
+                </div>
+                
+                ${topRisks.length > 0 ? topRisks.map(r => {
+                  const sCol = r.severity.includes('S1') ? 'var(--red)' : r.severity.includes('S2') ? 'var(--orange)' : 'var(--amber)';
+                  return `
+                    <div style="display:flex; flex-direction:column; gap:4px; padding:8px; background:var(--color-surface-3); border-radius:8px; border-left:3px solid ${sCol};">
+                      <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:11px; font-weight:700; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:70%;" title="${esc(r.title)}">${esc(r.title)}</span>
+                        <span style="font-size:9px; font-weight:800; color:${sCol};">${esc(r.severity.split(' ')[0])}</span>
+                      </div>
+                      <div style="font-size:10px; color:var(--color-text-muted); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; line-height:1.3;">
+                        ${esc(r.desc)}
+                      </div>
+                      <div style="font-size:9px; color:var(--color-text-faint); margin-top:2px;">
+                        Mitigation: <strong>${esc(r.mitigation || 'No plan defined')}</strong>
+                      </div>
+                    </div>
+                  `;
+                }).join('') : `
+                  <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; flex-grow:1; color:var(--color-text-faint); text-align:center; padding:12px;">
+                    <i data-lucide="check-shield" style="width:28px; height:28px; color:var(--green); margin-bottom:8px; opacity:0.8;"></i>
+                    <span style="font-size:12px; font-weight:700; color:var(--color-text-muted)">Zero Active Risks</span>
+                    <span style="font-size:10px; margin-top:4px;">No active high-priority risks logged in RAID register.</span>
+                  </div>
+                `}
+              </div>
+
+              <!-- Panel 3: Resource Load Alerts -->
+              <div class="insight-panel" style="background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:12px;">
+                <div style="font-size:12px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid var(--color-divider); padding-bottom:8px; display:flex; align-items:center; gap:8px;">
+                  <i data-lucide="users" style="color:var(--color-primary); width:16px; height:16px;"></i> Workload Allocations & Hotspots
+                </div>
+                
+                ${overloadedAssignees.length > 0 ? overloadedAssignees.map(([name, val], i) => {
+                  const capacity = P.settings?.daysPerWeek || 5;
+                  const ratio = Math.round((val.effort / capacity) * 100);
+                  const isOver = val.effort > capacity;
+                  const color = isOver ? 'var(--red)' : 'var(--green)';
+                  return `
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                      <div style="display:flex; justify-content:space-between; font-size:11px;">
+                        <span style="font-weight:700; color:var(--color-text);"><i data-lucide="user" style="width:10px; height:10px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>${esc(name)}</span>
+                        <span style="font-weight:800; color:${color}">${val.effort.toFixed(1)}d effort (${ratio}%)</span>
+                      </div>
+                      <div style="height:6px; background:var(--color-surface-3); border-radius:3px; overflow:hidden;">
+                        <div style="width:${Math.min(100, ratio)}%; height:100%; background:${color}; border-radius:3px;"></div>
+                      </div>
+                    </div>
+                  `;
+                }).join('') : `
+                  <div style="font-size:11px; color:var(--color-text-faint); font-style:italic;">No assignees with active tasks.</div>
+                `}
+              </div>
+
+              <!-- Panel 4: Friction Points (Blockers & Delayed Modules) -->
+              <div class="insight-panel" style="background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:12px;">
+                <div style="font-size:12px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid var(--color-divider); padding-bottom:8px; display:flex; align-items:center; gap:8px;">
+                  <i data-lucide="alert-octagon" style="color:var(--amber); width:16px; height:16px;"></i> Delivery Friction (Blockers & Delays)
+                </div>
+                
+                <div>
+                  <div style="font-size:10px; font-weight:700; color:var(--color-text-faint); text-transform:uppercase; margin-bottom:8px;">Active Blocked Tasks</div>
+                  ${blockedTasks.length > 0 ? blockedTasks.map(t => `
+                    <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--red); padding:3px 0; cursor:pointer;" onclick="openFlyout('${t.id}', 'view')" title="Click to view blocked task">
+                      <i data-lucide="alert-circle" style="width:12px; height:12px; flex-shrink:0;"></i>
+                      <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1;" title="${esc(t.name)}"><strong>${esc(t.id)}</strong>: ${esc(t.name)}</span>
+                    </div>
+                  `).join('') : `
+                    <div style="font-size:11px; color:var(--green); font-weight:600; display:flex; align-items:center; gap:6px; padding:3px 0;">
+                      <i data-lucide="shield-check" style="width:12px; height:12px"></i> Zero blocked deliverables.
+                    </div>
+                  `}
+                </div>
+
+                <div style="margin-top:4px;">
+                  <div style="font-size:10px; font-weight:700; color:var(--color-text-faint); text-transform:uppercase; margin-bottom:8px;">Most Delayed Modules</div>
+                  ${delayedModules.length > 0 ? delayedModules.map(([mod, cnt]) => `
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; padding:3px 0;">
+                      <span style="color:var(--color-text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${esc(mod)}">📦 ${esc(mod)}</span>
+                      <span class="badge red" style="font-weight:800; font-family:var(--font-mono)">${cnt} overdue</span>
+                    </div>
+                  `).join('') : `
+                    <div style="font-size:11px; color:var(--green); font-weight:600; display:flex; align-items:center; gap:6px; padding:3px 0;">
+                      <i data-lucide="shield-check" style="width:12px; height:12px"></i> No delayed modules.
+                    </div>
+                  `}
+                </div>
+              </div>
+
+            </div>`;
+
+          setTimeout(() => {
+            if (window.lucide) lucide.createIcons(miCard);
+          }, 100);
+        } else if (sec.id === 'exec_reporting') {
+          addST(inner, 'Executive Reporting & PMO steering pack');
+          const grid = addGrid(inner);
+          const erId = 'dash-exec-reporting';
+          const erSpan = (P.widgetSpans && P.widgetSpans[erId]) || sec.span || 4;
+          const erCard = mkCC('Executive Pacing, Delivery Forecast & RAID Registry Summary', 'Consolidated steering report and release roadmap', erId, '', 'standard', "<b>Executive Reporting Pack:</b> Aggregates schedule forecasts, active RAID registers, and team capacities. Use for weekly PMO steering and stakeholder reporting.", 'View Explanation', 'file-text');
+          erCard.style.gridColumn = `span ${erSpan}`;
+          grid.appendChild(erCard);
+
+          // 1. Forecast Calculations
+          const startDates = tasks.map(t => new Date(t.startDate)).filter(d => !isNaN(d.getTime()));
+          const endDates = tasks.map(t => new Date(t.dueDate)).filter(d => !isNaN(d.getTime()));
+          const start = startDates.length ? new Date(Math.min(...startDates)) : new Date();
+          const targetFinish = endDates.length ? new Date(Math.max(...endDates)) : new Date(start.getTime() + 30 * 864e5);
+          
+          const remainingEffort = tasks.filter(t => t.status !== 'Completed').reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+          
+          const velWeeks = [];
+          for (let i = 4; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i * 7);
+            velWeeks.push({ w: getWeekNumber(d), y: d.getFullYear() });
+          }
+          const velEfforts = velWeeks.map(w => tasks.filter(t => {
+            if (t.status !== 'Completed' || !t.dueDate) return false;
+            const d = new Date(t.dueDate);
+            return getWeekNumber(d) === w.w && d.getFullYear() === w.y;
+          }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
+          const avgVelocity = velEfforts.reduce((a, b) => a + b, 0) / velEfforts.length || 2.0;
+
+          const weeksRemaining = avgVelocity > 0 ? remainingEffort / avgVelocity : 0;
+          const forecastFinish = new Date(Date.now() + weeksRemaining * 7 * 864e5);
+          const daysVariance = Math.round((forecastFinish - targetFinish) / 864e5);
+          
+          let confidenceScore = 100;
+          if (daysVariance > 0) {
+            confidenceScore = Math.max(30, 100 - Math.round(daysVariance / 2));
+          }
+          let confColor = 'var(--green)';
+          let confLabel = 'Optimal';
+          if (confidenceScore < 60) {
+            confColor = 'var(--red)';
+            confLabel = 'Critical Delay';
+          } else if (confidenceScore < 85) {
+            confColor = 'var(--amber)';
+            confLabel = 'Pacing Deficit';
+          }
+
+          // 2. RAID snapshot items
+          const activeRaids = (P.raids || [])
+            .filter(r => r.status === 'Active' || r.status === 'Identified')
+            .slice(0, 4);
+
+          // 3. Team capacity snapshot
+          const capacity = P.settings?.daysPerWeek || 5;
+          const teamDetails = (P.members || []).map(m => {
+            const mTasks = tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled');
+            const mEffort = mTasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+            return { name: m.name, role: m.role || 'Member', count: mTasks.length, effort: mEffort };
+          });
+
+          // 4. Burnup trend calculations
+          const weeksCount = 8;
+          const burnupWeeks = [];
+          for (let i = weeksCount - 1; i >= 0; i--) {
+            const d = new Date(); d.setDate(d.getDate() - i * 7); d.setHours(23, 59, 59, 999);
+            burnupWeeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d), date: d });
+          }
+          const totalScopeTrend = burnupWeeks.map(w => tasks.filter(t => new Date(t.createdAt || 0) <= w.date).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
+          const completedScopeTrend = burnupWeeks.map(w => tasks.filter(t => t.status === 'Completed' && new Date(t.updatedAt || t.dueDate) <= w.date).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
+
+          erCard.querySelector('.cb').innerHTML = `
+            <div class="exec-reporting-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; padding: 12px; width: 100%;">
+              
+              <!-- Panel 1: Forecast Completion & Burnup Trend -->
+              <div class="er-panel" style="background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:12px;">
+                <div style="font-size:12px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid var(--color-divider); padding-bottom:8px; display:flex; align-items:center; gap:8px;">
+                  <i data-lucide="trending-up" style="color:var(--color-primary); width:16px; height:16px;"></i> Pacing & Burnup Forecast
+                </div>
+                
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                  <div style="padding:10px; background:var(--color-surface-3); border-radius:8px;">
+                    <div style="font-size:10px; color:var(--color-text-faint); text-transform:uppercase; font-weight:700; margin-bottom:2px;">Target Deadline</div>
+                    <div style="font-size:13px; font-weight:800; color:var(--color-text);">${fmtDate(targetFinish)}</div>
+                  </div>
+                  <div style="padding:10px; background:var(--color-surface-3); border-radius:8px;">
+                    <div style="font-size:10px; color:var(--color-text-faint); text-transform:uppercase; font-weight:700; margin-bottom:2px;">Forecast Completion</div>
+                    <div style="font-size:13px; font-weight:800; color:var(--color-text);">${fmtDate(forecastFinish)}</div>
+                  </div>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; background:var(--color-surface-3); border-radius:8px;">
+                  <div>
+                    <div style="font-size:10px; color:var(--color-text-faint); text-transform:uppercase; font-weight:700; margin-bottom:2px;">Steering Confidence</div>
+                    <div style="font-size:11px; color:var(--color-text-muted); font-weight:600;">Pacing variance: ${daysVariance > 0 ? `+${daysVariance}d delayed` : `${Math.abs(daysVariance)}d early`}</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <span style="font-size:18px; font-weight:900; color:${confColor};">${confidenceScore}%</span>
+                    <div style="font-size:9px; font-weight:800; color:${confColor}; text-transform:uppercase;">${confLabel}</div>
+                  </div>
+                </div>
+
+                <div style="margin-top:4px;">
+                  <div style="font-size:10px; font-weight:700; color:var(--color-text-faint); text-transform:uppercase; margin-bottom:6px;">8-Week Scope vs. Delivery Burnup</div>
+                  <canvas id="dash-burnup-cvs" width="300" height="130" style="width:100%; height:130px; display:block;"></canvas>
+                  <div style="display:flex; justify-content:center; gap:12px; margin-top:8px; font-size:10px; font-weight:700; color:var(--color-text-muted);">
+                    <div style="display:flex; align-items:center; gap:4px;"><span style="width:8px; height:8px; border-radius:50%; background:var(--color-primary); display:inline-block"></span>Total Scope</div>
+                    <div style="display:flex; align-items:center; gap:4px;"><span style="width:8px; height:8px; border-radius:50%; background:var(--green); display:inline-block"></span>Completed</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Panel 2: Active RAID Register snapshot -->
+              <div class="er-panel" style="background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:12px;">
+                <div style="font-size:12px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid var(--color-divider); padding-bottom:8px; display:flex; align-items:center; gap:8px;">
+                  <i data-lucide="shield-alert" style="color:var(--color-primary); width:16px; height:16px;"></i> Active RAID Register Snapshot
+                </div>
+                
+                ${activeRaids.length > 0 ? `
+                  <div style="overflow-x:auto; margin:0 -4px;">
+                    <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left;">
+                      <thead>
+                        <tr style="border-bottom:1.5px solid var(--color-border); color:var(--color-text-faint);">
+                          <th style="padding:6px 4px; font-weight:700; text-transform:uppercase; font-size:9px;">Item</th>
+                          <th style="padding:6px 4px; font-weight:700; text-transform:uppercase; font-size:9px;">Type</th>
+                          <th style="padding:6px 4px; font-weight:700; text-transform:uppercase; font-size:9px;">Impact</th>
+                          <th style="padding:6px 4px; font-weight:700; text-transform:uppercase; font-size:9px;">Owner</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${activeRaids.map(r => {
+                          const typeBadgeCls = r.type === 'Risk' ? 'red' : r.type === 'Issue' ? 'orange' : r.type === 'Dependency' ? 'amber' : 'primary';
+                          const impBadgeCls = r.impact === 'High' ? 'red' : r.impact === 'Medium' ? 'amber' : 'green';
+                          return `
+                            <tr onclick="window.openRaidModal('${r.id}')" style="cursor:pointer; border-bottom:1px solid var(--color-divider); transition:background 0.15s;" onmouseover="this.style.background='var(--color-surface-3)'" onmouseout="this.style.background='transparent'">
+                              <td style="padding:8px 4px; font-weight:700; color:var(--color-text);" title="${esc(r.desc)}">${esc(r.id)}<br><span style="font-weight:600; font-size:10px; color:var(--color-text-muted); display:inline-block; max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(r.title)}</span></td>
+                              <td style="padding:8px 4px;"><span class="badge ${typeBadgeCls}" style="font-size:9px; padding:2px 5px;">${esc(r.type)}</span></td>
+                              <td style="padding:8px 4px;"><span class="badge ${impBadgeCls}" style="font-size:9px; padding:2px 5px;">${esc(r.impact)}</span></td>
+                              <td style="padding:8px 4px; color:var(--color-text-muted); font-weight:600;">${esc(r.owner || 'Unassigned')}</td>
+                            </tr>
+                          `;
+                        }).join('')}
+                      </tbody>
+                    </table>
+                  </div>
+                  <button class="btn outline mini" style="margin-top:auto; font-size:10px; padding:6px;" onclick="setView('risks')">Go to RAID Log</button>
+                ` : `
+                  <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; flex-grow:1; color:var(--color-text-faint); text-align:center; padding:24px;">
+                    <i data-lucide="check-shield" style="width:36px; height:36px; color:var(--green); margin-bottom:12px; opacity:0.8;"></i>
+                    <span style="font-size:13px; font-weight:700; color:var(--color-text-muted)">Clean RAID Register</span>
+                    <span style="font-size:11px; margin-top:4px;">No active Risks, Issues, or Dependencies logged.</span>
+                  </div>
+                `}
+              </div>
+
+              <!-- Panel 3: Resource Capacity & Backlog Analysis -->
+              <div class="er-panel" style="background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:12px;">
+                <div style="font-size:12px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid var(--color-divider); padding-bottom:8px; display:flex; align-items:center; gap:8px;">
+                  <i data-lucide="users" style="color:var(--color-primary); width:16px; height:16px;"></i> Team Capacity Allocation
+                </div>
+                
+                ${teamDetails.length > 0 ? `
+                  <div style="display:flex; flex-direction:column; gap:10px; max-height:220px; overflow-y:auto; padding-right:4px;" class="custom-scroll">
+                    ${teamDetails.map(m => {
+                      const loadRatio = Math.round((m.effort / capacity) * 100);
+                      const isOver = m.effort > capacity;
+                      const loadColor = isOver ? 'var(--red)' : loadRatio > 80 ? 'var(--amber)' : 'var(--green)';
+                      return `
+                        <div style="display:flex; flex-direction:column; gap:3px; padding:8px; background:var(--color-surface-3); border-radius:8px;">
+                          <div style="display:flex; justify-content:space-between; align-items:baseline; font-size:11px;">
+                            <span style="font-weight:700; color:var(--color-text);">${esc(m.name)} <span style="font-size:9px; color:var(--color-text-faint); font-weight:600;">(${esc(m.role)})</span></span>
+                            <span style="font-weight:800; color:${loadColor};">${m.effort.toFixed(1)}d / ${capacity}d (${loadRatio}%)</span>
+                          </div>
+                          <div style="height:5px; background:var(--color-divider); border-radius:2.5px; overflow:hidden;">
+                            <div style="width:${Math.min(100, loadRatio)}%; height:100%; background:${loadColor}; border-radius:2.5px;"></div>
+                          </div>
+                          <div style="font-size:9px; color:var(--color-text-faint); display:flex; justify-content:space-between;">
+                            <span>Active scope: ${m.count} tasks</span>
+                            <span>${isOver ? '⚠️ OVERALLOCATED' : 'Optimal load'}</span>
+                          </div>
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                ` : `
+                  <div style="font-size:11px; color:var(--color-text-faint); font-style:italic; text-align:center; padding:20px;">No team members defined. Set up your delivery team in Settings or Team view.</div>
+                `}
+              </div>
+
+            </div>`;
+
+          // Trigger Burnup Chart rendering
+          dashDrawQueue.push(() => {
+            try {
+              const cvs = $id('dash-burnup-cvs');
+              if (cvs) {
+                drawLineChart(cvs, burnupWeeks.map(w => w.l), [totalScopeTrend, completedScopeTrend], ['Total Scope', 'Completed'], ['var(--color-primary)', 'var(--green)']);
+              }
+            } catch (err) {
+              console.error('Error drawing burnup chart:', err);
+            }
+          });
+
+          setTimeout(() => {
+            if (window.lucide) lucide.createIcons(erCard);
           }, 100);
         } else if (sec.id === 'health') {
           addST(inner, 'Health & Progress');
@@ -29471,12 +29954,12 @@
       let idxL = 0;
       const addLay = (v, lays) => (lays || []).forEach(l => {
         const wid = l.id || l.i || '';
-        const curSpan = (P.widgetSpans && P.widgetSpans[wid]) || l.span || l.w || (wid === 'summary' || wid === 'activities' || wid === 'achievements' || wid === 'risks' || wid === 'plans' || wid === 'team' || wid === 'util' || wid === 'burndown' || wid === 'velocity' || wid === 'cfd' || wid === 'milestone-timeline' || wid === 'module_health' || wid === 'screen_status' || wid === 'intelligence' || wid === 'activity' || wid === 'overdue_tbl' || wid === 'overdue' || wid === 'workload' || wid === 'cat_hours' || wid === 'module_status_matrix' || wid === 'release_timeline' || wid === 'defect_intel' || wid === 'feature_insights' || wid === 'high_impact_entities' || wid === 'kpi_summary' ? 4 : wid === 'health' ? 2 : 2);
+        const curSpan = (P.widgetSpans && P.widgetSpans[wid]) || l.span || l.w || (wid === 'summary' || wid === 'mgmt_insights' || wid === 'exec_reporting' || wid === 'activities' || wid === 'achievements' || wid === 'risks' || wid === 'plans' || wid === 'team' || wid === 'util' || wid === 'burndown' || wid === 'velocity' || wid === 'cfd' || wid === 'milestone-timeline' || wid === 'module_health' || wid === 'screen_status' || wid === 'intelligence' || wid === 'activity' || wid === 'overdue_tbl' || wid === 'overdue' || wid === 'workload' || wid === 'cat_hours' || wid === 'module_status_matrix' || wid === 'release_timeline' || wid === 'defect_intel' || wid === 'feature_insights' || wid === 'high_impact_entities' || wid === 'kpi_summary' ? 4 : wid === 'health' ? 2 : 2);
         const row = wsLay.addRow({ view: v, id: wid, t: l.t || wid, x: l.x || 0, y: l.y || 0, w: curSpan, h: l.h || 1 }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
         if (idxL++ % 2 === 1) row.eachCell(c => c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } });
       });
       const defDashLay = [
-        { id: 'summary', t: 'Summary Cards', on: true }, { id: 'module_status_matrix', t: 'Strategic Module Status', on: true }, { id: 'health', t: 'Project Health', on: true }, { id: 'defect_intel', t: 'Defect Intelligence', on: true }, { id: 'high_impact_entities', t: 'High Impact Entities', on: true }, { id: 'feature_insights', t: 'Feature Intelligence', on: true }, { id: 'release_timeline', t: 'Release Timeline', on: true }, { id: 'burndown', t: 'Burndown Chart', on: true }, { id: 'velocity', t: 'Weekly Velocity', on: true }, { id: 'cfd', t: 'Cumulative Flow', on: true }, { id: 'milestone-timeline', t: 'Milestone Timeline', on: true }, { id: 'module_health', t: 'Module & Release Health', on: true }, { id: 'screen_status', t: 'Screen Status Details', on: true }, { id: 'workload', t: 'Team Workload', on: true }, { id: 'cat_hours', t: 'Category & Effort', on: true }, { id: 'overdue', t: 'Overdue Attention', on: true }, { id: 'intelligence', t: 'Predictive Intelligence', on: true }, { id: 'activity', t: 'Recent Activity', on: true }, { id: 'analytics', t: 'Advanced Analytics', on: true }
+        { id: 'summary', t: 'Summary Cards', on: true }, { id: 'mgmt_insights', t: 'Management Insights', on: true }, { id: 'exec_reporting', t: 'Executive Reporting', on: true }, { id: 'module_status_matrix', t: 'Strategic Module Status', on: true }, { id: 'health', t: 'Project Health', on: true }, { id: 'defect_intel', t: 'Defect Intelligence', on: true }, { id: 'high_impact_entities', t: 'High Impact Entities', on: true }, { id: 'feature_insights', t: 'Feature Intelligence', on: true }, { id: 'release_timeline', t: 'Release Timeline', on: true }, { id: 'burndown', t: 'Burndown Chart', on: true }, { id: 'velocity', t: 'Weekly Velocity', on: true }, { id: 'cfd', t: 'Cumulative Flow', on: true }, { id: 'milestone-timeline', t: 'Milestone Timeline', on: true }, { id: 'module_health', t: 'Module & Release Health', on: true }, { id: 'screen_status', t: 'Screen Status Details', on: true }, { id: 'workload', t: 'Team Workload', on: true }, { id: 'cat_hours', t: 'Category & Effort', on: true }, { id: 'overdue', t: 'Overdue Attention', on: true }, { id: 'intelligence', t: 'Predictive Intelligence', on: true }, { id: 'activity', t: 'Recent Activity', on: true }, { id: 'analytics', t: 'Advanced Analytics', on: true }
       ];
       const defRptLay = [
         { id: 'kpi_summary', t: 'Executive Metrics', on: true }, { id: 'health', t: 'Project Health', on: true }, { id: 'defect_intel', t: 'Defect Intelligence', on: true }, { id: 'summary', t: 'Executive Summary', on: true }, { id: 'activities', t: 'Key Activities', on: true }, { id: 'achievements', t: 'Achievements', on: true }, { id: 'risks', t: 'Risks & Issues', on: true }, { id: 'plans', t: 'Upcoming Plans', on: true }, { id: 'team', t: 'Team Workload', on: true }, { id: 'util', t: 'Resource Utilization', on: true }, { id: 'burndown', t: 'Burndown Chart', on: true }, { id: 'velocity', t: 'Weekly Velocity', on: true }, { id: 'cfd', t: 'Cumulative Flow', on: true }, { id: 'milestone-timeline', t: 'Milestone Timeline', on: true }, { id: 'module_health', t: 'Module & Release Health', on: true }, { id: 'screen_status', t: 'Screen Status Details', on: true }, { id: 'intelligence', t: 'Predictive Intelligence', on: true }, { id: 'activity', t: 'Latest Updates', on: true }, { id: 'overdue_tbl', t: 'Overdue Table', on: true }
@@ -31200,6 +31683,8 @@
       if (P.readonly) { notify('Action disabled in View-Only mode', 'amber'); return; }
       const def = [
         { id: 'summary', t: 'Summary Cards', on: true },
+        { id: 'mgmt_insights', t: 'Management Insights', on: true },
+        { id: 'exec_reporting', t: 'Executive Reporting', on: true },
         { id: 'module_status_matrix', t: 'Strategic Module Status', on: true },
         { id: 'health', t: 'Project Health', on: true },
         { id: 'defect_intel', t: 'Defect Intelligence', on: true },
