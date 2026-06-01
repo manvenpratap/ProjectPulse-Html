@@ -11098,45 +11098,460 @@
     const getHealthScore = PulseDashboard.getHealthScore;
     const daysDiff = PulseDashboard.daysDiff;
 
-    const $id = id => document.getElementById(id);
-    window.$id = $id;
-    const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const fmtN = n => { /* reserved */ if (isNaN(n) || !isFinite(n)) return '–'; const a = Math.abs(n); if (a >= 1e6) return (n / 1e6).toFixed(1) + 'M'; if (a >= 1e3) return (n / 1e3).toFixed(1) + 'K'; return Math.round(n * 100) / 100; };
-    const fmtDate = d => {
-      if (!d) return '—';
-      try {
-        const dt = new Date(d);
-        if (isNaN(dt)) return d;
-        const day = String(dt.getDate()).padStart(2, '0');
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const month = months[dt.getMonth()];
-        const year = dt.getFullYear();
-        return `${day}-${month}-${year}`;
-      } catch (e) {
-        return d;
-      }
-    };
-    const parseDateDMY = str => {
-      if (!str) return '';
-      const trimmed = String(str).trim();
-      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
-      const m = trimmed.match(/^(\d{1,2})[-/ ]([A-Za-z]{3})[-/ ](\d{4})$/);
-      if (m) {
-        const day = parseInt(m[1]);
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const monthIdx = months.findIndex(name => name.toLowerCase() === m[2].toLowerCase());
-        const year = parseInt(m[3]);
-        if (monthIdx > -1) {
-          return `${year}-${String(monthIdx + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    // ══════ UI UTILITIES, FLYOUTS, MODALS & NOTIFICATIONS ══════
+    const PulseUI = {
+    $id(id) {
+        return document.getElementById(id);
+    },
+    esc(s) {
+        return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    },
+    fmtN(n) {
+        if (isNaN(n) || !isFinite(n)) return '–';
+        const a = Math.abs(n);
+        if (a >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+        if (a >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+        return Math.round(n * 100) / 100;
+    },
+    fmtDate(d) {
+        if (!d) return '—';
+        try {
+            const dt = new Date(d);
+            if (isNaN(dt)) return d;
+            const day = String(dt.getDate()).padStart(2, '0');
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const month = months[dt.getMonth()];
+            const year = dt.getFullYear();
+            return day + '-' + month + '-' + year;
+        } catch (e) {
+            return d;
         }
+    },
+    parseDateDMY(str) {
+        if (!str) return '';
+        const trimmed = String(str).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+        const m = trimmed.match(/^(\d{1,2})[-/ ]([A-Za-z]{3})[-/ ](\d{4})$/);
+        if (m) {
+            const day = parseInt(m[1]);
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const monthIdx = months.findIndex(name => name.toLowerCase() === m[2].toLowerCase());
+            const year = parseInt(m[3]);
+            if (monthIdx > -1) {
+                return year + '-' + String(monthIdx + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+            }
+        }
+        const d = new Date(trimmed);
+        if (!isNaN(d)) {
+            return d.toISOString().split('T')[0];
+        }
+        return trimmed;
+    },
+
+    closeDynamicModal(id) {
+      const m = $id(id);
+      if (m) {
+        m.classList.remove('active');
+        setTimeout(() => m.remove(), 200);
       }
-      const d = new Date(trimmed);
-      if (!isNaN(d)) {
-        return d.toISOString().split('T')[0];
+    },
+
+
+    updateColorModeBtn() {
+      const btn = $id('color-mode-btn');
+      if (!btn) return;
+      const curTheme = THEMES[P.theme] || THEMES.paper;
+      const isCurrentlyDark = P.colorMode === 'dark' || (P.colorMode === 'default' && curTheme.isDark);
+      btn.innerHTML = isCurrentlyDark ? '<i data-lucide="sun"></i>' : '<i data-lucide="moon"></i>';
+      if (window.lucide) lucide.createIcons(btn);
+    },
+
+    toggleColorMode() {
+      const curTheme = THEMES[P.theme] || THEMES.nexus;
+      const isCurrentlyDark = P.colorMode === 'dark' || (P.colorMode === 'default' && curTheme.isDark);
+      P.colorMode = isCurrentlyDark ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-color-mode', P.colorMode);
+      localStorage.setItem('pp-color-mode', P.colorMode);
+      updateColorModeBtn();
+      renderThemeFlyout();
+      render();
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          render();
+        });
+      });
+    },
+
+    setTheme(t) {
+      if (!THEMES[t]) return;
+      P.theme = t;
+      document.documentElement.setAttribute('data-theme', t);
+      localStorage.setItem('pp-theme', t);
+      updateColorModeBtn();
+      render(); // Initial state update
+      // Force double-frame redraw to ensure all CSS variables have settled
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          render();
+        });
+      });
+    },
+
+    openThemeFlyout() {
+      const f = $id('theme-flyout');
+      const o = $id('flyout-overlay');
+      f.classList.add('on');
+      o.classList.add('on');
+      renderThemeFlyout();
+    },
+    closeThemeFlyout() { closeAllFlyouts(); },
+
+    closeMemberFlyout() { closeAllFlyouts(); },
+
+    closeAllFlyouts() {
+      document.querySelectorAll('.theme-flyout').forEach(f => f.classList.remove('on'));
+      document.querySelectorAll('.view-flyout').forEach(f => f.classList.remove('open'));
+      document.querySelectorAll('.flyout').forEach(f => f.classList.remove('open'));
+      P._editingTaskId = null;
+      const overlay = $id('flyout-overlay');
+      if (overlay) overlay.classList.remove('on');
+    },
+
+    renderThemeFlyout() {
+      const body = $id('tf-body');
+      body.innerHTML = '';
+
+      const curTheme = THEMES[P.theme] || THEMES.origin || THEMES.nexus;
+      const isCurrentlyDark = P.colorMode === 'dark' || (P.colorMode === 'default' && curTheme.isDark);
+
+      // ── Mode Toggle ──
+      const modeSection = document.createElement('div');
+      modeSection.style.cssText = 'margin-bottom:20px;padding:14px 16px;background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-lg)';
+      modeSection.innerHTML = `
+        <div style="font-size:11px;font-weight:700;color:var(--color-text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.6px">Color Mode</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button class="btn ${!isCurrentlyDark ? 'primary' : ''}" onclick="if(document.documentElement.getAttribute('data-color-mode')==='dark'||((THEMES[P.theme]||{}).isDark&&P.colorMode!=='light')){toggleColorMode()}" style="justify-content:center;padding:9px;font-weight:600;font-size:13px;gap:6px;border-radius:var(--radius-md);${!isCurrentlyDark ? '' : 'opacity:0.6'}">
+            <i data-lucide="sun" style="width:15px;height:15px"></i> Light
+          </button>
+          <button class="btn ${isCurrentlyDark ? 'primary' : ''}" onclick="if(!(document.documentElement.getAttribute('data-color-mode')==='dark'||((THEMES[P.theme]||{}).isDark&&P.colorMode!=='light'))){toggleColorMode()}" style="justify-content:center;padding:9px;font-weight:600;font-size:13px;gap:6px;border-radius:var(--radius-md);${isCurrentlyDark ? '' : 'opacity:0.6'}">
+            <i data-lucide="moon" style="width:15px;height:15px"></i> Dark
+          </button>
+        </div>
+      `;
+
+      body.appendChild(modeSection);
+      if (window.lucide) lucide.createIcons(modeSection);
+
+      // ── Featured Themes Label ──
+      const featLabel = document.createElement('div');
+      featLabel.style.cssText = 'font-size:11px;font-weight:700;color:var(--color-text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.6px;display:flex;align-items:center;gap:8px;flex-shrink:0';
+      featLabel.innerHTML = '<span>✦ Featured</span><span style="flex:1;height:1px;background:var(--color-border);display:block"></span>';
+      body.appendChild(featLabel);
+
+      // ── Featured 2×3 Grid ──
+      const featEntries = Object.entries(THEMES).filter(([, v]) => v.featured);
+      const grid = document.createElement('div');
+      grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;flex-shrink:0';
+
+      // Details strip placeholder
+      const detailsStrip = document.createElement('div');
+      detailsStrip.id = 'tf-details';
+      detailsStrip.style.cssText = 'padding:12px 14px;background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-md);min-height:64px;transition:all 0.2s ease;flex-shrink:0';
+
+      const updateDetails = (k, v) => {
+        const isDark = P.colorMode === 'dark' || (P.colorMode === 'default' && v.isDark);
+        const acPrev = isDark ? (v.ac2 || v.ac) : v.ac;
+        detailsStrip.innerHTML = `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span style="font-size:16px">${v.emoji || '●'}</span>
+            <span style="font-weight:800;font-size:14px;color:var(--color-text)">${esc(v.n)}</span>
+            <span style="width:10px;height:10px;border-radius:50%;background:${acPrev};flex-shrink:0;box-shadow:0 0 6px ${acPrev}40"></span>
+            ${P.theme === k ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;background:var(--color-primary-highlight);color:var(--color-primary);border-radius:20px">Active</span>' : ''}
+          </div>
+          <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:4px">${esc(v.p)}</div>
+          <div style="font-size:11px;color:var(--color-text-faint);font-style:italic">${esc(v.f)}</div>
+        `;
+      };
+
+      featEntries.forEach(([k, v]) => {
+        const isActive = P.theme === k;
+        const isDark = P.colorMode === 'dark' || (P.colorMode === 'default' && v.isDark);
+        const bgPrev = isDark ? (v.bg2 || v.bg) : v.bg;
+        const acPrev = isDark ? (v.ac2 || v.ac) : v.ac;
+
+        // Determine text colour for preview based on bg luminance
+        const hex = bgPrev.replace('#','');
+        const r = parseInt(hex.substring(0,2),16), g = parseInt(hex.substring(2,4),16), b = parseInt(hex.substring(4,6),16);
+        const lum = (r*299 + g*587 + b*114) / 1000;
+        const textPrev = lum > 128 ? '#1a1a1a' : '#f0f0f0';
+        const textMutedPrev = lum > 128 ? '#6b7280' : '#9ca3af';
+        const surfPrev = lum > 128 ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.07)';
+        const borderPrev = lum > 128 ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
+
+        const card = document.createElement('div');
+        card.style.cssText = `
+          border-radius:12px;overflow:hidden;cursor:pointer;
+          border:2px solid ${isActive ? acPrev : 'transparent'};
+          box-shadow:${isActive ? `0 0 0 1px ${acPrev}60, 0 4px 16px ${acPrev}30` : '0 2px 8px rgba(0,0,0,0.12)'};
+          transition:all 0.2s cubic-bezier(0.4,0,0.2,1);
+          position:relative;
+        `;
+
+        // SVG Mini-Preview
+        card.innerHTML = `
+          <div style="width:100%;aspect-ratio:3/2;background:${bgPrev};padding:7px;box-sizing:border-box;position:relative">
+            ${isActive ? `<div style="position:absolute;top:5px;right:5px;width:16px;height:16px;border-radius:50%;background:${acPrev};display:flex;align-items:center;justify-content:center;z-index:2">
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="${lum>128?'#fff':'#000'}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>` : ''}
+            <!-- Fake sidebar -->
+            <div style="position:absolute;left:7px;top:7px;bottom:7px;width:18px;background:${surfPrev};border-radius:3px;border-right:1px solid ${borderPrev}">
+              <div style="margin:5px auto;width:8px;height:8px;border-radius:50%;background:${acPrev}"></div>
+              <div style="margin:4px 3px;height:2px;border-radius:1px;background:${textMutedPrev};opacity:0.4"></div>
+              <div style="margin:3px 3px;height:2px;border-radius:1px;background:${textMutedPrev};opacity:0.25"></div>
+              <div style="margin:3px 3px;height:2px;border-radius:1px;background:${textMutedPrev};opacity:0.25"></div>
+            </div>
+            <!-- Content area -->
+            <div style="margin-left:22px">
+              <div style="height:6px;width:70%;background:${textPrev};border-radius:1px;opacity:0.7;margin-bottom:4px"></div>
+              <!-- Row 1 -->
+              <div style="height:8px;background:${surfPrev};border-radius:2px;margin-bottom:3px;display:flex;align-items:center;padding:0 4px;gap:3px">
+                <div style="width:5px;height:5px;border-radius:50%;background:${acPrev};flex-shrink:0"></div>
+                <div style="flex:1;height:2px;background:${textPrev};opacity:0.4;border-radius:1px"></div>
+                <div style="width:12px;height:3px;border-radius:2px;background:${acPrev};opacity:0.8"></div>
+              </div>
+              <!-- Row 2 -->
+              <div style="height:8px;background:${surfPrev};border-radius:2px;margin-bottom:3px;display:flex;align-items:center;padding:0 4px;gap:3px;opacity:0.75">
+                <div style="width:5px;height:5px;border-radius:50%;background:${textMutedPrev};flex-shrink:0"></div>
+                <div style="flex:1;height:2px;background:${textPrev};opacity:0.3;border-radius:1px"></div>
+                <div style="width:10px;height:3px;border-radius:2px;background:${textMutedPrev};opacity:0.5"></div>
+              </div>
+              <!-- Button -->
+              <div style="height:8px;width:40%;background:${acPrev};border-radius:2px;margin-top:5px;opacity:0.9"></div>
+            </div>
+          </div>
+          <!-- Label -->
+          <div style="padding:5px 8px 6px;background:${bgPrev};border-top:1px solid ${borderPrev}">
+            <div style="font-size:10px;font-weight:800;color:${textPrev};letter-spacing:0.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${v.emoji || ''} ${esc(v.n)}</div>
+          </div>
+        `;
+
+        card.addEventListener('mouseenter', () => updateDetails(k, v));
+        card.addEventListener('mouseleave', () => {
+          const activeKey = Object.keys(THEMES).find(key => key === P.theme);
+          if (activeKey) updateDetails(activeKey, THEMES[activeKey]);
+        });
+        card.onclick = () => { setTheme(k); renderThemeFlyout(); };
+
+        card.addEventListener('mouseenter', () => {
+          card.style.transform = 'translateY(-3px)';
+          card.style.boxShadow = `0 8px 24px ${acPrev}40`;
+        });
+        card.addEventListener('mouseleave', () => {
+          card.style.transform = '';
+          card.style.boxShadow = isActive ? `0 0 0 1px ${acPrev}60, 0 4px 16px ${acPrev}30` : '0 2px 8px rgba(0,0,0,0.12)';
+        });
+
+        grid.appendChild(card);
+      });
+
+      body.appendChild(grid);
+
+      // Populate details for currently active theme
+      const activeK = P.theme;
+      const activeV = THEMES[activeK];
+      if (activeV) updateDetails(activeK, activeV);
+
+      body.appendChild(detailsStrip);
+
+      // ── Legacy Themes Drawer ──
+      const legacyEntries = Object.entries(THEMES).filter(([, v]) => v.legacy);
+      const hasLegacyActive = legacyEntries.some(([k]) => k === P.theme);
+
+      const legacyWrapper = document.createElement('div');
+      const isOpen = window._tfLegacyOpen || hasLegacyActive;
+      legacyWrapper.style.cssText = 'border:1px solid var(--color-border);border-radius:var(--radius-lg);overflow:hidden;flex-shrink:0;margin-bottom:24px';
+
+      const legacyToggle = document.createElement('button');
+      legacyToggle.style.cssText = 'width:100%;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--color-surface-2);border:none;cursor:pointer;font-size:12px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;gap:8px';
+      legacyToggle.innerHTML = `
+        <span style="display:flex;align-items:center;gap:8px">
+          <i data-lucide="layers" style="width:14px;height:14px;opacity:0.7"></i>
+          All Themes
+          <span style="font-size:10px;font-weight:600;padding:1px 6px;background:var(--color-surface-3,var(--color-surface));border:1px solid var(--color-border);border-radius:20px;color:var(--color-text-muted)">${legacyEntries.length}</span>
+          ${hasLegacyActive ? `<span style="font-size:10px;font-weight:700;padding:1px 7px;background:var(--color-primary-highlight);color:var(--color-primary);border-radius:20px">Active</span>` : ''}
+        </span>
+        <i data-lucide="${isOpen ? 'chevron-up' : 'chevron-down'}" style="width:14px;height:14px;opacity:0.5"></i>
+      `;
+
+      const legacyBody = document.createElement('div');
+      legacyBody.style.cssText = `display:${isOpen ? 'block' : 'none'};padding:8px`;
+
+      legacyToggle.onclick = () => {
+        const wasOpen = legacyBody.style.display !== 'none';
+        window._tfLegacyOpen = !wasOpen;
+        legacyBody.style.display = wasOpen ? 'none' : 'block';
+        const icon = legacyToggle.querySelector('[data-lucide="chevron-up"], [data-lucide="chevron-down"]');
+        if (icon) { icon.setAttribute('data-lucide', wasOpen ? 'chevron-down' : 'chevron-up'); if(window.lucide) lucide.createIcons(legacyToggle); }
+      };
+
+      legacyEntries.forEach(([k, v]) => {
+        const isActive = P.theme === k;
+        const isDark = P.colorMode === 'dark' || (P.colorMode === 'default' && v.isDark);
+        const bgPrev = isDark ? (v.bg2 || v.bg) : v.bg;
+        const acPrev = isDark ? (v.ac2 || v.ac) : v.ac;
+
+        const row = document.createElement('div');
+        row.style.cssText = `
+          display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius-md);cursor:pointer;
+          background:${isActive ? 'var(--color-primary-highlight)' : 'transparent'};
+          border:1px solid ${isActive ? 'var(--color-primary)' : 'transparent'};
+          margin-bottom:2px;transition:all 0.15s ease;
+        `;
+
+        row.innerHTML = `
+          <div style="display:flex;gap:4px;flex-shrink:0">
+            <div style="width:12px;height:12px;border-radius:50%;background:${bgPrev};border:1px solid rgba(128,128,128,0.25)"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:${acPrev}"></div>
+          </div>
+          <div style="flex:1;min-width:0">
+            <span style="font-size:12px;font-weight:${isActive ? '700' : '600'};color:${isActive ? 'var(--color-primary)' : 'var(--color-text)'}">${esc(v.n)}</span>
+            <span style="font-size:10px;color:var(--color-text-faint);margin-left:6px">${v.isDark ? '◑ Dark' : '○ Light'}</span>
+          </div>
+          <span style="font-size:10px;color:var(--color-text-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80px">${esc(v.f)}</span>
+          ${isActive ? '<i data-lucide="check" style="width:12px;height:12px;color:var(--color-primary);flex-shrink:0"></i>' : ''}
+        `;
+
+        row.addEventListener('mouseenter', () => { if (!isActive) row.style.background = 'var(--color-surface-2)'; });
+        row.addEventListener('mouseleave', () => { if (!isActive) row.style.background = 'transparent'; });
+        row.onclick = () => { setTheme(k); renderThemeFlyout(); };
+
+        legacyBody.appendChild(row);
+      });
+
+      legacyWrapper.appendChild(legacyToggle);
+      legacyWrapper.appendChild(legacyBody);
+      body.appendChild(legacyWrapper);
+
+      if (window.lucide) lucide.createIcons(body);
+    },
+
+    openModal(id) { $id(id).classList.add('open'); },
+    closeModal(id) { $id(id).classList.remove('open'); },
+    showConfirm(msg, onOk) {
+      $id('confirm-msg').textContent = msg;
+      $id('confirm-ok').onclick = () => { onOk(); closeModal('confirm-modal'); };
+      openModal('confirm-modal');
+    },
+
+
+    notify(msg, type = 'ok') {
+      let notifType = 'info';
+      if (type === 'ok') notifType = 'success';
+      else if (type === 'err') notifType = 'error';
+      else if (type === 'warn') notifType = 'warning';
+      
+      const iconHTML = `<span style="font-size:14px;margin-right:6px;">${type === 'ok' ? '✓' : '✕'}</span>`;
+      showNotification(iconHTML + msg, notifType);
+    },
+
+    toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          notify('Error attempting to enable full-screen mode', 'err');
+        });
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
       }
-      return trimmed;
+    },
+
+    showNotification(message, type = 'info', duration = 3000) {
+      const queue = document.getElementById('notification-queue');
+      if (!queue) return;
+
+      const id = 'notif-' + Date.now() + Math.random().toString(36).substr(2, 9);
+      const notif = document.createElement('div');
+      notif.className = `notification-item ${type}`;
+      notif.id = id;
+
+      const content = document.createElement('div');
+      content.className = 'notification-content';
+      content.innerHTML = message;
+
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'notification-close';
+      closeBtn.innerHTML = '<i data-lucide="x" style="width: 16px; height: 16px;"></i>';
+      closeBtn.onclick = () => dismissNotification(id);
+
+      notif.appendChild(content);
+      notif.appendChild(closeBtn);
+      queue.appendChild(notif);
+
+      if (window.lucide) {
+        lucide.createIcons({ root: notif });
+      }
+
+      // Trigger animation
+      requestAnimationFrame(() => {
+        notif.classList.add('show');
+      });
+
+      // Auto dismiss
+      if (duration > 0) {
+        setTimeout(() => {
+          dismissNotification(id);
+        }, duration);
+      }
+    },
+
+    dismissNotification(id) {
+      const notif = document.getElementById(id);
+      if (!notif) return;
+
+      notif.classList.remove('show');
+      notif.classList.add('hiding');
+
+      // Remove after animation finishes
+      setTimeout(() => {
+        if (notif.parentNode) {
+          notif.parentNode.removeChild(notif);
+        }
+      }, 400); // matches transition time
+    },
+
+
     };
+    window.PulseUI = PulseUI;
+
+    // Global aliases for backward compatibility
+    function $id(id) { return PulseUI.$id(id); }
+    window.$id = $id;
+    function esc(s) { return PulseUI.esc(s); }
+    function fmtN(n) { return PulseUI.fmtN(n); }
+    function fmtDate(d) { return PulseUI.fmtDate(d); }
+    function parseDateDMY(str) { return PulseUI.parseDateDMY(str); }
     window.parseDateDMY = parseDateDMY;
+
+    function closeDynamicModal(id) { return PulseUI.closeDynamicModal(id); }
+    function updateColorModeBtn() { return PulseUI.updateColorModeBtn(); }
+    function toggleColorMode() { return PulseUI.toggleColorMode(); }
+    function setTheme(t) { return PulseUI.setTheme(t); }
+    function openThemeFlyout() { return PulseUI.openThemeFlyout(); }
+    function closeThemeFlyout() { return PulseUI.closeThemeFlyout(); }
+    function closeMemberFlyout() { return PulseUI.closeMemberFlyout(); }
+    function closeAllFlyouts() { return PulseUI.closeAllFlyouts(); }
+    function renderThemeFlyout() { return PulseUI.renderThemeFlyout(); }
+
+    function openModal(id) { return PulseUI.openModal(id); }
+    function closeModal(id) { return PulseUI.closeModal(id); }
+    function showConfirm(msg, onOk) { return PulseUI.showConfirm(msg, onOk); }
+    window.confirmAction = showConfirm;
+
+    function notify(msg, type) { return PulseUI.notify(msg, type); }
+    function toggleFullScreen() { return PulseUI.toggleFullScreen(); }
+    function showNotification(message, type, duration) { return PulseUI.showNotification(message, type, duration); }
+    function dismissNotification(id) { return PulseUI.dismissNotification(id); }
+    window.showNotification = showNotification;
+    window.showToast = showNotification;
 
     function addEmptyState(container, msg) {
       if (!container) return;
@@ -11833,300 +12248,6 @@
     }
 
 
-    function closeDynamicModal(id) {
-      const m = $id(id);
-      if (m) {
-        m.classList.remove('active');
-        setTimeout(() => m.remove(), 200);
-      }
-    }
-
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        const modals = document.querySelectorAll('.modal-backdrop');
-        modals.forEach(m => closeDynamicModal(m.id));
-      }
-    });
-
-    function updateColorModeBtn() {
-      const btn = $id('color-mode-btn');
-      if (!btn) return;
-      const curTheme = THEMES[P.theme] || THEMES.paper;
-      const isCurrentlyDark = P.colorMode === 'dark' || (P.colorMode === 'default' && curTheme.isDark);
-      btn.innerHTML = isCurrentlyDark ? '<i data-lucide="sun"></i>' : '<i data-lucide="moon"></i>';
-      if (window.lucide) lucide.createIcons(btn);
-    }
-
-    function toggleColorMode() {
-      const curTheme = THEMES[P.theme] || THEMES.nexus;
-      const isCurrentlyDark = P.colorMode === 'dark' || (P.colorMode === 'default' && curTheme.isDark);
-      P.colorMode = isCurrentlyDark ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-color-mode', P.colorMode);
-      localStorage.setItem('pp-color-mode', P.colorMode);
-      updateColorModeBtn();
-      renderThemeFlyout();
-      render();
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          render();
-        });
-      });
-    }
-
-    function setTheme(t) {
-      if (!THEMES[t]) return;
-      P.theme = t;
-      document.documentElement.setAttribute('data-theme', t);
-      localStorage.setItem('pp-theme', t);
-      updateColorModeBtn();
-      render(); // Initial state update
-      // Force double-frame redraw to ensure all CSS variables have settled
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          render();
-        });
-      });
-    }
-    document.documentElement.setAttribute('data-theme', P.theme);
-    document.documentElement.setAttribute('data-color-mode', P.colorMode);
-
-    function openThemeFlyout() {
-      const f = $id('theme-flyout');
-      const o = $id('flyout-overlay');
-      f.classList.add('on');
-      o.classList.add('on');
-      renderThemeFlyout();
-    }
-    function closeThemeFlyout() { closeAllFlyouts(); }
-
-    function closeMemberFlyout() { closeAllFlyouts(); }
-
-    function closeAllFlyouts() {
-      document.querySelectorAll('.theme-flyout').forEach(f => f.classList.remove('on'));
-      document.querySelectorAll('.view-flyout').forEach(f => f.classList.remove('open'));
-      document.querySelectorAll('.flyout').forEach(f => f.classList.remove('open'));
-      P._editingTaskId = null;
-      const overlay = $id('flyout-overlay');
-      if (overlay) overlay.classList.remove('on');
-    }
-
-    function renderThemeFlyout() {
-      const body = $id('tf-body');
-      body.innerHTML = '';
-
-      const curTheme = THEMES[P.theme] || THEMES.origin || THEMES.nexus;
-      const isCurrentlyDark = P.colorMode === 'dark' || (P.colorMode === 'default' && curTheme.isDark);
-
-      // ── Mode Toggle ──
-      const modeSection = document.createElement('div');
-      modeSection.style.cssText = 'margin-bottom:20px;padding:14px 16px;background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-lg)';
-      modeSection.innerHTML = `
-        <div style="font-size:11px;font-weight:700;color:var(--color-text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.6px">Color Mode</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <button class="btn ${!isCurrentlyDark ? 'primary' : ''}" onclick="if(document.documentElement.getAttribute('data-color-mode')==='dark'||((THEMES[P.theme]||{}).isDark&&P.colorMode!=='light')){toggleColorMode()}" style="justify-content:center;padding:9px;font-weight:600;font-size:13px;gap:6px;border-radius:var(--radius-md);${!isCurrentlyDark ? '' : 'opacity:0.6'}">
-            <i data-lucide="sun" style="width:15px;height:15px"></i> Light
-          </button>
-          <button class="btn ${isCurrentlyDark ? 'primary' : ''}" onclick="if(!(document.documentElement.getAttribute('data-color-mode')==='dark'||((THEMES[P.theme]||{}).isDark&&P.colorMode!=='light'))){toggleColorMode()}" style="justify-content:center;padding:9px;font-weight:600;font-size:13px;gap:6px;border-radius:var(--radius-md);${isCurrentlyDark ? '' : 'opacity:0.6'}">
-            <i data-lucide="moon" style="width:15px;height:15px"></i> Dark
-          </button>
-        </div>
-      `;
-
-      body.appendChild(modeSection);
-      if (window.lucide) lucide.createIcons(modeSection);
-
-      // ── Featured Themes Label ──
-      const featLabel = document.createElement('div');
-      featLabel.style.cssText = 'font-size:11px;font-weight:700;color:var(--color-text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.6px;display:flex;align-items:center;gap:8px;flex-shrink:0';
-      featLabel.innerHTML = '<span>✦ Featured</span><span style="flex:1;height:1px;background:var(--color-border);display:block"></span>';
-      body.appendChild(featLabel);
-
-      // ── Featured 2×3 Grid ──
-      const featEntries = Object.entries(THEMES).filter(([, v]) => v.featured);
-      const grid = document.createElement('div');
-      grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;flex-shrink:0';
-
-      // Details strip placeholder
-      const detailsStrip = document.createElement('div');
-      detailsStrip.id = 'tf-details';
-      detailsStrip.style.cssText = 'padding:12px 14px;background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-md);min-height:64px;transition:all 0.2s ease;flex-shrink:0';
-
-      const updateDetails = (k, v) => {
-        const isDark = P.colorMode === 'dark' || (P.colorMode === 'default' && v.isDark);
-        const acPrev = isDark ? (v.ac2 || v.ac) : v.ac;
-        detailsStrip.innerHTML = `
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span style="font-size:16px">${v.emoji || '●'}</span>
-            <span style="font-weight:800;font-size:14px;color:var(--color-text)">${esc(v.n)}</span>
-            <span style="width:10px;height:10px;border-radius:50%;background:${acPrev};flex-shrink:0;box-shadow:0 0 6px ${acPrev}40"></span>
-            ${P.theme === k ? '<span style="font-size:10px;font-weight:700;padding:2px 7px;background:var(--color-primary-highlight);color:var(--color-primary);border-radius:20px">Active</span>' : ''}
-          </div>
-          <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:4px">${esc(v.p)}</div>
-          <div style="font-size:11px;color:var(--color-text-faint);font-style:italic">${esc(v.f)}</div>
-        `;
-      };
-
-      featEntries.forEach(([k, v]) => {
-        const isActive = P.theme === k;
-        const isDark = P.colorMode === 'dark' || (P.colorMode === 'default' && v.isDark);
-        const bgPrev = isDark ? (v.bg2 || v.bg) : v.bg;
-        const acPrev = isDark ? (v.ac2 || v.ac) : v.ac;
-
-        // Determine text colour for preview based on bg luminance
-        const hex = bgPrev.replace('#','');
-        const r = parseInt(hex.substring(0,2),16), g = parseInt(hex.substring(2,4),16), b = parseInt(hex.substring(4,6),16);
-        const lum = (r*299 + g*587 + b*114) / 1000;
-        const textPrev = lum > 128 ? '#1a1a1a' : '#f0f0f0';
-        const textMutedPrev = lum > 128 ? '#6b7280' : '#9ca3af';
-        const surfPrev = lum > 128 ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.07)';
-        const borderPrev = lum > 128 ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)';
-
-        const card = document.createElement('div');
-        card.style.cssText = `
-          border-radius:12px;overflow:hidden;cursor:pointer;
-          border:2px solid ${isActive ? acPrev : 'transparent'};
-          box-shadow:${isActive ? `0 0 0 1px ${acPrev}60, 0 4px 16px ${acPrev}30` : '0 2px 8px rgba(0,0,0,0.12)'};
-          transition:all 0.2s cubic-bezier(0.4,0,0.2,1);
-          position:relative;
-        `;
-
-        // SVG Mini-Preview
-        card.innerHTML = `
-          <div style="width:100%;aspect-ratio:3/2;background:${bgPrev};padding:7px;box-sizing:border-box;position:relative">
-            ${isActive ? `<div style="position:absolute;top:5px;right:5px;width:16px;height:16px;border-radius:50%;background:${acPrev};display:flex;align-items:center;justify-content:center;z-index:2">
-              <svg width="9" height="9" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="${lum>128?'#fff':'#000'}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </div>` : ''}
-            <!-- Fake sidebar -->
-            <div style="position:absolute;left:7px;top:7px;bottom:7px;width:18px;background:${surfPrev};border-radius:3px;border-right:1px solid ${borderPrev}">
-              <div style="margin:5px auto;width:8px;height:8px;border-radius:50%;background:${acPrev}"></div>
-              <div style="margin:4px 3px;height:2px;border-radius:1px;background:${textMutedPrev};opacity:0.4"></div>
-              <div style="margin:3px 3px;height:2px;border-radius:1px;background:${textMutedPrev};opacity:0.25"></div>
-              <div style="margin:3px 3px;height:2px;border-radius:1px;background:${textMutedPrev};opacity:0.25"></div>
-            </div>
-            <!-- Content area -->
-            <div style="margin-left:22px">
-              <div style="height:6px;width:70%;background:${textPrev};border-radius:1px;opacity:0.7;margin-bottom:4px"></div>
-              <!-- Row 1 -->
-              <div style="height:8px;background:${surfPrev};border-radius:2px;margin-bottom:3px;display:flex;align-items:center;padding:0 4px;gap:3px">
-                <div style="width:5px;height:5px;border-radius:50%;background:${acPrev};flex-shrink:0"></div>
-                <div style="flex:1;height:2px;background:${textPrev};opacity:0.4;border-radius:1px"></div>
-                <div style="width:12px;height:3px;border-radius:2px;background:${acPrev};opacity:0.8"></div>
-              </div>
-              <!-- Row 2 -->
-              <div style="height:8px;background:${surfPrev};border-radius:2px;margin-bottom:3px;display:flex;align-items:center;padding:0 4px;gap:3px;opacity:0.75">
-                <div style="width:5px;height:5px;border-radius:50%;background:${textMutedPrev};flex-shrink:0"></div>
-                <div style="flex:1;height:2px;background:${textPrev};opacity:0.3;border-radius:1px"></div>
-                <div style="width:10px;height:3px;border-radius:2px;background:${textMutedPrev};opacity:0.5"></div>
-              </div>
-              <!-- Button -->
-              <div style="height:8px;width:40%;background:${acPrev};border-radius:2px;margin-top:5px;opacity:0.9"></div>
-            </div>
-          </div>
-          <!-- Label -->
-          <div style="padding:5px 8px 6px;background:${bgPrev};border-top:1px solid ${borderPrev}">
-            <div style="font-size:10px;font-weight:800;color:${textPrev};letter-spacing:0.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${v.emoji || ''} ${esc(v.n)}</div>
-          </div>
-        `;
-
-        card.addEventListener('mouseenter', () => updateDetails(k, v));
-        card.addEventListener('mouseleave', () => {
-          const activeKey = Object.keys(THEMES).find(key => key === P.theme);
-          if (activeKey) updateDetails(activeKey, THEMES[activeKey]);
-        });
-        card.onclick = () => { setTheme(k); renderThemeFlyout(); };
-
-        card.addEventListener('mouseenter', () => {
-          card.style.transform = 'translateY(-3px)';
-          card.style.boxShadow = `0 8px 24px ${acPrev}40`;
-        });
-        card.addEventListener('mouseleave', () => {
-          card.style.transform = '';
-          card.style.boxShadow = isActive ? `0 0 0 1px ${acPrev}60, 0 4px 16px ${acPrev}30` : '0 2px 8px rgba(0,0,0,0.12)';
-        });
-
-        grid.appendChild(card);
-      });
-
-      body.appendChild(grid);
-
-      // Populate details for currently active theme
-      const activeK = P.theme;
-      const activeV = THEMES[activeK];
-      if (activeV) updateDetails(activeK, activeV);
-
-      body.appendChild(detailsStrip);
-
-      // ── Legacy Themes Drawer ──
-      const legacyEntries = Object.entries(THEMES).filter(([, v]) => v.legacy);
-      const hasLegacyActive = legacyEntries.some(([k]) => k === P.theme);
-
-      const legacyWrapper = document.createElement('div');
-      const isOpen = window._tfLegacyOpen || hasLegacyActive;
-      legacyWrapper.style.cssText = 'border:1px solid var(--color-border);border-radius:var(--radius-lg);overflow:hidden;flex-shrink:0;margin-bottom:24px';
-
-      const legacyToggle = document.createElement('button');
-      legacyToggle.style.cssText = 'width:100%;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--color-surface-2);border:none;cursor:pointer;font-size:12px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;gap:8px';
-      legacyToggle.innerHTML = `
-        <span style="display:flex;align-items:center;gap:8px">
-          <i data-lucide="layers" style="width:14px;height:14px;opacity:0.7"></i>
-          All Themes
-          <span style="font-size:10px;font-weight:600;padding:1px 6px;background:var(--color-surface-3,var(--color-surface));border:1px solid var(--color-border);border-radius:20px;color:var(--color-text-muted)">${legacyEntries.length}</span>
-          ${hasLegacyActive ? `<span style="font-size:10px;font-weight:700;padding:1px 7px;background:var(--color-primary-highlight);color:var(--color-primary);border-radius:20px">Active</span>` : ''}
-        </span>
-        <i data-lucide="${isOpen ? 'chevron-up' : 'chevron-down'}" style="width:14px;height:14px;opacity:0.5"></i>
-      `;
-
-      const legacyBody = document.createElement('div');
-      legacyBody.style.cssText = `display:${isOpen ? 'block' : 'none'};padding:8px`;
-
-      legacyToggle.onclick = () => {
-        const wasOpen = legacyBody.style.display !== 'none';
-        window._tfLegacyOpen = !wasOpen;
-        legacyBody.style.display = wasOpen ? 'none' : 'block';
-        const icon = legacyToggle.querySelector('[data-lucide="chevron-up"], [data-lucide="chevron-down"]');
-        if (icon) { icon.setAttribute('data-lucide', wasOpen ? 'chevron-down' : 'chevron-up'); if(window.lucide) lucide.createIcons(legacyToggle); }
-      };
-
-      legacyEntries.forEach(([k, v]) => {
-        const isActive = P.theme === k;
-        const isDark = P.colorMode === 'dark' || (P.colorMode === 'default' && v.isDark);
-        const bgPrev = isDark ? (v.bg2 || v.bg) : v.bg;
-        const acPrev = isDark ? (v.ac2 || v.ac) : v.ac;
-
-        const row = document.createElement('div');
-        row.style.cssText = `
-          display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius-md);cursor:pointer;
-          background:${isActive ? 'var(--color-primary-highlight)' : 'transparent'};
-          border:1px solid ${isActive ? 'var(--color-primary)' : 'transparent'};
-          margin-bottom:2px;transition:all 0.15s ease;
-        `;
-
-        row.innerHTML = `
-          <div style="display:flex;gap:4px;flex-shrink:0">
-            <div style="width:12px;height:12px;border-radius:50%;background:${bgPrev};border:1px solid rgba(128,128,128,0.25)"></div>
-            <div style="width:12px;height:12px;border-radius:50%;background:${acPrev}"></div>
-          </div>
-          <div style="flex:1;min-width:0">
-            <span style="font-size:12px;font-weight:${isActive ? '700' : '600'};color:${isActive ? 'var(--color-primary)' : 'var(--color-text)'}">${esc(v.n)}</span>
-            <span style="font-size:10px;color:var(--color-text-faint);margin-left:6px">${v.isDark ? '◑ Dark' : '○ Light'}</span>
-          </div>
-          <span style="font-size:10px;color:var(--color-text-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80px">${esc(v.f)}</span>
-          ${isActive ? '<i data-lucide="check" style="width:12px;height:12px;color:var(--color-primary);flex-shrink:0"></i>' : ''}
-        `;
-
-        row.addEventListener('mouseenter', () => { if (!isActive) row.style.background = 'var(--color-surface-2)'; });
-        row.addEventListener('mouseleave', () => { if (!isActive) row.style.background = 'transparent'; });
-        row.onclick = () => { setTheme(k); renderThemeFlyout(); };
-
-        legacyBody.appendChild(row);
-      });
-
-      legacyWrapper.appendChild(legacyToggle);
-      legacyWrapper.appendChild(legacyBody);
-      body.appendChild(legacyWrapper);
-
-      if (window.lucide) lucide.createIcons(body);
-    }
 
 
 
@@ -12135,7 +12256,10 @@
     // ══════ PERSISTENCE ══════
     let _saveTimer = null;
     let _fileSaveTimer = null;
-    function clearProjectState() {
+    // ══════ PERSISTENCE ══════
+    const dbName = 'ProjectPulseDB', storeName = 'handles', backupStore = 'backups';
+    const PulsePersistence = {
+    clearProjectState() {
       P.name = ''; P.desc = ''; P.tasks = []; P.log = []; P.members = []; P.reports = [];
       P.defects = []; P.features = [];
       P.raids = []; P.decisions = []; P.baselines = []; P.healthHistory = []; P.reportSnapshots = [];
@@ -12160,9 +12284,9 @@
         decisionStatus: ['Pending Sign-off', 'Approved', 'Rejected', 'Appealed']
       };
       P.search = ''; P.filters = { status: new Set(), priority: new Set(), assignee: new Set(), module: new Set(), feature: new Set() };
-    }
+    },
 
-    function injectSampleData() {
+    injectSampleData() {
       clearProjectState();
       P.name = 'Investment Platform 2.0';
       P.desc = 'Modernizing core banking modules with unified Server and GUI hierarchical tracking.';
@@ -12360,121 +12484,26 @@
       save();
       render();
       enterApp();
-    }
+    },
 
-    function clearAllData() {
+    clearAllData() {
       showConfirm('Are you absolutely sure? This will delete ALL project data, tasks, logs, and settings.', () => {
         clearProjectState();
         save();
         resetToSetup();
         notify('Project cleared', 'ok');
       });
-    }
+    },
 
-    function resetToSetup() {
+    resetToSetup() {
       P.fsHandle = null;
       $id('setup').classList.remove('out');
       $id('setup').style.display = 'flex';
       $id('main-app').style.display = 'none';
       renderRecentProjects();
-    }
+    },
 
-    // --- BULK OPERATIONS STATE ---
-    let bulkSelectedTasks = new Set();
-    function toggleBulkTask(id) {
-      if (bulkSelectedTasks.has(id)) bulkSelectedTasks.delete(id);
-      else bulkSelectedTasks.add(id);
-      updateBulkBar();
-    }
-    function toggleAllBulkTasks(chk) {
-      bulkSelectedTasks.clear();
-      if (chk) {
-        document.querySelectorAll('#tbody tr[data-id]').forEach(tr => {
-          bulkSelectedTasks.add(tr.getAttribute('data-id'));
-          const cb = tr.querySelector('.bulk-cb');
-          if (cb) cb.checked = true;
-        });
-      } else {
-        document.querySelectorAll('.bulk-cb').forEach(cb => cb.checked = false);
-      }
-      updateBulkBar();
-    }
-
-    function updateBulkBar() {
-      const bar = $id('bulk-action-bar');
-      if (!bar) return;
-      if (bulkSelectedTasks.size > 0 && P.taskViewMode !== 'kanban' && P.taskViewMode !== 'timeline') {
-        bar.style.display = 'flex';
-        $id('bulk-action-count').textContent = `${bulkSelectedTasks.size} task${bulkSelectedTasks.size > 1 ? 's' : ''} selected`;
-        lucide.createIcons();
-      } else {
-        bar.style.display = 'none';
-      }
-    }
-
-    function openBulkEditModal() {
-      $id('bulk-edit-modal').classList.add('open');
-      updateBulkEditOptions();
-    }
-
-    function updateBulkEditOptions() {
-      const field = $id('bulk-field-select').value;
-      const valSelect = $id('bulk-value-select');
-      valSelect.innerHTML = '';
-
-      let opts = [];
-      if (field === 'status') opts = STATUSES;
-      else if (field === 'priority') opts = PRIORITIES;
-      else if (field === 'assignee') opts = getTeamNames();
-      else if (field === 'complexity') opts = ['Easy', 'Medium', 'Complex'];
-      else if (P.dropdowns && P.dropdowns[field]) opts = P.dropdowns[field];
-
-      opts.forEach(o => {
-        const opt = document.createElement('option');
-        opt.value = o;
-        opt.textContent = o;
-        valSelect.appendChild(opt);
-      });
-      $id('bulk-apply-btn').textContent = `Apply to ${bulkSelectedTasks.size} Tasks`;
-    }
-
-    function applyBulkEdit() {
-      const field = $id('bulk-field-select').value;
-      const value = $id('bulk-value-select').value;
-      if (!field || !value) return;
-
-      let updatedCount = 0;
-      P.tasks.forEach(t => {
-        if (bulkSelectedTasks.has(t.id) && t[field] !== value) {
-          t[field] = value;
-          t.updatedAt = new Date().toISOString();
-          addLog(`Bulk updated ${field} to ${value}`, t.id, t.name);
-          updatedCount++;
-        }
-      });
-
-      if (updatedCount > 0) {
-        save();
-        renderTable();
-        notify(`Successfully updated ${updatedCount} tasks.`, 'ok');
-      }
-      $id('bulk-edit-modal').classList.remove('open');
-    }
-
-    function bulkDeleteTasks() {
-      showConfirm(`Are you sure you want to delete ${bulkSelectedTasks.size} tasks? This cannot be undone.`, () => {
-        P.tasks = P.tasks.filter(t => !bulkSelectedTasks.has(t.id));
-        bulkSelectedTasks.forEach(id => {
-          P.log = P.log.filter(l => l.taskId !== id);
-        });
-        bulkSelectedTasks.clear();
-        save();
-        renderTable();
-        notify('Tasks deleted.', 'ok');
-      });
-    }
-
-    function save() {
+    save() {
       if (P.readonly || P._isLoading) return;
       clearTimeout(_saveTimer);
       _saveTimer = setTimeout(() => {
@@ -12525,8 +12554,8 @@
           if (e.name === 'QuotaExceededError') notify('Local storage full!', 'err');
         }
       }, 300);
-    }
-    function load() {
+    },
+    load() {
       try {
         const d = JSON.parse(localStorage.getItem('pp-data'));
         if (d) {
@@ -12660,11 +12689,11 @@
       // If no data, or data load failed, inject sample
       injectSampleData();
       return true;
-    }
+    },
 
     // ── IndexedDB for Directory Handles & Backups ──
-    const dbName = 'ProjectPulseDB', storeName = 'handles', backupStore = 'backups';
-    function getDB() {
+
+    getDB() {
       return new Promise((res, rej) => {
         try {
           if (!window.indexedDB) throw new Error('IndexedDB not supported');
@@ -12687,15 +12716,15 @@
           rej(e);
         }
       });
-    }
-    async function saveHandle(id, handle) {
+    },
+    async saveHandle(id, handle) {
       try {
         const db = await getDB();
         const tx = db.transaction(storeName, 'readwrite');
         tx.objectStore(storeName).put(handle, id);
       } catch (e) { console.error('Handle save failed', e); }
-    }
-    async function getHandle(id) {
+    },
+    async getHandle(id) {
       try {
         const db = await getDB();
         return new Promise((res) => {
@@ -12704,8 +12733,8 @@
           req.onerror = () => res(null);
         });
       } catch (e) { return null; }
-    }
-    async function listHandles() {
+    },
+    async listHandles() {
       try {
         const db = await getDB();
         return new Promise((res) => {
@@ -12714,10 +12743,10 @@
           req.onerror = () => res([]);
         });
       } catch (e) { return []; }
-    }
+    },
 
     // Backup System
-    async function createBackup() {
+    async createBackup() {
       if (!P.name || P._isLoading) return;
       try {
         const db = await getDB();
@@ -12761,9 +12790,9 @@
       } catch (e) {
         console.error('Backup failed', e);
       }
-    }
+    },
 
-    async function createFileBackup(buf) {
+    async createFileBackup(buf) {
       if (!P.name || !P.fsHandle || P._isLoading) return;
 
       // 1. Save to IndexedDB (Tier 2)
@@ -12813,9 +12842,9 @@
           if (e.name === 'NotAllowedError') P._fsPermissionError = true;
         }
       }
-    }
+    },
 
-    async function listBackups(projectName) {
+    async listBackups(projectName) {
       const db = await getDB();
       const tx = db.transaction(backupStore, 'readonly');
       const idx = tx.objectStore(backupStore).index('project');
@@ -12824,9 +12853,9 @@
         req.onsuccess = () => res(req.result.sort((a, b) => new Date(b.ts) - new Date(a.ts)));
         req.onerror = () => res([]);
       });
-    }
+    },
 
-    async function restoreFromBackup(backupId) {
+    async restoreFromBackup(backupId) {
       const db = await getDB();
       const tx = db.transaction(backupStore, 'readonly');
       const req = tx.objectStore(backupStore).get(backupId);
@@ -12846,9 +12875,9 @@
           }
         });
       };
-    }
+    },
 
-    async function renderRecentProjects() {
+    async renderRecentProjects() {
       const names = await listHandles();
       const wrap = $id('recent-projects-wrap'), list = $id('recent-projects-list');
       if (!names.length) { wrap.style.display = 'none'; return; }
@@ -12864,9 +12893,9 @@
         item.onmouseleave = () => { item.style.borderColor = 'var(--color-divider)'; item.style.background = 'var(--color-surface-2)'; };
         list.appendChild(item);
       });
-    }
+    },
 
-    async function loadRecentProject(name) {
+    async loadRecentProject(name) {
       try {
         const handle = await getHandle(name);
         if (!handle) throw new Error('Handle not found');
@@ -12895,10 +12924,10 @@
         console.error(e);
         notify('Could not reload project. Please open file manually.', 'err');
       }
-    }
+    },
 
     // ── File System Access API ──
-    async function pickProjectFile() {
+    async pickProjectFile() {
       if (!window.showOpenFilePicker) {
         const input = document.createElement('input');
         input.type = 'file';
@@ -12932,8 +12961,8 @@
         enterApp();
         notify('Project loaded from Excel', 'ok');
       } catch (e) { if (e.name !== 'AbortError') notify('Could not open Excel file', 'err'); }
-    }
-    async function pickProjectDirectory() {
+    },
+    async pickProjectDirectory() {
       if (!window.showDirectoryPicker) { notify('Directory access not supported in this browser.', 'amber'); return; }
       try {
         const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
@@ -12943,8 +12972,8 @@
         notify('Project directory connected: ' + handle.name, 'ok');
         updateFsInd();
       } catch (e) { if (e.name !== 'AbortError') notify('Could not open directory', 'err'); }
-    }
-    async function createProjectFile() {
+    },
+    async createProjectFile() {
       if (!window.showSaveFilePicker) {
         notify('Direct file sync not supported in this browser. Use "Export Excel" instead.', 'amber');
         return;
@@ -12960,7 +12989,338 @@
         enterApp();
         notify('Excel project created', 'ok');
       } catch (e) { if (e.name !== 'AbortError') notify('Could not create Excel file', 'err'); }
+    },
+
+    async saveToFile(isAutosave = false) {
+      if (typeof ExcelJS === 'undefined') { notify('Excel library not loaded yet. Please try again.', 'amber'); return; }
+      if (!P.fsHandle || P._isSaving || P._fsPermissionError) return;
+      P._isSaving = true;
+
+      let saveOverlay = null;
+      if (!isAutosave) {
+        saveOverlay = document.createElement('div');
+        saveOverlay.className = 'save-overlay';
+        saveOverlay.innerHTML = '<div class="save-spinner"></div><div class="save-text">Saving to Excel...</div>';
+        document.body.appendChild(saveOverlay);
+
+        // Force a paint to ensure the transition delay begins before freezing the thread
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      }
+
+      try {
+        if (P.fsHandle.queryPermission) {
+          const perm = await P.fsHandle.queryPermission({ mode: 'readwrite' });
+          if (perm !== 'granted') {
+            P._fsPermissionError = true;
+            updateFsInd();
+            notify('Permission required to save changes to Excel', 'amber');
+            return;
+          }
+        }
+        const wb = await generateProjectWorkbook();
+        const buf = await wb.xlsx.writeBuffer();
+        const wr = await P.fsHandle.createWritable();
+        await wr.write(buf);
+        await wr.close();
+        P.lastSynced = new Date().toISOString();
+        P._fsPermissionError = false;
+        createFileBackup(buf);
+        updateFsInd();
+      } catch (e) {
+        console.error('Save error', e);
+        if (e.name === 'NotAllowedError') { P._fsPermissionError = true; updateFsInd(); }
+        else if (e.name === 'InvalidStateError' || e.message.toLowerCase().includes('locked')) {
+          notify('Spreadsheet file is locked. Please close it in your spreadsheet software and try again.', 'amber');
+        }
+        else notify('Excel Save failed: ' + e.message, 'err');
+      }
+      finally {
+        P._isSaving = false;
+        if (saveOverlay && saveOverlay.parentNode) saveOverlay.parentNode.removeChild(saveOverlay);
+      }
+    },
+    async loadFromFile() {
+      if (typeof ExcelJS === 'undefined') { notify('Excel library not loaded yet. Please try again.', 'amber'); return; }
+      if (!P.fsHandle || P._isLoading) return;
+      P._isLoading = true;
+      try {
+        const file = await P.fsHandle.getFile();
+        const buffer = await file.arrayBuffer();
+        await reconstructProjectFromBuffer(buffer);
+        notify('Project loaded from file', 'ok');
+      } catch (e) {
+        console.error(e);
+        notify('Failed to load project from file', 'err');
+      } finally {
+        P._isLoading = false;
+      }
+    },
+    updateFsInd() {
+      const fmtTime = (iso) => iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Never';
+      const syncTime = fmtTime(P.lastSynced);
+      const backTime = fmtTime(P.lastBackup);
+      const fileName = P.fsHandle ? P.fsHandle.name : 'Local Storage';
+
+      const cardStyle = (isError) => `
+        background: var(--color-surface-2);
+        border: 1px solid ${isError ? 'var(--color-error)' : 'var(--color-divider)'};
+        padding: 12px;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+      `;
+
+      ['pp-fs-ind-sb', 'pp-fs-ind-dd'].forEach(id => {
+        const el = $id(id);
+        if (!el) return;
+
+        // Reset element styles to act as a container
+        el.style.all = 'unset';
+        el.style.display = 'block';
+        el.style.margin = id.includes('-sb') ? '0 0 16px 0' : '8px 0';
+
+        if (!P.fsHandle) {
+          el.innerHTML = `
+            <div style="${cardStyle(false)}">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--color-success); box-shadow: 0 0 8px var(--color-success);"></div>
+                  <span style="font-size: 10px; font-weight: 800; letter-spacing: 0.05em; color: var(--color-text-muted); text-transform: uppercase;">Local Mode</span>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="cloud"></i>
+                <span style="font-size: 12px; font-weight: 600; color: var(--color-text);">Cloud Sync Active</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--color-text-muted);">
+                <i data-lucide="shield-check" style="font-size: 12px;"></i>
+                <span>Last Snapshot: <b>${backTime}</b></span>
+              </div>
+            </div>
+          `;
+          return;
+        }
+
+        if (P._fsPermissionError) {
+          el.innerHTML = `
+            <div style="${cardStyle(true)}">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="alert-triangle" style="color: var(--color-error);"></i>
+                <span style="font-size: 10px; font-weight: 800; color: var(--color-error); text-transform: uppercase;">Access Revoked</span>
+              </div>
+              <div style="font-size: 11px; line-height: 1.4; color: var(--color-text-muted);">File access lost by browser.</div>
+              <button class="btn btn-sm" onclick="reconnectFolder()" style="background: var(--color-error); color: #fff; width: 100%; border: none; padding: 6px; border-radius: 6px; font-size: 11px; font-weight: 600;">Reconnect File</button>
+            </div>
+          `;
+          return;
+        }
+
+        el.innerHTML = `
+          <div style="${cardStyle(false)}">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--color-success); flex-shrink: 0;"></div>
+                <span style="font-size: 10px; font-weight: 800; letter-spacing: 0.05em; color: var(--color-text-muted); text-transform: uppercase;">File Mode</span>
+              </div>
+              <div style="display:flex; gap:8px; align-items:center">
+                ${P.fsDirHandle ? `<i data-lucide="folder-check" style="color:var(--color-success)" title="Backup folder connected: ${esc(P.fsDirName)}"></i>` : ''}
+                <div onclick="saveToFile()" class="btn-sync" style="cursor: pointer; display: flex; align-items: center; transition: transform 0.2s;" title="Save to File (Ctrl+S)">
+                  <i data-lucide="save" style="color: var(--color-emerald); width: 14px; height: 14px;"></i>
+                </div>
+                <div onclick="syncFromFile()" class="btn-sync" style="cursor: pointer; display: flex; align-items: center; transition: transform 0.2s;" title="Sync from File">
+                  <i data-lucide="refresh-cw" style="color: var(--color-text-muted); width: 14px; height: 14px;"></i>
+                </div>
+              </div>
+            </div>
+            
+            <div style="font-size: 12px; font-weight: 700; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: -2px;" title="${esc(fileName)}">
+              ${esc(fileName)}
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 2px;">
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 9px; color: var(--color-text-muted); font-weight: 700; text-transform: uppercase;">
+                  <i data-lucide="cloud-cog"></i> Synced
+                </div>
+                <div style="font-size: 10px; font-weight: 600; color: var(--color-text);">${syncTime}</div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 9px; color: var(--color-text-muted); font-weight: 700; text-transform: uppercase;">
+                  <i data-lucide="shield-check"></i> Backed
+                </div>
+                <div style="font-size: 10px; font-weight: 600; color: var(--color-text);">${backTime}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+    },
+    async syncFromFile() {
+      if (!P.fsHandle) return;
+      try {
+        const status = await P.fsHandle.queryPermission({ mode: 'readwrite' });
+        if (status !== 'granted') {
+          P._fsPermissionError = true;
+          updateFsInd();
+          notify('Permission required to sync', 'amber');
+          return;
+        }
+        await loadFromFile();
+        P.lastSynced = new Date().toISOString();
+        updateFsInd();
+        render();
+        notify('Synced with Excel file. (Ensure you SAVED the file in Excel first)', 'ok');
+      } catch (e) {
+        notify('Sync failed: ' + e.message, 'err');
+      }
+    },
+    async reconnectFolder() {
+      if (!P.fsHandle || P._isLoading) return;
+      try {
+        const status = await P.fsHandle.requestPermission({ mode: 'readwrite' });
+        if (status === 'granted') {
+          P._fsPermissionError = false;
+          await loadFromFile();
+          render();
+          notify('Project re-connected and data synced', 'ok');
+        } else {
+          notify('Permission still denied', 'err');
+        }
+      } catch (e) {
+        console.error('Reconnect error', e);
+        notify('Failed to re-connect: ' + e.message, 'err');
+      } finally {
+        updateFsInd();
+      }
+    },
+    };
+    window.PulsePersistence = PulsePersistence;
+
+    // Global aliases for backward compatibility (using standard functions)
+    function clearProjectState() { return PulsePersistence.clearProjectState(); }
+    function injectSampleData() { return PulsePersistence.injectSampleData(); }
+    function clearAllData() { return PulsePersistence.clearAllData(); }
+    function resetToSetup() { return PulsePersistence.resetToSetup(); }
+    function save() { return PulsePersistence.save(); }
+    function load() { return PulsePersistence.load(); }
+    function getDB() { return PulsePersistence.getDB(); }
+    function saveHandle(id, handle) { return PulsePersistence.saveHandle(id, handle); }
+    function getHandle(id) { return PulsePersistence.getHandle(id); }
+    function listHandles() { return PulsePersistence.listHandles(); }
+    function createBackup() { return PulsePersistence.createBackup(); }
+    function createFileBackup(buf) { return PulsePersistence.createFileBackup(buf); }
+    function listBackups(projectName) { return PulsePersistence.listBackups(projectName); }
+    function restoreFromBackup(backupId) { return PulsePersistence.restoreFromBackup(backupId); }
+    function renderRecentProjects() { return PulsePersistence.renderRecentProjects(); }
+    function loadRecentProject(name) { return PulsePersistence.loadRecentProject(name); }
+    function pickProjectFile() { return PulsePersistence.pickProjectFile(); }
+    function pickProjectDirectory() { return PulsePersistence.pickProjectDirectory(); }
+    function createProjectFile() { return PulsePersistence.createProjectFile(); }
+    function saveToFile(isAutosave) { return PulsePersistence.saveToFile(isAutosave); }
+    function loadFromFile() { return PulsePersistence.loadFromFile(); }
+    function updateFsInd() { return PulsePersistence.updateFsInd(); }
+    function syncFromFile() { return PulsePersistence.syncFromFile(); }
+    function reconnectFolder() { return PulsePersistence.reconnectFolder(); }
+
+    // --- BULK OPERATIONS STATE ---
+    let bulkSelectedTasks = new Set();
+    function toggleBulkTask(id) {
+      if (bulkSelectedTasks.has(id)) bulkSelectedTasks.delete(id);
+      else bulkSelectedTasks.add(id);
+      updateBulkBar();
     }
+    function toggleAllBulkTasks(chk) {
+      bulkSelectedTasks.clear();
+      if (chk) {
+        document.querySelectorAll('#tbody tr[data-id]').forEach(tr => {
+          bulkSelectedTasks.add(tr.getAttribute('data-id'));
+          const cb = tr.querySelector('.bulk-cb');
+          if (cb) cb.checked = true;
+        });
+      } else {
+        document.querySelectorAll('.bulk-cb').forEach(cb => cb.checked = false);
+      }
+      updateBulkBar();
+    }
+
+    function updateBulkBar() {
+      const bar = $id('bulk-action-bar');
+      if (!bar) return;
+      if (bulkSelectedTasks.size > 0 && P.taskViewMode !== 'kanban' && P.taskViewMode !== 'timeline') {
+        bar.style.display = 'flex';
+        $id('bulk-action-count').textContent = `${bulkSelectedTasks.size} task${bulkSelectedTasks.size > 1 ? 's' : ''} selected`;
+        lucide.createIcons();
+      } else {
+        bar.style.display = 'none';
+      }
+    }
+
+    function openBulkEditModal() {
+      $id('bulk-edit-modal').classList.add('open');
+      updateBulkEditOptions();
+    }
+
+    function updateBulkEditOptions() {
+      const field = $id('bulk-field-select').value;
+      const valSelect = $id('bulk-value-select');
+      valSelect.innerHTML = '';
+
+      let opts = [];
+      if (field === 'status') opts = STATUSES;
+      else if (field === 'priority') opts = PRIORITIES;
+      else if (field === 'assignee') opts = getTeamNames();
+      else if (field === 'complexity') opts = ['Easy', 'Medium', 'Complex'];
+      else if (P.dropdowns && P.dropdowns[field]) opts = P.dropdowns[field];
+
+      opts.forEach(o => {
+        const opt = document.createElement('option');
+        opt.value = o;
+        opt.textContent = o;
+        valSelect.appendChild(opt);
+      });
+      $id('bulk-apply-btn').textContent = `Apply to ${bulkSelectedTasks.size} Tasks`;
+    }
+
+    function applyBulkEdit() {
+      const field = $id('bulk-field-select').value;
+      const value = $id('bulk-value-select').value;
+      if (!field || !value) return;
+
+      let updatedCount = 0;
+      P.tasks.forEach(t => {
+        if (bulkSelectedTasks.has(t.id) && t[field] !== value) {
+          t[field] = value;
+          t.updatedAt = new Date().toISOString();
+          addLog(`Bulk updated ${field} to ${value}`, t.id, t.name);
+          updatedCount++;
+        }
+      });
+
+      if (updatedCount > 0) {
+        save();
+        renderTable();
+        notify(`Successfully updated ${updatedCount} tasks.`, 'ok');
+      }
+      $id('bulk-edit-modal').classList.remove('open');
+    }
+
+    function bulkDeleteTasks() {
+      showConfirm(`Are you sure you want to delete ${bulkSelectedTasks.size} tasks? This cannot be undone.`, () => {
+        P.tasks = P.tasks.filter(t => !bulkSelectedTasks.has(t.id));
+        bulkSelectedTasks.forEach(id => {
+          P.log = P.log.filter(l => l.taskId !== id);
+        });
+        bulkSelectedTasks.clear();
+        save();
+        renderTable();
+        notify('Tasks deleted.', 'ok');
+      });
+    }
+
 
     // ── COMMAND PALETTE LOGIC ──
     let cmdIndex = -1;
@@ -13159,212 +13519,6 @@
     }
 
 
-    async function saveToFile(isAutosave = false) {
-      if (typeof ExcelJS === 'undefined') { notify('Excel library not loaded yet. Please try again.', 'amber'); return; }
-      if (!P.fsHandle || P._isSaving || P._fsPermissionError) return;
-      P._isSaving = true;
-
-      let saveOverlay = null;
-      if (!isAutosave) {
-        saveOverlay = document.createElement('div');
-        saveOverlay.className = 'save-overlay';
-        saveOverlay.innerHTML = '<div class="save-spinner"></div><div class="save-text">Saving to Excel...</div>';
-        document.body.appendChild(saveOverlay);
-
-        // Force a paint to ensure the transition delay begins before freezing the thread
-        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-      }
-
-      try {
-        if (P.fsHandle.queryPermission) {
-          const perm = await P.fsHandle.queryPermission({ mode: 'readwrite' });
-          if (perm !== 'granted') {
-            P._fsPermissionError = true;
-            updateFsInd();
-            notify('Permission required to save changes to Excel', 'amber');
-            return;
-          }
-        }
-        const wb = await generateProjectWorkbook();
-        const buf = await wb.xlsx.writeBuffer();
-        const wr = await P.fsHandle.createWritable();
-        await wr.write(buf);
-        await wr.close();
-        P.lastSynced = new Date().toISOString();
-        P._fsPermissionError = false;
-        createFileBackup(buf);
-        updateFsInd();
-      } catch (e) {
-        console.error('Save error', e);
-        if (e.name === 'NotAllowedError') { P._fsPermissionError = true; updateFsInd(); }
-        else if (e.name === 'InvalidStateError' || e.message.toLowerCase().includes('locked')) {
-          notify('Spreadsheet file is locked. Please close it in your spreadsheet software and try again.', 'amber');
-        }
-        else notify('Excel Save failed: ' + e.message, 'err');
-      }
-      finally {
-        P._isSaving = false;
-        if (saveOverlay && saveOverlay.parentNode) saveOverlay.parentNode.removeChild(saveOverlay);
-      }
-    }
-    async function loadFromFile() {
-      if (typeof ExcelJS === 'undefined') { notify('Excel library not loaded yet. Please try again.', 'amber'); return; }
-      if (!P.fsHandle || P._isLoading) return;
-      P._isLoading = true;
-      try {
-        const file = await P.fsHandle.getFile();
-        const buffer = await file.arrayBuffer();
-        await reconstructProjectFromBuffer(buffer);
-        notify('Project loaded from file', 'ok');
-      } catch (e) {
-        console.error(e);
-        notify('Failed to load project from file', 'err');
-      } finally {
-        P._isLoading = false;
-      }
-    }
-    function updateFsInd() {
-      const fmtTime = (iso) => iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Never';
-      const syncTime = fmtTime(P.lastSynced);
-      const backTime = fmtTime(P.lastBackup);
-      const fileName = P.fsHandle ? P.fsHandle.name : 'Local Storage';
-
-      const cardStyle = (isError) => `
-        background: var(--color-surface-2);
-        border: 1px solid ${isError ? 'var(--color-error)' : 'var(--color-divider)'};
-        padding: 12px;
-        border-radius: 12px;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        position: relative;
-        overflow: hidden;
-      `;
-
-      ['pp-fs-ind-sb', 'pp-fs-ind-dd'].forEach(id => {
-        const el = $id(id);
-        if (!el) return;
-
-        // Reset element styles to act as a container
-        el.style.all = 'unset';
-        el.style.display = 'block';
-        el.style.margin = id.includes('-sb') ? '0 0 16px 0' : '8px 0';
-
-        if (!P.fsHandle) {
-          el.innerHTML = `
-            <div style="${cardStyle(false)}">
-              <div style="display: flex; align-items: center; justify-content: space-between;">
-                <div style="display: flex; align-items: center; gap: 6px;">
-                  <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--color-success); box-shadow: 0 0 8px var(--color-success);"></div>
-                  <span style="font-size: 10px; font-weight: 800; letter-spacing: 0.05em; color: var(--color-text-muted); text-transform: uppercase;">Local Mode</span>
-                </div>
-              </div>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <i data-lucide="cloud"></i>
-                <span style="font-size: 12px; font-weight: 600; color: var(--color-text);">Cloud Sync Active</span>
-              </div>
-              <div style="display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--color-text-muted);">
-                <i data-lucide="shield-check" style="font-size: 12px;"></i>
-                <span>Last Snapshot: <b>${backTime}</b></span>
-              </div>
-            </div>
-          `;
-          return;
-        }
-
-        if (P._fsPermissionError) {
-          el.innerHTML = `
-            <div style="${cardStyle(true)}">
-              <div style="display: flex; align-items: center; gap: 6px;">
-                <i data-lucide="alert-triangle" style="color: var(--color-error);"></i>
-                <span style="font-size: 10px; font-weight: 800; color: var(--color-error); text-transform: uppercase;">Access Revoked</span>
-              </div>
-              <div style="font-size: 11px; line-height: 1.4; color: var(--color-text-muted);">File access lost by browser.</div>
-              <button class="btn btn-sm" onclick="reconnectFolder()" style="background: var(--color-error); color: #fff; width: 100%; border: none; padding: 6px; border-radius: 6px; font-size: 11px; font-weight: 600;">Reconnect File</button>
-            </div>
-          `;
-          return;
-        }
-
-        el.innerHTML = `
-          <div style="${cardStyle(false)}">
-            <div style="display: flex; align-items: center; justify-content: space-between;">
-              <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
-                <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--color-success); flex-shrink: 0;"></div>
-                <span style="font-size: 10px; font-weight: 800; letter-spacing: 0.05em; color: var(--color-text-muted); text-transform: uppercase;">File Mode</span>
-              </div>
-              <div style="display:flex; gap:8px; align-items:center">
-                ${P.fsDirHandle ? `<i data-lucide="folder-check" style="color:var(--color-success)" title="Backup folder connected: ${esc(P.fsDirName)}"></i>` : ''}
-                <div onclick="saveToFile()" class="btn-sync" style="cursor: pointer; display: flex; align-items: center; transition: transform 0.2s;" title="Save to File (Ctrl+S)">
-                  <i data-lucide="save" style="color: var(--color-emerald); width: 14px; height: 14px;"></i>
-                </div>
-                <div onclick="syncFromFile()" class="btn-sync" style="cursor: pointer; display: flex; align-items: center; transition: transform 0.2s;" title="Sync from File">
-                  <i data-lucide="refresh-cw" style="color: var(--color-text-muted); width: 14px; height: 14px;"></i>
-                </div>
-              </div>
-            </div>
-            
-            <div style="font-size: 12px; font-weight: 700; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: -2px;" title="${esc(fileName)}">
-              ${esc(fileName)}
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 2px;">
-              <div style="display: flex; flex-direction: column; gap: 2px;">
-                <div style="display: flex; align-items: center; gap: 4px; font-size: 9px; color: var(--color-text-muted); font-weight: 700; text-transform: uppercase;">
-                  <i data-lucide="cloud-cog"></i> Synced
-                </div>
-                <div style="font-size: 10px; font-weight: 600; color: var(--color-text);">${syncTime}</div>
-              </div>
-              <div style="display: flex; flex-direction: column; gap: 2px;">
-                <div style="display: flex; align-items: center; gap: 4px; font-size: 9px; color: var(--color-text-muted); font-weight: 700; text-transform: uppercase;">
-                  <i data-lucide="shield-check"></i> Backed
-                </div>
-                <div style="font-size: 10px; font-weight: 600; color: var(--color-text);">${backTime}</div>
-              </div>
-            </div>
-          </div>
-        `;
-      });
-    }
-    async function syncFromFile() {
-      if (!P.fsHandle) return;
-      try {
-        const status = await P.fsHandle.queryPermission({ mode: 'readwrite' });
-        if (status !== 'granted') {
-          P._fsPermissionError = true;
-          updateFsInd();
-          notify('Permission required to sync', 'amber');
-          return;
-        }
-        await loadFromFile();
-        P.lastSynced = new Date().toISOString();
-        updateFsInd();
-        render();
-        notify('Synced with Excel file. (Ensure you SAVED the file in Excel first)', 'ok');
-      } catch (e) {
-        notify('Sync failed: ' + e.message, 'err');
-      }
-    }
-    async function reconnectFolder() {
-      if (!P.fsHandle || P._isLoading) return;
-      try {
-        const status = await P.fsHandle.requestPermission({ mode: 'readwrite' });
-        if (status === 'granted') {
-          P._fsPermissionError = false;
-          await loadFromFile();
-          render();
-          notify('Project re-connected and data synced', 'ok');
-        } else {
-          notify('Permission still denied', 'err');
-        }
-      } catch (e) {
-        console.error('Reconnect error', e);
-        notify('Failed to re-connect: ' + e.message, 'err');
-      } finally {
-        updateFsInd();
-      }
-    }
 
     // ══════ ACTIVITY LOG ══════
     function addLog(action, taskId, taskName, field, oldVal, newVal, comment) {
@@ -27920,7 +28074,9 @@
       if (modal) modal.classList.remove('open');
     }
 
-    async function exportProjectExcel(safeMode = false, viewLevel = false) {
+    // ══════ EXCEL & CSV ══════
+    const PulseExcel = {
+    async exportProjectExcel(safeMode = false, viewLevel = false) {
       if (typeof ExcelJS === 'undefined') { notify('Excel library not loaded yet. Please try again.', 'amber'); return; }
       try {
         const projectClean = (P.name || 'Project').replace(/[\\\/*?:"<>|\s]/g, '');
@@ -27962,10 +28118,9 @@
         hideAppLock();
         notify('Export failed: ' + e.message, 'err');
       }
-    }
-    window.exportProjectExcel = exportProjectExcel;
+    },
 
-    async function exportProjectCSV() {
+    async exportProjectCSV() {
       try {
         notify('Preparing CSV Master Export...', 'ok');
         const headers = ['Workshop', 'Category', 'ID', 'Name/Title', 'Assignee', 'Status', 'Priority', 'Progress', 'Start', 'Due', 'Module', 'Data'];
@@ -27991,10 +28146,10 @@
       } catch (e) {
         notify('CSV Export failed: ' + e.message, 'err');
       }
-    }
-    window.exportProjectCSV = exportProjectCSV;
+    },
+
     // ══════ EXCEL BUILDERS (SMART WORKBOOK) ══════
-    function buildReadmeSheet(wb, safeMode, COLORS, hdrStyle) {
+    buildReadmeSheet(wb, safeMode, COLORS, hdrStyle) {
       const ws = wb.addWorksheet('README', { views: safeMode ? [] : [{ showGridLines: true }] });
       ws.properties.tabColor = { argb: COLORS.indigo };
       ws.getColumn(1).width = 4; ws.getColumn(2).width = 30; ws.getColumn(3).width = 70;
@@ -28020,9 +28175,9 @@
       addSection(11, 'State & Configurations', 'System State maintains Next Task/Member IDs, Active Theme, Color Mode, and Display Level. Config_Settings maintains complexity factors and alert preferences. Config_GridState maintains custom column widths, order, and filters.');
       addSection(13, 'Smart Features', 'Dropdowns are provided for Assignees, Categories, Modules, Statuses, and Priorities. Helper columns automatically calculate Derived Health, Blocking Issues, and Workflow Hints.');
       addSection(15, 'Sync Instructions', 'To sync your edits back to ProjectPulse, save this workbook in Excel and click the Sync button in the ProjectPulse application.');
-    }
+    },
 
-    function buildDataDictionarySheet(wb, safeMode, COLORS, hdrStyle) {
+    buildDataDictionarySheet(wb, safeMode, COLORS, hdrStyle) {
       const ws = wb.addWorksheet('DataDictionary', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
       ws.properties.tabColor = { argb: COLORS.slate };
       const cols = [
@@ -28050,9 +28205,9 @@
         const row = ws.addRow(r); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
         if (i % 2 === 1) row.eachCell(c => c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } });
       });
-    }
+    },
 
-    function buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle) {
+    buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle) {
       const ws = wb.addWorksheet('ValidationLists', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
       ws.properties.tabColor = { argb: COLORS.slate };
 
@@ -28085,9 +28240,9 @@
       }
 
       wb._valLengths = { statuses: statuses.length, priorities: priorities.length, categories: categories.length, modules: modules.length, modTypes: modTypes.length, releases: releases.length, team: team.length };
-    }
+    },
 
-    function registerNamedRanges(wb, safeMode) {
+    registerNamedRanges(wb, safeMode) {
       const len = wb._valLengths || { statuses: 7, priorities: 4, categories: 5, modules: 5, modTypes: 4, releases: 4, team: 5 };
       wb.definedNames.add('Val_Statuses', `ValidationLists!$A$2:$A$${len.statuses + 1}`);
       wb.definedNames.add('Val_Priorities', `ValidationLists!$B$2:$B$${len.priorities + 1}`);
@@ -28096,9 +28251,9 @@
       wb.definedNames.add('Val_ModuleTypes', `ValidationLists!$E$2:$E$${len.modTypes + 1}`);
       wb.definedNames.add('Val_Releases', `ValidationLists!$F$2:$F$${len.releases + 1}`);
       wb.definedNames.add('Val_Team', `ValidationLists!$G$2:$G$${len.team + 1}`);
-    }
+    },
 
-    function buildHelperMapsSheet(wb, safeMode, COLORS, hdrStyle) {
+    buildHelperMapsSheet(wb, safeMode, COLORS, hdrStyle) {
       const ws = wb.addWorksheet('HelperMaps', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
       ws.properties.tabColor = { argb: COLORS.slate };
       ws.columns = [
@@ -28124,9 +28279,9 @@
         const row = ws.addRow(r); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
         if (i % 2 === 1) row.eachCell(c => c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } });
       });
-    }
+    },
 
-    function buildUnifiedTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
+    buildUnifiedTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
       const ws = wb.addWorksheet('Tasks & Subtasks', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 3 }] });
       ws.properties.tabColor = { argb: COLORS.emerald };
 
@@ -28407,9 +28562,9 @@
           ]
         });
       }
-    }
+    },
 
-    function applyUnifiedSheetValidations(ws, wb, totalRows) {
+    applyUnifiedSheetValidations(ws, wb, totalRows) {
       for (let r = 2; r <= totalRows; r++) {
         ws.getCell(`E${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Categories'] };
         ws.getCell(`F${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Modules'] };
@@ -28419,9 +28574,9 @@
         ws.getCell(`J${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Priorities'] };
         ws.getCell(`K${r}`).dataValidation = { type: 'decimal', operator: 'between', formulae: [0, 1] };
       }
-    }
+    },
 
-    function buildFeatureRolloutsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
+    buildFeatureRolloutsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
       const ws = wb.addWorksheet('Feature Rollouts', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 3 }] });
       ws.properties.tabColor = { argb: COLORS.indigo || 'FF6366F1' };
 
@@ -28821,9 +28976,9 @@
           ]
         });
       }
-    }
+    },
 
-    function buildTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
+    buildTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
       const ws = wb.addWorksheet('Tasks', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 2 }] });
       ws.properties.tabColor = { argb: COLORS.emerald };
 
@@ -28875,9 +29030,9 @@
 
       applyTaskSheetValidations(ws, wb, safeMode);
       applyTaskSheetHelperColumns(ws, wb, safeMode, baseCols.length);
-    }
+    },
 
-    function applyTaskSheetValidations(ws, wb, safeMode) {
+    applyTaskSheetValidations(ws, wb, safeMode) {
       const taskCount = Math.max(100, (P.tasks || []).length + 50);
       for (let r = 2; r <= taskCount; r++) {
         ws.getCell(`D${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Categories'] };
@@ -28889,9 +29044,9 @@
         ws.getCell(`J${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['Val_Priorities'] };
         ws.getCell(`K${r}`).dataValidation = { type: 'whole', operator: 'between', formulae: [0, 100], showErrorMessage: true, errorTitle: 'Invalid Progress', error: 'Progress must be between 0 and 100.' };
       }
-    }
+    },
 
-    function applyTaskSheetHelperColumns(ws, wb, safeMode, totalCols) {
+    applyTaskSheetHelperColumns(ws, wb, safeMode, totalCols) {
       const taskCount = (P.tasks || []).length;
       const cHealth = ws.getColumn(totalCols - 3).letter; const cBlock = ws.getColumn(totalCols - 2).letter;
       const cHint = ws.getColumn(totalCols - 1).letter; const cSugg = ws.getColumn(totalCols).letter;
@@ -28908,9 +29063,9 @@
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
         });
       }
-    }
+    },
 
-    function buildSubtasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
+    buildSubtasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
       const ws = wb.addWorksheet('Subtasks', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 2 }] });
       ws.properties.tabColor = { argb: COLORS.emerald };
       const subs = (P.tasks || []).flatMap(t => (t.subtasks || []).map(s => ({ ...s, parentId: t.id, parentName: t.name })));
@@ -28941,9 +29096,9 @@
         ws.getCell(`E${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['Val_Statuses'] };
         ws.getCell(`F${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Team'] };
       }
-    }
+    },
 
-    function buildTeamSheet(wb, safeMode, COLORS, hdrStyle, S) {
+    buildTeamSheet(wb, safeMode, COLORS, hdrStyle, S) {
       const ws = wb.addWorksheet('Team', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 2 }] });
       ws.properties.tabColor = { argb: COLORS.blue };
       const cols = [
@@ -28959,9 +29114,9 @@
         const row = ws.addRow(rowValues); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
         COLORS.styleRow(row, i);
       });
-    }
+    },
 
-    function buildDefectsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
+    buildDefectsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
       const ws = wb.addWorksheet('Defects', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 2 }] });
       ws.properties.tabColor = { argb: COLORS.rose };
       const cols = [
@@ -28995,9 +29150,9 @@
         ws.getCell(`E${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['Val_Priorities'] };
         ws.getCell(`F${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Team'] };
       }
-    }
+    },
 
-    function buildRaidRegisterSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
+    buildRaidRegisterSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
       const ws = wb.addWorksheet('RAID_Register', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 2 }] });
       ws.properties.tabColor = { argb: COLORS.amber };
       const cols = [
@@ -29022,9 +29177,9 @@
         const row = ws.addRow(rowValues); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
         COLORS.styleRow(row, i);
       });
-    }
+    },
 
-    function buildDecisionLogSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
+    buildDecisionLogSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
       const ws = wb.addWorksheet('Decision_Log', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 2 }] });
       ws.properties.tabColor = { argb: COLORS.indigo };
       const cols = [
@@ -29049,9 +29204,9 @@
         const row = ws.addRow(rowValues); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
         COLORS.styleRow(row, i);
       });
-    }
+    },
 
-    function buildBaselineHistorySheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
+    buildBaselineHistorySheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
       const ws = wb.addWorksheet('Baseline_History', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 2 }] });
       ws.properties.tabColor = { argb: COLORS.slate };
       const cols = [
@@ -29075,9 +29230,9 @@
         const row = ws.addRow(rowValues); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
         COLORS.styleRow(row, i);
       });
-    }
+    },
 
-    function buildFeaturesSheet(wb, safeMode, COLORS, hdrStyle, S) {
+    buildFeaturesSheet(wb, safeMode, COLORS, hdrStyle, S) {
       const ws = wb.addWorksheet('Features', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
       ws.properties.tabColor = { argb: COLORS.indigo };
       ws.columns = [{ header: 'Feature Name', key: 'name', width: 30 }, { header: 'Description', key: 'desc', width: 60 }, { header: 'Target Release', key: 'release', width: 25 }];
@@ -29088,9 +29243,9 @@
         const row = ws.addRow(rowValues); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
         COLORS.styleRow(row, i);
       });
-    }
+    },
 
-    function buildDropdownsSheet(wb, safeMode, COLORS, hdrStyle, S) {
+    buildDropdownsSheet(wb, safeMode, COLORS, hdrStyle, S) {
       const ws = wb.addWorksheet('Config_Dropdowns', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
       ws.properties.tabColor = { argb: COLORS.slate };
       ws.columns = [{ header: 'Category', key: 'cat', width: 25 }, { header: 'Value', key: 'val', width: 30 }];
@@ -29103,9 +29258,9 @@
           if (idx++ % 2 === 1) row.eachCell(c => c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } });
         });
       });
-    }
+    },
 
-    function buildTemplateSheets(wb, safeMode, COLORS, hdrStyle, S) {
+    buildTemplateSheets(wb, safeMode, COLORS, hdrStyle, S) {
       const wsTpl = wb.addWorksheet('Config_Templates', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
       wsTpl.properties.tabColor = { argb: COLORS.slate };
       wsTpl.columns = [{ header: 'Category', key: 'cat', width: 25 }, { header: 'Blueprint Name', key: 'bname', width: 25 }, { header: 'Step Name', key: 'step', width: 35 }, { header: 'Effort', key: 'effort', width: 15 }];
@@ -29137,9 +29292,9 @@
         if (idx3++ % 2 === 1) row.eachCell(c => c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } });
       }));
       addCFO('Task', P.customFields); addCFO('Defect', P.defCustomFields);
-    }
+    },
 
-    function buildRelationSheets(wb, safeMode, COLORS, hdrStyle, S) {
+    buildRelationSheets(wb, safeMode, COLORS, hdrStyle, S) {
       window.PROJECT_RELATIONAL_MODEL.forEach(m => {
         const ws = wb.addWorksheet(m.sheet, { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
         ws.properties.tabColor = { argb: COLORS.slate };
@@ -29167,9 +29322,9 @@
           if (i % 2 === 1) row.eachCell(c => c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } });
         });
       });
-    }
+    },
 
-    function buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S) {
+    buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S) {
       const wsProj = wb.addWorksheet('System State', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
       wsProj.properties.tabColor = { argb: COLORS.indigo };
       wsProj.columns = [{ header: 'Property', key: 'key', width: 25 }, { header: 'Value', key: 'val', width: 50 }];
@@ -29313,9 +29468,9 @@
         });
       };
       addGridCols('Task', P.cols); addGridCols('Defect', P.defCols);
-    }
+    },
 
-    function buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate) {
+    buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate) {
       if (safeMode) return;
       const ds = wb.addWorksheet('Executive Dashboard', { views: safeMode ? [] : [{ showGridLines: false, state: 'frozen', ySplit: 6 }] });
       ds.getColumn(1).width = 2.0; for (let i = 2; i <= 18; i++) ds.getColumn(i).width = 14; ds.getColumn(19).width = 2.0;
@@ -30281,16 +30436,16 @@
       const tsCell = ds.getCell(curRow, 2); tsCell.value = 'Generated by ProjectPulse on ' + new Date().toLocaleString(); tsCell.font = { name: 'Segoe UI', size: 9, italic: true, color: { argb: COLORS.muted } }; tsCell.alignment = { horizontal: 'right' };
 
       ds.properties.tabColor = { argb: COLORS.indigo }; ds.pageSetup.fitToPage = true; ds.pageSetup.orientation = 'landscape';
-    }
+    },
 
-    function applyWorkbookProtectionRules(wb, safeMode) {
+    applyWorkbookProtectionRules(wb, safeMode) {
       ['ValidationLists', 'DataDictionary', 'HelperMaps', 'System State', 'Config_Layouts', 'State_Filters'].forEach(name => {
         const ws = wb.getWorksheet(name);
         if (ws) ws.protect('projectpulse_smart_wb', { selectLockedCells: true, selectUnlockedCells: true });
       });
-    }
+    },
 
-    async function generateProjectWorkbook(safeMode = false, viewLevel = false) {
+    async generateProjectWorkbook(safeMode = false, viewLevel = false) {
       if (typeof ExcelJS === 'undefined') { notify('Excel library not loaded yet. Please try again.', 'amber'); return; }
       const wb = new ExcelJS.Workbook();
       wb.creator = 'ProjectPulse'; wb.lastModifiedBy = 'ProjectPulse'; wb.created = new Date(); wb.modified = new Date();
@@ -30479,9 +30634,9 @@
       applyWorkbookProtectionRules(wb, safeMode);
 
       return wb;
-    }
+    },
 
-    async function importProjectExcel(event) {
+    async importProjectExcel(event) {
       const file = event.target.files[0]; if (!file) return;
       if (typeof ExcelJS === 'undefined') { notify('Excel library not loaded.', 'err'); return; }
       try {
@@ -30489,10 +30644,10 @@
         await new Promise(r => setTimeout(r, 100));
         const reader = new FileReader(); reader.onload = async (e) => { await reconstructProjectFromBuffer(e.target.result); }; reader.readAsArrayBuffer(file);
       } catch (err) { console.error(err); hideAppLock(); notify('Import failed: ' + err.message, 'err'); }
-    }
+    },
 
     // ══════ EXCEL PARSERS (SMART WORKBOOK) ══════
-    function applyBackwardCompatibilityMappings(wb, rawData) {
+    applyBackwardCompatibilityMappings(wb, rawData) {
       rawData.sheetAliases = {
         'Project': ['System State'], 'App_State': ['System State'], 'App_Layouts': ['Config_Layouts'], 'App_Filters': ['State_Filters'],
         'Settings': ['Config_Settings'], 'Dropdowns': ['Config_Dropdowns'], 'StepTemplates': ['Config_Templates'],
@@ -30558,9 +30713,9 @@
         });
         return data;
       };
-    }
+    },
 
-    function parseAppStateSheets(wb, rawData) {
+    parseAppStateSheets(wb, rawData) {
       const projData = rawData.getTable('Project'); const appStateData = rawData.getTable('App_State'); const stateMap = {};
       projData.forEach(r => { const k = r.key || r.property || r.settingkey; if (k) stateMap[k] = r.value !== undefined ? r.value : r.val; else if (r['Project Name']) stateMap['Project Name'] = r['Project Name']; });
       appStateData.forEach(r => { const k = r.key || r.property || r.settingkey; if (k) stateMap[k] = r.value !== undefined ? r.value : r.val; });
@@ -30653,9 +30808,9 @@
         const widths = s.widths ? JSON.parse(s.widths) : {}; const filters = s.filters ? JSON.parse(s.filters) : null;
         if (s.workshop === 'Task') { P.colOrder = s.order ? s.order.split(',') : P.colOrder; P.hiddenCols = s.hidden ? s.hidden.split(',') : P.hiddenCols; P.colWidths = widths; if (filters) P.colFilters = filters; } else { P.defColOrder = s.order ? s.order.split(',') : P.defColOrder; P.defHiddenCols = s.hidden ? s.hidden.split(',') : P.defHiddenCols; P.defColWidths = widths; if (filters) P.defColFilters = filters; }
       });
-    }
+    },
 
-    function parseConfigSheets(wb, rawData) {
+    parseConfigSheets(wb, rawData) {
       const ddRaw = rawData.getTable('Dropdowns');
       if (ddRaw.length) { const dds = {}; ddRaw.forEach(r => { const cat = r.cat || r.category; const val = r.val || r.value; if (cat && val) { if (!dds[cat]) dds[cat] = []; dds[cat].push(val); } }); P.dropdowns = dds; }
 
@@ -30692,9 +30847,9 @@
       if (crRaw && crRaw.length) {
         P.releases = crRaw.map(r => ({ id: r.id, name: r.name || r['Name'] || '', date: r.date || r['Date'] || '', status: r.status || r['Status'] || 'Planned' }));
       }
-    }
+    },
 
-    function parseCanonicalSheets(wb, rawData) {
+    parseCanonicalSheets(wb, rawData) {
       const rawMem = rawData.getTable('Team'); const rawDef = rawData.getTable('Defects'); const rawLog = rawData.getTable('Activity Log'); const rawRep = rawData.getTable('Reports'); const rawFeat = rawData.getTable('Features'); const rawAlerts = rawData.getTable('Alert History');
       const rawRaids = rawData.getTable('RAID_Register'); const rawDecisions = rawData.getTable('Decision_Log'); const rawBaselines = rawData.getTable('Baseline_History');
       const rawHealthHist = rawData.getTable('Health History'); const rawRepSnap = rawData.getTable('Report Snapshots');
@@ -30721,13 +30876,13 @@
       rawData.fmtD = fmtD; rawData.rawMem = rawMem; rawData.rawDef = rawDef; rawData.rawLog = rawLog; rawData.rawRep = rawRep; rawData.rawFeat = rawFeat; rawData.rawAlerts = rawAlerts;
       rawData.rawRaids = rawRaids; rawData.rawDecisions = rawDecisions; rawData.rawBaselines = rawBaselines;
       rawData.rawHealthHist = rawHealthHist; rawData.rawRepSnap = rawRepSnap;
-    }
+    },
 
-    function parseRelationSheets(wb, rawData) {
+    parseRelationSheets(wb, rawData) {
       const relTables = {}; window.PROJECT_RELATIONAL_MODEL.forEach(m => relTables[m.sheet] = rawData.getTable(m.sheet)); rawData.relTables = relTables;
-    }
+    },
 
-    function parseHelperAwareCanonicalSheets(wb, rawData) {
+    parseHelperAwareCanonicalSheets(wb, rawData) {
       const rawTasks = rawData.getTable('Tasks'); const rawSub = rawData.getTable('Subtasks'); const fmtD = rawData.fmtD; const relTables = rawData.relTables;
 
       rawSub.forEach(s => {
@@ -30762,9 +30917,9 @@
         copy.workflow = relTables['Data_TaskWorkflows'].filter(w => w.taskId === t.id).map(w => ({ name: w.name, effort: w.effort, done: !!w.done })); copy.dependsOn = relTables['Data_TaskDependencies'].filter(d => d.taskId === t.id).map(d => d.dependencyId); copy.guiScreens = relTables['Data_TaskGUIScreens'].filter(s => s.taskId === t.id).map(s => s.screen);
         return copy;
       });
-    }
+    },
 
-    function normalizeImportedData(rawData) {
+    normalizeImportedData(rawData) {
       P.tasks.forEach(t => {
         if (!t.id) t.id = 'TSK-' + String(P.nextTaskId++).padStart(3, '0'); if (!t.name) t.name = 'Untitled Task'; if (!t.status) t.status = 'Not Started'; if (!t.priority) t.priority = 'Medium'; if (!t.complexity) t.complexity = 'Medium';
         t.progress = parseInt(t.progress); if (isNaN(t.progress) || t.progress < 0) t.progress = 0; if (t.progress > 100) t.progress = 100;
@@ -30793,9 +30948,9 @@
         }
         recalcDatesAndStatus(t, true);
       });
-    }
+    },
 
-    function collectImportIssues(rawData) {
+    collectImportIssues(rawData) {
       if (rawData.issues.length > 0) {
         console.warn('[Excel Import Issues]', rawData.issues);
         const list = $id('import-issues-list');
@@ -30804,16 +30959,16 @@
           openModal('import-issues-modal');
         }
       }
-    }
+    },
 
-    function rebuildDerivedState(rawData) {
+    rebuildDerivedState(rawData) {
       let maxTaskId = 0; P.tasks.forEach(t => { const num = parseInt(String(t.id).replace(/\D/g, '')); if (!isNaN(num) && num > maxTaskId) maxTaskId = num; }); if (maxTaskId >= P.nextTaskId) P.nextTaskId = maxTaskId + 1;
       let maxMemId = 0; P.members.forEach(m => { const num = parseInt(String(m.id).replace(/\D/g, '')); if (!isNaN(num) && num > maxMemId) maxMemId = num; }); if (maxMemId >= P.nextMemberId) P.nextMemberId = maxMemId + 1;
       let maxRaidId = 0; P.raids.forEach(r => { const num = parseInt(String(r.id).replace(/\D/g, '')); if (!isNaN(num) && num > maxRaidId) maxRaidId = num; }); if (maxRaidId >= P.nextRaidId) P.nextRaidId = maxRaidId + 1;
       let maxDecId = 0; P.decisions.forEach(d => { const num = parseInt(String(d.id).replace(/\D/g, '')); if (!isNaN(num) && num > maxDecId) maxDecId = num; }); if (maxDecId >= P.nextDecisionId) P.nextDecisionId = maxDecId + 1;
-    }
+    },
 
-    async function reconstructProjectFromBuffer(buffer) {
+    async reconstructProjectFromBuffer(buffer) {
       try {
         notify('Reconstructing Project State...', 'ok');
         const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buffer);
@@ -30821,26 +30976,61 @@
         clearProjectState(); parseAppStateSheets(wb, rawData); parseConfigSheets(wb, rawData); parseCanonicalSheets(wb, rawData); parseRelationSheets(wb, rawData); parseHelperAwareCanonicalSheets(wb, rawData); normalizeImportedData(rawData); collectImportIssues(rawData); rebuildDerivedState(rawData);
         syncDropdowns(); save(); enterApp(); render(); hideAppLock(); notify('Project Restored Successfully!', 'ok');
       } catch (err) { console.error(err); hideAppLock(); notify('Import failed: ' + err.message, 'err'); }
-    }
+    },
 
-    function exportLogCSV() {
+    exportLogCSV() {
       const lCols = ['ts', 'action', 'taskId', 'taskName', 'field', 'oldVal', 'newVal', 'comment'];
       downloadCSV('activity_log.csv', lCols, P.log.map(l => lCols.map(c => String(l[c] || ''))));
       notify('Log exported', 'ok');
-    }
+    },
 
-    function downloadCSV(fname, headers, rows) { const lines = [headers.map(h => `"${h}"`).join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))]; const blob = new Blob([lines.join('\n')], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = fname; a.click(); URL.revokeObjectURL(url); }
+    downloadCSV(fname, headers, rows) { const lines = [headers.map(h => `"${h },"`).join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))]; const blob = new Blob([lines.join('\n')], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = fname; a.click(); URL.revokeObjectURL(url); }
+    };
+    window.PulseExcel = PulseExcel;
+
+    // Global aliases for backward compatibility
+    function exportProjectExcel(...args) { return PulseExcel.exportProjectExcel(...args); }
+    function exportProjectCSV(...args) { return PulseExcel.exportProjectCSV(...args); }
+    function buildReadmeSheet(...args) { return PulseExcel.buildReadmeSheet(...args); }
+    function buildDataDictionarySheet(...args) { return PulseExcel.buildDataDictionarySheet(...args); }
+    function buildValidationListsSheet(...args) { return PulseExcel.buildValidationListsSheet(...args); }
+    function registerNamedRanges(...args) { return PulseExcel.registerNamedRanges(...args); }
+    function buildHelperMapsSheet(...args) { return PulseExcel.buildHelperMapsSheet(...args); }
+    function buildUnifiedTasksSheet(...args) { return PulseExcel.buildUnifiedTasksSheet(...args); }
+    function applyUnifiedSheetValidations(...args) { return PulseExcel.applyUnifiedSheetValidations(...args); }
+    function buildFeatureRolloutsSheet(...args) { return PulseExcel.buildFeatureRolloutsSheet(...args); }
+    function buildTasksSheet(...args) { return PulseExcel.buildTasksSheet(...args); }
+    function applyTaskSheetValidations(...args) { return PulseExcel.applyTaskSheetValidations(...args); }
+    function applyTaskSheetHelperColumns(...args) { return PulseExcel.applyTaskSheetHelperColumns(...args); }
+    function buildSubtasksSheet(...args) { return PulseExcel.buildSubtasksSheet(...args); }
+    function buildTeamSheet(...args) { return PulseExcel.buildTeamSheet(...args); }
+    function buildDefectsSheet(...args) { return PulseExcel.buildDefectsSheet(...args); }
+    function buildRaidRegisterSheet(...args) { return PulseExcel.buildRaidRegisterSheet(...args); }
+    function buildDecisionLogSheet(...args) { return PulseExcel.buildDecisionLogSheet(...args); }
+    function buildBaselineHistorySheet(...args) { return PulseExcel.buildBaselineHistorySheet(...args); }
+    function buildFeaturesSheet(...args) { return PulseExcel.buildFeaturesSheet(...args); }
+    function buildDropdownsSheet(...args) { return PulseExcel.buildDropdownsSheet(...args); }
+    function buildTemplateSheets(...args) { return PulseExcel.buildTemplateSheets(...args); }
+    function buildRelationSheets(...args) { return PulseExcel.buildRelationSheets(...args); }
+    function buildAppStateSheets(...args) { return PulseExcel.buildAppStateSheets(...args); }
+    function buildExecutiveDashboardSheets(...args) { return PulseExcel.buildExecutiveDashboardSheets(...args); }
+    function applyWorkbookProtectionRules(...args) { return PulseExcel.applyWorkbookProtectionRules(...args); }
+    function generateProjectWorkbook(...args) { return PulseExcel.generateProjectWorkbook(...args); }
+    function importProjectExcel(...args) { return PulseExcel.importProjectExcel(...args); }
+    function applyBackwardCompatibilityMappings(...args) { return PulseExcel.applyBackwardCompatibilityMappings(...args); }
+    function parseAppStateSheets(...args) { return PulseExcel.parseAppStateSheets(...args); }
+    function parseConfigSheets(...args) { return PulseExcel.parseConfigSheets(...args); }
+    function parseCanonicalSheets(...args) { return PulseExcel.parseCanonicalSheets(...args); }
+    function parseRelationSheets(...args) { return PulseExcel.parseRelationSheets(...args); }
+    function parseHelperAwareCanonicalSheets(...args) { return PulseExcel.parseHelperAwareCanonicalSheets(...args); }
+    function normalizeImportedData(...args) { return PulseExcel.normalizeImportedData(...args); }
+    function collectImportIssues(...args) { return PulseExcel.collectImportIssues(...args); }
+    function rebuildDerivedState(...args) { return PulseExcel.rebuildDerivedState(...args); }
+    function reconstructProjectFromBuffer(...args) { return PulseExcel.reconstructProjectFromBuffer(...args); }
+    function exportLogCSV(...args) { return PulseExcel.exportLogCSV(...args); }
+    function downloadCSV(...args) { return PulseExcel.downloadCSV(...args); }
 
     // ══════ MODAL HELPERS ══════
-    function openModal(id) { $id(id).classList.add('open'); }
-    function closeModal(id) { $id(id).classList.remove('open'); }
-    function showConfirm(msg, onOk) {
-      $id('confirm-msg').textContent = msg;
-      $id('confirm-ok').onclick = () => { onOk(); closeModal('confirm-modal'); };
-      openModal('confirm-modal');
-    }
-    window.confirmAction = showConfirm;
-    document.querySelectorAll('.mbg').forEach(bg => { bg.addEventListener('click', e => { if (e.target === bg) bg.classList.remove('open'); }); });
 
     // ══════ PROJECT BOOT ══════
     function startProject() { const name = $id('proj-name').value.trim(); if (!name) { notify('Enter a project name', 'err'); return; } clearProjectState(); P.name = name; P.desc = $id('proj-desc').value; const team = $id('proj-team').value.split(',').map(s => s.trim()).filter(Boolean); team.forEach((name, i) => { P.members.push({ id: 'MEM-' + String(P.nextMemberId++).padStart(3, '0'), name, phone: '', birthday: '', role: '', reportsTo: '', email: '', status: 'Active' }); }); enterApp(); save(); }
@@ -34846,25 +35036,6 @@
 
     // Keyboard shortcuts unified in primary window keydown listener above
 
-    function notify(msg, type = 'ok') {
-      let notifType = 'info';
-      if (type === 'ok') notifType = 'success';
-      else if (type === 'err') notifType = 'error';
-      else if (type === 'warn') notifType = 'warning';
-      
-      const iconHTML = `<span style="font-size:14px;margin-right:6px;">${type === 'ok' ? '✓' : '✕'}</span>`;
-      showNotification(iconHTML + msg, notifType);
-    }
-
-    function toggleFullScreen() {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(err => {
-          notify('Error attempting to enable full-screen mode', 'err');
-        });
-      } else {
-        if (document.exitFullscreen) document.exitFullscreen();
-      }
-    }
 
     // ══════ BOOT ══════
     // ════════════ EXPORT & SHARING ════════════
@@ -35293,66 +35464,6 @@
       });
     }
     // NOTIFICATION QUEUE SYSTEM
-    function showNotification(message, type = 'info', duration = 3000) {
-      const queue = document.getElementById('notification-queue');
-      if (!queue) return;
-
-      const id = 'notif-' + Date.now() + Math.random().toString(36).substr(2, 9);
-      const notif = document.createElement('div');
-      notif.className = `notification-item ${type}`;
-      notif.id = id;
-
-      const content = document.createElement('div');
-      content.className = 'notification-content';
-      content.innerHTML = message;
-
-      const closeBtn = document.createElement('button');
-      closeBtn.className = 'notification-close';
-      closeBtn.innerHTML = '<i data-lucide="x" style="width: 16px; height: 16px;"></i>';
-      closeBtn.onclick = () => dismissNotification(id);
-
-      notif.appendChild(content);
-      notif.appendChild(closeBtn);
-      queue.appendChild(notif);
-
-      if (window.lucide) {
-        lucide.createIcons({ root: notif });
-      }
-
-      // Trigger animation
-      requestAnimationFrame(() => {
-        notif.classList.add('show');
-      });
-
-      // Auto dismiss
-      if (duration > 0) {
-        setTimeout(() => {
-          dismissNotification(id);
-        }, duration);
-      }
-    }
-
-    function dismissNotification(id) {
-      const notif = document.getElementById(id);
-      if (!notif) return;
-
-      notif.classList.remove('show');
-      notif.classList.add('hiding');
-
-      // Remove after animation finishes
-      setTimeout(() => {
-        if (notif.parentNode) {
-          notif.parentNode.removeChild(notif);
-        }
-      }, 400); // matches transition time
-    }
-
-    window.showNotification = showNotification;
-    window.showToast = showNotification; // Alias existing usages
-
-    window.exportProjectExcel = exportProjectExcel;
-    window.exportProjectCSV = exportProjectCSV;
-
     function renderTeamPlannerWidgets() {
       const inner = $id('team-inner'); inner.innerHTML = '';
       $id('v-title').innerHTML = `<i data-lucide="users" style="margin-right:10px"></i> Team & Resource Planner`;
@@ -38074,6 +38185,20 @@
       render();
       notify(`Filtering tasks to focus on ${name}`, 'ok');
     };
+
+    // Global listeners & initializations
+        window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const modals = document.querySelectorAll('.modal-backdrop');
+        modals.forEach(m => closeDynamicModal(m.id));
+      }
+    });
+
+        document.documentElement.setAttribute('data-theme', P.theme);
+
+    document.documentElement.setAttribute('data-color-mode', P.colorMode);
+
+        document.querySelectorAll('.mbg').forEach(bg => { bg.addEventListener('click', e => { if (e.target === bg) bg.classList.remove('open'); }); });
   </script>
 
   <!-- ── SCRIPTS ── -->

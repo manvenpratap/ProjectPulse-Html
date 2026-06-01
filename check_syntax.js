@@ -21,7 +21,7 @@ while ((match = scriptRegex.exec(content)) !== null) {
     errors++;
     const lineInFile = content.substring(0, match.index).split('\n').length;
     console.error(`\n❌ SYNTAX ERROR in script block #${blockNum} (starts at line ~${lineInFile}):`);
-    console.error(`   ${e.message}`);
+    console.error(e.stack || e.message);
   }
 }
 
