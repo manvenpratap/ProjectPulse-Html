@@ -26920,6 +26920,7 @@
     }
 
     function renderAlertsPanel(tab = 'active') {
+      pruneAlertHistory();
       const body = $id('alerts-body');
       const countBadge = $id('alerts-count-badge');
       const all = computeAlerts();
@@ -27002,7 +27003,29 @@
       body.innerHTML = html;
     }
 
+    function pruneAlertHistory() {
+      if (!P.alertHistory) P.alertHistory = [];
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      P.alertHistory = P.alertHistory.filter(h => {
+        if (!h.ts) return false;
+        const pts = new Date(h.ts);
+        return !isNaN(pts.getTime()) && pts >= thirtyDaysAgo;
+      });
+      const activeIds = new Set(computeAlerts().map(a => a.id));
+      const historyIds = new Set(P.alertHistory.map(h => h.alertId));
+      if (P.dismissedAlerts instanceof Set) {
+        P.dismissedAlerts.forEach(id => {
+          if (!activeIds.has(id) && !historyIds.has(id)) {
+            P.dismissedAlerts.delete(id);
+          }
+        });
+      }
+    }
+    window.pruneAlertHistory = pruneAlertHistory;
+
     function dismissAlert(id, outcome = 'Dismissed') {
+      pruneAlertHistory();
       if (!P.dismissedAlerts) P.dismissedAlerts = new Set();
       if (!P.alertHistory) P.alertHistory = [];
 
@@ -32116,6 +32139,7 @@
         });
       }
 
+      pruneAlertHistory();
       syncEffortColumnLabels();
 
       loadCustomLayouts();
