@@ -145,6 +145,22 @@ The global state resides in `const P`. UI state is volatile, while core data and
 }
 ```
 
+### Log
+```typescript
+{
+  ts: string,                 // ISO Timestamp (e.g. "2026-06-04T12:00:00Z")
+  user: string,               // Member name who performed the action
+  action: string,             // "Created" | "Updated" | "Status Changed" | "Deleted"
+  taskId: string,             // Associated Task ID
+  taskName: string,           // Associated Task name
+  field: string,              // Mapped field name (e.g. "status", "dueDate", "actCompletionDate", "subtask.status")
+  oldVal: string,             // Old value
+  newVal: string,             // New value
+  subtaskId: string,          // Optional. Associated Subtask ID
+  actCompletionDate: string   // Optional. Retrospective actual completion date (YYYY-MM-DD)
+}
+```
+
 ---
 
 ## 4. Core Function Registry
@@ -217,3 +233,7 @@ Status transitions must strictly match the following mapping. Comment logging is
   - Increased Defect Inflow Trend widget analysis scale to 7 weeks and updated metric guides in the Help Modal.
   - Persisted Local Folder Sync Path directory name to the Excel System State sheet, allowing auto-restoration of File System Access directory handles on workbook import.
   - Added calculations for Health Index and Delivery Confidence to "How this view works" Help Guide modal.
+* **📅 [2026-06-04] Retrospective Completion Tracking**:
+  - Implemented `getLogActivityDate(l)` and `getLogActivityDateStr(l)` date normalization helpers to resolve activity dates retrospectively using `actCompletionDate` fields.
+  - Enhanced `addLog` to accept and serialize custom completion metadata (`subtaskId`, `actCompletionDate`).
+  - Rewrote 30-Day Activity timeline, recent activity widgets, member contribution heatmaps, weekly velocity dashboards, health metrics log replay (`calculateSparklineData`), and status reports (`autoPopulateReport`) to query log histories via resolved activity dates instead of log insertion timestamps.

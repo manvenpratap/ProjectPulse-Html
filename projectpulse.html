@@ -10795,6 +10795,60 @@
     }
     window.resolveColor = resolveColor;
 
+    function getLogActivityDate(l) {
+      if (!l) return new Date();
+      let dStr = '';
+      if (l.actCompletionDate) {
+        dStr = l.actCompletionDate;
+      } else {
+        const stateP = typeof PulseState !== 'undefined' ? PulseState.P : (typeof P !== 'undefined' ? P : null);
+        if (stateP && stateP.tasks) {
+          if (l.action === 'Status Changed' && l.newVal === 'Completed') {
+            const t = stateP.tasks.find(x => x.id === l.taskId);
+            if (t && t.actCompletionDate) dStr = t.actCompletionDate;
+          } else if (l.field === 'subtask.status' && l.newVal === 'Completed') {
+            const t = stateP.tasks.find(x => x.id === l.taskId);
+            if (t && t.subtasks) {
+              if (l.subtaskId) {
+                const st = t.subtasks.find(s => s.id === l.subtaskId);
+                if (st && st.actCompletionDate) dStr = st.actCompletionDate;
+              }
+              if (!dStr) {
+                const completedSubtasks = t.subtasks.filter(s => s.status === 'Completed' && s.actCompletionDate);
+                if (completedSubtasks.length > 0) dStr = completedSubtasks[0].actCompletionDate;
+              }
+            }
+          }
+        }
+      }
+      if (!dStr && l.field === 'actCompletionDate' && l.newVal) {
+        dStr = l.newVal;
+      }
+      if (!dStr) {
+        dStr = l.ts ? l.ts.split('T')[0] : new Date().toISOString().split('T')[0];
+      }
+      return new Date(dStr);
+    }
+    window.getLogActivityDate = getLogActivityDate;
+
+    function getLogActivityDateStr(l) {
+      const d = getLogActivityDate(l);
+      return d.toISOString().split('T')[0];
+    }
+    window.getLogActivityDateStr = getLogActivityDateStr;
+
+    function isTaskCompletionLog(l) {
+      if (!l) return false;
+      if (l.subtaskId || (l.field && l.field.startsWith('subtask.'))) return false;
+      const isStatusCompleted = (l.action === 'Status Changed' && l.newVal === 'Completed') ||
+                                (l.field && l.field.toLowerCase() === 'status' && l.newVal === 'Completed') ||
+                                (l.details && l.details.includes('Status: Completed'));
+      return !!isStatusCompleted;
+    }
+    window.isTaskCompletionLog = isTaskCompletionLog;
+
+
+
     // ── PROJECT PULSE CONSTANTS SYSTEM ──
     const PulseConstants = {
       CC: ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899', '#14b8a6', '#f97316', '#8b5cf6', '#06b6d4'],
@@ -10950,8 +11004,8 @@
 
       // 2. Pre-sort logs and build per-task lookup indices
       const sortedLogs = [...(logs || [])]
-        .filter(l => l.ts && l.taskId)
-        .sort((a, b) => new Date(a.ts) - new Date(b.ts));
+        .filter(l => l.taskId)
+        .sort((a, b) => getLogActivityDate(a) - getLogActivityDate(b));
 
       const statusLogsByTask = {};
       const dueDateLogsByTask = {};
@@ -10979,7 +11033,7 @@
         let status = 'Not Started';
         const sLogs = statusLogsByTask[task.id] || [];
         for (let i = sLogs.length - 1; i >= 0; i--) {
-          if (new Date(sLogs[i].ts) <= atDate) {
+          if (getLogActivityDate(sLogs[i]) <= atDate) {
             status = sLogs[i].newVal || status;
             break;
           }
@@ -10989,7 +11043,7 @@
         let dueDate = task.dueDate;
         const dLogs = dueDateLogsByTask[task.id] || [];
         for (let i = dLogs.length - 1; i >= 0; i--) {
-          if (new Date(dLogs[i].ts) <= atDate) {
+          if (getLogActivityDate(dLogs[i]) <= atDate) {
             dueDate = dLogs[i].newVal || dueDate;
             break;
           }
@@ -11089,6 +11143,286 @@
       }
       return d;
     }
+
+    // ── PROJECT PULSE FORECAST ENGINE ──
+    const PulseForecastEngine = {
+      calculateForecast(tasks, log, members = null) {
+        const remTasks = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled');
+        
+        const fourWeeksAgo = new Date();
+        fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+        
+        const recentLogs = log.filter(l => {
+          if (!isTaskCompletionLog(l)) return false;
+          const ts = getLogActivityDate(l);
+          return ts >= fourWeeksAgo && ts <= new Date();
+        });
+
+        const completedTaskIds = [...new Set(recentLogs.map(l => l.taskId))];
+        let totalCompletedEffort = 0;
+        completedTaskIds.forEach(id => {
+          const t = tasks.find(x => x.id === id);
+          if (t) {
+            totalCompletedEffort += parseFloat(t.estEffort) || 8;
+          } else {
+            totalCompletedEffort += 8;
+          }
+        });
+
+        let capacityFactor = 1.0;
+        if (members && Array.isArray(members) && P.members && P.members.length > 0) {
+          const baseActiveCount = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').length || 1;
+          const activeCount = members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').length || 1;
+          capacityFactor = activeCount / baseActiveCount;
+        }
+
+        const weeklyVelocity = (totalCompletedEffort / 4 || 10) * capacityFactor;
+        const remainingEffort = remTasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 8), 0);
+        const weeksRemaining = weeklyVelocity > 0 ? (remainingEffort / weeklyVelocity) : 0;
+        const forecastFinish = new Date();
+        forecastFinish.setDate(forecastFinish.getDate() + Math.round(weeksRemaining * 7));
+
+        return {
+          weeklyVelocity,
+          remainingEffort,
+          weeksRemaining,
+          forecastFinish
+        };
+      },
+
+      runUnifiedMonteCarlo(tasks, weeklyVelocity, remainingEffort, iterations = 100) {
+        const vel = weeklyVelocity || 10;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const cacheKey = `${vel.toFixed(4)}_${remainingEffort.toFixed(4)}_${today.getTime()}`;
+        if (this._cache && this._cache.key === cacheKey) {
+          return {
+            p10: new Date(this._cache.value.p10),
+            p50: new Date(this._cache.value.p50),
+            p90: new Date(this._cache.value.p90)
+          };
+        }
+
+        const simEndDates = [];
+        for (let i = 0; i < iterations; i++) {
+          const r = 0.8 + Math.random() * 0.4;
+          const simVel = vel * r;
+          const simWeeks = simVel > 0 ? (remainingEffort / simVel) : 0;
+          const simEnd = new Date(today.getTime() + simWeeks * 7 * 864e5);
+          simEndDates.push(simEnd);
+        }
+
+        simEndDates.sort((a, b) => a - b);
+        
+        const result = {
+          p10: simEndDates[Math.floor(iterations * 0.10)],
+          p50: simEndDates[Math.floor(iterations * 0.50)],
+          p90: simEndDates[Math.floor(iterations * 0.90)]
+        };
+
+        this._cache = {
+          key: cacheKey,
+          value: {
+            p10: result.p10.getTime(),
+            p50: result.p50.getTime(),
+            p90: result.p90.getTime()
+          }
+        };
+
+        return result;
+      },
+
+      calculateConfidence(forecastFinish, targetFinish, startProjectDate) {
+        if (!forecastFinish || !targetFinish) return 88;
+        const daysVariance = Math.round((forecastFinish - targetFinish) / 864e5);
+        if (daysVariance <= 0) return 95;
+
+        const totalDuration = Math.max(1, Math.round((targetFinish - startProjectDate) / 864e5));
+        const confidence = Math.max(30, Math.min(95, 100 - Math.round((daysVariance / totalDuration) * 100)));
+        return confidence;
+      },
+
+      showExplainerModal() {
+        let modal = document.getElementById('forecast-explainer-modal');
+        if (!modal) {
+          modal = document.createElement('div');
+          modal.id = 'forecast-explainer-modal';
+          modal.className = 'ai-modal';
+          document.body.appendChild(modal);
+        }
+        
+        const tasks = P.tasks;
+        const fc = PulseForecastEngine.calculateForecast(tasks, P.log);
+        const mc = PulseForecastEngine.runUnifiedMonteCarlo(tasks, fc.weeklyVelocity, fc.remainingEffort, 100);
+        
+        const totalTasks = tasks.length;
+        const completedTasks = tasks.filter(t => t.status === 'Completed').length;
+        const remainingTasks = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
+        
+        const totalEffort = tasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 8), 0);
+        const completedEffort = tasks.filter(t => t.status === 'Completed').reduce((s, t) => s + (parseFloat(t.estEffort) || 8), 0);
+        const remainingEffort = fc.remainingEffort;
+        
+        const weeklyVelocity = fc.weeklyVelocity;
+        const weeksRemaining = fc.weeksRemaining;
+        
+        const startDates = tasks.map(t => new Date(t.startDate)).filter(d => !isNaN(d.getTime()));
+        const endDates = tasks.map(t => new Date(t.dueDate)).filter(d => !isNaN(d.getTime()));
+        const start = startDates.length ? new Date(Math.min(...startDates)) : new Date();
+        const targetFinish = endDates.length ? new Date(Math.max(...endDates)) : new Date(start.getTime() + 30 * 864e5);
+        
+        modal.innerHTML = `
+          <div class="ai-modal-backdrop" onclick="PulseForecastEngine.closeExplainerModal()"></div>
+          <div class="ai-modal-content" style="max-width: 650px; width: 90%; background: var(--color-surface-1); border: 1px solid var(--color-divider); border-radius: 16px; padding: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); color: var(--color-text); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10000; font-family: var(--font-sans); box-sizing: border-box;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--color-divider); padding-bottom:12px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div style="background: rgba(99,102,241,0.1); color: var(--color-primary); padding: 8px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-brain-circuit"><path d="M12 2a3 3 0 0 0-3 3v2c0 1.1.9 2 2 2h2a2 2 0 0 0 2-2V5a3 3 0 0 0-3-3Z"/><path d="M19 8h-2a3 3 0 0 0-3 3v2c0 1.1.9 2 2 2h2a2 2 0 0 0 2-2v-2a3 3 0 0 0-3-3Z"/><path d="M5 8h2a3 3 0 0 1 3 3v2c0 1.1-.9 2-2 2H5a2 2 0 0 1-2-2v-2a3 3 0 0 1 3-3Z"/><path d="M12 15v5a2 2 0 0 1-2 2H8"/><path d="M12 18H8"/></svg>
+                </div>
+                <h3 style="margin:0; font-size:16px; font-weight:800;">Predictive Date Forecast Explainer</h3>
+              </div>
+              <button onclick="PulseForecastEngine.closeExplainerModal()" style="background:none; border:none; color:var(--color-text-muted); cursor:pointer; font-size:24px; line-height: 1; padding: 0;">&times;</button>
+            </div>
+            
+            <div style="display:flex; flex-direction:column; gap:16px; max-height:450px; overflow-y:auto; padding-right:8px;">
+              <div style="background: var(--color-surface-2); padding: 14px; border-radius: 10px; border: 1px solid var(--color-divider);">
+                <div style="font-weight: 700; font-size: 13px; margin-bottom: 6px; display:flex; justify-content:space-between;">
+                  <span>1. Effort Backlog (Remaining Scope)</span>
+                  <span style="font-family: var(--font-mono); color: var(--color-primary);">${remainingEffort.toFixed(1)} pd</span>
+                </div>
+                <div style="font-size: 11px; color: var(--color-text-muted); line-height: 1.4;">
+                  Calculated by summing the estimated effort of all active (incomplete and non-cancelled) tasks.
+                  <br>• Total Project Scope: <strong>${totalEffort.toFixed(1)} pd</strong> (${totalTasks} tasks)
+                  <br>• Completed Scope: <strong>${completedEffort.toFixed(1)} pd</strong> (${completedTasks} tasks)
+                  <br>• Remaining Backlog: <strong>${remainingEffort.toFixed(1)} pd</strong> (${remainingTasks} tasks)
+                </div>
+              </div>
+
+              <div style="background: var(--color-surface-2); padding: 14px; border-radius: 10px; border: 1px solid var(--color-divider);">
+                <div style="font-weight: 700; font-size: 13px; margin-bottom: 6px; display:flex; justify-content:space-between;">
+                  <span>2. Weekly Team Velocity</span>
+                  <span style="font-family: var(--font-mono); color: var(--green);">${weeklyVelocity.toFixed(1)} pd/week</span>
+                </div>
+                <div style="font-size: 11px; color: var(--color-text-muted); line-height: 1.4;">
+                  Derived from completed task effort units over the past 4 weeks (sprints). Defaults to 10.0 units/week if no data exists.
+                  <br>• Calculated Velocity: <strong>${weeklyVelocity.toFixed(1)} pd/week</strong>
+                </div>
+              </div>
+
+              <div style="background: var(--color-surface-2); padding: 14px; border-radius: 10px; border: 1px solid var(--color-divider);">
+                <div style="font-weight: 700; font-size: 13px; margin-bottom: 6px;">
+                  3. Likely Finish Date (P50) Formula
+                </div>
+                <div style="background: var(--color-bg); padding: 8px; border-radius: 6px; font-family: var(--font-mono); font-size: 11px; margin-bottom: 8px; text-align: center; border: 1px solid var(--color-border-faint); line-height: 1.4;">
+                  Weeks Remaining = Backlog Effort / Weekly Velocity
+                  <br>Likely Finish = Today + (Weeks Remaining * 7 days)
+                </div>
+                <div style="font-size: 11px; color: var(--color-text-muted); line-height: 1.4;">
+                  • Weeks Remaining: ${remainingEffort.toFixed(1)} / ${weeklyVelocity.toFixed(1)} = <strong>${weeksRemaining.toFixed(2)} weeks</strong>
+                  <br>• Likely Finish (P50): <strong>${fc.forecastFinish.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</strong>
+                </div>
+              </div>
+
+              <div style="background: var(--color-surface-2); padding: 14px; border-radius: 10px; border: 1px solid var(--color-divider);">
+                <div style="font-weight: 700; font-size: 13px; margin-bottom: 6px;">
+                  4. Monte Carlo Percentiles (P10 vs p50 vs P90)
+                </div>
+                <div style="font-size: 11px; color: var(--color-text-muted); line-height: 1.4; margin-bottom: 8px;">
+                  Runs a 100-pass simulation of the project timeline, applying a random weekly velocity variation (from 80% to 120% of base velocity) in each pass.
+                </div>
+                <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;">
+                  <div style="padding:8px; background:var(--color-bg); border-radius:6px; text-align:center; border-left:3px solid var(--color-primary);">
+                    <div style="font-size:9px; font-weight:700; color:var(--color-text-faint);">P10 (Aggressive)</div>
+                    <div style="font-size:11px; font-weight:800; margin-top:2px;">${mc.p10.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
+                  </div>
+                  <div style="padding:8px; background:var(--color-bg); border-radius:6px; text-align:center; border-left:3px solid var(--amber);">
+                    <div style="font-size:9px; font-weight:700; color:var(--color-text-faint);">P50 (Likely)</div>
+                    <div style="font-size:11px; font-weight:800; margin-top:2px;">${mc.p50.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
+                  </div>
+                  <div style="padding:8px; background:var(--color-bg); border-radius:6px; text-align:center; border-left:3px solid #8b5cf6;">
+                    <div style="font-size:9px; font-weight:700; color:var(--color-text-faint);">P90 (Conservative)</div>
+                    <div style="font-size:11px; font-weight:800; color:#8b5cf6; margin-top:2px;">${mc.p90.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="background: var(--color-surface-2); padding: 14px; border-radius: 10px; border: 1px solid var(--color-divider);">
+                <div style="font-weight: 700; font-size: 13px; margin-bottom: 8px;">
+                  5. Cross-Widget Verification Dates
+                </div>
+                <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left;">
+                  <thead>
+                    <tr style="border-bottom:1px solid var(--color-divider); color:var(--color-text-faint);">
+                      <th style="padding:4px 0;">Widget/View</th>
+                      <th style="padding:4px 0;">P50 Date</th>
+                      <th style="padding:4px 0;">P90 Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style="border-bottom:1px solid var(--color-divider);">
+                      <td style="padding:6px 0; font-weight:600;">Dashboard ETA</td>
+                      <td style="padding:6px 0;">${fc.forecastFinish.toLocaleDateString()}</td>
+                      <td style="padding:6px 0; color:#8b5cf6;">${mc.p90.toLocaleDateString()}</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--color-divider);">
+                      <td style="padding:6px 0; font-weight:600;">PMO Steering Card</td>
+                      <td style="padding:6px 0;">${fc.forecastFinish.toLocaleDateString()}</td>
+                      <td style="padding:6px 0; color:#8b5cf6;">${mc.p90.toLocaleDateString()}</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid var(--color-divider);">
+                      <td style="padding:6px 0; font-weight:600;">Gantt Simulation Summary</td>
+                      <td style="padding:6px 0;">${fc.forecastFinish.toLocaleDateString()}</td>
+                      <td style="padding:6px 0; color:#8b5cf6;">${mc.p90.toLocaleDateString()}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:6px 0; font-weight:600;">What-If Baseline</td>
+                      <td style="padding:6px 0;">${fc.forecastFinish.toLocaleDateString()}</td>
+                      <td style="padding:6px 0; color:#8b5cf6;">${mc.p90.toLocaleDateString()}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div style="font-size: 10px; color: var(--color-text-faint); margin-top: 8px; font-style: italic;">
+                  Note: All forecasting components are unified under the shared 'PulseForecastEngine' using the full project scope tasks list, ensuring absolute date consistency.
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        if (!document.getElementById('forecast-explainer-styles')) {
+          const style = document.createElement('style');
+          style.id = 'forecast-explainer-styles';
+          style.innerHTML = `
+            .ai-modal {
+              position: fixed;
+              top: 0;
+              left: 0;
+              width: 100%;
+              height: 100%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              z-index: 9999;
+            }
+            .ai-modal-backdrop {
+              position: absolute;
+              width: 100%;
+              height: 100%;
+              background: rgba(0, 0, 0, 0.6);
+              backdrop-filter: blur(4px);
+            }
+          `;
+          document.head.appendChild(style);
+        }
+      },
+
+      closeExplainerModal() {
+        const modal = document.getElementById('forecast-explainer-modal');
+        if (modal) modal.remove();
+      }
+    };
+    window.PulseForecastEngine = PulseForecastEngine;
 
     // ── PROJECT PULSE DASHBOARD SYSTEM ──
     const PulseDashboard = {
@@ -11682,6 +12016,54 @@
     const syncEffortColumnLabels = PulseScheduler.syncEffortColumnLabels;
     const addBusDays = PulseScheduler.addBusDays;
     const getNextBusDay = PulseScheduler.getNextBusDay;
+
+    PulseScheduler.recalcGUIScreen = function (st) {
+      if (!st.workflow || !st.workflow.length) return;
+
+      const compFactor = (P.complexityFactors && st.complexity) ? (P.complexityFactors[st.complexity] || 1) : 1;
+
+      let runningDate = st.startDate || todayStr();
+      st.workflow.forEach(s => {
+        s.startDate = runningDate;
+        const e = (s.effort || 1) * compFactor;
+        s.dueDate = addBusDays(runningDate, Math.ceil(e));
+        runningDate = s.dueDate;
+
+        if ((s.status === 'Completed' || s.done) && s.actCompletionDate && s.startDate) {
+          s.actEffort = getBusinessDays(s.startDate, s.actCompletionDate);
+        } else {
+          s.actEffort = 0;
+        }
+      });
+
+      const totalEffort = st.workflow.reduce((sum, s) => sum + ((s.effort || 1) * compFactor), 0);
+      const doneEffort = st.workflow.filter(s => s.status === 'Completed' || s.done).reduce((sum, s) => sum + ((s.effort || 1) * compFactor), 0);
+      const totalActual = st.workflow.reduce((sum, s) => sum + (s.actEffort || 0), 0);
+
+      st.effort = totalEffort;
+      st.actEffort = totalActual;
+      st.progress = Math.round((doneEffort / totalEffort) * 100);
+      st.status = st.progress === 100 ? 'Completed' : st.progress > 0 ? 'In Progress' : 'Not Started';
+      st.dueDate = runningDate;
+    };
+
+    PulseScheduler.getBusinessDays = function (startDate, endDate) {
+      if (!startDate || !endDate) return 0;
+      let start = new Date(startDate);
+      let end = new Date(endDate);
+      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return 0;
+      let count = 0;
+      let cur = new Date(start);
+      while (cur <= end) {
+        if (isWorkDay(cur)) count++;
+        cur.setDate(cur.getDate() + 1);
+      }
+      return convertDaysToEffort(Math.max(0.1, count));
+    };
+
+    const recalcGUIScreen = PulseScheduler.recalcGUIScreen;
+    const getBusinessDays = PulseScheduler.getBusinessDays;
+    window.getBusinessDays = getBusinessDays;
     const CC = PulseConstants.CC;
     // Legacy globals (pointing to current state for compat)
     let STATUSES = [];
@@ -12273,6 +12655,463 @@
         const dLType = stateP.defCols.find(c => c.key === 'linkedType'); if (dLType) dLType.opts = ['Task', 'Subtask', 'Screen'];
         const dAsg = stateP.defCols.find(c => c.key === 'assignee'); if (dAsg) dAsg.opts = stateP.members.map(m => m.name);
         const dRep = stateP.defCols.find(c => c.key === 'reporter'); if (dRep) dRep.opts = stateP.members.map(m => m.name);
+      },
+      addLog(action, taskId, taskName, field, oldVal, newVal, comment, subtaskId, actCompletionDate) {
+        const stateP = PulseState.P;
+        let mod = '', ass = '';
+        const t = stateP.tasks.find(x => x.id === taskId);
+        if (t) { mod = t.module; ass = t.assignee; }
+        stateP.log.push({ 
+          ts: nowISO(), 
+          user: ass || 'System',
+          action, 
+          taskId, 
+          taskName, 
+          field: field || '', 
+          oldVal: oldVal || '', 
+          newVal: newVal || '', 
+          comment: comment || '', 
+          module: mod || 'General', 
+          assignee: ass || 'Unassigned',
+          subtaskId: subtaskId || '',
+          actCompletionDate: actCompletionDate || (field === 'actCompletionDate' ? newVal : '')
+        });
+        save();
+        const cnt = stateP.log.filter(l => l.ts && typeof l.ts === 'string' && l.ts.startsWith(todayStr())).length;
+        ['log-badge', 'log-badge-mobile'].forEach(id => {
+          const b = $id(id);
+          if (b) {
+            if (cnt > 0) { b.style.display = ''; b.textContent = cnt; }
+            else b.style.display = 'none';
+          }
+        });
+      },
+      migrateLogs() {
+        const stateP = PulseState.P;
+        let changed = false;
+        stateP.log.forEach(l => {
+          let oldField = l.field;
+          let oldAssignee = l.assignee;
+          let oldModule = l.module;
+          let oldUser = l.user;
+
+          if (!l.field) {
+            if (l.action === 'Status Changed') l.field = 'status';
+            else if (l.action === 'Comment Added' || l.type === 'Comment') l.field = 'comment';
+            else l.field = '';
+          }
+
+          const t = stateP.tasks.find(x => x.id === l.taskId);
+
+          if (!l.assignee || l.assignee === 'Unassigned' || l.assignee === 'System') {
+            l.assignee = l.member || (t && t.assignee ? t.assignee : 'Unassigned');
+          }
+          if (!l.module || l.module === 'General') {
+            l.module = (t && t.module ? t.module : 'General');
+          }
+          if (!l.user) {
+            l.user = l.assignee !== 'Unassigned' ? l.assignee : (l.member || 'System');
+          }
+
+          if (oldField !== l.field || oldAssignee !== l.assignee || oldModule !== l.module || oldUser !== l.user) {
+            changed = true;
+          }
+        });
+        if (changed) save();
+      },
+      applyWorkflowTemplate(task, screenName = null) {
+        const stateP = PulseState.P;
+        if (screenName) {
+          if (!task.category || task.category === 'Feature') {
+            task.category = (task.moduleType === 'GUI') ? 'GUI Module' : (task.moduleType === 'Server' ? 'Server Module' : 'Feature');
+          }
+          const tpl = (stateP.stepTemplates || []).find(tp => tp.category === 'GUI Screen');
+          if (tpl) {
+            const isDone = task.status === 'Completed';
+            const screenSub = {
+              id: 'ST-' + String(stateP.nextSubId++).padStart(3, '0'),
+              name: screenName,
+              windowName: screenName,
+              type: 'screen',
+              category: 'GUI Screen',
+              workflow: tpl.steps.map(s => ({
+                name: typeof s === 'string' ? s : s.name,
+                effort: typeof s === 'string' ? 1 : (s.effort || 1),
+                done: isDone,
+                status: isDone ? 'Completed' : 'Not Started',
+                actCompletionDate: isDone ? (task.actCompletionDate || todayStr()) : ''
+              })),
+              priority: task.priority || 'Medium',
+              complexity: task.complexity || 'Medium',
+              assignee: task.assignee || '',
+              startDate: task.startDate || todayStr(),
+              dueDate: task.dueDate || todayStr()
+            };
+            if (!task.subtasks) task.subtasks = [];
+            task.subtasks.push(screenSub);
+            recalcGUIScreen(screenSub);
+          }
+        } else {
+          PulseState.syncTaskToTemplate(task);
+        }
+      },
+      validateTaskData(data, isEdit = false, existingTask = null) {
+        const errors = [];
+        if (!data.name || !data.name.trim()) errors.push('Task name is required.');
+        if (!data.module || !data.module.trim()) errors.push('Module selection is required.');
+        if (!data.moduleType || !data.moduleType.trim()) errors.push('Module Type is required.');
+        if (!data.startDate) errors.push('Start Date is required.');
+        if (!data.dueDate) errors.push('Due Date is required.');
+        if (data.startDate && data.dueDate && new Date(data.startDate) > new Date(data.dueDate)) {
+          errors.push('Start Date cannot be after Due Date.');
+        }
+        if (data.actCompletionDate && data.startDate && new Date(data.actCompletionDate) < new Date(data.startDate)) {
+          errors.push('Actual Completion Date cannot be before Start Date.');
+        }
+        return errors;
+      },
+      getTaskDerivedStatus(t) {
+        const subs = t.subtasks || [];
+        if (!subs.length) return t.status;
+        const total = subs.length;
+        const completed = subs.filter(s => s.status === 'Completed').length;
+        const cancelled = subs.filter(s => s.status === 'Cancelled').length;
+        if (completed + cancelled === total) return 'Completed';
+        const current = subs.find(s => ['In Progress', 'Under Review', 'On Hold'].includes(s.status));
+        if (current) return current.status;
+        const next = subs.find(s => s.status === 'Not Started');
+        if (next) return 'Not Started';
+        return t.status;
+      },
+      createTask(data) {
+        const stateP = PulseState.P;
+        const id = 'TASK-' + String(stateP.nextTaskId++).padStart(3, '0');
+        if (data.status === 'Completed') {
+          if (data.progress < 100) data.progress = 100;
+          if (!data.actCompletionDate) data.actCompletionDate = new Date().toISOString().split('T')[0];
+        }
+        if (data.guiScreens && data.guiScreens.length > 0) data.category = 'GUI Screen';
+        if (data.moduleType === 'GUI') data.category = 'GUI Module';
+        else if (data.moduleType === 'Server') data.category = 'Server Module';
+        const task = {
+          id,
+          createdAt: nowISO(),
+          updatedAt: nowISO(),
+          module: data.module || 'General',
+          moduleType: data.moduleType || 'Other',
+          ...data,
+          complexity: data.complexity || 'Medium',
+          progress: parseInt(data.progress) || 0,
+          estEffort: parseFloat(data.estEffort) || 0,
+          baseEstEffort: parseFloat(data.estEffort) || 0,
+          actEffort: parseFloat(data.actEffort) || 0,
+          dependsOn: data.dependsOn || [],
+          subtasks: data.subtasks || []
+        };
+        if (data.updatedAt) task.updatedAt = data.updatedAt;
+        stateP.customFields.forEach(cf => { if (!(cf.name in task)) task[cf.name] = data[cf.name] || ''; });
+
+        PulseState.syncTaskToTemplate(task);
+
+        stateP.tasks.push(task);
+        PulseState.addLog('Created', id, task.name);
+        save();
+        return task;
+      },
+      smartSyncWorkflow(existing, oldSteps, newSteps, itemFactory) {
+        const updated = [];
+        const claimedExisting = new Set();
+
+        // 1. Exact Name Match (Highest priority)
+        newSteps.forEach((nStep, nIdx) => {
+          const nName = typeof nStep === 'string' ? nStep : nStep.name;
+          const matchIdx = existing.findIndex((e, eIdx) => !claimedExisting.has(eIdx) && e.name === nName);
+          if (matchIdx > -1) {
+            updated[nIdx] = { ...existing[matchIdx], effort: nStep.effort || existing[matchIdx].effort || 1 };
+            claimedExisting.add(matchIdx);
+          }
+        });
+
+        // 2. Relative Position Matching for Remaining
+        newSteps.forEach((nStep, nIdx) => {
+          if (updated[nIdx]) return;
+          const oldStepName = oldSteps && oldSteps[nIdx] ? (typeof oldSteps[nIdx] === 'string' ? oldSteps[nIdx] : oldSteps[nIdx].name) : null;
+          if (oldStepName) {
+            const matchIdx = existing.findIndex((e, eIdx) => !claimedExisting.has(eIdx) && e.name === oldStepName);
+            if (matchIdx > -1) {
+              updated[nIdx] = { ...existing[matchIdx], name: typeof nStep === 'string' ? nStep : nStep.name, effort: nStep.effort || 1 };
+              claimedExisting.add(matchIdx);
+              return;
+            }
+          }
+          const unclaimedIdx = existing.findIndex((e, eIdx) => !claimedExisting.has(eIdx));
+          if (unclaimedIdx > -1) {
+            updated[nIdx] = { ...existing[unclaimedIdx], name: typeof nStep === 'string' ? nStep : nStep.name, effort: nStep.effort || 1 };
+            claimedExisting.add(unclaimedIdx);
+          }
+        });
+
+        // 3. New Steps
+        newSteps.forEach((nStep, nIdx) => {
+          if (!updated[nIdx]) {
+            updated[nIdx] = itemFactory(nStep);
+          }
+        });
+
+        return updated;
+      },
+      syncTaskToTemplate(task, oldTpl = null, forceCategory = null) {
+        const stateP = PulseState.P;
+        if (!task) return;
+        const catToSync = forceCategory || task.category;
+        if (!catToSync) return;
+        const tpl = (stateP.stepTemplates || []).find(tp => tp.category === catToSync);
+        if (!tpl) return;
+
+        const oldSteps = oldTpl ? oldTpl.steps : null;
+
+        if (catToSync === 'GUI Screen') {
+          if (task.subtasks) {
+            task.subtasks.forEach(st => {
+              if (st.type === 'screen') {
+                const existing = st.workflow || [];
+                st.workflow = PulseState.smartSyncWorkflow(existing, oldSteps, tpl.steps, (step) => ({
+                  name: step.name,
+                  effort: step.effort || 1,
+                  done: false,
+                  status: 'Not Started',
+                  actCompletionDate: ''
+                }));
+                recalcGUIScreen(st);
+              }
+            });
+          }
+        } else {
+          const existing = task.subtasks || [];
+          task.subtasks = PulseState.smartSyncWorkflow(existing, oldSteps, tpl.steps, (step) => ({
+            id: 'ST-' + String(stateP.nextSubId++).padStart(3, '0'),
+            name: step.name,
+            status: 'Not Started',
+            progress: 0,
+            assignee: task.assignee || '',
+            effort: step.effort || 1,
+            actEffort: 0,
+            startDate: task.startDate || todayStr(),
+            dueDate: task.dueDate || todayStr()
+          }));
+        }
+        recalcDatesAndStatus(task);
+      },
+      syncAllTasksToTemplate(category) {
+        const stateP = PulseState.P;
+        if (!category) return;
+        stateP.tasks.forEach(t => {
+          if (t.category === category || (category === 'GUI Screen' && t.subtasks && t.subtasks.some(st => st.type === 'screen'))) {
+            PulseState.syncTaskToTemplate(t, null, category);
+          }
+        });
+        render();
+      },
+      updateField(taskId, field, newVal, comment) {
+        const stateP = PulseState.P;
+        const task = stateP.tasks.find(t => t.id === taskId); if (!task) return false;
+        const oldVal = task[field]; if (String(oldVal) === String(newVal)) return true;
+
+        if (field === 'name' && (!newVal || !String(newVal).trim())) { notify('Task name cannot be empty', 'err'); return false; }
+        if (field === 'module' && (!newVal || !String(newVal).trim())) { notify('Module is required', 'err'); return false; }
+        if (field === 'moduleType' && (!newVal || !String(newVal).trim())) { notify('Module Type is required', 'err'); return false; }
+
+        if (field === 'progress') {
+          const p = parseInt(newVal);
+          if (isNaN(p) || p < 0 || p > 100) { notify('Progress must be between 0% and 100%', 'err'); return false; }
+          newVal = p;
+        }
+
+        if (field === 'estEffort' && newVal !== '' && newVal !== undefined) {
+          const e = parseFloat(newVal);
+          if (isNaN(e) || e < 0) { notify('Estimated effort cannot be negative', 'err'); return false; }
+        }
+
+        if (field === 'actCompletionDate' && newVal && task.startDate && new Date(newVal) < new Date(task.startDate)) {
+          notify('Completion date cannot be before start date (' + task.startDate + ')', 'err'); return false;
+        }
+
+        if (field === 'status') {
+          const valid = VALID_TRANSITIONS[oldVal];
+          if (valid && !valid.includes(newVal)) { notify(`Cannot transition from "${oldVal}" to "${newVal}"`, 'err'); return false; }
+          if (COMMENT_REQUIRED.includes(newVal) && !comment) { stateP._pendingComment = { taskId, field, newVal }; $id('comment-title').textContent = newVal === 'On Hold' ? 'Reason for Hold' : 'Reason for Cancellation'; $id('comment-label').textContent = `Why is "${task.name}" being ${newVal === 'On Hold' ? 'put on hold' : 'cancelled'}?`; $id('comment-text').value = ''; $id('comment-modal').classList.add('open'); return false; }
+        }
+        if (field === 'dueDate' && task.startDate && newVal && new Date(newVal) < new Date(task.startDate)) { notify('Due date cannot be before start date', 'err'); return false; }
+        if (field === 'startDate' && task.dueDate && newVal && new Date(newVal) > new Date(task.dueDate)) { notify('Start date cannot be after due date', 'err'); return false; }
+        if (field === 'status' && ['In Progress', 'Under Review', 'Completed'].includes(newVal)) {
+          const deps = Array.isArray(task.dependsOn) ? task.dependsOn : (task.dependsOn ? String(task.dependsOn).split(',').map(s => s.trim()).filter(Boolean) : []);
+          const blocked = deps.filter(depId => { const dep = stateP.tasks.find(t => t.id === depId); return dep && dep.status !== 'Completed'; });
+          if (blocked.length) { notify(`Blocked by: ${blocked.join(', ')}. Complete dependencies first.`, 'err'); return false; }
+        }
+        if (field === 'dependsOn' && typeof newVal === 'string') {
+          newVal = newVal.split(',').map(s => s.trim()).filter(Boolean);
+        }
+        task[field] = newVal;
+        if (field === 'category') PulseState.syncTaskToTemplate(task);
+        task.updatedAt = nowISO();
+
+        if (field === 'startDate') {
+          if (task.estEffort) task.dueDate = addBusDays(newVal, task.estEffort);
+          if (task.actCompletionDate) task.actEffort = getBusinessDays(newVal, task.actCompletionDate);
+        } else if (field === 'estEffort') {
+          task.baseEstEffort = parseFloat(newVal) || 0;
+          const factor = stateP.complexityFactors?.[task.complexity] ?? 1.0;
+          task.estEffort = task.baseEstEffort * factor;
+          if (task.startDate) task.dueDate = addBusDays(task.startDate, task.estEffort);
+        } else if (field === 'complexity') {
+          if (task.baseEstEffort === undefined) task.baseEstEffort = parseFloat(task.estEffort) || 0;
+          const factor = stateP.complexityFactors?.[newVal] ?? 1.0;
+          task.estEffort = task.baseEstEffort * factor;
+          if (task.startDate) task.dueDate = addBusDays(task.startDate, task.estEffort);
+        } else if (field === 'dueDate') {
+          if (task.startDate) task.estEffort = getBusinessDays(task.startDate, newVal);
+        } else if (field === 'actCompletionDate') {
+          if (task.startDate) task.actEffort = getBusinessDays(task.startDate, newVal);
+        }
+
+        if (field === 'moduleType' && newVal !== oldVal) {
+          PulseState.applyWorkflowTemplate(task);
+        }
+
+        if (['startDate', 'estEffort', 'moduleType', 'assignee', 'complexity'].includes(field)) {
+          recalcDatesAndStatus(task);
+        }
+
+        if (field === 'status' && newVal === 'Completed') {
+          if (task.progress < 100) {
+            task.progress = 100;
+            triggerConfetti();
+          }
+          if (!task.actCompletionDate) {
+            task.actCompletionDate = todayStr();
+          }
+        }
+        if (field === 'status' && newVal !== 'Completed' && oldVal === 'Completed') {
+          task.actCompletionDate = '';
+        }
+        if (field === 'status' && newVal === 'Not Started') {
+          task.progress = 0;
+          task.actCompletionDate = '';
+        }
+
+        const action = field === 'status' ? 'Status Changed' : 'Updated';
+        const actCompDate = (field === 'status' && newVal === 'Completed') ? task.actCompletionDate : (field === 'actCompletionDate' ? newVal : '');
+        PulseState.addLog(action, taskId, task.name, field, String(oldVal), String(newVal), comment, '', actCompDate);
+
+        save();
+        if (['status', 'priority', 'progress', 'module', 'side'].includes(field)) {
+          if (stateP.view === 'tasks') renderTasksView();
+          else render();
+        }
+        return true;
+      },
+      deleteTask(taskId) {
+        const stateP = PulseState.P;
+        if (stateP.readonly) { notify('Action disabled in View-Only mode', 'amber'); return; }
+        const t = stateP.tasks.find(t => t.id === taskId);
+        if (!t) return;
+        PulseState.addLog('Deleted', taskId, t.name);
+        stateP.tasks = stateP.tasks.filter(t => t.id !== taskId);
+        save();
+      },
+      duplicateTask(taskId) {
+        const stateP = PulseState.P;
+        if (stateP.readonly) { notify('Action disabled in View-Only mode', 'amber'); return; }
+        const o = stateP.tasks.find(t => t.id === taskId);
+        if (!o) return;
+        const d = { ...o, subtasks: (o.subtasks || []).map(s => ({ ...s, id: 'ST-' + stateP.nextSubId++ })) };
+        delete d.id;
+        delete d.createdAt;
+        d.name += ' (copy)';
+        d.status = 'Not Started';
+        d.progress = 0;
+        PulseState.createTask(d);
+      },
+      addSubtask(taskId, inputStr, priority) {
+        const stateP = PulseState.P;
+        const t = stateP.tasks.find(t => t.id === taskId); if (!t) return;
+        if (!t.subtasks) t.subtasks = [];
+        const parts = inputStr.split(':');
+        const name = parts[0].trim();
+        const effort = parts.length > 1 ? parseFloat(parts[1]) || 1 : 1;
+        const st = { id: 'ST-' + stateP.nextSubId++, name, status: 'Not Started', priority: priority || 'Medium', assignee: '', notes: '', effort };
+        t.subtasks.push(st);
+        PulseState.addLog('Updated', taskId, t.name, 'subtask', '', 'Added: ' + name);
+        recalcDatesAndStatus(t);
+        save();
+      },
+      updateSubtask(taskId, stId, field, val, comment) {
+        const stateP = PulseState.P;
+        const t = stateP.tasks.find(t => t.id === taskId); if (!t) return false;
+        const st = (t.subtasks || []).find(s => s.id === stId); if (!st) return false;
+        const old = st[field]; if (String(old) === String(val)) return true;
+        if (field === 'status') {
+          const valid = VALID_TRANSITIONS[old] || VALID_TRANSITIONS['Not Started'];
+          if (valid && !valid.includes(val)) { notify(`Cannot transition from "${old}" to "${val}"`, 'err'); return false; }
+          if (COMMENT_REQUIRED.includes(val) && !comment) {
+            stateP._pendingComment = { taskId, stId, field, newVal: val };
+            $id('comment-title').textContent = val === 'On Hold' ? 'Reason for Hold' : 'Reason for ' + val;
+            $id('comment-label').textContent = `Why is "${st.name}" being marked as ${val}?`;
+            $id('comment-text').value = '';
+            $id('comment-modal').classList.add('open');
+            return false;
+          }
+        }
+        st[field] = val;
+        if (field === 'status') {
+          st.done = (val === 'Completed');
+          if (st.done) {
+            st.progress = 100;
+            if (!st.actCompletionDate) st.actCompletionDate = new Date().toISOString().split('T')[0];
+            triggerConfetti();
+          } else {
+            st.actCompletionDate = '';
+            st.actEffort = 0;
+            if (val === 'Not Started') {
+              st.progress = 0;
+            }
+          }
+        }
+        const actCompDate = (field === 'status' && val === 'Completed') ? st.actCompletionDate : (field === 'actCompletionDate' ? val : '');
+        PulseState.addLog('Updated', taskId, t.name, 'subtask.' + field, String(old), String(val), comment || '', stId, actCompDate);
+
+        if (comment) st.notes = (st.notes ? st.notes + '\n' : '') + '[' + val + '] ' + comment;
+        if (['status', 'assignee', 'effort', 'progress', 'actCompletionDate', 'priority', 'complexity'].includes(field)) {
+          recalcDatesAndStatus(t);
+        }
+        save();
+        return true;
+      },
+      deleteSubtask(taskId, stId) {
+        const stateP = PulseState.P;
+        const t = stateP.tasks.find(t => t.id === taskId); if (!t) return;
+        t.subtasks = (t.subtasks || []).filter(s => s.id !== stId);
+        recalcDatesAndStatus(t);
+        save();
+        PulseState.addLog('Updated', taskId, t.name, 'subtask', '', 'Removed subtask');
+      },
+      updateVelocityWeeks(w) {
+        const stateP = PulseState.P;
+        let val = parseInt(w) || 8;
+        if (val < 8) val = 8;
+        if (val > 100) val = 100;
+        stateP.velocityWeeks = val;
+        save();
+        render();
+      },
+      updateCFDWeeks(w) {
+        const stateP = PulseState.P;
+        let val = parseInt(w) || 8;
+        if (val < 8) val = 8;
+        if (val > 100) val = 100;
+        stateP.cfdWeeks = val;
+        save();
+        render();
       }
     };
 
@@ -13557,228 +14396,65 @@
       });
     }
 
-
-
     // ══════ ACTIVITY LOG ══════
-    function addLog(action, taskId, taskName, field, oldVal, newVal, comment) {
-      let mod = '', ass = '';
-      const t = P.tasks.find(x => x.id === taskId);
-      if (t) { mod = t.module; ass = t.assignee; }
-      P.log.push({ 
-        ts: nowISO(), 
-        user: ass || 'System',
-        action, 
-        taskId, 
-        taskName, 
-        field: field || '', 
-        oldVal: oldVal || '', 
-        newVal: newVal || '', 
-        comment: comment || '', 
-        module: mod || 'General', 
-        assignee: ass || 'Unassigned' 
-      });
-      save();
-      const cnt = P.log.filter(l => l.ts && typeof l.ts === 'string' && l.ts.startsWith(todayStr())).length;
-      ['log-badge', 'log-badge-mobile'].forEach(id => {
-        const b = $id(id);
-        if (b) {
-          if (cnt > 0) { b.style.display = ''; b.textContent = cnt; }
-          else b.style.display = 'none';
-        }
-      });
+    function addLog(action, taskId, taskName, field, oldVal, newVal, comment, subtaskId, actCompletionDate) {
+      return PulseState.addLog(action, taskId, taskName, field, oldVal, newVal, comment, subtaskId, actCompletionDate);
     }
-
     function migrateLogs() {
-      let changed = false;
-      P.log.forEach(l => {
-        let oldField = l.field;
-        let oldAssignee = l.assignee;
-        let oldModule = l.module;
-        let oldUser = l.user;
-
-        if (!l.field) {
-          if (l.action === 'Status Changed') l.field = 'status';
-          else if (l.action === 'Comment Added' || l.type === 'Comment') l.field = 'comment';
-          else l.field = '';
-        }
-
-        const t = P.tasks.find(x => x.id === l.taskId);
-
-        if (!l.assignee || l.assignee === 'Unassigned' || l.assignee === 'System') {
-          l.assignee = l.member || (t && t.assignee ? t.assignee : 'Unassigned');
-        }
-        if (!l.module || l.module === 'General') {
-          l.module = (t && t.module ? t.module : 'General');
-        }
-        if (!l.user) {
-          l.user = l.assignee !== 'Unassigned' ? l.assignee : (l.member || 'System');
-        }
-
-        if (oldField !== l.field || oldAssignee !== l.assignee || oldModule !== l.module || oldUser !== l.user) {
-          changed = true;
-        }
-      });
-      if (changed) save();
+      return PulseState.migrateLogs();
     }
-    migrateLogs();
 
     // ══════ TASK CRUD ══════
     function applyWorkflowTemplate(task, screenName = null) {
-      if (screenName) {
-        if (!task.category || task.category === 'Feature') {
-          task.category = (task.moduleType === 'GUI') ? 'GUI Module' : (task.moduleType === 'Server' ? 'Server Module' : 'Feature');
-        }
-        const tpl = (P.stepTemplates || []).find(tp => tp.category === 'GUI Screen');
-        if (tpl) {
-          const isDone = task.status === 'Completed';
-          const screenSub = {
-            id: 'ST-' + String(P.nextSubId++).padStart(3, '0'),
-            name: screenName,
-            windowName: screenName,
-            type: 'screen',
-            category: 'GUI Screen',
-            workflow: tpl.steps.map(s => ({
-              name: typeof s === 'string' ? s : s.name,
-              effort: typeof s === 'string' ? 1 : (s.effort || 1),
-              done: isDone,
-              status: isDone ? 'Completed' : 'Not Started',
-              actCompletionDate: isDone ? (task.actCompletionDate || todayStr()) : ''
-            })),
-            priority: task.priority || 'Medium',
-            complexity: task.complexity || 'Medium',
-            assignee: task.assignee || '',
-            startDate: task.startDate || todayStr(),
-            dueDate: task.dueDate || todayStr()
-          };
-          if (!task.subtasks) task.subtasks = [];
-          task.subtasks.push(screenSub);
-          recalcGUIScreen(screenSub);
-        }
-      } else {
-        syncTaskToTemplate(task);
-      }
+      return PulseState.applyWorkflowTemplate(task, screenName);
     }
-
-    PulseScheduler.recalcGUIScreen = function (st) {
-      if (!st.workflow || !st.workflow.length) return;
-
-      const compFactor = (P.complexityFactors && st.complexity) ? (P.complexityFactors[st.complexity] || 1) : 1;
-
-      let runningDate = st.startDate || todayStr();
-      st.workflow.forEach(s => {
-        s.startDate = runningDate;
-        const e = (s.effort || 1) * compFactor;
-        s.dueDate = addBusDays(runningDate, Math.ceil(e));
-        runningDate = s.dueDate;
-
-        if ((s.status === 'Completed' || s.done) && s.actCompletionDate && s.startDate) {
-          s.actEffort = getBusinessDays(s.startDate, s.actCompletionDate);
-        } else {
-          s.actEffort = 0;
-        }
-      });
-
-      const totalEffort = st.workflow.reduce((sum, s) => sum + ((s.effort || 1) * compFactor), 0);
-      const doneEffort = st.workflow.filter(s => s.status === 'Completed' || s.done).reduce((sum, s) => sum + ((s.effort || 1) * compFactor), 0);
-      const totalActual = st.workflow.reduce((sum, s) => sum + (s.actEffort || 0), 0);
-
-      st.effort = totalEffort;
-      st.actEffort = totalActual;
-      st.progress = Math.round((doneEffort / totalEffort) * 100);
-      st.status = st.progress === 100 ? 'Completed' : st.progress > 0 ? 'In Progress' : 'Not Started';
-      st.dueDate = runningDate;
-    };
-
-    PulseScheduler.getBusinessDays = function (startDate, endDate) {
-      if (!startDate || !endDate) return 0;
-      let start = new Date(startDate);
-      let end = new Date(endDate);
-      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return 0;
-      let count = 0;
-      let cur = new Date(start);
-      while (cur <= end) {
-        if (isWorkDay(cur)) count++;
-        cur.setDate(cur.getDate() + 1);
-      }
-      return convertDaysToEffort(Math.max(0.1, count));
-    };
-
-    const recalcGUIScreen = PulseScheduler.recalcGUIScreen;
-    const getBusinessDays = PulseScheduler.getBusinessDays;
-
     function validateTaskData(data, isEdit = false, existingTask = null) {
-      const errors = [];
-      if (!data.name || !data.name.trim()) errors.push('Task name is required.');
-      const prog = parseInt(data.progress);
-      if (data.progress !== undefined && data.progress !== '') {
-        if (isNaN(prog) || prog < 0 || prog > 100) errors.push('Progress must be between 0 and 100%.');
-      }
-
-      // 3. Estimated hours sanity
-      const est = parseFloat(data.estEffort);
-      if (data.estEffort !== undefined && data.estEffort !== '' && data.estEffort !== '0') {
-        if (isNaN(est) || est < 0) errors.push('Estimated hours cannot be negative.');
-        if (est > 9999) errors.push('Estimated hours seems too large (max 9999). Please verify.');
-      }
-
-      // 4. Date logic
-      if (data.startDate && data.dueDate) {
-        const s = new Date(data.startDate), d = new Date(data.dueDate);
-        if (d < s) errors.push('Due date cannot be before start date. Adjust your timeline.');
-      }
-      if (data.actCompletionDate && data.startDate) {
-        if (new Date(data.actCompletionDate) < new Date(data.startDate))
-          errors.push('Actual completion date cannot be before start date.');
-      }
-      if (data.actCompletionDate && data.dueDate) {
-        const comp = new Date(data.actCompletionDate), due = new Date(data.dueDate);
-        if (comp > new Date(due.getTime() + 365 * 864e5))
-          errors.push('Actual completion date is more than a year past due. Please verify.');
-      }
-
-      // 5. Status + Progress coherence
-      if (data.status === 'Completed' && prog !== undefined && prog < 100 && !isNaN(prog)) {
-        // Auto-fix: will be handled downstream, but warn
-      }
-      if (data.status === 'Not Started' && prog > 0 && !isNaN(prog)) {
-        errors.push('Status is "Not Started" but progress is ' + prog + '%. Set status to "In Progress" or reset progress to 0.');
-      }
-
-      // 6. Assignee check for critical tasks
-      if (data.priority === 'Critical' && (!data.assignee || !data.assignee.trim())) {
-        errors.push('Critical priority tasks should have an assignee. Please assign a team member.');
-      }
-
-      // 7. Duplicate name check (only for new tasks)
-      if (!isEdit && data.name && data.name.trim()) {
-        const dup = P.tasks.find(t => t.name.trim().toLowerCase() === data.name.trim().toLowerCase());
-        if (dup) errors.push(`A task named "${dup.name}" (${dup.id}) already exists. Use a unique name or edit the existing task.`);
-      }
-
-      // 8. Module and Module Type are mandatory
-      if (!data.module || !data.module.trim()) errors.push('Module selection is required.');
-      if (!data.moduleType || !data.moduleType.trim()) errors.push('Module Type selection is required.');
-
-      // 9. Future start date with Completed status
-      if (data.status === 'Completed' && data.startDate && new Date(data.startDate) > new Date()) {
-        errors.push('Cannot mark a task as "Completed" when start date is in the future.');
-      }
-
-      // 10. Circular dependency check
-      if (isEdit && existingTask && data.dependsOn) {
-        const deps = typeof data.dependsOn === 'string' ? data.dependsOn.split(',').map(s => s.trim()).filter(Boolean) : (Array.isArray(data.dependsOn) ? data.dependsOn : []);
-        if (deps.includes(existingTask.id)) {
-          errors.push('A task cannot depend on itself.');
-        }
-      }
-
-      return errors;
+      return PulseState.validateTaskData(data, isEdit, existingTask);
+    }
+    function getTaskDerivedStatus(t) {
+      return PulseState.getTaskDerivedStatus(t);
+    }
+    function createTask(data) {
+      return PulseState.createTask(data);
+    }
+    function smartSyncWorkflow(existing, oldSteps, newSteps, itemFactory) {
+      return PulseState.smartSyncWorkflow(existing, oldSteps, newSteps, itemFactory);
+    }
+    function syncTaskToTemplate(task, oldTpl = null, forceCategory = null) {
+      return PulseState.syncTaskToTemplate(task, oldTpl, forceCategory);
+    }
+    function syncAllTasksToTemplate(category) {
+      return PulseState.syncAllTasksToTemplate(category);
+    }
+    function updateField(taskId, field, newVal, comment) {
+      return PulseState.updateField(taskId, field, newVal, comment);
+    }
+    function deleteTask(taskId) {
+      return PulseState.deleteTask(taskId);
+    }
+    function duplicateTask(taskId) {
+      return PulseState.duplicateTask(taskId);
+    }
+    function addSubtask(taskId, inputStr, priority) {
+      return PulseState.addSubtask(taskId, inputStr, priority);
+    }
+    function updateSubtask(taskId, stId, field, val, comment) {
+      return PulseState.updateSubtask(taskId, stId, field, val, comment);
+    }
+    function deleteSubtask(taskId, stId) {
+      return PulseState.deleteSubtask(taskId, stId);
+    }
+    function updateVelocityWeeks(w) {
+      return PulseState.updateVelocityWeeks(w);
+    }
+    function updateCFDWeeks(w) {
+      return PulseState.updateCFDWeeks(w);
     }
 
+    // ══════ UI HELPERS ══════
     function showValidationErrors(errors) {
       const msg = errors.map((e, i) => `${i + 1}. ${e}`).join('\n');
       notify(errors[0], 'err');
-      // Show full list in a more visible way if multiple errors
       if (errors.length > 1) {
         setTimeout(() => {
           const el = document.createElement('div');
@@ -13811,53 +14487,6 @@
       }
     }
 
-    function getTaskDerivedStatus(t) {
-      if (!t.subtasks || t.subtasks.length === 0) return t.status;
-      const subs = t.subtasks;
-      if (subs.every(s => s.status === 'Completed')) return 'Completed';
-      if (subs.some(s => s.status === 'Blocked' || s.status === 'On Hold')) {
-        const critical = subs.find(s => s.status === 'Blocked' || s.status === 'On Hold');
-        return critical.status;
-      }
-      const current = subs.find(s => s.status !== 'Completed' && s.status !== 'Not Started');
-      if (current) return current.status;
-      const next = subs.find(s => s.status === 'Not Started');
-      if (next) return 'Not Started';
-      return t.status;
-    }
-
-    function createTask(data) {
-      const id = 'TASK-' + String(P.nextTaskId++).padStart(3, '0');
-      if (data.status === 'Completed') {
-        if (data.progress < 100) data.progress = 100;
-        if (!data.actCompletionDate) data.actCompletionDate = new Date().toISOString().split('T')[0];
-      }
-      if (data.guiScreens && data.guiScreens.length > 0) data.category = 'GUI Screen';
-      if (data.moduleType === 'GUI') data.category = 'GUI Module';
-      else if (data.moduleType === 'Server') data.category = 'Server Module';
-      const task = {
-        id,
-        createdAt: nowISO(),
-        updatedAt: nowISO(),
-        module: data.module || 'General',
-        moduleType: data.moduleType || 'Other',
-        ...data,
-        complexity: data.complexity || 'Medium',
-        progress: parseInt(data.progress) || 0,
-        estEffort: parseFloat(data.estEffort) || 0,
-        baseEstEffort: parseFloat(data.estEffort) || 0,
-        actEffort: parseFloat(data.actEffort) || 0,
-        dependsOn: data.dependsOn || [],
-        subtasks: data.subtasks || []
-      };
-      if (data.updatedAt) task.updatedAt = data.updatedAt;
-      P.customFields.forEach(cf => { if (!(cf.name in task)) task[cf.name] = data[cf.name] || ''; });
-
-      syncTaskToTemplate(task);
-
-      P.tasks.push(task); addLog('Created', id, task.name); save(); return task;
-    }
-
     function syncTaskModal(task) {
       if (!task) return;
       ['progress', 'status', 'estEffort', 'actEffort', 'startDate', 'dueDate', 'category', 'complexity'].forEach(k => {
@@ -13870,199 +14499,6 @@
       });
     }
 
-    function smartSyncWorkflow(existing, oldSteps, newSteps, itemFactory) {
-      const updated = [];
-      const claimedExisting = new Set();
-
-      // 1. Exact Name Match (Highest priority)
-      newSteps.forEach((nStep, nIdx) => {
-        const match = existing.find(ex => ex.name === nStep.name && !claimedExisting.has(ex));
-        if (match) {
-          match.effort = nStep.effort; // Sync effort
-          updated[nIdx] = match;
-          claimedExisting.add(match);
-        }
-      });
-
-      // 2. Position-based Rename Match (if oldSteps provided)
-      if (oldSteps) {
-        newSteps.forEach((nStep, nIdx) => {
-          if (updated[nIdx]) return; // Already matched by name
-          const oStep = oldSteps[nIdx];
-          if (oStep) {
-            const match = existing.find(ex => ex.name === oStep.name && !claimedExisting.has(ex));
-            if (match) {
-              match.name = nStep.name; // Rename!
-              match.effort = nStep.effort;
-              updated[nIdx] = match;
-              claimedExisting.add(match);
-            }
-          }
-        });
-      }
-
-      // 3. New Steps
-      newSteps.forEach((nStep, nIdx) => {
-        if (!updated[nIdx]) {
-          updated[nIdx] = itemFactory(nStep);
-        }
-      });
-
-      return updated;
-    }
-
-    function syncTaskToTemplate(task, oldTpl = null, forceCategory = null) {
-      if (!task) return;
-      const catToSync = forceCategory || task.category;
-      if (!catToSync) return;
-      const tpl = (P.stepTemplates || []).find(tp => tp.category === catToSync);
-      if (!tpl) return;
-
-      const oldSteps = oldTpl ? oldTpl.steps : null;
-
-      if (catToSync === 'GUI Screen') {
-        if (task.subtasks) {
-          task.subtasks.forEach(st => {
-            if (st.type === 'screen') {
-              const existing = st.workflow || [];
-              st.workflow = smartSyncWorkflow(existing, oldSteps, tpl.steps, (step) => ({
-                name: step.name,
-                effort: step.effort || 1,
-                done: false,
-                status: 'Not Started',
-                actCompletionDate: ''
-              }));
-              recalcGUIScreen(st);
-            }
-          });
-        }
-      } else {
-        const existing = task.subtasks || [];
-        task.subtasks = smartSyncWorkflow(existing, oldSteps, tpl.steps, (step) => ({
-          id: 'ST-' + String(P.nextSubId++).padStart(3, '0'),
-          name: step.name,
-          status: 'Not Started',
-          progress: 0,
-          assignee: task.assignee || '',
-          effort: step.effort || 1,
-          actEffort: 0,
-          startDate: task.startDate || todayStr(),
-          dueDate: task.dueDate || todayStr()
-        }));
-      }
-      recalcDatesAndStatus(task);
-    }
-
-    function syncAllTasksToTemplate(category) {
-      if (!category) return;
-      P.tasks.forEach(t => {
-        if (t.category === category || (category === 'GUI Screen' && t.subtasks && t.subtasks.some(st => st.type === 'screen'))) {
-          syncTaskToTemplate(t, null, category);
-        }
-      });
-      render();
-    }
-
-    function updateField(taskId, field, newVal, comment) {
-      const task = P.tasks.find(t => t.id === taskId); if (!task) return false;
-      const oldVal = task[field]; if (String(oldVal) === String(newVal)) return true;
-
-      // Validate task name
-      // Validate mandatory fields
-      if (field === 'name' && (!newVal || !String(newVal).trim())) { notify('Task name cannot be empty', 'err'); return false; }
-      if (field === 'module' && (!newVal || !String(newVal).trim())) { notify('Module is required', 'err'); return false; }
-      if (field === 'moduleType' && (!newVal || !String(newVal).trim())) { notify('Module Type is required', 'err'); return false; }
-
-      // Validate progress range
-      if (field === 'progress') {
-        const p = parseInt(newVal);
-        if (isNaN(p) || p < 0 || p > 100) { notify('Progress must be between 0% and 100%', 'err'); return false; }
-        newVal = p;
-      }
-
-      // Validate estimated hours
-      if (field === 'estEffort' && newVal !== '' && newVal !== undefined) {
-        const e = parseFloat(newVal);
-        if (isNaN(e) || e < 0) { notify('Estimated effort cannot be negative', 'err'); return false; }
-      }
-
-      // Validate actual completion date
-      if (field === 'actCompletionDate' && newVal && task.startDate && new Date(newVal) < new Date(task.startDate)) {
-        notify('Completion date cannot be before start date (' + task.startDate + ')', 'err'); return false;
-      }
-
-      // Validate state transitions
-      if (field === 'status') {
-        const valid = VALID_TRANSITIONS[oldVal];
-        if (valid && !valid.includes(newVal)) { notify(`Cannot transition from "${oldVal}" to "${newVal}"`, 'err'); return false; }
-        if (COMMENT_REQUIRED.includes(newVal) && !comment) { P._pendingComment = { taskId, field, newVal }; $id('comment-title').textContent = newVal === 'On Hold' ? 'Reason for Hold' : 'Reason for Cancellation'; $id('comment-label').textContent = `Why is "${task.name}" being ${newVal === 'On Hold' ? 'put on hold' : 'cancelled'}?`; $id('comment-text').value = ''; $id('comment-modal').classList.add('open'); return false; }
-      }
-      // Validate dates
-      if (field === 'dueDate' && task.startDate && newVal && new Date(newVal) < new Date(task.startDate)) { notify('Due date cannot be before start date', 'err'); return false; }
-      if (field === 'startDate' && task.dueDate && newVal && new Date(newVal) > new Date(task.dueDate)) { notify('Start date cannot be after due date', 'err'); return false; }
-      // Validate dependencies for progress
-      if (field === 'status' && ['In Progress', 'Under Review', 'Completed'].includes(newVal)) {
-        const deps = Array.isArray(task.dependsOn) ? task.dependsOn : (task.dependsOn ? String(task.dependsOn).split(',').map(s => s.trim()).filter(Boolean) : []);
-        const blocked = deps.filter(depId => { const dep = P.tasks.find(t => t.id === depId); return dep && dep.status !== 'Completed'; });
-        if (blocked.length) { notify(`Blocked by: ${blocked.join(', ')}. Complete dependencies first.`, 'err'); return false; }
-      }
-      if (field === 'dependsOn' && typeof newVal === 'string') {
-        newVal = newVal.split(',').map(s => s.trim()).filter(Boolean);
-      }
-      task[field] = newVal;
-      if (field === 'category') syncTaskToTemplate(task);
-      task.updatedAt = nowISO();
-
-      // Reactive scheduling cascades
-      if (field === 'startDate') {
-        if (task.estEffort) task.dueDate = addBusDays(newVal, task.estEffort);
-        if (task.actCompletionDate) task.actEffort = getBusinessDays(newVal, task.actCompletionDate);
-      } else if (field === 'estEffort') {
-        task.baseEstEffort = parseFloat(newVal) || 0;
-        const factor = P.complexityFactors?.[task.complexity] ?? 1.0;
-        task.estEffort = task.baseEstEffort * factor;
-        if (task.startDate) task.dueDate = addBusDays(task.startDate, task.estEffort);
-      } else if (field === 'complexity') {
-        if (task.baseEstEffort === undefined) task.baseEstEffort = parseFloat(task.estEffort) || 0;
-        const factor = P.complexityFactors?.[newVal] ?? 1.0;
-        task.estEffort = task.baseEstEffort * factor;
-        if (task.startDate) task.dueDate = addBusDays(task.startDate, task.estEffort);
-      } else if (field === 'dueDate') {
-        if (task.startDate) task.estEffort = getBusinessDays(task.startDate, newVal);
-      } else if (field === 'actCompletionDate') {
-        if (task.startDate) task.actEffort = getBusinessDays(task.startDate, newVal);
-      }
-
-      // Auto-apply templates based on Module Type selection
-      if (field === 'moduleType' && newVal !== oldVal) {
-        applyWorkflowTemplate(task);
-      }
-
-      if (['startDate', 'estEffort', 'moduleType', 'assignee', 'complexity'].includes(field)) {
-        recalcDatesAndStatus(task);
-      }
-
-      const action = field === 'status' ? 'Status Changed' : 'Updated';
-      addLog(action, taskId, task.name, field, String(oldVal), String(newVal), comment);
-      if (field === 'status' && newVal === 'Completed' && task.progress < 100) {
-        task.progress = 100;
-        task.actCompletionDate = todayStr();
-        triggerConfetti();
-      }
-      if (field === 'status' && newVal !== 'Completed' && oldVal === 'Completed') {
-        task.actCompletionDate = '';
-      }
-      if (field === 'status' && newVal === 'Not Started') {
-        task.progress = 0;
-        task.actCompletionDate = '';
-      }
-      save();
-      if (['status', 'priority', 'progress', 'module', 'side'].includes(field)) {
-        if (P.view === 'tasks') renderTasksView();
-        else render();
-      }
-      return true;
-    }
     function submitComment() {
       const pc = P._pendingComment; if (!pc) return;
       const comment = $id('comment-text').value.trim();
@@ -14077,25 +14513,10 @@
         if (pc.newVal === 'Completed') triggerConfetti();
         render(); P._pendingComment = null; return;
       }
-      const task = P.tasks.find(t => t.id === pc.taskId); if (task) {
-        const oldVal = task[pc.field];
-        task[pc.field] = pc.newVal;
-        addLog('Status Changed', pc.taskId, task.name, pc.field, String(oldVal), pc.newVal, comment);
-        task.notes = (task.notes ? task.notes + '\n' : '') + '[' + pc.newVal + '] ' + comment;
-        if (pc.newVal === 'Completed') {
-          task.progress = 100;
-          if (!task.actCompletionDate) task.actCompletionDate = new Date().toISOString().split('T')[0];
-          if (task.startDate && task.actCompletionDate) {
-            task.actEffort = getBusinessDays(task.startDate, task.actCompletionDate);
-          }
-          triggerConfetti();
-          notify(`Great job! Task completed.`, 'ok');
-        }
-        save(); render();
-      }
+      updateField(pc.taskId, pc.field, pc.newVal, comment);
       P._pendingComment = null;
     }
-    function deleteTask(taskId) { if (P.readonly) { notify('Action disabled in View-Only mode', 'amber'); return; } const t = P.tasks.find(t => t.id === taskId); if (!t) return; addLog('Deleted', taskId, t.name); P.tasks = P.tasks.filter(t => t.id !== taskId); save(); }
+
     function confirmDeleteTask(taskId) {
       if (confirm(`Are you sure you want to delete task ${taskId}? This action cannot be undone.`)) {
         deleteTask(taskId);
@@ -14103,81 +14524,29 @@
         render();
       }
     }
-    window.updateVelocityWeeks = updateVelocityWeeks;
-    function updateVelocityWeeks(w) {
-      let val = parseInt(w) || 8;
-      if (val < 8) val = 8;
-      if (val > 100) val = 100;
-      P.velocityWeeks = val;
-      save();
-      render();
-    };
-    window.updateCFDWeeks = updateCFDWeeks;
-    function updateCFDWeeks(w) {
-      let val = parseInt(w) || 8;
-      if (val < 8) val = 8;
-      if (val > 100) val = 100;
-      P.cfdWeeks = val;
-      save();
-      render();
-    };
-    function duplicateTask(taskId) { if (P.readonly) { notify('Action disabled in View-Only mode', 'amber'); return; } const o = P.tasks.find(t => t.id === taskId); if (!o) return; const d = { ...o, subtasks: (o.subtasks || []).map(s => ({ ...s, id: 'ST-' + P.nextSubId++ })) }; delete d.id; delete d.createdAt; d.name += ' (copy)'; d.status = 'Not Started'; d.progress = 0; createTask(d); }
 
-    // ── Sub-tasks ──
-    function addSubtask(taskId, inputStr, priority) {
-      const t = P.tasks.find(t => t.id === taskId); if (!t) return;
-      if (!t.subtasks) t.subtasks = [];
-      const parts = inputStr.split(':');
-      const name = parts[0].trim();
-      const effort = parts.length > 1 ? parseFloat(parts[1]) || 1 : 1;
-      const st = { id: 'ST-' + P.nextSubId++, name, status: 'Not Started', priority: priority || 'Medium', assignee: '', notes: '', effort };
-      t.subtasks.push(st); addLog('Updated', taskId, t.name, 'subtask', '', 'Added: ' + name);
-      recalcDatesAndStatus(t); save();
-    }
-    function updateSubtask(taskId, stId, field, val, comment) {
-      const t = P.tasks.find(t => t.id === taskId); if (!t) return false;
-      const st = (t.subtasks || []).find(s => s.id === stId); if (!st) return false;
-      const old = st[field]; if (String(old) === String(val)) return true;
-      if (field === 'status') {
-        const valid = VALID_TRANSITIONS[old] || VALID_TRANSITIONS['Not Started'];
-        if (valid && !valid.includes(val)) { notify(`Cannot transition from "${old}" to "${val}"`, 'err'); return false; }
-        if (COMMENT_REQUIRED.includes(val) && !comment) {
-          P._pendingComment = { taskId, stId, field, newVal: val };
-          $id('comment-title').textContent = val === 'On Hold' ? 'Reason for Hold' : 'Reason for ' + val;
-          $id('comment-label').textContent = `Why is "${st.name}" being marked as ${val}?`;
-          $id('comment-text').value = '';
-          $id('comment-modal').classList.add('open');
-          return false;
-        }
-      }
-      st[field] = val;
-      if (field === 'status') {
-        st.done = (val === 'Completed');
-        if (st.done) {
-          st.progress = 100;
-          if (!st.actCompletionDate) st.actCompletionDate = new Date().toISOString().split('T')[0];
-          triggerConfetti();
-        } else {
-          st.actCompletionDate = '';
-          st.actEffort = 0;
-          if (val === 'Not Started') {
-            st.progress = 0;
-          }
-        }
-      }
-      addLog('Updated', taskId, t.name, 'subtask.' + field, String(old), String(val), comment || '');
-      if (comment) st.notes = (st.notes ? st.notes + '\n' : '') + '[' + val + '] ' + comment;
-      if (['status', 'assignee', 'effort', 'progress', 'actCompletionDate', 'priority', 'complexity'].includes(field)) {
-        recalcDatesAndStatus(t);
-      }
-      save();
-      return true;
-    }
-    function deleteSubtask(taskId, stId) {
-      const t = P.tasks.find(t => t.id === taskId); if (!t) return;
-      t.subtasks = (t.subtasks || []).filter(s => s.id !== stId);
-      recalcDatesAndStatus(t); save(); addLog('Updated', taskId, t.name, 'subtask', '', 'Removed subtask');
-    }
+    // Bind to window explicitly for inline DOM click/change event compatibility
+    window.addLog = addLog;
+    window.migrateLogs = migrateLogs;
+    window.applyWorkflowTemplate = applyWorkflowTemplate;
+    window.validateTaskData = validateTaskData;
+    window.getTaskDerivedStatus = getTaskDerivedStatus;
+    window.createTask = createTask;
+    window.smartSyncWorkflow = smartSyncWorkflow;
+    window.syncTaskToTemplate = syncTaskToTemplate;
+    window.syncAllTasksToTemplate = syncAllTasksToTemplate;
+    window.updateField = updateField;
+    window.deleteTask = deleteTask;
+    window.duplicateTask = duplicateTask;
+    window.addSubtask = addSubtask;
+    window.updateSubtask = updateSubtask;
+    window.deleteSubtask = deleteSubtask;
+    window.updateVelocityWeeks = updateVelocityWeeks;
+    window.updateCFDWeeks = updateCFDWeeks;
+    window.showValidationErrors = showValidationErrors;
+    window.syncTaskModal = syncTaskModal;
+    window.submitComment = submitComment;
+    window.confirmDeleteTask = confirmDeleteTask;
     PulseScheduler.recalcDatesAndStatus = function (task, skipLog = false) {
       const subs = task.subtasks || [];
       const factor = P.complexityFactors?.[task.complexity] ?? 1.0;
@@ -18295,20 +18664,16 @@
       const modules = [...new Set(P.tasks.map(t => t.module || 'General'))];
 
       const baseHealth = getHealthScore(P.tasks);
-      const baseConfidence = 88;
+      
+      const baseForecast = PulseForecastEngine.calculateForecast(P.tasks, P.log);
+      const baseMc = PulseForecastEngine.runUnifiedMonteCarlo(P.tasks, baseForecast.weeklyVelocity, baseForecast.remainingEffort, 100);
+      const baseP90Date = baseMc.p90;
 
-      const baseMc = runMonteCarloSimulation(P.tasks, 50);
-      let baseP90Date = new Date(0);
-      P.tasks.forEach(t => {
-        if (baseMc[t.id] && baseMc[t.id].p90) {
-          const d = new Date(baseMc[t.id].p90);
-          if (d > baseP90Date) baseP90Date = d;
-        }
-      });
-      if (baseP90Date.getTime() === 0) {
-        const dueDates = P.tasks.map(t => new Date(t.dueDate || t.startDate));
-        baseP90Date = new Date(Math.max(...dueDates));
-      }
+      const startDates = P.tasks.map(t => new Date(t.startDate)).filter(d => !isNaN(d.getTime()));
+      const endDates = P.tasks.map(t => new Date(t.dueDate)).filter(d => !isNaN(d.getTime()));
+      const start = startDates.length ? new Date(Math.min(...startDates)) : new Date();
+      const targetFinish = endDates.length ? new Date(Math.max(...endDates)) : new Date(start.getTime() + 30 * 864e5);
+      const baseConfidence = PulseForecastEngine.calculateConfidence(baseForecast.forecastFinish, targetFinish, start);
 
       let baseDeficit = 0;
       const now = new Date();
@@ -18380,18 +18745,9 @@
 
       const scenHealth = getHealthScore(clonedTasks);
 
-      const scenMc = runMonteCarloSimulation(clonedTasks, 50);
-      let scenP90Date = new Date(0);
-      clonedTasks.forEach(t => {
-        if (scenMc[t.id] && scenMc[t.id].p90) {
-          const d = new Date(scenMc[t.id].p90);
-          if (d > scenP90Date) scenP90Date = d;
-        }
-      });
-      if (scenP90Date.getTime() === 0) {
-        const dueDates = clonedTasks.map(t => new Date(t.dueDate || t.startDate));
-        scenP90Date = new Date(Math.max(...dueDates));
-      }
+      const scenForecast = PulseForecastEngine.calculateForecast(clonedTasks, P.log, clonedMembers);
+      const scenMc = PulseForecastEngine.runUnifiedMonteCarlo(clonedTasks, scenForecast.weeklyVelocity, scenForecast.remainingEffort, 100);
+      const scenP90Date = scenMc.p90;
 
       let scenDeficit = 0;
       for (let i = 0; i < 12; i++) {
@@ -18413,7 +18769,10 @@
         if (eff > cap && cap > 0) scenDeficit += (eff - cap);
       }
 
-      let scenConfidence = Math.min(99, Math.max(40, Math.round(baseConfidence + (scenHealth - baseHealth) * 0.5 + (baseDeficit - scenDeficit) * 1.5)));
+      const clonedEndDates = clonedTasks.map(t => new Date(t.dueDate)).filter(d => !isNaN(d.getTime()));
+      const clonedTargetFinish = clonedEndDates.length ? new Date(Math.max(...clonedEndDates)) : targetFinish;
+      
+      const scenConfidence = PulseForecastEngine.calculateConfidence(scenForecast.forecastFinish, clonedTargetFinish, start);
 
       const confDelta = scenConfidence - baseConfidence;
       const healthDelta = scenHealth - baseHealth;
@@ -18931,11 +19290,11 @@
       if (!start || !end) { if (!silent) notify('Set period dates first', 'err'); return; }
       const startD = new Date(start), endD = new Date(end);
       // Activities from log
-      const period = P.log.filter(l => { const d = new Date(l.ts.split('T')[0]); return d >= startD && d <= endD; });
+      const period = P.log.filter(l => { const d = new Date(getLogActivityDateStr(l)); return d >= startD && d <= endD; });
       const activities = period.filter(l => l.action !== 'Deleted').map(l => `• ${l.taskName}: ${l.field ? l.field + ' → ' + l.newVal : 'Created'}`).join('\n');
       $id('rf_activities').value = activities || 'No recorded activities in this period.';
       // Achievements — plain text, no HTML
-      const completed = period.filter(l => l.action === 'Status Changed' && l.newVal === 'Completed').map(l => `✅ ${l.taskName}`);
+      const completed = period.filter(isTaskCompletionLog).map(l => `✅ ${l.taskName}`);
       $id('rf_achievements').value = completed.join('\n') || 'No tasks completed in this period.';
       // Risks — plain text, no HTML
       const overdue = P.tasks.filter(t => { const d = daysDiff(t.dueDate); return d !== null && d < 0 && t.status !== 'Completed' && t.status !== 'Cancelled'; }).map(t => `⚠️ ${t.name} — ${Math.abs(daysDiff(t.dueDate))} days overdue (${t.assignee || 'Unassigned'})`);
@@ -23213,35 +23572,18 @@
           addST(inner, 'Executive Reporting & PMO steering pack');
           const grid = addGrid(inner);
 
-          // 1. Forecast Calculations
-          const startDates = tasks.map(t => new Date(t.startDate)).filter(d => !isNaN(d.getTime()));
-          const endDates = tasks.map(t => new Date(t.dueDate)).filter(d => !isNaN(d.getTime()));
+          // 1. Forecast Calculations (Centralized Unified Engine)
+          const fc = PulseForecastEngine.calculateForecast(P.tasks, P.log);
+          const startDates = P.tasks.map(t => new Date(t.startDate)).filter(d => !isNaN(d.getTime()));
+          const endDates = P.tasks.map(t => new Date(t.dueDate)).filter(d => !isNaN(d.getTime()));
           const start = startDates.length ? new Date(Math.min(...startDates)) : new Date();
           const targetFinish = endDates.length ? new Date(Math.max(...endDates)) : new Date(start.getTime() + 30 * 864e5);
-          
-          const remainingEffort = tasks.filter(t => t.status !== 'Completed').reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
-          
-          const velWeeks = [];
-          for (let i = 4; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i * 7);
-            velWeeks.push({ w: getWeekNumber(d), y: d.getFullYear() });
-          }
-          const velEfforts = velWeeks.map(w => tasks.filter(t => {
-            if (t.status !== 'Completed' || !t.dueDate) return false;
-            const d = new Date(t.dueDate);
-            return getWeekNumber(d) === w.w && d.getFullYear() === w.y;
-          }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
-          const avgVelocity = velEfforts.reduce((a, b) => a + b, 0) / velEfforts.length || 2.0;
-
-          const weeksRemaining = avgVelocity > 0 ? remainingEffort / avgVelocity : 0;
-          const forecastFinish = new Date(Date.now() + weeksRemaining * 7 * 864e5);
+          const forecastFinish = fc.forecastFinish;
+          const pacingMc = PulseForecastEngine.runUnifiedMonteCarlo(P.tasks, fc.weeklyVelocity, fc.remainingEffort, 100);
+          const pacingP90Date = pacingMc.p90;
           const daysVariance = Math.round((forecastFinish - targetFinish) / 864e5);
+          const confidenceScore = PulseForecastEngine.calculateConfidence(forecastFinish, targetFinish, start);
           
-          let confidenceScore = 100;
-          if (daysVariance > 0) {
-            confidenceScore = Math.max(30, 100 - Math.round(daysVariance / 2));
-          }
           let confColor = 'var(--green)';
           let confLabel = 'Optimal';
           if (confidenceScore < 60) {
@@ -23273,7 +23615,11 @@
             burnupWeeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d), date: d });
           }
           const totalScopeTrend = burnupWeeks.map(w => tasks.filter(t => new Date(t.createdAt || 0) <= w.date).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
-          const completedScopeTrend = burnupWeeks.map(w => tasks.filter(t => t.status === 'Completed' && new Date(t.updatedAt || t.dueDate) <= w.date).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
+          const completedScopeTrend = burnupWeeks.map(w => tasks.filter(t => {
+            if (t.status !== 'Completed') return false;
+            const compDateStr = t.actCompletionDate || t.updatedAt;
+            return compDateStr && new Date(compDateStr) <= w.date;
+          }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
 
           // Card 1: Pacing & Burnup Forecast
           const pacingId = 'dash-exec-pacing';
@@ -23288,8 +23634,18 @@
                   <div style="font-size:13px; font-weight:800; color:var(--color-text);">${fmtDate(targetFinish)}</div>
                 </div>
                 <div style="padding:10px; background:var(--color-surface-3); border-radius:8px;">
-                  <div style="font-size:10px; color:var(--color-text-faint); text-transform:uppercase; font-weight:700; margin-bottom:2px;">Forecast Completion</div>
+                  <div style="font-size:10px; color:var(--color-text-faint); text-transform:uppercase; font-weight:700; margin-bottom:2px;">Likely Finish (P50)</div>
                   <div style="font-size:13px; font-weight:800; color:var(--color-text);">${fmtDate(forecastFinish)}</div>
+                </div>
+              </div>
+
+              <div style="display:grid; grid-template-columns:1fr; gap:12px;">
+                <div style="padding:10px; background:var(--color-surface-3); border-radius:8px; border-left:3px solid #8b5cf6; cursor:pointer;" onclick="PulseForecastEngine.showExplainerModal()" title="Click to view detailed math & simulations">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-size:10px; color:var(--color-text-faint); text-transform:uppercase; font-weight:700;">Conservative (P90) Date</div>
+                    <div style="font-size:10px; color:var(--color-primary); font-weight:700; display:flex; align-items:center; gap:2px;"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg> Explainer</div>
+                  </div>
+                  <div style="font-size:13px; font-weight:800; color:#8b5cf6; margin-top:2px;">${fmtDate(pacingP90Date)}</div>
                 </div>
               </div>
 
@@ -25292,22 +25648,13 @@
           const etaCard = mkCC('Predictive Completion', 'AI-driven timeline forecast', 'dash-eta', '', 'standard', "Calculates a projected completion date by analyzing the remaining backlog effort against your team's historical weekly velocity. This provides a more realistic target than fixed deadline tracking.", 'View Explanation');
           grid.appendChild(etaCard);
 
-          const remTasks = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled');
-          const last4w = [];
-          for (let i = 3; i >= 0; i--) {
-            const d = new Date(); d.setDate(d.getDate() - (i * 7));
-            const wS = new Date(d); wS.setDate(d.getDate() - (d.getDay() || 7) + 1);
-            const wE = new Date(wS); wE.setDate(wS.getDate() + 6);
-            const done = P.log.filter(l => l.type === 'Updated' && l.details && l.details.includes('Status: Completed') && new Date(l.ts) >= wS && new Date(l.ts) <= wE).length;
-            last4w.push(done);
-          }
-          const avgVel = last4w.reduce((s, v) => s + v, 0) / 4 || 5;
-          const weeksRem = avgVel > 0 ? (remTasks.length / avgVel) : 0;
-          const forecastDate = new Date(); forecastDate.setDate(forecastDate.getDate() + Math.round(weeksRem * 7));
-
-          const totalEst = tasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
-          const doneEst = tasks.reduce((s, t) => s + ((parseFloat(t.estEffort) || 0) * ((t.progress || 0) / 100)), 0);
-          const completionPct = totalEst > 0 ? Math.round((doneEst / totalEst) * 100) : 0;
+          const fc = PulseForecastEngine.calculateForecast(P.tasks, P.log);
+          const mc = PulseForecastEngine.runUnifiedMonteCarlo(P.tasks, fc.weeklyVelocity, fc.remainingEffort, 100);
+          const startDates = P.tasks.map(t => new Date(t.startDate)).filter(d => !isNaN(d.getTime()));
+          const endDates = P.tasks.map(t => new Date(t.dueDate)).filter(d => !isNaN(d.getTime()));
+          const start = startDates.length ? new Date(Math.min(...startDates)) : new Date();
+          const targetFinish = endDates.length ? new Date(Math.max(...endDates)) : new Date(start.getTime() + 30 * 864e5);
+          const conf = PulseForecastEngine.calculateConfidence(fc.forecastFinish, targetFinish, start);
 
           etaCard.classList.add('ai-glow-card');
           etaCard.querySelector('.cb').innerHTML = `
@@ -25326,7 +25673,6 @@
               if (think) think.style.display = 'none';
               if (res) {
                 res.style.display = 'block';
-                const conf = Math.max(30, Math.min(95, 100 - (weeksRem * 5)));
                 const r = 36; const c = 2 * Math.PI * r;
                 const offset = c - (conf / 100) * c;
                 res.innerHTML = `
@@ -25337,9 +25683,13 @@
                     </svg>
                     <div class="ai-confidence-text">${Math.round(conf)}%<span style="font-size:8px;font-weight:600;letter-spacing:0;color:var(--color-text-faint)">CONFIDENCE</span></div>
                   </div>
-                  <div style="font-size:11px;color:var(--color-text-faint);text-transform:uppercase;margin-bottom:4px">Forecasted Finish</div>
-                  <div style="font-size:24px;font-weight:800;color:var(--color-text);margin-bottom:8px">${forecastDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</div>
-                  <div style="font-size:12px;color:var(--color-text-muted)">Based on avg velocity of <strong>${avgVel.toFixed(1)}</strong> tasks/week</div>
+                  <div style="font-size:11px;color:var(--color-text-faint);text-transform:uppercase;margin-bottom:4px">Forecasted Finish (P50 Likely)</div>
+                  <div style="font-size:24px;font-weight:800;color:var(--color-text);margin-bottom:4px">${fc.forecastFinish.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+                  <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:12px">Based on avg velocity of <strong>${fc.weeklyVelocity.toFixed(1)}</strong> effort units/week</div>
+                  <div style="border-top:1px dashed var(--color-divider);margin:12px 0;padding-top:8px;cursor:pointer;" onclick="PulseForecastEngine.showExplainerModal()" title="Click to view detailed math & simulations">
+                    <div style="font-size:11px;color:var(--color-text-faint);text-transform:uppercase;margin-bottom:4px;display:flex;align-items:center;justify-content:center;gap:4px;">Conservative Target (P90) <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
+                    <div style="font-size:18px;font-weight:800;color:#8b5cf6">${mc.p90.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+                  </div>
                 `;
                 setTimeout(() => {
                   const fill = res.querySelector('.ai-confidence-fill');
@@ -25483,6 +25833,8 @@
           const capCard = mkCC('🔮 Capacity Forecast', 'Resource bandwidth projection', 'dash-capacity', '', 'standard', "Estimates direct capacity requirements to finish the project on time.", 'View Explanation');
           grid.appendChild(capCard);
 
+          const totalEst = tasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+          const doneEst = tasks.reduce((s, t) => s + ((parseFloat(t.estEffort) || 0) * ((t.progress || 0) / 100)), 0);
           const remEst = Math.max(0, totalEst - doneEst);
           const allDues = tasks.map(t => new Date(t.dueDate)).filter(d => !isNaN(d.getTime()));
           const projectEnd = allDues.length ? new Date(Math.max(...allDues)) : new Date();
@@ -27137,7 +27489,11 @@
 
       const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       let velScores = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').map(m => {
-        const count = P.tasks.filter(t => t.assignee === m.name && t.status === 'Completed' && t.updatedAt && new Date(t.updatedAt) > thirtyDaysAgo).length;
+        const count = P.tasks.filter(t => {
+          if (t.assignee !== m.name || t.status !== 'Completed') return false;
+          const cmpDate = t.actCompletionDate || t.updatedAt;
+          return cmpDate && new Date(cmpDate) > thirtyDaysAgo;
+        }).length;
         return { name: m.name, count };
       }).sort((a, b) => b.count - a.count).slice(0, 3);
 
@@ -27222,7 +27578,7 @@
       const now = new Date();
       const activityData = Array(14).fill(0);
       P.log.forEach(l => {
-        const logTime = new Date(l.time);
+        const logTime = getLogActivityDate(l);
         const hoursAgo = (now - logTime) / (1000 * 60 * 60);
         if (hoursAgo >= 0 && hoursAgo < 168) {
           const bucket = 13 - Math.floor(hoursAgo / 12);
@@ -27908,7 +28264,11 @@
           const d = new Date(); d.setDate(d.getDate() - (i * 7));
           const wS = new Date(d); wS.setDate(d.getDate() - (d.getDay() || 7) + 1);
           const wE = new Date(wS); wE.setDate(wS.getDate() + 6);
-          const done = (P.log || []).filter(l => l.type === 'Updated' && l.details && l.details.includes('Status: Completed') && new Date(l.ts) >= wS && new Date(l.ts) <= wE).length;
+          const done = (P.log || []).filter(l => {
+            if (!isTaskCompletionLog(l)) return false;
+            const aD = getLogActivityDate(l);
+            return aD >= wS && aD <= wE;
+          }).length;
           last4w.push(done);
         }
         const avgVel = last4w.reduce((s, v) => s + v, 0) / 4 || 5;
@@ -34682,21 +35042,23 @@
         const mcBar = $id('mc-summary-bar');
         if (mcBar) {
           if (P.showMonteCarlo && tasks.length && mcResults) {
-            const allP10 = Object.values(mcResults).map(r => r.p10.getTime());
-            const allP50 = Object.values(mcResults).map(r => r.p50.getTime());
-            const allP90 = Object.values(mcResults).map(r => r.p90.getTime());
-            const maxP10 = new Date(Math.max(...allP10));
-            const maxP50 = new Date(Math.max(...allP50));
-            const maxP90 = new Date(Math.max(...allP90));
+            const fcGantt = PulseForecastEngine.calculateForecast(P.tasks, P.log);
+            const mcGantt = PulseForecastEngine.runUnifiedMonteCarlo(P.tasks, fcGantt.weeklyVelocity, fcGantt.remainingEffort, 100);
+            const maxP10 = mcGantt.p10;
+            const maxP50 = mcGantt.p50;
+            const maxP90 = mcGantt.p90;
 
             mcBar.style.display = 'flex';
+            mcBar.style.cursor = 'pointer';
+            mcBar.onclick = () => PulseForecastEngine.showExplainerModal();
+            mcBar.title = "Click to view detailed math & simulations";
             mcBar.innerHTML = `
               <div style="display:flex;align-items:center;gap:12px">
                 <div style="width:36px;height:36px;border-radius:10px;background:rgba(139,92,246,0.1);color:#8b5cf6;display:flex;align-items:center;justify-content:center">
                   <i data-lucide="cpu" style="width:20px;height:20px"></i>
                 </div>
                 <div>
-                  <div style="font-weight:800;font-size:14px;color:var(--color-text)">Algorithmic Monte Carlo Delivery Forecast</div>
+                  <div style="font-weight:800;font-size:14px;color:var(--color-text);display:flex;align-items:center;gap:6px;">Algorithmic Monte Carlo Delivery Forecast <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
                   <div style="font-size:11px;color:var(--color-text-muted)">100-pass simulation based on historical assignee velocity & task variance</div>
                 </div>
               </div>
@@ -34718,6 +35080,7 @@
             if (window.lucide) lucide.createIcons(mcBar);
           } else {
             mcBar.style.display = 'none';
+            mcBar.onclick = null;
           }
         }
 
@@ -37887,7 +38250,7 @@
               
               const progress = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
               const memberLogs = P.log.filter(l => l.user === m.name);
-              const recentActivity = memberLogs.filter(l => new Date(l.ts) > new Date(Date.now() - 7 * 864e5)).length;
+              const recentActivity = memberLogs.filter(l => getLogActivityDate(l) > new Date(Date.now() - 7 * 864e5)).length;
 
               // Efficiency Score: (Done / Total) * (1 - Overdue / Pending)
               let efficiency = 0;
@@ -38012,7 +38375,7 @@
                   const data = [];
                   for (let j = 6; j >= 0; j--) {
                     const dStr = new Date(Date.now() - j * 864e5).toISOString().split('T')[0];
-                    data.push(memberLogs.filter(l => l.ts && typeof l.ts === 'string' && l.ts.startsWith(dStr)).length);
+                    data.push(memberLogs.filter(l => getLogActivityDateStr(l) === dStr).length);
                   }
                   drawSpark(mctx, data);
                 }
@@ -38193,7 +38556,7 @@
           var globalMax = 1;
           actMembers.forEach(function(m) {
             actDays.forEach(function(d) {
-              var cnt = P.log.filter(function(l){ return l.user === m.name && l.ts && l.ts.startsWith(d.key); }).length;
+              var cnt = P.log.filter(function(l){ return l.user === m.name && getLogActivityDateStr(l) === d.key; }).length;
               if (cnt > globalMax) globalMax = cnt;
             });
           });
@@ -38213,10 +38576,14 @@
             actMembers.forEach(function(m, mIdx) {
               var initials = m.name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0, 2);
               var avatarBg = CC[mIdx % CC.length];
-              var total30 = P.log.filter(function(l){ return l.user === m.name && l.ts && new Date(l.ts) >= new Date(Date.now() - 30 * 864e5); }).length;
+              var total30 = P.log.filter(function(l){
+                if (l.user !== m.name) return false;
+                var aD = getLogActivityDate(l);
+                return aD >= new Date(Date.now() - 30 * 864e5);
+              }).length;
               actHtml += '<div class="act-row"><div class="act-member-label"><div style="width:24px;height:24px;border-radius:50%;background:' + avatarBg + ';color:white;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0">' + initials + '</div><div style="min-width:0"><div style="font-size:11px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(m.name) + '</div><div style="font-size:8px;color:var(--color-text-faint)">' + total30 + ' actions</div></div></div><div class="act-days-wrap">';
               actDays.forEach(function(d) {
-                var cnt = P.log.filter(function(l){ return l.user === m.name && l.ts && l.ts.startsWith(d.key); }).length;
+                var cnt = P.log.filter(function(l){ return l.user === m.name && getLogActivityDateStr(l) === d.key; }).length;
                 var ratio = cnt / globalMax;
                 var bg, bdr;
                 if (cnt === 0) { bg = 'var(--color-surface-3)'; bdr = 'var(--color-border-faint)'; }

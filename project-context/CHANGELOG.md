@@ -78,3 +78,10 @@
 - **Defect Inflow Trend timescale**: Increased the Defect Inflow Trend widget's analysis period from 7 days to 7 weeks and updated descriptions.
 - **Local Folder Sync Path in Excel**: Serialized the active directory sync path (`P.fsDirName`) to the Excel `System State` sheet, allowing the app to automatically reconstruct and restore directory sync handles from IndexedDB on Excel import.
 - **Help Guide Calculations**: Added explanations of the dynamic **Health Index** (weighted penalty model) and **Delivery Confidence** (backlog volume vs 4-week velocity average) calculation systems to the "How this view works" Help Guide modal.
+
+## 📅 [2026-06-04] - Retrospective Completion Tracking
+- **Date Resolution & Normalization**: Implemented hoisted helper functions `getLogActivityDate(l)` and `getLogActivityDateStr(l)` to resolve actual completion dates retrospectively.
+- **Log Entry Metadata**: Enhanced `addLog` to accept and serialize custom completion metadata (`subtaskId`, `actCompletionDate`).
+- **Dashboard & Performance Timelines**: Updated 30-Day Activity timeline, recent activity widgets, member contribution heatmaps, weekly velocity dashboards, health metrics log replay (`calculateSparklineData`), and status reports (`autoPopulateReport`) to query log histories via resolved activity dates instead of log insertion timestamps.
+- **Velocity & Confidence Fixes**: Corrected target log queries in Predictive AI ETA and Board Pack widgets to search by correct actions and newVal attributes, restoring historical velocity calculations.
+- **Verification & Documentation**: Validated all changes via check_syntax.js and test_runtime.js, updated entity schemas and changelogs in the offline project context.
