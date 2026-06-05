@@ -30547,19 +30547,19 @@
       ds.getColumn(1).width = 2.0; for (let i = 2; i <= 18; i++) ds.getColumn(i).width = 14; ds.getColumn(19).width = 2.0;
       for (let i = 1; i <= 250; i++) ds.getRow(i).height = 16;
 
-      // Cockpit Dashboard Palette & Styling Override
+      // Fintech Trader Workstation Palette & Styling Override
       const COLORS = {
-        bg: 'FF070A13',           // Deep cockpit canopy black
-        surface: 'FF151C28',      // Beveled instrumentation gray-blue panel
-        surfaceAlt: 'FF1E2638',   // Lighter cockpit panel accent
-        textDark: 'FFF8FAFC',     // Crisp white telemetry text
-        slate: 'FF94A3B8',        // Silver gray labels
-        divider: 'FF232D3F',      // Dark divider lines
-        indigo: 'FF6366F1',       // High-contrast neon indigo
-        emerald: 'FF10B981',      // High-contrast neon green
-        amber: 'FFF59E0B',        // Warning neon yellow
-        rose: 'FFF43F5E',         // Critical alert neon red
-        blue: 'FF06B6D4',         // Oscilloscope telemetry cyan
+        bg: 'FF090D16',           // Deep terminal black background
+        surface: 'FF121722',      // Bloomberg graphite panel surface
+        surfaceAlt: 'FF1F2633',   // Modular window title gray
+        textDark: 'FFE2E8F0',     // Soft gray telemetry text
+        slate: 'FF64748B',        // Telemetry label gray
+        divider: 'FF1F2633',      // Dark grid line divider
+        indigo: 'FF6366F1',       // Electric indigo
+        emerald: 'FF00E676',      // Neon ticker green
+        amber: 'FFFFD600',        // Warning neon gold
+        rose: 'FFFF1744',         // Neon red (alert/downward)
+        blue: 'FF00E5FF',         // Telemetry cyber cyan
         muted: 'FF475569',
         isDark: true
       };
@@ -30579,10 +30579,10 @@
         let r = parseInt(hex.substring(0, 2), 16) || 0;
         let g = parseInt(hex.substring(2, 4), 16) || 0;
         let b = parseInt(hex.substring(4, 6), 16) || 0;
-        // Blend with cockpit background color (#070A13)
-        const bgR = 7;
-        const bgG = 10;
-        const bgB = 19;
+        // Blend with Bloomberg graphite background (#090D16)
+        const bgR = 9;
+        const bgG = 13;
+        const bgB = 22;
         r = Math.round(r * factor + bgR * (1 - factor));
         g = Math.round(g * factor + bgG * (1 - factor));
         b = Math.round(b * factor + bgB * (1 - factor));
@@ -30590,10 +30590,10 @@
       };
 
       const hdrStyle = {
-        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } },
-        font: { name: 'Trebuchet MS', color: { argb: 'FFFFFFFF' }, bold: true, size: 9 },
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } },
+        font: { name: 'Courier New', color: { argb: 'FFFFFFFF' }, bold: true, size: 9 },
         alignment: { vertical: 'middle', horizontal: 'center' },
-        border: { bottom: { style: 'medium', color: { argb: COLORS.bg } } }
+        border: { bottom: { style: 'thin', color: { argb: COLORS.divider } } }
       };
 
       const isColorDarkLocal = (argb) => {
@@ -30620,6 +30620,15 @@
         canvas.height = height * 2;
         const ctx = canvas.getContext('2d');
         ctx.scale(2, 2);
+
+        // Monospace font interceptor for Fintech theme
+        const originalFillText = ctx.fillText;
+        ctx.fillText = function(text, x, y, maxWidth) {
+          if (this.font && this.font.includes('Segoe UI')) {
+            this.font = this.font.replace('Segoe UI', 'Courier New');
+          }
+          originalFillText.call(this, text, x, y, maxWidth);
+        };
 
         const isColorDarkLocal = (argb) => {
           if (!argb || argb.length < 8) return false;
@@ -31028,16 +31037,23 @@
         ds.mergeCells(row, col, row + h - 1, col + w - 1);
         const cell = ds.getCell(row, col);
         cell.border = {
-          top: { style: 'thin', color: { argb: 'FF334155' } },      // beveled light highlight
+          top: { style: 'thin', color: { argb: 'FF2A364F' } },      // beveled light highlight
           left: { style: 'medium', color: { argb: accentColor } },  // neon status highlight
-          bottom: { style: 'medium', color: { argb: 'FF020617' } },  // beveled dark shadow
-          right: { style: 'thin', color: { argb: 'FF020617' } }      // beveled dark shadow
+          bottom: { style: 'medium', color: { argb: 'FF020612' } },  // beveled dark shadow
+          right: { style: 'thin', color: { argb: 'FF020612' } }      // beveled dark shadow
         };
+
+        // Determine symbol prefix for fintech feel
+        let sym = '▶ ';
+        if (label.includes('Health')) sym = (parseInt(value) >= 80) ? '▲ ' : '▼ ';
+        else if (label.includes('Completed')) sym = '▲ ';
+        else if (label.includes('Blocked')) sym = (parseInt(value) > 0) ? '▼ ' : '✔ ';
+
         cell.value = {
           richText: [
-            { text: label.toUpperCase() + '\n', font: { name: 'Trebuchet MS', size: 7.5, bold: true, color: { argb: COLORS.slate } } },
-            { text: String(value) + '\n', font: { name: 'Trebuchet MS', size: 14, bold: true, color: { argb: COLORS.textDark } } },
-            { text: subLabel || '', font: { name: 'Segoe UI', size: 7.5, italic: true, color: { argb: COLORS.slate } } }
+            { text: `[${label.toUpperCase().replace(/ \/ /g, '.').substring(0, 12)}] \n`, font: { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.slate } } },
+            { text: `${sym}${String(value)} \n`, font: { name: 'Courier New', size: 16, bold: true, color: { argb: accentColor } } },
+            { text: subLabel || '', font: { name: 'Courier New', size: 7.5, italic: true, color: { argb: COLORS.slate } } }
           ]
         };
         cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
@@ -31047,10 +31063,10 @@
         ds.getRow(row).height = 20;
         ds.mergeCells(row, 2, row, 18);
         const cell = ds.getCell(row, 2);
-        cell.value = ' ' + title.toUpperCase();
-        cell.font = { name: 'Trebuchet MS', size: 9, bold: true, color: { argb: COLORS.indigo } };
+        cell.value = ` >> [${title.toUpperCase()}]`;
+        cell.font = { name: 'Courier New', size: 9, bold: true, color: { argb: COLORS.blue } };
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
-        cell.border = { bottom: { style: 'medium', color: { argb: COLORS.indigo } } };
+        cell.border = { bottom: { style: 'medium', color: { argb: COLORS.blue } } };
         cell.alignment = { vertical: 'middle' };
       };
 
@@ -31058,19 +31074,19 @@
         ds.getRow(row).height = 18;
         headers.forEach((h, i) => {
           const cell = ds.getCell(row, startCol + i);
-          cell.value = h;
-          cell.font = { name: 'Trebuchet MS', size: 8.5, bold: true, color: { argb: 'FFFFFFFF' } };
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } };
+          cell.value = `[${h.toUpperCase()}]`;
+          cell.font = { name: 'Courier New', size: 8, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
           cell.alignment = { vertical: 'middle', horizontal: 'center' };
-          cell.border = { bottom: { style: 'medium', color: { argb: COLORS.indigo } } };
+          cell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
         });
       };
 
       const drawTableRow = (row, values, startCol, alternate) => {
         ds.getRow(row).height = 16;
         const bg = alternate
-          ? getThemeTint(COLORS.indigo, 0.09)
-          : getThemeTint(COLORS.indigo, 0.03);
+          ? getThemeTint(COLORS.blue, 0.08)
+          : getThemeTint(COLORS.blue, 0.02);
         values.forEach((val, i) => {
           const cell = ds.getCell(row, startCol + i);
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
@@ -31078,10 +31094,10 @@
 
           if (val && val._styled) {
             cell.value = val.text;
-            cell.font = { name: 'Segoe UI', size: 8.5, bold: val.bold, color: { argb: val.color } };
+            cell.font = { name: 'Courier New', size: 8.5, bold: val.bold, color: { argb: val.color } };
           } else {
             cell.value = val;
-            cell.font = { name: 'Segoe UI', size: 8.5, color: { argb: COLORS.textDark } };
+            cell.font = { name: 'Courier New', size: 8.5, color: { argb: COLORS.textDark } };
           }
 
           cell.border = {
@@ -31102,7 +31118,7 @@
 
       ds.mergeCells('B2:R3'); ds.getRow(2).height = 20; ds.getRow(3).height = 20;
       const titleCell = ds.getCell('B2');
-      titleCell.value = { richText: [{ text: '  ' + (P.name || 'Project').toUpperCase(), font: { name: 'Trebuchet MS', size: 13, bold: true, color: { argb: 'FFFFFFFF' } } }, { text: '   |   EXECUTIVE INSIGHTS PORTAL', font: { name: 'Trebuchet MS', size: 8, bold: true, color: { argb: 'FFC7D2FE' } } }] };
+      titleCell.value = { richText: [{ text: ' >> SYSTEM.PULSE: ' + (P.name || 'Project').toUpperCase(), font: { name: 'Courier New', size: 12, bold: true, color: { argb: 'FFFFFFFF' } } }, { text: '   |   REAL-TIME PORTFOLIO TELEMETRY', font: { name: 'Courier New', size: 8, bold: true, color: { argb: 'FF00E5FF' } } }] };
       titleCell.alignment = { vertical: 'middle', indent: 1 };
 
       const gradFill = {
@@ -31110,15 +31126,15 @@
         gradient: 'angle',
         degree: 90,
         stops: [
-          { position: 0, color: { argb: 'FF030508' } },    // Pitch black canopy shadow
-          { position: 1, color: { argb: 'FF121824' } }     // Cosmic dark telemetry blue
+          { position: 0, color: { argb: 'FF090D16' } },    // Pitch black canopy shadow
+          { position: 1, color: { argb: 'FF121722' } }     // Bloomberg graphite
         ]
       };
 
       for (let c = 2; c <= 18; c++) {
         ds.getCell(2, c).fill = gradFill;
         ds.getCell(3, c).fill = gradFill;
-        ds.getCell(3, c).border = { bottom: { style: 'medium', color: { argb: 'FF06B6D4' } } }; // glowing neon-cyan status indicator strip
+        ds.getCell(3, c).border = { bottom: { style: 'medium', color: { argb: 'FF00E5FF' } } }; // glowing neon-cyan status indicator strip
       }
 
       const avgP = total ? Math.round(tasks.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / total) : 0;
