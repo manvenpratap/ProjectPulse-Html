@@ -30541,11 +30541,60 @@
       addGridCols('Task', P.cols); addGridCols('Defect', P.defCols);
     },
 
-    buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate) {
+    buildExecutiveDashboardSheets(wb, safeMode, _COLORS, _hdrStyle, _STATUS_COLORS, S, cleanFmtDate) {
       if (safeMode) return;
       const ds = wb.addWorksheet('Executive Dashboard', { views: safeMode ? [] : [{ showGridLines: false, state: 'frozen', ySplit: 6 }] });
       ds.getColumn(1).width = 2.0; for (let i = 2; i <= 18; i++) ds.getColumn(i).width = 14; ds.getColumn(19).width = 2.0;
       for (let i = 1; i <= 250; i++) ds.getRow(i).height = 16;
+
+      // Cockpit Dashboard Palette & Styling Override
+      const COLORS = {
+        bg: 'FF070A13',           // Deep cockpit canopy black
+        surface: 'FF151C28',      // Beveled instrumentation gray-blue panel
+        surfaceAlt: 'FF1E2638',   // Lighter cockpit panel accent
+        textDark: 'FFF8FAFC',     // Crisp white telemetry text
+        slate: 'FF94A3B8',        // Silver gray labels
+        divider: 'FF232D3F',      // Dark divider lines
+        indigo: 'FF6366F1',       // High-contrast neon indigo
+        emerald: 'FF10B981',      // High-contrast neon green
+        amber: 'FFF59E0B',        // Warning neon yellow
+        rose: 'FFF43F5E',         // Critical alert neon red
+        blue: 'FF06B6D4',         // Oscilloscope telemetry cyan
+        muted: 'FF475569',
+        isDark: true
+      };
+
+      const STATUS_COLORS = {
+        'Completed': COLORS.emerald,
+        'In Progress': COLORS.indigo,
+        'Under Review': COLORS.blue,
+        'On Hold': COLORS.amber,
+        'Blocked': COLORS.rose,
+        'Not Started': COLORS.muted,
+        'Cancelled': 'FF475569'
+      };
+
+      const getThemeTint = (argb, factor) => {
+        const hex = (argb || 'FF6366F1').substring(argb.length - 6);
+        let r = parseInt(hex.substring(0, 2), 16) || 0;
+        let g = parseInt(hex.substring(2, 4), 16) || 0;
+        let b = parseInt(hex.substring(4, 6), 16) || 0;
+        // Blend with cockpit background color (#070A13)
+        const bgR = 7;
+        const bgG = 10;
+        const bgB = 19;
+        r = Math.round(r * factor + bgR * (1 - factor));
+        g = Math.round(g * factor + bgG * (1 - factor));
+        b = Math.round(b * factor + bgB * (1 - factor));
+        return 'FF' + r.toString(16).padStart(2, '0').toUpperCase() + g.toString(16).padStart(2, '0').toUpperCase() + b.toString(16).padStart(2, '0').toUpperCase();
+      };
+
+      const hdrStyle = {
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } },
+        font: { name: 'Trebuchet MS', color: { argb: 'FFFFFFFF' }, bold: true, size: 9 },
+        alignment: { vertical: 'middle', horizontal: 'center' },
+        border: { bottom: { style: 'medium', color: { argb: COLORS.bg } } }
+      };
 
       const isColorDarkLocal = (argb) => {
         if (!argb || argb.length < 8) return false;
@@ -30556,8 +30605,6 @@
         let luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b);
         return luminance < 140;
       };
-
-      const getThemeTint = COLORS.getThemeTint;
 
       const applyBg = (r, c, color) => { ds.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } }; };
 
@@ -30981,10 +31028,10 @@
         ds.mergeCells(row, col, row + h - 1, col + w - 1);
         const cell = ds.getCell(row, col);
         cell.border = {
-          top: { style: 'thin', color: { argb: COLORS.divider } },
-          left: { style: 'medium', color: { argb: accentColor } },
-          bottom: { style: 'medium', color: { argb: COLORS.divider } },
-          right: { style: 'thin', color: { argb: COLORS.divider } }
+          top: { style: 'thin', color: { argb: 'FF334155' } },      // beveled light highlight
+          left: { style: 'medium', color: { argb: accentColor } },  // neon status highlight
+          bottom: { style: 'medium', color: { argb: 'FF020617' } },  // beveled dark shadow
+          right: { style: 'thin', color: { argb: 'FF020617' } }      // beveled dark shadow
         };
         cell.value = {
           richText: [
@@ -31063,14 +31110,15 @@
         gradient: 'angle',
         degree: 90,
         stops: [
-          { position: 0, color: { argb: 'FF1E1B4B' } },
-          { position: 1, color: { argb: 'FF4F46E5' } }
+          { position: 0, color: { argb: 'FF030508' } },    // Pitch black canopy shadow
+          { position: 1, color: { argb: 'FF121824' } }     // Cosmic dark telemetry blue
         ]
       };
 
       for (let c = 2; c <= 18; c++) {
         ds.getCell(2, c).fill = gradFill;
         ds.getCell(3, c).fill = gradFill;
+        ds.getCell(3, c).border = { bottom: { style: 'medium', color: { argb: 'FF06B6D4' } } }; // glowing neon-cyan status indicator strip
       }
 
       const avgP = total ? Math.round(tasks.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / total) : 0;
