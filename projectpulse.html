@@ -27125,25 +27125,99 @@
                   if (weeksCount > 100) weeksCount = 100;
                   const lastWeeks = []; for (let i = weeksCount - 1; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); lastWeeks.push({ w: getWeekNumber(d), y: d.getFullYear() }); }
                   const velocity = lastWeeks.map(w => tasks.filter(t => { if (t.status !== 'Completed' || !t.dueDate) return false; const d = new Date(t.dueDate); return getWeekNumber(d) === w.w && d.getFullYear() === w.y; }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
-                  const latestVel = velocity[velocity.length - 1]?.toFixed(1) || '0.0';
+                  const latestVel = velocity[velocity.length - 1] || 0;
+
+                  // Sparkline path calculation
+                  const maxV = Math.max(...velocity, 1);
+                  const points = velocity.map((val, idx) => {
+                    const x = (idx / (velocity.length - 1)) * 100;
+                    const y = 25 - (val / maxV) * 20 - 2;
+                    return `${x.toFixed(1)},${y.toFixed(1)}`;
+                  });
+                  const pathD = `M ${points.join(' L ')}`;
+
+                  // WIP Breakdown
+                  const wipTasks = tasks.filter(t => t.status === 'In Progress');
+                  const reviewTasks = tasks.filter(t => t.status === 'Under Review');
+                  const holdTasks = tasks.filter(t => t.status === 'On Hold');
+                  const totalWip = wipTasks.length + reviewTasks.length + holdTasks.length || 1;
+                  const wipPct = Math.round((wipTasks.length / totalWip) * 100);
+                  const reviewPct = Math.round((reviewTasks.length / totalWip) * 100);
+                  const holdPct = 100 - wipPct - reviewPct;
+
+                  // Forecasting Model
+                  const avgVel = (velocity.reduce((a, b) => a + b, 0) / velocity.length) || 0;
+                  const weeksToComplete = avgVel > 0 ? (currentActual / avgVel) : null;
+                  let forecastDateStr = 'Needs Velocity';
+                  let forecastStatus = 'Underperforming';
+                  let forecastColor = 'var(--red)';
+                  
+                  if (weeksToComplete !== null && weeksToComplete !== Infinity && weeksToComplete > 0) {
+                    const fd = new Date();
+                    fd.setDate(fd.getDate() + Math.ceil(weeksToComplete * 7));
+                    forecastDateStr = fd.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                    if (avgVel > 5) {
+                      forecastStatus = 'Optimal Velocity';
+                      forecastColor = 'var(--green)';
+                    } else {
+                      forecastStatus = 'Steady Progress';
+                      forecastColor = 'var(--amber)';
+                    }
+                  } else if (currentActual === 0) {
+                    forecastDateStr = 'Project Complete';
+                    forecastStatus = 'Complete';
+                    forecastColor = 'var(--green)';
+                  }
 
                   const summaryContent = document.createElement('div');
-                  summaryContent.style = "display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; padding:20px; background:var(--color-surface-2); border-radius:16px; border:1px solid var(--color-border-faint); margin-top:12px";
+                  summaryContent.style = "display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; padding:20px; background:var(--color-surface-2); border-radius:16px; border:1px solid var(--color-border-faint); margin-top:12px";
                   summaryContent.innerHTML = `
-            <div style="background:var(--color-surface-1); padding:16px; border-radius:12px; border:1px solid var(--color-border)">
+            <div style="background:var(--color-surface-1); padding:16px; border-radius:12px; border:1px solid var(--color-border); transition:transform 0.2s ease, box-shadow 0.2s ease; cursor:default" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-md)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='none'">
               <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:4px">Burndown Progress</div>
-              <div style="font-size:24px; font-weight:900; color:var(--color-primary)">${donePct}%</div>
-              <div style="font-size:12px; color:var(--color-text-faint); margin-top:4px">${doneEffort.toFixed(1)}d of ${totalEffort.toFixed(1)}d completed</div>
+              <div style="display:flex; justify-content:space-between; align-items:baseline">
+                <div style="font-size:24px; font-weight:900; color:var(--color-primary)">${donePct}%</div>
+                <div style="font-size:12px; color:var(--color-text-faint)">${doneEffort.toFixed(1)}d of ${totalEffort.toFixed(1)}d</div>
+              </div>
+              <div style="position:relative; width:100%; height:6px; background:var(--color-surface-2); border-radius:3px; margin-top:10px; overflow:hidden; border:1px solid var(--color-border-faint)">
+                <div style="width:${donePct}%; height:100%; background:var(--color-primary); border-radius:3px; transition:width 0.4s ease"></div>
+              </div>
             </div>
-            <div style="background:var(--color-surface-1); padding:16px; border-radius:12px; border:1px solid var(--color-border)">
-              <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:4px">Latest Weekly Velocity</div>
-              <div style="font-size:24px; font-weight:900; color:var(--green)">${latestVel}d</div>
-              <div style="font-size:12px; color:var(--color-text-faint); margin-top:4px">Effort completed this week</div>
+            
+            <div style="background:var(--color-surface-1); padding:16px; border-radius:12px; border:1px solid var(--color-border); transition:transform 0.2s ease, box-shadow 0.2s ease; cursor:default" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-md)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='none'">
+              <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:4px">Weekly Velocity Trend</div>
+              <div style="display:flex; justify-content:space-between; align-items:baseline">
+                <div style="font-size:24px; font-weight:900; color:var(--green)">${latestVel.toFixed(1)}d</div>
+                <div style="font-size:12px; color:var(--color-text-faint)">Avg: ${avgVel.toFixed(1)}d/wk</div>
+              </div>
+              <div style="margin-top:2px; height:24px; display:flex; align-items:flex-end">
+                <svg viewBox="0 0 100 25" style="width:100%; height:20px; stroke:var(--green); stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; opacity:0.85">
+                  <path d="${pathD}" />
+                </svg>
+              </div>
             </div>
-            <div style="background:var(--color-surface-1); padding:16px; border-radius:12px; border:1px solid var(--color-border)">
-              <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:4px">Active WIP (In Progress)</div>
-              <div style="font-size:24px; font-weight:900; color:var(--amber)">${tasks.filter(t => t.status === 'In Progress').length}</div>
-              <div style="font-size:12px; color:var(--color-text-faint); margin-top:4px">Tasks currently in flight</div>
+            
+            <div style="background:var(--color-surface-1); padding:16px; border-radius:12px; border:1px solid var(--color-border); transition:transform 0.2s ease, box-shadow 0.2s ease; cursor:default" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-md)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='none'">
+              <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:4px">WIP Distribution</div>
+              <div style="display:flex; justify-content:space-between; align-items:baseline">
+                <div style="font-size:24px; font-weight:900; color:var(--amber)">${wipTasks.length + reviewTasks.length}</div>
+                <div style="font-size:12px; color:var(--color-text-faint)">${holdTasks.length} on hold</div>
+              </div>
+              <div style="display:flex; height:6px; border-radius:3px; overflow:hidden; margin-top:10px; border:1px solid var(--color-border-faint)">
+                <div style="width:${wipPct}%; background:var(--amber)" title="In Progress: ${wipTasks.length}"></div>
+                <div style="width:${reviewPct}%; background:var(--color-primary)" title="Under Review: ${reviewTasks.length}"></div>
+                <div style="width:${holdPct}%; background:var(--color-text-faint)" title="On Hold: ${holdTasks.length}"></div>
+              </div>
+            </div>
+
+            <div style="background:var(--color-surface-1); padding:16px; border-radius:12px; border:1px solid var(--color-border); transition:transform 0.2s ease, box-shadow 0.2s ease; cursor:default" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-md)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='none'">
+              <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:4px">Trajectory Forecast</div>
+              <div style="display:flex; justify-content:space-between; align-items:baseline">
+                <div style="font-size:20px; font-weight:900; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${forecastDateStr}</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px; margin-top:10px">
+                <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${forecastColor}"></span>
+                <span style="font-size:11px; font-weight:700; color:var(--color-text-muted)">${forecastStatus}</span>
+              </div>
             </div>
           `;
                   anCard.querySelector('.cb').appendChild(summaryContent);
