@@ -24074,13 +24074,21 @@
         dashInnerContainer = targetContainer;
         dashInnerContainer.id = 'dash-inner';
       } else {
-        const d = $id('vw-dash'); d.innerHTML = '';
+        const d = $id('vw-dash');
         const _nowFmt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         $id('v-title').innerHTML = `<i data-lucide="trending-up" style="margin-right:10px"></i> Project Insights <span style="font-size:11px;font-weight:400;color:var(--color-text-faint);margin-left:12px;font-family:var(--mono)">Updated ${_nowFmt}</span>`;
-        dashInnerContainer = document.createElement('div');
-        dashInnerContainer.className = 'dash-inner';
-        dashInnerContainer.id = 'dash-inner';
-        d.appendChild(dashInnerContainer);
+        // Reuse the dash-inner container already injected by setView's VIEW_TEMPLATES
+        // to avoid a double DOM wipe that causes visible flicker.
+        let existing = $id('dash-inner');
+        if (existing && existing.children.length === 0) {
+          dashInnerContainer = existing;
+        } else {
+          d.innerHTML = '';
+          dashInnerContainer = document.createElement('div');
+          dashInnerContainer.className = 'dash-inner';
+          dashInnerContainer.id = 'dash-inner';
+          d.appendChild(dashInnerContainer);
+        }
       }
 
       if (!isEmbedded) {
@@ -27335,8 +27343,7 @@
                 card.classList.add('custom-jiggle');
                 card.draggable = true;
                 card.style.position = 'relative';
-
-                const isScard = card.classList.contains('scard');
+                  const isScard = card.classList.contains('scard');
                 const badge = document.createElement('div');
                 badge.className = 'custom-widget-badge';
                 if (isScard) { badge.style.top = '-8px'; badge.style.left = '-8px'; badge.style.padding = '2px 6px'; badge.style.fontSize = '9px'; }
@@ -27427,6 +27434,10 @@
           });
 
           dashInnerContainer.appendChild(dashFragment);
+          // Smooth fade-in to eliminate flicker on content swap
+          dashInnerContainer.style.opacity = '0';
+          dashInnerContainer.style.transition = 'opacity 0.22s ease';
+          requestAnimationFrame(() => { dashInnerContainer.style.opacity = '1'; });
           if (window.lucide) lucide.createIcons(dashInnerContainer);
           requestAnimationFrame(() => animateCounters(dashInnerContainer));
           renderSidebar();
@@ -27866,7 +27877,9 @@
           const executeRender = () => {
             if (P.view !== v) return;
 
-            if (VIEW_TEMPLATES[v]) {
+            // For 'dash', the template was already injected before the skeleton;
+            // renderDash will reuse the existing empty dash-inner, so skip re-injecting.
+            if (VIEW_TEMPLATES[v] && v !== 'dash') {
               newPanel.innerHTML = VIEW_TEMPLATES[v];
             }
 
@@ -27911,7 +27924,21 @@
           const skeletonViews = ['overview', 'dash', 'tasks', 'timeline', 'risks', 'team', 'reports', 'defects'];
           if (skeletonViews.includes(v)) {
             newPanel.classList.add('on');
-            renderSkeleton(newPanel, v);
+            // For dash: inject VIEW_TEMPLATE first so the dash-inner shell exists,
+            // then overlay the skeleton inside it — this way renderDash can reuse
+            // the already-present empty dash-inner without a second wipe.
+            if (v === 'dash' && VIEW_TEMPLATES[v]) {
+              newPanel.innerHTML = VIEW_TEMPLATES[v];
+              const shellInner = newPanel.firstElementChild;
+              if (shellInner) {
+                renderSkeleton(shellInner, v);
+                // Pre-set opacity so renderDash can fade in without a flash
+                shellInner.style.opacity = '1';
+                shellInner.style.transition = 'opacity 0.18s ease';
+              }
+            } else {
+              renderSkeleton(newPanel, v);
+            }
             setTimeout(executeRender, 250);
           } else {
             requestAnimationFrame(executeRender);
