@@ -32458,6 +32458,247 @@
               curRow = curRow + overdueTasks.length + 3;
             }
 
+            // ────────────────────────────────────────────────────────
+            // APPENDED SECTIONS (Moved from separate sheets)
+            // ────────────────────────────────────────────────────────
+            curRow += 2;
+            drawSectionTitle(curRow, 'Strategic Metrics Checklist & Release Rollup'); curRow += 2;
+
+            // Side-by-side header
+            drawTableHeader(curRow, ['Metric Key', 'Value', 'Category', 'Notes'], 2); // left table
+            drawTableHeader(curRow, ['Release Name', 'Tasks', 'Done', 'Overdue', 'Progress', 'Est Effort', 'Act Effort', 'RAG'], 11); // right table
+            
+            const metricsStartRow = curRow + 1;
+
+            // Prepare metrics data
+            const totalEstEffort = tasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+            const totalActEffort = tasks.reduce((s, t) => s + (parseFloat(t.actEffort) || 0), 0);
+            const effortVariance = totalActEffort - totalEstEffort;
+            const openDefects = (P.defects || []).filter(d => d.status !== 'Closed' && d.status !== 'Resolved').length;
+            
+            const metricsList = [
+              { label: 'Total Task Backlog', val: total, cat: 'Scope', note: 'Total scope items' },
+              { label: 'Delivered / Completed', val: done, cat: 'Scope', note: `${completionPct}% delivery rate` },
+              { label: 'Tasks in Progress', val: inProg, cat: 'Scope', note: 'Currently active' },
+              { label: 'Active Blocked Items', val: blocked, cat: 'Risk', note: blocked > 0 ? '⚠ Blocked' : '✔ Clear' },
+              { label: 'Overdue Tasks Delay', val: overdueTasks.length, cat: 'Risk', note: overdueTasks.length > 0 ? '⚠ Delayed' : '✔ On Schedule' },
+              { label: 'Critical Priority Tasks', val: criticalPri, cat: 'Risk', note: criticalPri > 0 ? '⚠ High Risk' : '✔ Clear' },
+              { label: 'Total Est. Effort', val: totalEstEffort.toFixed(1) + ' d', cat: 'Effort', note: 'Estimated' },
+              { label: 'Total Act. Effort', val: totalActEffort.toFixed(1) + ' d', cat: 'Effort', note: 'Actual logged' },
+              { label: 'Logged Effort Variance', val: (effortVariance >= 0 ? '+' : '') + effortVariance.toFixed(1) + ' d', cat: 'Effort', note: effortVariance <= 0 ? '✔ Under' : '⚠ Over' },
+              { label: 'Active Open Defects', val: openDefects, cat: 'Quality', note: openDefects > 0 ? 'Quality Debt' : '✔ Zero bugs' }
+            ];
+
+            // Render Metrics rows
+            metricsList.forEach((m, idx) => {
+              const rIdx = metricsStartRow + idx;
+              ds.getRow(rIdx).height = 18;
+              const bg = idx % 2 === 0 ? getThemeTint(COLORS.blue, 0.04) : getThemeTint(COLORS.blue, 0.01);
+              
+              // Key cell (merged B-C)
+              ds.mergeCells(rIdx, 2, rIdx, 3);
+              const lblC = ds.getCell(rIdx, 2);
+              lblC.value = m.label;
+              lblC.font = { name: 'Courier New', size: 8.5, color: { argb: COLORS.textDark } };
+              lblC.alignment = { vertical: 'middle', indent: 1 };
+              
+              // Value cell (merged D-E)
+              ds.mergeCells(rIdx, 4, rIdx, 5);
+              const valC = ds.getCell(rIdx, 4);
+              valC.value = m.val;
+              valC.font = { name: 'Courier New', size: 9, bold: true, color: { argb: COLORS.indigo } };
+              valC.alignment = { vertical: 'middle', horizontal: 'center' };
+
+              // Category cell (merged F-G)
+              ds.mergeCells(rIdx, 6, rIdx, 7);
+              const catC = ds.getCell(rIdx, 6);
+              catC.value = m.cat;
+              catC.font = { name: 'Courier New', size: 8, italic: true, color: { argb: COLORS.slate } };
+              catC.alignment = { vertical: 'middle', horizontal: 'center' };
+
+              // Note cell (merged H-I)
+              ds.mergeCells(rIdx, 8, rIdx, 9);
+              const noteC = ds.getCell(rIdx, 8);
+              noteC.value = m.note;
+              noteC.font = { name: 'Courier New', size: 8, color: { argb: COLORS.textDark } };
+              noteC.alignment = { vertical: 'middle', indent: 1 };
+
+              [2, 3, 4, 5, 6, 7, 8, 9].forEach(c => {
+                const cell = ds.getCell(rIdx, c);
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+                cell.border = {
+                  top: { style: 'thin', color: { argb: COLORS.divider } },
+                  bottom: { style: 'thin', color: { argb: COLORS.divider } },
+                  left: { style: 'thin', color: { argb: COLORS.divider } },
+                  right: { style: 'thin', color: { argb: COLORS.divider } }
+                };
+              });
+            });
+
+            // Render Releases rows (side-by-side, starting at metricsStartRow)
+            const releases = P.releases || (P.dropdowns && P.dropdowns.release) || [];
+            const releaseNames = releases.map(r => typeof r === 'string' ? r : (r.name || r.version || String(r)));
+            let relRowOffset = 0;
+            
+            releaseNames.forEach((rel, ri) => {
+              const relTasks = tasks.filter(t => t.release === rel);
+              if (!relTasks.length) return;
+
+              const rIdx = metricsStartRow + relRowOffset;
+              ds.getRow(rIdx).height = 18;
+              relRowOffset++;
+
+              const totalRel = relTasks.length;
+              const doneRel = relTasks.filter(t => t.status === 'Completed').length;
+              const overdueRel = relTasks.filter(t => t.dueDate && t.status !== 'Completed' && t.status !== 'Cancelled' && new Date(t.dueDate) < new Date()).length;
+              const progressRel = totalRel ? Math.round(doneRel / totalRel * 100) : 0;
+              const estEffRel = relTasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+              const actEffRel = relTasks.reduce((s, t) => s + (parseFloat(t.actEffort) || 0), 0);
+              const ragRel = overdueRel > 0 ? '🔴 RISK' : doneRel === totalRel ? '🟢 DONE' : '🟡 WORK';
+              const ragColorRel = overdueRel > 0 ? COLORS.rose : doneRel === totalRel ? COLORS.emerald : COLORS.amber;
+
+              const relVals = [
+                rel, 
+                totalRel, 
+                doneRel, 
+                overdueRel, 
+                progressRel + '%', 
+                estEffRel.toFixed(1), 
+                actEffRel.toFixed(1), 
+                styledVal(ragRel, ragColorRel, true)
+              ];
+
+              drawTableRow(rIdx, relVals, 11, ri % 2 === 1);
+            });
+
+            // Align current row to the max of metrics table vs releases table
+            curRow = metricsStartRow + Math.max(metricsList.length, relRowOffset) + 2;
+
+            // ── RAID Register Section ──
+            const activeRaids = (P.raids || []).filter(r => r.status !== 'Closed' && r.status !== 'Mitigated').slice(0, 10);
+            if (activeRaids.length) {
+              drawSectionTitle(curRow, 'Active RAID Register Snapshot'); curRow += 2;
+              drawTableHeader(curRow, ['ID', 'Type', 'Summary & Description', 'Impact', 'Probability', 'Severity', 'Owner', 'Status'], 2);
+              
+              activeRaids.forEach((r, i) => {
+                const rIdx = curRow + 1 + i;
+                const typeColor = r.type === 'Risk' ? COLORS.rose : r.type === 'Issue' ? COLORS.amber : COLORS.blue;
+                const raidVals = [
+                  r.id,
+                  styledVal(r.type, typeColor, true),
+                  styledVal(`${r.title} - ${r.description || r.desc || ''}`, COLORS.textDark, false),
+                  r.impact || '—',
+                  r.probability || '—',
+                  r.severity || '—',
+                  r.owner || '—',
+                  styledVal(r.status, r.status === 'Open' ? COLORS.rose : COLORS.emerald, true)
+                ];
+                
+                ds.getRow(rIdx).height = 18;
+                const bg = i % 2 === 1 ? getThemeTint(COLORS.blue, 0.08) : getThemeTint(COLORS.blue, 0.02);
+                
+                ds.mergeCells(rIdx, 4, rIdx, 9);
+                
+                const cellsMapping = [
+                  { c: 2, val: raidVals[0], alignment: 'center' },
+                  { c: 3, val: raidVals[1], alignment: 'center' },
+                  { c: 4, val: raidVals[2], alignment: 'left' },
+                  { c: 10, val: raidVals[3], alignment: 'center' },
+                  { c: 11, val: raidVals[4], alignment: 'center' },
+                  { c: 12, val: raidVals[5], alignment: 'center' },
+                  { c: 13, val: raidVals[6], alignment: 'center' },
+                  { c: 14, val: raidVals[7], alignment: 'center' }
+                ];
+                
+                [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].forEach(c => {
+                  const cell = ds.getCell(rIdx, c);
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+                  cell.border = {
+                    top: { style: 'thin', color: { argb: COLORS.divider } },
+                    bottom: { style: 'thin', color: { argb: COLORS.divider } },
+                    left: { style: 'thin', color: { argb: COLORS.divider } },
+                    right: { style: 'thin', color: { argb: COLORS.divider } }
+                  };
+                });
+
+                cellsMapping.forEach(cfg => {
+                  const cell = ds.getCell(rIdx, cfg.c);
+                  if (cfg.val && cfg.val._styled) {
+                    cell.value = cfg.val.text;
+                    cell.font = { name: 'Courier New', size: 8.5, bold: cfg.val.bold, color: { argb: cfg.val.color } };
+                  } else {
+                    cell.value = cfg.val;
+                    cell.font = { name: 'Courier New', size: 8.5, color: { argb: COLORS.textDark } };
+                  }
+                  cell.alignment = { vertical: 'middle', horizontal: cfg.alignment, wrapText: cfg.c === 4, indent: cfg.alignment === 'left' ? 1 : 0 };
+                });
+              });
+              
+              curRow += activeRaids.length + 2;
+            }
+
+            // ── Quality Issues & Open Defects Snapshot Section ──
+            const openBugs = (P.defects || []).filter(d => d.status !== 'Closed' && d.status !== 'Resolved').slice(0, 10);
+            if (openBugs.length) {
+              drawSectionTitle(curRow, 'Quality Intelligence - Open Defects Log Snapshot'); curRow += 2;
+              drawTableHeader(curRow, ['ID', 'Title & Steps to Reproduce', 'Type', 'Severity', 'Priority', 'Assignee', 'Reporter', 'Status'], 2);
+              
+              openBugs.forEach((d, i) => {
+                const rIdx = curRow + 1 + i;
+                const bugVals = [
+                  d.id,
+                  styledVal(`${d.title} ${d.steps ? '\nSteps: ' + d.steps : ''}`, COLORS.textDark, false),
+                  d.type || 'Bug',
+                  styledVal(d.severity, d.severity.includes('S1') || d.severity.includes('Critical') ? COLORS.rose : COLORS.amber, true),
+                  d.priority || 'Medium',
+                  d.assignee || '—',
+                  d.reporter || '—',
+                  styledVal(d.status, COLORS.rose, true)
+                ];
+                
+                ds.getRow(rIdx).height = 20;
+                const bg = i % 2 === 1 ? getThemeTint(COLORS.blue, 0.08) : getThemeTint(COLORS.blue, 0.02);
+                
+                ds.mergeCells(rIdx, 3, rIdx, 9);
+                
+                const cellsMapping = [
+                  { c: 2, val: bugVals[0], alignment: 'center' },
+                  { c: 3, val: bugVals[1], alignment: 'left' },
+                  { c: 10, val: bugVals[2], alignment: 'center' },
+                  { c: 11, val: bugVals[3], alignment: 'center' },
+                  { c: 12, val: bugVals[4], alignment: 'center' },
+                  { c: 13, val: bugVals[5], alignment: 'center' },
+                  { c: 14, val: bugVals[6], alignment: 'center' },
+                  { c: 15, val: bugVals[7], alignment: 'center' }
+                ];
+                
+                [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].forEach(c => {
+                  const cell = ds.getCell(rIdx, c);
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+                  cell.border = {
+                    top: { style: 'thin', color: { argb: COLORS.divider } },
+                    bottom: { style: 'thin', color: { argb: COLORS.divider } },
+                    left: { style: 'thin', color: { argb: COLORS.divider } },
+                    right: { style: 'thin', color: { argb: COLORS.divider } }
+                  };
+                });
+
+                cellsMapping.forEach(cfg => {
+                  const cell = ds.getCell(rIdx, cfg.c);
+                  if (cfg.val && cfg.val._styled) {
+                    cell.value = cfg.val.text;
+                    cell.font = { name: 'Courier New', size: 8.5, bold: cfg.val.bold, color: { argb: cfg.val.color } };
+                  } else {
+                    cell.value = cfg.val;
+                    cell.font = { name: 'Courier New', size: 8.5, color: { argb: COLORS.textDark } };
+                  }
+                  cell.alignment = { vertical: 'middle', horizontal: cfg.alignment, wrapText: cfg.c === 3, indent: cfg.alignment === 'left' ? 1 : 0 };
+                });
+              });
+              
+              curRow += openBugs.length + 2;
+            }
+
             drawSectionTitle(curRow, 'Executive Sentiment & Momentum Analysis'); curRow += 2;
             const momentum = healthScore > 80 ? 'Exceptional' : healthScore > 60 ? 'Positive' : 'Concerning'; const riskLevel = blocked + overdueTasks.length > 5 ? 'High Risk' : 'Managed';
             const summaryText = `Project momentum is currently ${momentum} with a ${riskLevel} profile. ${completionPct}% of planned scope is finalized. ` + (overdueTasks.length ? `${overdueTasks.length} tasks require immediate resolution to maintain schedule integrity.` : 'The project is tracking effectively against all major milestones.');
@@ -33229,12 +33470,12 @@
               registerNamedRanges(wb, safeMode);
               buildDataDictionarySheet(wb, safeMode, COLORS, hdrStyle);
               buildHelperMapsSheet(wb, safeMode, COLORS, hdrStyle);
-              // Group F: Enhanced Analytics (NEW)
-              buildProjectMetricsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
-              buildReleaseTrackingSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
-              buildDefectAnalysisSheet(wb, safeMode, COLORS, hdrStyle, S);
-              buildRAIDSheet(wb, safeMode, COLORS, hdrStyle, S);
-              buildVelocitySheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+              // Group F: Enhanced Analytics (NEW) - Removed separate sheets, merged into Executive Dashboard
+              // buildProjectMetricsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+              // buildReleaseTrackingSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+              // buildDefectAnalysisSheet(wb, safeMode, COLORS, hdrStyle, S);
+              // buildRAIDSheet(wb, safeMode, COLORS, hdrStyle, S);
+              // buildVelocitySheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
             } else {
               if (P.view === 'tasks') {
                 // Group A: Overview & Insights (Interactive / Readme)
@@ -33249,7 +33490,6 @@
                 // Group A: Overview & Insights (Interactive / Readme)
                 buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate);
                 buildDefectsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
-                buildDefectAnalysisSheet(wb, safeMode, COLORS, hdrStyle, S);
 
                 // Group E: Technical Reference Metadata & Setup
                 buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle);
@@ -33280,12 +33520,12 @@
                 registerNamedRanges(wb, safeMode);
                 buildDataDictionarySheet(wb, safeMode, COLORS, hdrStyle);
                 buildHelperMapsSheet(wb, safeMode, COLORS, hdrStyle);
-                // Group F: Enhanced Analytics
-                buildProjectMetricsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
-                buildReleaseTrackingSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
-                buildDefectAnalysisSheet(wb, safeMode, COLORS, hdrStyle, S);
-                buildRAIDSheet(wb, safeMode, COLORS, hdrStyle, S);
-                buildVelocitySheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+                // Group F: Enhanced Analytics - Removed separate sheets, merged into Executive Dashboard
+                // buildProjectMetricsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+                // buildReleaseTrackingSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+                // buildDefectAnalysisSheet(wb, safeMode, COLORS, hdrStyle, S);
+                // buildRAIDSheet(wb, safeMode, COLORS, hdrStyle, S);
+                // buildVelocitySheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
               }
             }
             applyWorkbookProtectionRules(wb, safeMode);
@@ -33694,11 +33934,7 @@
         function reconstructProjectFromBuffer(...args) { return PulseExcel.reconstructProjectFromBuffer(...args); }
         function exportLogCSV(...args) { return PulseExcel.exportLogCSV(...args); }
         function downloadCSV(...args) { return PulseExcel.downloadCSV(...args); }
-        function buildProjectMetricsSheet(...args) { return PulseExcel.buildProjectMetricsSheet(...args); }
-        function buildReleaseTrackingSheet(...args) { return PulseExcel.buildReleaseTrackingSheet(...args); }
-        function buildDefectAnalysisSheet(...args) { return PulseExcel.buildDefectAnalysisSheet(...args); }
-        function buildRAIDSheet(...args) { return PulseExcel.buildRAIDSheet(...args); }
-        function buildVelocitySheet(...args) { return PulseExcel.buildVelocitySheet(...args); }
+        // Global aliases for backward compatibility (Group F sheets removed)
 
         // ══════ MODAL HELPERS ══════
 
