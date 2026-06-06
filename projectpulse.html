@@ -10353,7 +10353,7 @@
       </style>
       <div class="mcard"
         style="max-width:420px;width:100%;background:var(--color-surface);text-align:center;padding:40px 32px;border:1px solid var(--color-border);border-radius:var(--radius-lg);box-shadow:0 32px 64px rgba(0,0,0,0.5)">
-        <div style="display:flex;align-items:center;justify-content:center;margin-bottom:28px">
+        <div id="app-lock-spinner-container" style="display:flex;align-items:center;justify-content:center;margin-bottom:28px">
           <div
             style="width:56px;height:56px;border:5px solid var(--color-divider);border-top-color:var(--color-primary);border-radius:50%;animation:appLockSpin 1s linear infinite">
           </div>
@@ -29031,13 +29031,45 @@
       });
     }
 
-    function showAppLock(title, desc) {
+    function showAppLock(title, desc, type) {
       const modal = document.getElementById('app-lock-modal');
       if (!modal) return;
       const tEl = document.getElementById('app-lock-title');
       const dEl = document.getElementById('app-lock-desc');
+      const spinnerContainer = document.getElementById('app-lock-spinner-container');
       if (tEl && title) tEl.innerText = title;
       if (dEl && desc) dEl.innerText = desc;
+      
+      if (spinnerContainer) {
+        if (type === 'viewlevel' || type === 'share') {
+          // View-Level Excel Export (Teal/Emerald Document Share style)
+          spinnerContainer.innerHTML = `
+            <div style="position:relative;width:64px;height:64px;display:flex;align-items:center;justify-content:center">
+              <div style="position:absolute;width:56px;height:56px;border:3.5px dashed var(--color-divider);border-top-color:var(--emerald);border-radius:50%;animation:appLockSpin 0.8s linear infinite"></div>
+              <i data-lucide="share-2" style="width:20px;height:20px;color:var(--emerald);position:absolute"></i>
+            </div>
+          `;
+        } else if (type === 'import') {
+          // Reconstructing State (Orange/Amber Database Restore style)
+          spinnerContainer.innerHTML = `
+            <div style="position:relative;width:64px;height:64px;display:flex;align-items:center;justify-content:center">
+              <div style="position:absolute;width:56px;height:56px;border:4px solid var(--color-divider);border-top-color:var(--amber);border-radius:50%;animation:appLockSpin 1.5s ease-in-out infinite"></div>
+              <div style="position:absolute;width:40px;height:40px;border:4px solid var(--color-divider);border-bottom-color:var(--amber);border-radius:50%;animation:appLockSpin 0.75s ease-in-out infinite reverse"></div>
+              <i data-lucide="refresh-cw" style="width:16px;height:16px;color:var(--amber);position:absolute;animation:appLockSpin 4s linear infinite"></i>
+            </div>
+          `;
+        } else {
+          // Master Excel / Smart Workbook Export (Glowing Purple/Indigo Database Backup style)
+          spinnerContainer.innerHTML = `
+            <div style="position:relative;width:64px;height:64px;display:flex;align-items:center;justify-content:center">
+              <div style="position:absolute;width:56px;height:56px;border:5px solid var(--color-divider);border-top-color:var(--color-primary);border-radius:50%;animation:appLockSpin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite"></div>
+              <div style="position:absolute;width:38px;height:38px;border:3px solid var(--color-divider);border-bottom-color:var(--color-primary);border-radius:50%;animation:appLockSpin 0.8s linear infinite reverse"></div>
+              <i data-lucide="database" style="width:18px;height:18px;color:var(--color-primary);position:absolute"></i>
+            </div>
+          `;
+        }
+        if (window.lucide) lucide.createIcons();
+      }
       modal.classList.add('open');
     }
     function hideAppLock() {
@@ -29054,7 +29086,11 @@
         const ts = new Date().toISOString().replace(/[-:T]/g, '').split('.')[0];
 
         notify(safeMode ? 'Preparing Safe Export...' : 'Preparing Master Export...', 'ok');
-        showAppLock('Generating Smart Workbook...', 'Serializing application state, configurations, sequences, and helper sheets. Please wait...');
+        if (viewLevel) {
+          showAppLock('Generating View Export...', 'Compiling dashboard metrics and status views. Please wait...', 'viewlevel');
+        } else {
+          showAppLock('Generating Smart Workbook...', 'Serializing application state, configurations, sequences, and helper sheets. Please wait...', 'master');
+        }
         await new Promise(r => setTimeout(r, 100));
 
         console.log('[Excel Export] Starting...', { safeMode, viewLevel, projectName: P.name });
@@ -30545,16 +30581,16 @@
       if (safeMode) return;
       const ds = wb.addWorksheet('Executive Dashboard', { views: safeMode ? [] : [{ showGridLines: false, state: 'frozen', ySplit: 6 }] });
       ds.getColumn(1).width = 2.0; for (let i = 2; i <= 18; i++) ds.getColumn(i).width = 14; ds.getColumn(19).width = 2.0;
-      for (let i = 1; i <= 250; i++) ds.getRow(i).height = 16;
+      for (let i = 1; i <= 300; i++) ds.getRow(i).height = 16;
 
-      // Fintech Trader Workstation Palette & Styling Override
+      // Grafana & Fintech Trader Workstation Hybrid Palette
       const COLORS = {
-        bg: 'FF090D16',           // Deep terminal black background
-        surface: 'FF121722',      // Bloomberg graphite panel surface
-        surfaceAlt: 'FF1F2633',   // Modular window title gray
-        textDark: 'FFE2E8F0',     // Soft gray telemetry text
-        slate: 'FF64748B',        // Telemetry label gray
-        divider: 'FF1F2633',      // Dark grid line divider
+        bg: 'FF0B0E14',           // Grafana canvas black/dark gray background
+        surface: 'FF161B25',      // Grafana panel surface graphite
+        surfaceAlt: 'FF1F2735',   // Grafana title header/alternating row surface
+        textDark: 'FFE2E8F0',     // Telemetry soft white/gray text
+        slate: 'FF8A99AD',        // Telemetry label gray
+        divider: 'FF242F41',      // Panel border divider
         indigo: 'FF6366F1',       // Electric indigo
         emerald: 'FF00E676',      // Neon ticker green
         amber: 'FFFFD600',        // Warning neon gold
@@ -30579,10 +30615,10 @@
         let r = parseInt(hex.substring(0, 2), 16) || 0;
         let g = parseInt(hex.substring(2, 4), 16) || 0;
         let b = parseInt(hex.substring(4, 6), 16) || 0;
-        // Blend with Bloomberg graphite background (#090D16)
-        const bgR = 9;
-        const bgG = 13;
-        const bgB = 22;
+        // Blend with Grafana dark background (#0B0E14)
+        const bgR = 11;
+        const bgG = 14;
+        const bgB = 20;
         r = Math.round(r * factor + bgR * (1 - factor));
         g = Math.round(g * factor + bgG * (1 - factor));
         b = Math.round(b * factor + bgB * (1 - factor));
@@ -30591,29 +30627,163 @@
 
       const hdrStyle = {
         fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } },
-        font: { name: 'Courier New', color: { argb: 'FFFFFFFF' }, bold: true, size: 9 },
+        font: { name: 'Courier New', color: { argb: 'FFFFFFFF' }, bold: true, size: 8.5 },
         alignment: { vertical: 'middle', horizontal: 'center' },
         border: { bottom: { style: 'thin', color: { argb: COLORS.divider } } }
       };
 
-      const isColorDarkLocal = (argb) => {
-        if (!argb || argb.length < 8) return false;
-        let hex = argb.substring(argb.length - 6);
-        let r = parseInt(hex.substring(0, 2), 16);
-        let g = parseInt(hex.substring(2, 4), 16);
-        let b = parseInt(hex.substring(4, 6), 16);
-        let luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b);
-        return luminance < 140;
-      };
-
       const applyBg = (r, c, color) => { ds.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } }; };
 
-      for (let r = 1; r <= 200; r++) {
+      // Fill background
+      for (let r = 1; r <= 300; r++) {
         for (let c = 2; c <= 18; c++) {
           applyBg(r, c, COLORS.bg);
         }
       }
 
+      // Panel Drawer Helpers
+      const drawPanel = (col, row, w, h, title, accentColor) => {
+        for (let r = row; r < row + h; r++) {
+          ds.getRow(r).height = 16;
+          for (let c = col; c < col + w; c++) {
+            applyBg(r, c, COLORS.surface);
+            ds.getCell(r, c).border = {};
+          }
+        }
+        
+        ds.mergeCells(row, col, row, col + w - 1);
+        const titleCell = ds.getCell(row, col);
+        titleCell.value = ` >> [ ${title.toUpperCase()} ]`;
+        titleCell.font = { name: 'Courier New', size: 8.5, bold: true, color: { argb: COLORS.blue } };
+        titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+        titleCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+
+        for (let r = row; r < row + h; r++) {
+          for (let c = col; c < col + w; c++) {
+            const cell = ds.getCell(r, c);
+            const border = { ...cell.border };
+            if (r === row) border.top = { style: 'medium', color: { argb: accentColor } };
+            if (r === row + h - 1) border.bottom = { style: 'thin', color: { argb: COLORS.divider } };
+            if (c === col) border.left = { style: 'thin', color: { argb: COLORS.divider } };
+            if (c === col + w - 1) border.right = { style: 'thin', color: { argb: COLORS.divider } };
+            if (r === row) border.bottom = { style: 'thin', color: { argb: COLORS.divider } };
+            cell.border = border;
+          }
+        }
+      };
+
+      const drawPremiumCard = (col, row, w, h, label, value, subLabel, accentColor) => {
+        for (let r = row; r < row + h; r++) {
+          ds.getRow(r).height = 18;
+          for (let c = col; c < col + w; c++) {
+            applyBg(r, c, COLORS.surface);
+          }
+        }
+        ds.mergeCells(row, col, row + h - 1, col + w - 1);
+        const cell = ds.getCell(row, col);
+        cell.border = {
+          top: { style: 'medium', color: { argb: accentColor } },
+          left: { style: 'thin', color: { argb: COLORS.divider } },
+          bottom: { style: 'thin', color: { argb: COLORS.divider } },
+          right: { style: 'thin', color: { argb: COLORS.divider } }
+        };
+
+        let sym = '▶ ';
+        if (label.includes('Health')) sym = (parseInt(value) >= 80) ? '▲ ' : '▼ ';
+        else if (label.includes('Completed')) sym = '▲ ';
+        else if (label.includes('Blocked')) sym = (parseInt(value) > 0) ? '▼ ' : '✔ ';
+
+        cell.value = {
+          richText: [
+            { text: `[${label.toUpperCase().replace(/ \/ /g, '.').substring(0, 15)}] \n`, font: { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.slate } } },
+            { text: `${sym}${String(value)} \n`, font: { name: 'Courier New', size: 16, bold: true, color: { argb: accentColor } } },
+            { text: subLabel || '', font: { name: 'Courier New', size: 7.5, italic: true, color: { argb: COLORS.slate } } }
+          ]
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
+      };
+
+      const drawStatPanel = (col, row, w, h, label, value, subLabel, accentColor) => {
+        for (let r = row; r < row + h; r++) {
+          for (let c = col; c < col + w; c++) {
+            applyBg(r, c, COLORS.surfaceAlt);
+          }
+        }
+        ds.mergeCells(row, col, row + h - 1, col + w - 1);
+        const cell = ds.getCell(row, col);
+        cell.border = {
+          top: { style: 'medium', color: { argb: accentColor } },
+          left: { style: 'thin', color: { argb: COLORS.divider } },
+          bottom: { style: 'thin', color: { argb: COLORS.divider } },
+          right: { style: 'thin', color: { argb: COLORS.divider } }
+        };
+
+        cell.value = {
+          richText: [
+            { text: `[${label.toUpperCase()}] \n`, font: { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.slate } } },
+            { text: `▶ ${String(value)} \n`, font: { name: 'Courier New', size: 13, bold: true, color: { argb: accentColor } } },
+            { text: subLabel || '', font: { name: 'Courier New', size: 7.5, italic: true, color: { argb: COLORS.slate } } }
+          ]
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
+      };
+
+      const drawSectionTitle = (row, title) => {
+        ds.getRow(row).height = 20;
+        ds.mergeCells(row, 2, row, 18);
+        const cell = ds.getCell(row, 2);
+        cell.value = ` >> [ ${title.toUpperCase()} ]`;
+        cell.font = { name: 'Courier New', size: 9, bold: true, color: { argb: COLORS.blue } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2735' } };
+        cell.border = { 
+          bottom: { style: 'medium', color: { argb: COLORS.blue } },
+          top: { style: 'thin', color: { argb: COLORS.divider } }
+        };
+        cell.alignment = { vertical: 'middle', indent: 1 };
+      };
+
+      const drawTableHeader = (row, headers, startCol) => {
+        ds.getRow(row).height = 18;
+        headers.forEach((h, i) => {
+          const cell = ds.getCell(row, startCol + i);
+          cell.value = `[${h.toUpperCase()}]`;
+          cell.font = { name: 'Courier New', size: 8, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          cell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
+        });
+      };
+
+      const drawTableRow = (row, values, startCol, alternate) => {
+        ds.getRow(row).height = 16;
+        const bg = alternate
+          ? getThemeTint(COLORS.blue, 0.08)
+          : getThemeTint(COLORS.blue, 0.02);
+        values.forEach((val, i) => {
+          const cell = ds.getCell(row, startCol + i);
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+          if (val && val._styled) {
+            cell.value = val.text;
+            cell.font = { name: 'Courier New', size: 8.5, bold: val.bold, color: { argb: val.color } };
+          } else {
+            cell.value = val;
+            cell.font = { name: 'Courier New', size: 8.5, color: { argb: COLORS.textDark } };
+          }
+
+          cell.border = {
+            top: { style: 'thin', color: { argb: COLORS.divider } },
+            bottom: { style: 'thin', color: { argb: COLORS.divider } },
+            left: { style: 'thin', color: { argb: COLORS.divider } },
+            right: { style: 'thin', color: { argb: COLORS.divider } }
+          };
+        });
+      };
+
+      const styledVal = (text, color, bold) => ({ _styled: true, text: String(text), color: (color || COLORS.textDark).replace('#', ''), bold });
+
+      // Canvas chart generator inside excel worker context
       function generateCanvasChart(width, height, type, data, colors) {
         const canvas = document.createElement('canvas');
         canvas.width = width * 2;
@@ -30624,22 +30794,9 @@
         // Monospace font interceptor for Fintech theme
         const originalFillText = ctx.fillText;
         ctx.fillText = function(text, x, y, maxWidth) {
-          if (this.font && this.font.includes('Segoe UI')) {
-            this.font = this.font.replace('Segoe UI', 'Courier New');
-          }
+          this.font = this.font.replace(/Segoe UI|Arial/g, 'Courier New');
           originalFillText.call(this, text, x, y, maxWidth);
         };
-
-        const isColorDarkLocal = (argb) => {
-          if (!argb || argb.length < 8) return false;
-          let hex = argb.substring(argb.length - 6);
-          let r = parseInt(hex.substring(0, 2), 16);
-          let g = parseInt(hex.substring(2, 4), 16);
-          let b = parseInt(hex.substring(4, 6), 16);
-          let luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b);
-          return luminance < 140;
-        };
-        const isDarkTheme = isColorDarkLocal(COLORS.bg);
 
         function toWebColor(col) {
           if (!col) return '#475569';
@@ -30701,8 +30858,8 @@
           });
 
           if (colors && colors.centerText) {
-            ctx.fillStyle = isDarkTheme ? '#FFFFFF' : '#0F172A';
-            ctx.font = `bold ${Math.round(11 * scale)}px Segoe UI`;
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = `bold ${Math.round(11 * scale)}px Courier New`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(colors.centerText, centerX, centerY);
@@ -30717,10 +30874,10 @@
 
           const maxVal = Math.max(...data.ideal, ...data.actual, 1) * 1.15;
 
-          ctx.strokeStyle = isDarkTheme ? '#334155' : '#F1F5F9';
+          ctx.strokeStyle = '#242F41';
           ctx.lineWidth = 1;
-          ctx.font = `${Math.round(8 * scale)}px Segoe UI`;
-          ctx.fillStyle = isDarkTheme ? '#94A3B8' : '#64748B';
+          ctx.font = `${Math.round(8 * scale)}px Courier New`;
+          ctx.fillStyle = '#8A99AD';
           ctx.textAlign = 'right';
           ctx.textBaseline = 'middle';
 
@@ -30748,7 +30905,7 @@
             return { x, y };
           };
 
-          ctx.strokeStyle = isDarkTheme ? '#475569' : '#CBD5E1';
+          ctx.strokeStyle = '#475569';
           ctx.lineWidth = 1.5;
           ctx.setLineDash([3, 3]);
           ctx.beginPath();
@@ -30805,10 +30962,10 @@
 
           const maxVal = Math.max(...data.values, 1) * 1.15;
 
-          ctx.strokeStyle = isDarkTheme ? '#334155' : '#F1F5F9';
+          ctx.strokeStyle = '#242F41';
           ctx.lineWidth = 1;
-          ctx.font = `${Math.round(8 * scale)}px Segoe UI`;
-          ctx.fillStyle = isDarkTheme ? '#94A3B8' : '#64748B';
+          ctx.font = `${Math.round(8 * scale)}px Courier New`;
+          ctx.fillStyle = '#8A99AD';
           ctx.textAlign = 'right';
           ctx.textBaseline = 'middle';
 
@@ -30842,13 +30999,13 @@
             ctx.fillStyle = barGrad;
             ctx.fillRect(x, y, barWidth, h);
 
-            ctx.fillStyle = isDarkTheme ? '#FFFFFF' : '#1E293B';
-            ctx.font = `bold ${Math.round(8.5 * scale)}px Segoe UI`;
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = `bold ${Math.round(8.5 * scale)}px Courier New`;
             ctx.textBaseline = 'bottom';
             ctx.fillText(String(Math.round(val)), xCenter, y - 2);
 
-            ctx.fillStyle = isDarkTheme ? '#94A3B8' : '#64748B';
-            ctx.font = `${Math.round(8 * scale)}px Segoe UI`;
+            ctx.fillStyle = '#8A99AD';
+            ctx.font = `${Math.round(8 * scale)}px Courier New`;
             ctx.textBaseline = 'top';
             ctx.fillText(data.labels[idx], xCenter, height - padB + 4);
           });
@@ -30866,7 +31023,7 @@
 
           const maxVal = 100;
 
-          ctx.font = `${Math.round(8 * scale)}px Segoe UI`;
+          ctx.font = `${Math.round(8 * scale)}px Courier New`;
           ctx.textBaseline = 'middle';
 
           data.values.forEach((val, idx) => {
@@ -30874,7 +31031,7 @@
             const y = yCenter - barHeight / 2;
             const w = chartW * (Math.min(maxVal, Math.max(0, val)) / maxVal);
 
-            ctx.fillStyle = isDarkTheme ? '#334155' : '#F1F5F9';
+            ctx.fillStyle = '#242F41';
             ctx.fillRect(padL, y, chartW, barHeight);
 
             const barGrad = ctx.createLinearGradient(padL, 0, padL + chartW, 0);
@@ -30884,15 +31041,15 @@
             ctx.fillStyle = barGrad;
             ctx.fillRect(padL, y, w, barHeight);
 
-            ctx.fillStyle = isDarkTheme ? '#E2E8F0' : '#475569';
+            ctx.fillStyle = '#E2E8F0';
             ctx.textAlign = 'right';
-            ctx.font = `bold ${Math.round(8 * scale)}px Segoe UI`;
+            ctx.font = `bold ${Math.round(8 * scale)}px Courier New`;
             const cleanLbl = String(data.labels[idx]).length > 15 ? String(data.labels[idx]).substring(0, 13) + '..' : data.labels[idx];
             ctx.fillText(cleanLbl, padL - 6, yCenter);
 
-            ctx.fillStyle = isDarkTheme ? '#FFFFFF' : '#0F172A';
+            ctx.fillStyle = '#FFFFFF';
             ctx.textAlign = 'left';
-            ctx.font = `bold ${Math.round(8.5 * scale)}px Segoe UI`;
+            ctx.font = `bold ${Math.round(8.5 * scale)}px Courier New`;
             ctx.fillText(Math.round(val) + '%', padL + w + 4, yCenter);
           });
         } else if (type === 'stackedHorizontalBar') {
@@ -30915,14 +31072,14 @@
           }
           maxVal = Math.max(maxVal, 1) * 1.1;
 
-          ctx.font = `${Math.round(8 * scale)}px Segoe UI`;
+          ctx.font = `${Math.round(8 * scale)}px Courier New`;
           ctx.textBaseline = 'middle';
 
           for (let i = 0; i < numBars; i++) {
             const yCenter = padT + i * spacing + spacing / 2;
             const y = yCenter - barHeight / 2;
 
-            ctx.fillStyle = isDarkTheme ? '#334155' : '#F1F5F9';
+            ctx.fillStyle = '#242F41';
             ctx.fillRect(padL, y, chartW, barHeight);
 
             let accumulatedW = 0;
@@ -30939,9 +31096,9 @@
               accumulatedW += w;
             });
 
-            ctx.fillStyle = isDarkTheme ? '#E2E8F0' : '#475569';
+            ctx.fillStyle = '#E2E8F0';
             ctx.textAlign = 'right';
-            ctx.font = `bold ${Math.round(8 * scale)}px Segoe UI`;
+            ctx.font = `bold ${Math.round(8 * scale)}px Courier New`;
             const cleanLbl = String(data.labels[i]).length > 15 ? String(data.labels[i]).substring(0, 13) + '..' : data.labels[i];
             ctx.fillText(cleanLbl, padL - 6, yCenter);
           }
@@ -30965,10 +31122,10 @@
           }
           maxStackedVal = Math.max(maxStackedVal, 1) * 1.15;
 
-          ctx.strokeStyle = isDarkTheme ? '#334155' : '#F1F5F9';
+          ctx.strokeStyle = '#242F41';
           ctx.lineWidth = 1;
-          ctx.font = `${Math.round(8 * scale)}px Segoe UI`;
-          ctx.fillStyle = isDarkTheme ? '#94A3B8' : '#64748B';
+          ctx.font = `${Math.round(8 * scale)}px Courier New`;
+          ctx.fillStyle = '#8A99AD';
           ctx.textAlign = 'right';
           ctx.textBaseline = 'middle';
 
@@ -31032,93 +31189,15 @@
         return canvas.toDataURL('image/png');
       }
 
-      const drawPremiumCard = (col, row, w, h, label, value, subLabel, accentColor) => {
-        for (let r = row; r < row + h; r++) { ds.getRow(r).height = 20; for (let c = col; c < col + w; c++) applyBg(r, c, COLORS.surface); }
-        ds.mergeCells(row, col, row + h - 1, col + w - 1);
-        const cell = ds.getCell(row, col);
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FF2A364F' } },      // beveled light highlight
-          left: { style: 'medium', color: { argb: accentColor } },  // neon status highlight
-          bottom: { style: 'medium', color: { argb: 'FF020612' } },  // beveled dark shadow
-          right: { style: 'thin', color: { argb: 'FF020612' } }      // beveled dark shadow
-        };
-
-        // Determine symbol prefix for fintech feel
-        let sym = '▶ ';
-        if (label.includes('Health')) sym = (parseInt(value) >= 80) ? '▲ ' : '▼ ';
-        else if (label.includes('Completed')) sym = '▲ ';
-        else if (label.includes('Blocked')) sym = (parseInt(value) > 0) ? '▼ ' : '✔ ';
-
-        cell.value = {
-          richText: [
-            { text: `[${label.toUpperCase().replace(/ \/ /g, '.').substring(0, 12)}] \n`, font: { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.slate } } },
-            { text: `${sym}${String(value)} \n`, font: { name: 'Courier New', size: 16, bold: true, color: { argb: accentColor } } },
-            { text: subLabel || '', font: { name: 'Courier New', size: 7.5, italic: true, color: { argb: COLORS.slate } } }
-          ]
-        };
-        cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
-      };
-
-      const drawSectionTitle = (row, title) => {
-        ds.getRow(row).height = 20;
-        ds.mergeCells(row, 2, row, 18);
-        const cell = ds.getCell(row, 2);
-        cell.value = ` >> [${title.toUpperCase()}]`;
-        cell.font = { name: 'Courier New', size: 9, bold: true, color: { argb: COLORS.blue } };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
-        cell.border = { bottom: { style: 'medium', color: { argb: COLORS.blue } } };
-        cell.alignment = { vertical: 'middle' };
-      };
-
-      const drawTableHeader = (row, headers, startCol) => {
-        ds.getRow(row).height = 18;
-        headers.forEach((h, i) => {
-          const cell = ds.getCell(row, startCol + i);
-          cell.value = `[${h.toUpperCase()}]`;
-          cell.font = { name: 'Courier New', size: 8, bold: true, color: { argb: 'FFFFFFFF' } };
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
-          cell.alignment = { vertical: 'middle', horizontal: 'center' };
-          cell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
-        });
-      };
-
-      const drawTableRow = (row, values, startCol, alternate) => {
-        ds.getRow(row).height = 16;
-        const bg = alternate
-          ? getThemeTint(COLORS.blue, 0.08)
-          : getThemeTint(COLORS.blue, 0.02);
-        values.forEach((val, i) => {
-          const cell = ds.getCell(row, startCol + i);
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-          cell.alignment = { vertical: 'middle', horizontal: 'center' };
-
-          if (val && val._styled) {
-            cell.value = val.text;
-            cell.font = { name: 'Courier New', size: 8.5, bold: val.bold, color: { argb: val.color } };
-          } else {
-            cell.value = val;
-            cell.font = { name: 'Courier New', size: 8.5, color: { argb: COLORS.textDark } };
-          }
-
-          cell.border = {
-            top: { style: 'thin', color: { argb: COLORS.divider } },
-            bottom: { style: 'thin', color: { argb: COLORS.divider } },
-            left: { style: 'thin', color: { argb: COLORS.divider } },
-            right: { style: 'thin', color: { argb: COLORS.divider } }
-          };
-        });
-      };
-
-      const styledVal = (text, color, bold) => ({ _styled: true, text: String(text), color: (color || COLORS.textDark).replace('#', ''), bold });
-
       const tasks = P.tasks; const total = tasks.length; const done = tasks.filter(t => t.status === 'Completed').length;
       const overdueTasks = tasks.filter(t => { const dd = daysDiff(t.dueDate); return dd !== null && dd < 0 && t.status !== 'Completed' && t.status !== 'Cancelled'; });
       const blocked = tasks.filter(isBlocked).length; const inProg = tasks.filter(t => t.status === 'In Progress' || t.status === 'Under Review').length;
       const completionPct = total ? Math.round(done / total * 100) : 0; const healthScore = getHealthScore(tasks);
 
+      // Section 1: Title Header Console
       ds.mergeCells('B2:R3'); ds.getRow(2).height = 20; ds.getRow(3).height = 20;
       const titleCell = ds.getCell('B2');
-      titleCell.value = { richText: [{ text: ' >> SYSTEM.PULSE: ' + (P.name || 'Project').toUpperCase(), font: { name: 'Courier New', size: 12, bold: true, color: { argb: 'FFFFFFFF' } } }, { text: '   |   REAL-TIME PORTFOLIO TELEMETRY', font: { name: 'Courier New', size: 8, bold: true, color: { argb: 'FF00E5FF' } } }] };
+      titleCell.value = { richText: [{ text: ' >> SYSTEM.PULSE: ' + (P.name || 'Project').toUpperCase(), font: { name: 'Courier New', size: 12, bold: true, color: { argb: 'FFFFFFFF' } } }, { text: '   |   REAL-TIME PORTFOLIO TELEMETRY (GRAFANA/TRADER HYBRID)', font: { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.blue } } }] };
       titleCell.alignment = { vertical: 'middle', indent: 1 };
 
       const gradFill = {
@@ -31126,17 +31205,18 @@
         gradient: 'angle',
         degree: 90,
         stops: [
-          { position: 0, color: { argb: 'FF090D16' } },    // Pitch black canopy shadow
-          { position: 1, color: { argb: 'FF121722' } }     // Bloomberg graphite
+          { position: 0, color: { argb: COLORS.bg } },
+          { position: 1, color: { argb: COLORS.surface } }
         ]
       };
 
       for (let c = 2; c <= 18; c++) {
         ds.getCell(2, c).fill = gradFill;
         ds.getCell(3, c).fill = gradFill;
-        ds.getCell(3, c).border = { bottom: { style: 'medium', color: { argb: 'FF00E5FF' } } }; // glowing neon-cyan status indicator strip
+        ds.getCell(3, c).border = { bottom: { style: 'medium', color: { argb: COLORS.blue } } };
       }
 
+      // Stat Cards
       const avgP = total ? Math.round(tasks.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / total) : 0;
       drawPremiumCard(2, 4, 3, 2, 'Health Score', healthScore + '%', healthScore > 80 ? 'On Track' : 'At Risk', healthScore > 80 ? COLORS.emerald : COLORS.amber);
       drawPremiumCard(5, 4, 3, 2, 'Total Tasks', total, completionPct + '% complete', COLORS.indigo);
@@ -31145,7 +31225,11 @@
       drawPremiumCard(14, 4, 3, 2, 'Blocked / Overdue', blocked + overdueTasks.length, (blocked + overdueTasks.length) ? 'Attention required' : 'Free flow', COLORS.rose);
       drawPremiumCard(17, 4, 2, 2, 'Avg Progress', avgP + '%', 'Overall', COLORS.indigo);
 
+      // Section 1 Panels: Status & Priority
       drawSectionTitle(7, 'Project Health & Distribution Analysis');
+      drawPanel(2, 8, 8, 9, 'Status Telemetry', COLORS.indigo);
+      drawPanel(10, 8, 9, 9, 'Priority Profile', COLORS.blue);
+
       drawTableHeader(9, ['Status', 'Count', '%'], 2);
       STATUSES.forEach((s, i) => {
         const cnt = tasks.filter(t => t.status === s).length; const pct = total ? Math.round(cnt / total * 100) : 0;
@@ -31159,7 +31243,7 @@
         drawTableRow(10 + i, [styledVal(p, priColors[p] || COLORS.textDark, true), cnt, pct + '%'], 10, i % 2 === 1);
       });
 
-      // Render Status Distribution Donut Chart
+      // Status Donut
       const statusChartData = STATUSES.map(s => ({
         label: s,
         value: tasks.filter(t => t.status === s).length,
@@ -31170,14 +31254,14 @@
         const donutImgBase64 = generateCanvasChart(250, 140, 'donut', statusChartData, { centerText: total + ' Tasks' });
         const donutImgId = wb.addImage({ base64: donutImgBase64, extension: 'png' });
         ds.addImage(donutImgId, {
-          tl: { col: 5, row: 8 },
+          tl: { col: 5, row: 9 },
           ext: { width: 250, height: 140 }
         });
       } catch (err) {
         console.error('Error generating status donut chart', err);
       }
 
-      // Render Priority Distribution Donut Chart
+      // Priority Donut
       const priChartData = PRIORITIES.map(p => ({
         label: p,
         value: tasks.filter(t => t.priority === p).length,
@@ -31188,16 +31272,18 @@
         const priDonutImgBase64 = generateCanvasChart(250, 140, 'donut', priChartData, { centerText: 'By Priority' });
         const priDonutImgId = wb.addImage({ base64: priDonutImgBase64, extension: 'png' });
         ds.addImage(priDonutImgId, {
-          tl: { col: 13, row: 8 },
+          tl: { col: 13, row: 9 },
           ext: { width: 250, height: 140 }
         });
       } catch (err) {
         console.error('Error generating priority donut chart', err);
       }
 
-      let curRow = 18;
+      // Section 2 Panels: Velocity & Burndown
+      drawSectionTitle(18, 'Predictive Velocity & Remaining Effort Burndown');
+      drawPanel(2, 19, 5, 12, 'Velocity Registry', COLORS.indigo);
+      drawPanel(7, 19, 12, 12, 'Burndown & Estimates', COLORS.amber);
 
-      drawSectionTitle(curRow, 'Predictive Velocity & Remaining Effort Burndown'); curRow += 2;
       const vLs = []; for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); vLs.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) }); }
       const velData = vLs.map(w => tasks.filter(t => { if (t.status !== 'Completed' || !t.dueDate) return false; const d = new Date(t.dueDate); return getWeekNumber(d) === w.w && d.getFullYear() === w.y; }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
       const startDates = tasks.map(t => new Date(t.startDate)).filter(d => !isNaN(d)); const endDates = tasks.map(t => new Date(t.dueDate)).filter(d => !isNaN(d));
@@ -31207,13 +31293,15 @@
       const bIdeal = bLabels.map((_, i) => Math.max(0, totalEffort - (totalEffort / Math.max(1, bWeeks - 1)) * i));
       const bActual = bLabels.map((_, i) => { const wEnd = new Date(bStart.getTime() + (i + 1) * 7 * 864e5); return tasks.filter(t => t.status !== 'Completed' || new Date(t.updatedAt || t.dueDate) > wEnd).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0); });
 
-      drawTableHeader(curRow, ['Week', 'Velocity'], 2); vLs.forEach((w, i) => { drawTableRow(curRow + 1 + i, [w.l, velData[i]], 2, i % 2 === 1); });
-      ds.addConditionalFormatting({ ref: `C${curRow + 1}:C${curRow + vLs.length}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 100 }], color: { argb: COLORS.indigo } }] });
-      drawTableHeader(curRow, ['Week', 'Ideal', 'Actual'], 7); bLabels.slice(0, 10).forEach((l, i) => { drawTableRow(curRow + 1 + i, [l, Math.round(bIdeal[i]), Math.round(bActual[i])], 7, i % 2 === 1); });
-      drawPremiumCard(13, curRow, 5, 3, 'Total Effort', totalEffort + ' days', 'Estimated', COLORS.indigo);
-      drawPremiumCard(13, curRow + 4, 5, 3, 'Remaining', Math.round(bActual[bActual.length - 1] || 0) + ' days', 'Current', COLORS.amber);
+      drawTableHeader(20, ['Week', 'Velocity'], 2); vLs.forEach((w, i) => { drawTableRow(21 + i, [w.l, velData[i]], 2, i % 2 === 1); });
+      ds.addConditionalFormatting({ ref: `C21:C${20 + vLs.length}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 100 }], color: { argb: COLORS.indigo } }] });
+      
+      drawTableHeader(20, ['Week', 'Ideal', 'Actual'], 7); bLabels.slice(0, 10).forEach((l, i) => { drawTableRow(21 + i, [l, Math.round(bIdeal[i]), Math.round(bActual[i])], 7, i % 2 === 1); });
+      
+      drawStatPanel(13, 20, 6, 5, 'Total Effort', totalEffort + ' days', 'Estimated project scope', COLORS.indigo);
+      drawStatPanel(13, 25, 6, 5, 'Remaining Effort', Math.round(bActual[bActual.length - 1] || 0) + ' days', 'Current backlog', COLORS.amber);
 
-      // Render Velocity Bar Chart next to Velocity table (col 5)
+      // Velocity Bar Chart
       try {
         const velocityData = {
           labels: vLs.map(w => w.l),
@@ -31222,14 +31310,14 @@
         const barImgBase64 = generateCanvasChart(220, 150, 'bar', velocityData);
         const barImgId = wb.addImage({ base64: barImgBase64, extension: 'png' });
         ds.addImage(barImgId, {
-          tl: { col: 4, row: curRow - 1 },
+          tl: { col: 4, row: 20 },
           ext: { width: 220, height: 150 }
         });
       } catch (err) {
         console.error('Error generating velocity bar chart', err);
       }
 
-      // Render Burndown Line Chart next to Burndown table (col 11)
+      // Burndown Line Chart
       try {
         const burndownData = {
           labels: bLabels.slice(0, 10),
@@ -31239,33 +31327,36 @@
         const lineImgBase64 = generateCanvasChart(220, 150, 'line', burndownData);
         const lineImgId = wb.addImage({ base64: lineImgBase64, extension: 'png' });
         ds.addImage(lineImgId, {
-          tl: { col: 10, row: curRow - 1 },
+          tl: { col: 10, row: 20 },
           ext: { width: 220, height: 150 }
         });
       } catch (err) {
         console.error('Error generating burndown line chart', err);
       }
 
-      curRow = curRow + 11 + 2;
+      // Section 3 Panels: Module & Feature Delivery
+      drawSectionTitle(32, 'Module & Feature Delivery Intelligence');
+      drawPanel(2, 33, 8, 15, 'Module Matrix', COLORS.blue);
+      drawPanel(10, 33, 9, 15, 'Feature Matrix', COLORS.indigo);
 
-      drawSectionTitle(curRow, 'Module & Feature Delivery Intelligence'); curRow += 2;
       const modSet = [...new Set(tasks.map(t => t.module).filter(Boolean))].slice(0, 12);
-      drawTableHeader(curRow, ['Module', 'Tasks', 'Avg Progress'], 2);
+      drawTableHeader(34, ['Module', 'Tasks', 'Avg Progress'], 2);
       modSet.forEach((m, i) => {
         const mt = tasks.filter(t => t.module === m); const mAvg = mt.length ? Math.round(mt.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / mt.length) : 0;
-        drawTableRow(curRow + 1 + i, [m, mt.length, mAvg + '%'], 2, i % 2 === 1);
+        drawTableRow(35 + i, [m, mt.length, mAvg + '%'], 2, i % 2 === 1);
       });
+
       const feats = (P.features || []).slice(0, 12);
       if (feats.length) {
-        drawTableHeader(curRow, ['Feature', 'Screens', 'Avg Progress'], 10);
+        drawTableHeader(34, ['Feature', 'Screens', 'Avg Progress'], 10);
         feats.forEach((feat, i) => {
           const scs = feat.screens || []; const screenData = tasks.filter(t => (t.subtasks || []).some(st => scs.includes(st.name)) || (t.guiScreens || []).some(sc => scs.includes(sc)));
           const fAvg = screenData.length ? Math.round(screenData.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / screenData.length) : 0;
-          drawTableRow(curRow + 1 + i, [feat.name, scs.length, fAvg + '%'], 10, i % 2 === 1);
+          drawTableRow(35 + i, [feat.name, scs.length, fAvg + '%'], 10, i % 2 === 1);
         });
       }
 
-      // Render Module Progress Horizontal Bar Chart
+      // Module Progress Bar
       if (modSet.length) {
         try {
           const modChartLabels = [];
@@ -31282,7 +31373,7 @@
           });
           const modBarImgId = wb.addImage({ base64: modBarImgBase64, extension: 'png' });
           ds.addImage(modBarImgId, {
-            tl: { col: 5, row: curRow - 1 },
+            tl: { col: 5, row: 34 },
             ext: { width: 250, height: 160 }
           });
         } catch (err) {
@@ -31290,7 +31381,7 @@
         }
       }
 
-      // Render Feature Progress Horizontal Bar Chart
+      // Feature Progress Bar
       if (feats.length) {
         try {
           const featChartLabels = [];
@@ -31308,7 +31399,7 @@
           });
           const featBarImgId = wb.addImage({ base64: featBarImgBase64, extension: 'png' });
           ds.addImage(featBarImgId, {
-            tl: { col: 13, row: curRow - 1 },
+            tl: { col: 13, row: 34 },
             ext: { width: 250, height: 160 }
           });
         } catch (err) {
@@ -31316,19 +31407,21 @@
         }
       }
 
-      curRow = curRow + Math.max(modSet.length, feats.length, 10) + 2;
+      // Section 4 Panels: Team Workload
+      drawSectionTitle(49, 'Team Workload & Capacity Analysis');
+      drawPanel(2, 50, 5, 13, 'Resource Allocation', COLORS.blue);
+      drawPanel(7, 50, 12, 13, 'Workload Distribution', COLORS.indigo);
 
-      drawSectionTitle(curRow, 'Team Workload & Capacity Analysis'); curRow += 2;
       const teamNames = [...new Set(tasks.map(t => t.assignee).filter(Boolean))].slice(0, 10);
-      drawTableHeader(curRow, ['Assignee', 'Total', 'Active', 'Done', 'Completion'], 2);
+      drawTableHeader(51, ['Assignee', 'Total', 'Active', 'Done', 'Completion'], 2);
       teamNames.forEach((m, i) => {
         const totalM = tasks.filter(t => t.assignee === m).length; const doneM = tasks.filter(t => t.assignee === m && t.status === 'Completed').length;
         const activeM = totalM - doneM; const pct = totalM ? doneM / totalM : 0;
-        drawTableRow(curRow + 1 + i, [m, totalM, activeM, doneM, pct], 2, i % 2 === 1); ds.getCell(curRow + 1 + i, 6).numFmt = '0%';
+        drawTableRow(52 + i, [m, totalM, activeM, doneM, pct], 2, i % 2 === 1); ds.getCell(52 + i, 6).numFmt = '0%';
       });
-      if (teamNames.length) ds.addConditionalFormatting({ ref: `F${curRow + 1}:F${curRow + teamNames.length}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 1 }], color: { argb: COLORS.blue } }] });
+      if (teamNames.length) ds.addConditionalFormatting({ ref: `F52:F${51 + teamNames.length}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 1 }], color: { argb: COLORS.blue } }] });
 
-      // Render Team Workload Stacked Horizontal Bar Chart (col 8 to 18)
+      // Team Workload Stacked Chart
       if (teamNames.length) {
         try {
           const doneMData = [];
@@ -31349,7 +31442,7 @@
           const teamBarImgBase64 = generateCanvasChart(500, 200, 'stackedHorizontalBar', teamWorkloadData);
           const teamBarImgId = wb.addImage({ base64: teamBarImgBase64, extension: 'png' });
           ds.addImage(teamBarImgId, {
-            tl: { col: 7, row: curRow - 1 },
+            tl: { col: 7, row: 51 },
             ext: { width: 500, height: 200 }
           });
         } catch (err) {
@@ -31357,9 +31450,11 @@
         }
       }
 
-      curRow = curRow + Math.max(teamNames.length, 10) + 2;
+      // Section 5 Panels: CFD
+      drawSectionTitle(64, 'Cumulative Flow History (8-Week Status Distribution)');
+      drawPanel(2, 65, 8, 11, 'Flow Metrics', COLORS.emerald);
+      drawPanel(10, 65, 9, 11, 'Cumulative Flow History', COLORS.indigo);
 
-      drawSectionTitle(curRow, 'Cumulative Flow History (8-Week Status Distribution)'); curRow += 2;
       const last8WeeksCFD = [];
       for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); d.setHours(23, 59, 59, 999); last8WeeksCFD.push({ w: getWeekNumber(d), l: 'W' + getWeekNumber(d), date: d }); }
       const cfdStacks = STATUSES.map(s => last8WeeksCFD.map(w => tasks.filter(t => {
@@ -31369,10 +31464,10 @@
         let statusAtTime = 'Not Started'; if (priorLogs.length > 0) statusAtTime = priorLogs[0].newVal; else if (logs.length === 0) statusAtTime = t.status;
         return statusAtTime === s;
       }).length));
-      drawTableHeader(curRow, ['Week', ...STATUSES], 2);
-      last8WeeksCFD.forEach((w, i) => { const rowVals = [w.l]; STATUSES.forEach((s, si) => rowVals.push(cfdStacks[si][i])); drawTableRow(curRow + 1 + i, rowVals, 2, i % 2 === 1); });
+      drawTableHeader(66, ['Week', ...STATUSES], 2);
+      last8WeeksCFD.forEach((w, i) => { const rowVals = [w.l]; STATUSES.forEach((s, si) => rowVals.push(cfdStacks[si][i])); drawTableRow(67 + i, rowVals, 2, i % 2 === 1); });
 
-      // Render Stacked Area CFD Chart (col 11 to 18)
+      // CFD Stacked Area Chart
       try {
         const cfdSeries = STATUSES.map((s, si) => ({
           label: s,
@@ -31386,26 +31481,28 @@
         const cfdImgBase64 = generateCanvasChart(500, 200, 'stackedArea', cfdChartData);
         const cfdImgId = wb.addImage({ base64: cfdImgBase64, extension: 'png' });
         ds.addImage(cfdImgId, {
-          tl: { col: 10, row: curRow - 1 },
+          tl: { col: 10, row: 66 },
           ext: { width: 500, height: 200 }
         });
       } catch (err) {
         console.error('Error generating CFD chart', err);
       }
 
-      curRow = curRow + Math.max(last8WeeksCFD.length, 10) + 2;
+      let curRow = 77;
 
+      // Section: Screens
       const screens = tasks.flatMap(t => {
         const subs = (t.subtasks || []).filter(st => st.type === 'screen').map(st => ({ ...st, parent: t.name, module: t.module }));
         if (subs.length) return subs;
         return (t.guiScreens || []).map(sc => ({ name: typeof sc === 'string' ? sc : sc.name, status: t.status, progress: t.progress, assignee: t.assignee, module: t.module }));
       });
       if (screens.length) {
-        drawSectionTitle(curRow, 'Screen Inventory & Delivery Status'); curRow += 2;
-        drawTableHeader(curRow, ['Screen', 'Module', 'Status', 'Progress'], 2);
-        screens.slice(0, 20).forEach((s, i) => { const r = curRow + 1 + i; const p = (parseInt(s.progress) || 0); drawTableRow(r, [s.name, s.module || '-', styledVal(s.status, STATUS_COLORS[s.status] || COLORS.textDark, true), p + '%'], 2, i % 2 === 1); });
+        drawSectionTitle(curRow, 'Screen Inventory & Delivery Status');
+        drawPanel(2, curRow + 2, 8, 23, 'Screen Inventory', COLORS.emerald);
+        drawPanel(10, curRow + 2, 9, 23, 'Status Profile', COLORS.blue);
+        drawTableHeader(curRow + 3, ['Screen', 'Module', 'Status', 'Progress'], 2);
+        screens.slice(0, 20).forEach((s, i) => { const r = curRow + 4 + i; const p = (parseInt(s.progress) || 0); drawTableRow(r, [s.name, s.module || '-', styledVal(s.status, STATUS_COLORS[s.status] || COLORS.textDark, true), p + '%'], 2, i % 2 === 1); });
 
-        // Render Screen Progress Donut Chart (col 7 to 18)
         try {
           const screenStatusCounts = {};
           screens.forEach(s => {
@@ -31420,23 +31517,25 @@
           const scrImgBase64 = generateCanvasChart(450, 180, 'donut', screenChartData, { centerText: screens.length + ' Screens' });
           const scrImgId = wb.addImage({ base64: scrImgBase64, extension: 'png' });
           ds.addImage(scrImgId, {
-            tl: { col: 6, row: curRow - 1 },
+            tl: { col: 11, row: curRow + 3 },
             ext: { width: 450, height: 180 }
           });
         } catch (err) {
           console.error('Error generating screen progress donut chart', err);
         }
 
-        curRow = curRow + Math.max(Math.min(20, screens.length), 10) + 2;
+        curRow = curRow + 25;
       }
 
+      // Section: Milestones
       const msTasks = tasks.filter(t => (t.startDate && t.startDate === t.dueDate) || (t.tags && t.tags.includes('Milestone')));
       if (msTasks.length) {
-        drawSectionTitle(curRow, 'Project Milestones & Key Roadmap Markers'); curRow += 2;
-        drawTableHeader(curRow, ['ID', 'Milestone Name', 'Due Date', 'Status', 'Progress'], 2);
-        msTasks.forEach((t, i) => { const r = curRow + 1 + i; drawTableRow(r, [t.id, t.name, cleanFmtDate(t.dueDate), styledVal(t.status, STATUS_COLORS[t.status] || COLORS.textDark, true), (t.progress || 0) + '%'], 2, i % 2 === 1); });
+        drawSectionTitle(curRow, 'Project Milestones & Key Roadmap Markers');
+        drawPanel(2, curRow + 2, 8, 14, 'Roadmap Milestones', COLORS.indigo);
+        drawPanel(10, curRow + 2, 9, 14, 'Roadmap Distribution', COLORS.amber);
+        drawTableHeader(curRow + 3, ['ID', 'Milestone Name', 'Due Date', 'Status', 'Progress'], 2);
+        msTasks.forEach((t, i) => { const r = curRow + 4 + i; drawTableRow(r, [t.id, t.name, cleanFmtDate(t.dueDate), styledVal(t.status, STATUS_COLORS[t.status] || COLORS.textDark, true), (t.progress || 0) + '%'], 2, i % 2 === 1); });
 
-        // Render Milestone Status Donut Chart (col 8 to 18)
         try {
           const msStatusCounts = {};
           msTasks.forEach(t => {
@@ -31451,23 +31550,26 @@
           const msImgBase64 = generateCanvasChart(450, 180, 'donut', msChartData, { centerText: msTasks.length + ' Milestones' });
           const msImgId = wb.addImage({ base64: msImgBase64, extension: 'png' });
           ds.addImage(msImgId, {
-            tl: { col: 7, row: curRow - 1 },
+            tl: { col: 11, row: curRow + 3 },
             ext: { width: 450, height: 180 }
           });
         } catch (err) {
           console.error('Error generating milestone chart', err);
         }
 
-        curRow = curRow + Math.max(msTasks.length, 10) + 2;
+        curRow = curRow + 16;
       }
 
-      drawSectionTitle(curRow, 'Strategic Module Delivery Matrix'); curRow += 2;
+      // Section: Module Matrix
       const mMods = Array.from(new Set(tasks.map(t => t.module).filter(Boolean))).sort();
       const mTypes = Array.from(new Set(tasks.map(t => t.moduleType).filter(Boolean))).sort((a, b) => { if (a === 'Server') return -1; if (b === 'Server') return 1; if (a === 'GUI') return -1; if (b === 'GUI') return 1; return a.localeCompare(b); });
       if (mMods.length && mTypes.length) {
-        drawTableHeader(curRow, ['Module', ...mTypes], 2);
+        drawSectionTitle(curRow, 'Strategic Module Delivery Matrix');
+        drawPanel(2, curRow + 2, 8, 14, 'Module Matrix', COLORS.blue);
+        drawPanel(10, curRow + 2, 9, 14, 'Health Distribution', COLORS.emerald);
+        drawTableHeader(curRow + 3, ['Module', ...mTypes], 2);
         mMods.forEach((m, i) => {
-          const r = curRow + 1 + i; ds.getRow(r).height = 26; const rowVals = [m];
+          const r = curRow + 4 + i; ds.getRow(r).height = 26; const rowVals = [m];
           mTypes.forEach(ty => {
             const mtTasks = tasks.filter(t => t.module === m && t.moduleType === ty);
             if (!mtTasks.length) { rowVals.push(styledVal('—', COLORS.muted, false)); return; }
@@ -31479,7 +31581,6 @@
           drawTableRow(r, rowVals, 2, i % 2 === 1);
         });
 
-        // Render Module Health Bar Chart (col 11 to 18)
         try {
           const modHealthLabels = [];
           const modHealthValues = [];
@@ -31495,26 +31596,30 @@
           });
           const modHealthBarImgId = wb.addImage({ base64: modHealthBarImgBase64, extension: 'png' });
           ds.addImage(modHealthBarImgId, {
-            tl: { col: 10, row: curRow - 1 },
+            tl: { col: 10, row: curRow + 3 },
             ext: { width: 500, height: 200 }
           });
         } catch (err) {
           console.error('Error generating module health chart', err);
         }
 
-        curRow = curRow + Math.max(mMods.length, 10) + 2;
+        curRow = curRow + 16;
       }
 
+      // Section: Defects
       const defs = P.defects || [];
       if (defs.length) {
-        drawSectionTitle(curRow, 'Quality Intelligence & Defect Analysis'); curRow += 2;
+        drawSectionTitle(curRow, 'Quality Intelligence & Defect Analysis');
+        drawPanel(2, curRow + 2, 8, 11, 'Defect Severity', COLORS.rose);
+        drawPanel(10, curRow + 2, 9, 11, 'Defect Module Distribution', COLORS.rose);
+
         const sevMix = {}; defs.forEach(d => sevMix[d.priority] = (sevMix[d.priority] || 0) + 1); const sevEntries = Object.entries(sevMix);
-        drawTableHeader(curRow, ['Severity', 'Count', '%'], 2); sevEntries.forEach(([s, cnt], i) => { drawTableRow(curRow + 1 + i, [styledVal(s, priColors[s] || COLORS.textDark, true), cnt, defs.length ? Math.round(cnt / defs.length * 100) + '%' : '0%'], 2, i % 2 === 1); });
+        drawTableHeader(curRow + 3, ['Severity', 'Count', '%'], 2); sevEntries.forEach(([s, cnt], i) => { drawTableRow(curRow + 4 + i, [styledVal(s, priColors[s] || COLORS.textDark, true), cnt, defs.length ? Math.round(cnt / defs.length * 100) + '%' : '0%'], 2, i % 2 === 1); });
 
         const pdfCache = buildDashCache(tasks, P.log); const modBugs = {}; defs.forEach(d => { let mod = 'General'; if (pdfCache.taskById[d.linkedId]) { mod = pdfCache.taskById[d.linkedId].module || 'General'; } else if (pdfCache.subtaskById[d.linkedId]) { mod = pdfCache.subtaskById[d.linkedId].parentTask.module || 'General'; } else if (pdfCache.screenByName[d.linkedId]) { mod = pdfCache.screenByName[d.linkedId].module || 'General'; } modBugs[mod] = (modBugs[mod] || 0) + 1; });
-        const mbEntries = Object.entries(modBugs).sort((a, b) => b[1] - a[1]).slice(0, 8); drawTableHeader(curRow, ['Module', 'Defects', '%'], 10); mbEntries.forEach(([m, cnt], i) => { drawTableRow(curRow + 1 + i, [m, cnt, defs.length ? Math.round(cnt / defs.length * 100) + '%' : '0%'], 10, i % 2 === 1); });
+        const mbEntries = Object.entries(modBugs).sort((a, b) => b[1] - a[1]).slice(0, 8); drawTableHeader(curRow + 3, ['Module', 'Defects', '%'], 10); mbEntries.forEach(([m, cnt], i) => { drawTableRow(curRow + 4 + i, [m, cnt, defs.length ? Math.round(cnt / defs.length * 100) + '%' : '0%'], 10, i % 2 === 1); });
 
-        // Render Defect Severity Donut Chart
+        // Defect Severity Donut
         const defSeverityChartData = sevEntries.map(([s, cnt]) => ({
           label: s,
           value: cnt,
@@ -31524,14 +31629,14 @@
           const defDonutImgBase64 = generateCanvasChart(280, 150, 'donut', defSeverityChartData, { centerText: defs.length + ' Bugs' });
           const defDonutImgId = wb.addImage({ base64: defDonutImgBase64, extension: 'png' });
           ds.addImage(defDonutImgId, {
-            tl: { col: 5, row: curRow - 1 },
+            tl: { col: 5, row: curRow + 3 },
             ext: { width: 280, height: 150 }
           });
         } catch (err) {
           console.error('Error generating defect severity chart', err);
         }
 
-        // Render Defect Module Horizontal Bar Chart (Count scale)
+        // Defect Module Horizontal Bar
         try {
           const defModChartLabels = mbEntries.map(e => e[0]);
           const defModChartValues = mbEntries.map(e => e[1]);
@@ -31545,29 +31650,37 @@
           });
           const defModImgId = wb.addImage({ base64: defModImgBase64, extension: 'png' });
           ds.addImage(defModImgId, {
-            tl: { col: 13, row: curRow - 1 },
+            tl: { col: 13, row: curRow + 3 },
             ext: { width: 280, height: 150 }
           });
         } catch (err) {
           console.error('Error generating defect module chart', err);
         }
 
-        curRow = curRow + Math.max(sevEntries.length, mbEntries.length, 7) + 2;
+        curRow = curRow + 13;
       }
 
+      // Section: Overdue Tasks
       if (overdueTasks.length) {
-        drawSectionTitle(curRow, 'Overdue Tasks — Immediate Attention'); curRow += 2; drawTableHeader(curRow, ['ID', 'Task', 'Assignee', 'Due Date', 'Days Late', 'Priority'], 2);
-        overdueTasks.slice(0, 15).forEach((t, i) => { const daysLate = Math.abs(daysDiff(t.dueDate)); drawTableRow(curRow + 1 + i, [t.id, t.name, t.assignee || '-', cleanFmtDate(t.dueDate), styledVal(daysLate + 'd', COLORS.rose, true), styledVal(t.priority, priColors[t.priority] || COLORS.textDark, true)], 2, i % 2 === 1); });
-        curRow = curRow + overdueTasks.length + 3;
+        drawSectionTitle(curRow, 'Overdue Tasks — Immediate Attention');
+        drawPanel(2, curRow + 2, 17, overdueTasks.length + 5, 'Critical Overdue Registry', COLORS.rose);
+        drawTableHeader(curRow + 3, ['ID', 'Task', 'Assignee', 'Due Date', 'Days Late', 'Priority'], 2);
+        overdueTasks.slice(0, 15).forEach((t, i) => { const daysLate = Math.abs(daysDiff(t.dueDate)); drawTableRow(curRow + 4 + i, [t.id, t.name, t.assignee || '-', cleanFmtDate(t.dueDate), styledVal(daysLate + 'd', COLORS.rose, true), styledVal(t.priority, priColors[t.priority] || COLORS.textDark, true)], 2, i % 2 === 1); });
+        curRow = curRow + overdueTasks.length + 7;
       }
 
-      drawSectionTitle(curRow, 'Executive Sentiment & Momentum Analysis'); curRow += 2;
+      // Section: Executive Sentiment
+      drawSectionTitle(curRow, 'Executive Sentiment & Momentum Analysis');
+      drawPanel(2, curRow + 2, 17, 5, 'Executive Summary & Mood', COLORS.blue);
+
       const momentum = healthScore > 80 ? 'Exceptional' : healthScore > 60 ? 'Positive' : 'Concerning'; const riskLevel = blocked + overdueTasks.length > 5 ? 'High Risk' : 'Managed';
       const summaryText = `Project momentum is currently ${momentum} with a ${riskLevel} profile. ${completionPct}% of planned scope is finalized. ` + (overdueTasks.length ? `${overdueTasks.length} tasks require immediate resolution to maintain schedule integrity.` : 'The project is tracking effectively against all major milestones.');
-      ds.getRow(curRow).height = 24; ds.getRow(curRow + 1).height = 24; ds.mergeCells(curRow, 2, curRow + 1, 18);
-      const summCell = ds.getCell(curRow, 2); summCell.value = S(summaryText); summCell.alignment = { wrapText: true, vertical: 'top' }; summCell.font = { name: 'Segoe UI', size: 11, color: { argb: COLORS.textDark } }; curRow += 3;
+      
+      ds.mergeCells(curRow + 3, 2, curRow + 4, 18);
+      const summCell = ds.getCell(curRow + 3, 2); summCell.value = S(summaryText); summCell.alignment = { wrapText: true, vertical: 'top', indent: 1 }; summCell.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } }; 
+      curRow += 6;
 
-      curRow += 1; ds.getRow(curRow).height = 20; ds.mergeCells(curRow, 2, curRow, 18);
+      ds.getRow(curRow).height = 20; ds.mergeCells(curRow, 2, curRow, 18);
       const tsCell = ds.getCell(curRow, 2); tsCell.value = 'Generated by ProjectPulse on ' + new Date().toLocaleString(); tsCell.font = { name: 'Segoe UI', size: 9, italic: true, color: { argb: COLORS.muted } }; tsCell.alignment = { horizontal: 'right' };
 
       ds.properties.tabColor = { argb: COLORS.indigo }; ds.pageSetup.fitToPage = true; ds.pageSetup.orientation = 'landscape';
@@ -31800,7 +31913,7 @@
       const file = event.target.files[0]; if (!file) return;
       if (typeof ExcelJS === 'undefined') { notify('Excel library not loaded.', 'err'); return; }
       try {
-        showAppLock('Reconstructing Project State...', 'Parsing Smart Workbook sheets, validating schemas, and restoring application state. Please wait...');
+        showAppLock('Reconstructing Project State...', 'Parsing Smart Workbook sheets, validating schemas, and restoring application state. Please wait...', 'import');
         await new Promise(r => setTimeout(r, 100));
         const reader = new FileReader(); reader.onload = async (e) => { await reconstructProjectFromBuffer(e.target.result); }; reader.readAsArrayBuffer(file);
       } catch (err) { console.error(err); hideAppLock(); notify('Import failed: ' + err.message, 'err'); }
