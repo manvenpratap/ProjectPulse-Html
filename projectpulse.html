@@ -3148,7 +3148,7 @@
       opacity: 0 !important;
       max-width: 0 !important;
       overflow: hidden !important;
-      padding: 3px 0 !important;
+      padding: 2px 0 !important;
       border-width: 0 !important;
       margin-left: 0 !important;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
@@ -3159,9 +3159,27 @@
     #top-health-badge:hover {
       opacity: 1 !important;
       max-width: 180px !important;
-      padding: 3px 10px !important;
+      padding: 2px 8px !important;
       border-width: 1px !important;
-      margin-left: 8px !important;
+      margin-left: 6px !important;
+    }
+
+    body.hide-labels .vsw button.btn {
+      padding: 8px !important;
+      width: 36px;
+      height: 36px;
+      justify-content: center;
+      gap: 0 !important;
+      position: relative;
+    }
+    body.hide-labels .vsw button.btn i {
+      margin: 0 !important;
+    }
+    body.hide-labels .vsw button.btn span.badge {
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      margin-left: 0 !important;
     }
 
     .tsep {
@@ -10220,16 +10238,20 @@
 
     <div id="main-app" style="display:none;flex-direction:column;height:100%">
       <div id="topbar">
-        <div class="tlogo">
-          <div class="tlogo-m"><i data-lucide="activity" style="color:var(--color-primary)"></i></div>
-          <div class="tlogo-name">ProjectPulse</div>
-        </div>
-        <div class="tsep"></div><span class="pname" id="top-pname"></span>
-        <div id="top-health-badge"
-          style="display:none;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;cursor:pointer;margin-left:8px;transition:all 0.2s ease"
-          onclick="setView('dash')" title="Project Health Index · Click for dashboard">
-          <span id="top-health-icon" style="font-size:9px">●</span>
-          <span id="top-health-label" style="font-variant-numeric:tabular-nums"></span>
+        <div class="tlogo" style="display:flex; flex-direction:column; align-items:flex-start; gap:0; justify-content:center; height:100%;">
+          <div style="display:flex; align-items:center; gap:7px;">
+            <div class="tlogo-m"><i data-lucide="activity" style="color:var(--color-primary)"></i></div>
+            <div class="tlogo-name" style="font-weight:700; font-size:14px; line-height:1.2;">ProjectPulse</div>
+          </div>
+          <div style="display:flex; align-items:center; margin-left:33px; margin-top:2px; height:12px;">
+            <span class="pname" id="top-pname" style="font-size:10px; line-height:1; color:var(--color-text-muted);"></span>
+            <div id="top-health-badge"
+              style="display:none;align-items:center;gap:5px;font-size:9px;font-weight:700;padding:2px 8px;border-radius:99px;cursor:pointer;margin-left:6px;transition:all 0.2s ease"
+              onclick="setView('dash')" title="Project Health Index · Click for dashboard">
+              <span id="top-health-icon" style="font-size:8px">●</span>
+              <span id="top-health-label" style="font-variant-numeric:tabular-nums"></span>
+            </div>
+          </div>
         </div>
         <div class="tsep"></div>
         <button class="btn ghost" onclick="toggleSb()" title="Toggle sidebar"><i data-lucide="menu"></i></button>
@@ -12153,6 +12175,14 @@
         if (window.lucide) lucide.createIcons(btn);
       },
 
+      toggleIconMode() {
+        P.hideLabels = !P.hideLabels;
+        renderViewToggle();
+        renderSidebar();
+        save();
+        renderThemeFlyout();
+      },
+
       toggleColorMode(targetMode) {
         const curTheme = THEMES[P.theme] || THEMES.nexus;
         const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -12234,6 +12264,20 @@
 
         body.appendChild(modeSection);
         if (window.lucide) lucide.createIcons(modeSection);
+
+        // ── Icon-only Mode Toggle ──
+        const iconModeSection = document.createElement('div');
+        iconModeSection.style.cssText = 'margin-bottom:20px;padding:14px 16px;background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-lg);display:flex;align-items:center;justify-content:space-between';
+        iconModeSection.innerHTML = `
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--color-text);margin-bottom:2px">Icon-Only Navigation</div>
+            <div style="font-size:10px;color:var(--color-text-muted)">Hide text labels for a clean, icon-based app experience</div>
+          </div>
+          <div class="sw-track ${P.hideLabels ? 'sw-on' : ''}" id="toggle-icon-mode" onclick="toggleIconMode()" style="width:40px;height:22px;background:${P.hideLabels ? 'var(--color-primary)' : 'var(--color-surface-3)'};border-radius:99px;position:relative;cursor:pointer;transition:background 0.2s">
+            <div class="sw-thumb" style="width:16px;height:16px;background:#fff;border-radius:50%;position:absolute;top:3px;left:${P.hideLabels ? '21px' : '3px'};transition:all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"></div>
+          </div>
+        `;
+        body.appendChild(iconModeSection);
 
         // ── Featured Themes Label ──
         const featLabel = document.createElement('div');
@@ -12527,6 +12571,8 @@
     function closeDynamicModal(id) { return PulseUI.closeDynamicModal(id); }
     function updateColorModeBtn() { return PulseUI.updateColorModeBtn(); }
     function toggleColorMode() { return PulseUI.toggleColorMode(); }
+    function toggleIconMode() { return PulseUI.toggleIconMode(); }
+    window.toggleIconMode = toggleIconMode;
     function setTheme(t) { return PulseUI.setTheme(t); }
     function openThemeFlyout() { return PulseUI.openThemeFlyout(); }
     function closeThemeFlyout() { return PulseUI.closeThemeFlyout(); }
@@ -27386,9 +27432,9 @@
             };
             btn.title = viewDef.title;
             if (vid === 'log') {
-              btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${viewDef.label} <span id="log-badge" class="badge" style="display:none;margin-left:6px;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">0</span>`;
+              btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label} <span id="log-badge" class="badge" style="display:none;margin-left:6px;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">0</span>`;
             } else {
-              btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${viewDef.label}`;
+              btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label}`;
             }
             vsw.appendChild(btn);
 
@@ -27402,12 +27448,14 @@
               setView(vid);
             };
             if (vid === 'log') {
-              mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${viewDef.label}</span><span id="log-badge-mobile" class="badge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:white;font-size:9px;padding:1px 4px;border-radius:10px;line-height:1">0</span>`;
+              mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${P.hideLabels ? '' : viewDef.label}</span><span id="log-badge-mobile" class="badge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:white;font-size:9px;padding:1px 4px;border-radius:10px;line-height:1">0</span>`;
             } else {
-              mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${viewDef.label}</span>`;
+              mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${P.hideLabels ? '' : viewDef.label}</span>`;
             }
             mobileNav.appendChild(mBtn);
           });
+
+          document.body.classList.toggle('hide-labels', !!P.hideLabels);
 
           if (window.lucide) window.lucide.createIcons();
 
