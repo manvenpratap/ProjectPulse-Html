@@ -30128,6 +30128,185 @@
           render();
         }
 
+        function highlightCell(member, day) {
+          const cellId = `cell-${member.replace(/\s+/g, '_')}-${day}`;
+          const cell = document.getElementById(cellId);
+          if (cell) {
+            cell.style.boxShadow = '0 0 15px rgba(239, 68, 68, 0.6)';
+            cell.style.borderColor = 'var(--red)';
+            cell.style.transform = 'scale(1.02)';
+            cell.style.transition = 'all 0.2s ease';
+          }
+        }
+
+        function clearCellHighlight(member, day) {
+          const cellId = `cell-${member.replace(/\s+/g, '_')}-${day}`;
+          const cell = document.getElementById(cellId);
+          if (cell) {
+            cell.style.boxShadow = '';
+            cell.style.transform = '';
+            const load = getMemberLoadOnDay(member, day, P._schedulerSandboxTasks);
+            cell.style.borderColor = load > 1.05 ? 'rgba(239, 68, 68, 0.2)' : (load > 0.8 ? 'rgba(245, 158, 11, 0.2)' : (load > 0 ? 'rgba(16, 185, 129, 0.15)' : 'var(--color-divider)'));
+          }
+        }
+
+        function setSchedulerRightTab(tab) {
+          P._schedulerActiveRightTab = tab;
+          renderIntelligentScheduler();
+        }
+
+        function renderSuggestionCard(s, idx, days) {
+          let title = '';
+          let icon = 'sparkles';
+          let color = 'var(--color-primary)';
+          let actionHtml = '';
+
+          const escToMember = s.toMember ? s.toMember.replace(/'/g, "\\'") : '';
+
+          if (s.type === 'reassign') {
+            title = 'Optimize Assignment';
+            actionHtml = `
+              <button class="btn primary mini" onclick="reassignSchedulerTask('${s.taskId}', '${escToMember}')" style="margin-top:8px; width:100%; font-size:11px">
+                <i data-lucide="check" style="width:12px;height:12px;margin-right:4px"></i> Apply Assignment
+              </button>
+            `;
+          } else if (s.type === 'shift-dep') {
+            title = 'Align Predecessor';
+            icon = 'arrow-right-left';
+            color = 'var(--amber)';
+            actionHtml = `
+              <button class="btn secondary mini" onclick="shiftSchedulerTaskTimeline('${s.taskId}', ${s.shiftDays})" style="margin-top:8px; width:100%; font-size:11px">
+                <i data-lucide="check" style="width:12px;height:12px;margin-right:4px"></i> Shift Timeline
+              </button>
+            `;
+          } else if (s.type === 'underutilized') {
+            title = 'Balance Workload';
+            icon = 'info';
+            color = 'var(--green)';
+            actionHtml = `
+              <button class="btn secondary mini" onclick="setView('tasks')" style="margin-top:8px; width:100%; font-size:11px">
+                <i data-lucide="list" style="width:12px;height:12px;margin-right:4px"></i> Open Backlog
+              </button>
+            `;
+          }
+
+          return `
+            <div style="background:rgba(99, 102, 241, 0.04); border-left:4px solid ${color}; padding:12px; border-radius:8px; display:flex; flex-direction:column; gap:6px; border-top:1px solid var(--color-divider); border-bottom:1px solid var(--color-divider); border-right:1px solid var(--color-divider); transition:all 0.2s">
+              <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:12px; color:${color}">
+                <i data-lucide="${icon}" style="width:14px; height:14px"></i>
+                <span>${title}</span>
+              </div>
+              <div style="font-size:11px; color:var(--color-text); line-height:1.4">${s.text}</div>
+              ${actionHtml}
+            </div>
+          `;
+        }
+
+        function totalWeekLoadForMember(member, days, tasks) {
+          let total = 0;
+          days.forEach(d => { total += getMemberLoadOnDay(member, d, tasks); });
+          return total;
+        }
+
+        function generateIntelligentSuggestions(tasks, days) {
+          const suggestions = [];
+          const conflicts = findScheduleConflicts(tasks, days);
+          
+          // 1. Reassign suggestion for over-allocations
+          const overAllocations = conflicts.filter(c => c.type === 'over-allocation');
+          overAllocations.forEach(c => {
+            c.tasks.forEach(t => {
+              const members = getTeamNames();
+              let bestCandidate = null;
+              let minLoad = 999;
+
+              members.forEach(m => {
+                if (m === c.member) return;
+                const mLoad = getMemberLoadOnDay(m, c.day, tasks);
+                if (mLoad < minLoad) {
+                  minLoad = mLoad;
+                  bestCandidate = m;
+                }
+              });
+
+              if (bestCandidate && minLoad < c.load - 0.2) {
+                const currentMember = P.members.find(x => x.name === c.member) || {};
+                const candidateMember = P.members.find(x => x.name === bestCandidate) || {};
+                const roleMatch = currentMember.role === candidateMember.role;
+
+                suggestions.push({
+                  type: 'reassign',
+                  taskId: t.id,
+                  fromMember: c.member,
+                  toMember: bestCandidate,
+                  day: c.day,
+                  text: `Reassign task <b>${t.id}</b> from overloaded resource <b>${esc(c.member)}</b> to <b>${esc(bestCandidate)}</b> ${roleMatch ? `(${esc(candidateMember.role)})` : ''} who has capacity (Load: ${Math.round(minLoad * 100)}% on ${formatDateStringFriendly(c.day)}).`
+                });
+              }
+            });
+          });
+
+          // 2. Dependency violations
+          const depViolations = conflicts.filter(c => c.type === 'dependency-violation');
+          depViolations.forEach(c => {
+            const shiftDays = getBusinessDays(c.task.startDate, c.predecessor.dueDate);
+            suggestions.push({
+              type: 'shift-dep',
+              taskId: c.task.id,
+              shiftDays,
+              text: `Reschedule task <b>${c.task.id}</b> to start on <b>${formatDateStringFriendly(getNextBusDay(c.predecessor.dueDate))}</b> so it follows predecessor <b>${c.predecessor.id}</b>.`
+            });
+          });
+
+          // 3. Unassigned active tasks scheduled for this week
+          const startStr = days[0];
+          const endStr = days[days.length - 1];
+          tasks.forEach(t => {
+            if (t.status === 'Completed' || t.status === 'Cancelled' || t.assignee) return;
+            if (!t.startDate || !t.dueDate) return;
+
+            const taskStart = new Date(t.startDate);
+            const taskEnd = new Date(t.dueDate);
+            const weekStart = new Date(startStr);
+            const weekEnd = new Date(endStr);
+            if (taskEnd < weekStart || taskStart > weekEnd) return;
+
+            const members = getTeamNames();
+            let bestMember = null;
+            let lowestWeekLoad = 999;
+            members.forEach(m => {
+              const totalLoad = totalWeekLoadForMember(m, days, tasks);
+              if (totalLoad < lowestWeekLoad) {
+                lowestWeekLoad = totalLoad;
+                bestMember = m;
+              }
+            });
+
+            if (bestMember) {
+              suggestions.push({
+                type: 'reassign',
+                taskId: t.id,
+                toMember: bestMember,
+                text: `Assign unallocated task <b>${t.id}</b> to <b>${esc(bestMember)}</b> who has the lowest weekly load (Total: ${lowestWeekLoad.toFixed(1)}d).`
+              });
+            }
+          });
+
+          // 4. Underutilized team members
+          const members = getTeamNames();
+          members.forEach(m => {
+            const totalLoad = totalWeekLoadForMember(m, days, tasks);
+            if (totalLoad < 0.5) {
+              suggestions.push({
+                type: 'underutilized',
+                text: `Resource <b>${esc(m)}</b> is underutilized this week (Allocated: ${totalLoad.toFixed(1)}d / 5d). Consider allocating more backlog tasks to them.`
+              });
+            }
+          });
+
+          return suggestions;
+        }
+
         // Expose to window scope for HTML onclick events
         window.getWorkDaysForWeekOffset = getWorkDaysForWeekOffset;
         window.findScheduleConflicts = findScheduleConflicts;
@@ -30143,6 +30322,12 @@
         window.renderConflictCard = renderConflictCard;
         window.formatDateStringFriendly = formatDateStringFriendly;
         window.formatDayNameHeader = formatDayNameHeader;
+        window.highlightCell = highlightCell;
+        window.clearCellHighlight = clearCellHighlight;
+        window.setSchedulerRightTab = setSchedulerRightTab;
+        window.renderSuggestionCard = renderSuggestionCard;
+        window.generateIntelligentSuggestions = generateIntelligentSuggestions;
+        window.getMemberLoadOnDay = getMemberLoadOnDay;
 
         // Define stubs and Admin helpers if not present
         window.renderOverviewView = renderOverviewView;
