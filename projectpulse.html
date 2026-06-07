@@ -10521,7 +10521,7 @@
           Excel Project →</button>
 
         <div class="setup-row" style="margin-top:24px;border-top:1px solid var(--color-divider);padding-top:24px">
-          <button class="sbtn" onclick="pickProjectFile()">🟢 Open Project Excel</button>
+          <button class="sbtn" onclick="pickProjectFile()"><i data-lucide="folder-open" style="width:14px;height:14px;margin-right:6px;display:inline-block;vertical-align:middle"></i>Open Project Excel</button>
         </div>
 
         <div class="setup-row" style="margin-top:12px">
@@ -31568,31 +31568,73 @@
 
           // ══════ EXCEL BUILDERS (SMART WORKBOOK) ══════
           buildReadmeSheet(wb, safeMode, COLORS, hdrStyle) {
-            const ws = wb.addWorksheet('README', { views: safeMode ? [] : [{ showGridLines: true }] });
+            const ws = wb.addWorksheet('README', { views: safeMode ? [] : [{ showGridLines: false }] });
             ws.properties.tabColor = { argb: COLORS.indigo };
-            ws.getColumn(1).width = 4; ws.getColumn(2).width = 30; ws.getColumn(3).width = 70;
+            ws.getColumn(1).width = 4; ws.getColumn(2).width = 32; ws.getColumn(3).width = 75; ws.getColumn(4).width = 4;
 
+            // Fill background of the guide canvas
+            for (let r = 1; r <= 24; r++) {
+              ws.getRow(r).height = 20;
+              for (let c = 1; c <= 4; c++) {
+                ws.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.bg } };
+              }
+            }
+
+            ws.getRow(2).height = 24; ws.getRow(3).height = 24;
             ws.mergeCells('B2:C3');
             const title = ws.getCell('B2');
-            title.value = 'PROJECTPULSE SMART WORKBOOK GUIDE';
-            title.font = { name: 'Segoe UI', size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
-            title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.navy } };
+            title.value = ' >> PROJECTPULSE SMART WORKBOOK GUIDE';
+            title.font = { name: 'Courier New', size: 12, bold: true, color: { argb: COLORS.isDark ? 'FFFFFFFF' : COLORS.textDark } };
+            title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
             title.alignment = { vertical: 'middle', horizontal: 'center' };
+            
+            const shadowColor = COLORS.isDark ? 'FF020612' : 'FFCBD5E1';
+            const highlightColor = COLORS.isDark ? 'FF2A364F' : 'FFE2E8F0';
+
+            title.border = {
+              top: { style: 'thin', color: { argb: highlightColor } },
+              bottom: { style: 'medium', color: { argb: shadowColor } },
+              left: { style: 'medium', color: { argb: COLORS.indigo } },
+              right: { style: 'thin', color: { argb: shadowColor } }
+            };
 
             const addSection = (row, header, text) => {
-              ws.getCell(`B${row}`).value = header;
-              ws.getCell(`B${row}`).font = { name: 'Segoe UI', size: 12, bold: true, color: { argb: COLORS.navy } };
-              ws.getCell(`C${row}`).value = text;
-              ws.getCell(`C${row}`).font = { name: 'Segoe UI', size: 11, color: { argb: COLORS.textDark } };
-              ws.getCell(`C${row}`).alignment = { wrapText: true, vertical: 'top' };
+              ws.getRow(row).height = 22;
+              ws.getRow(row + 1).height = 36;
+              ws.mergeCells(row, 2, row, 3);
+              ws.mergeCells(row + 1, 2, row + 1, 3);
+
+              const cardBg = COLORS.surface;
+
+              const headerCell = ws.getCell(row, 2);
+              headerCell.value = ` :: [${header.toUpperCase()}]`;
+              headerCell.font = { name: 'Courier New', size: 9, bold: true, color: { argb: COLORS.indigo } };
+              headerCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: cardBg } };
+              headerCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+              headerCell.border = {
+                top: { style: 'thin', color: { argb: highlightColor } },
+                left: { style: 'medium', color: { argb: COLORS.indigo } },
+                right: { style: 'thin', color: { argb: shadowColor } }
+              };
+
+              const textCell = ws.getCell(row + 1, 2);
+              textCell.value = text;
+              textCell.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
+              textCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: cardBg } };
+              textCell.alignment = { wrapText: true, vertical: 'top', horizontal: 'left', indent: 1 };
+              textCell.border = {
+                bottom: { style: 'medium', color: { argb: shadowColor } },
+                left: { style: 'medium', color: { argb: COLORS.indigo } },
+                right: { style: 'thin', color: { argb: shadowColor } }
+              };
             };
 
             addSection(5, 'Core Philosophy', 'This workbook is a first-class, intelligent working tool. You can edit tasks, assignees, dates, and progress directly in Excel. Business rules, dropdowns, and validations will guide your input.');
-            addSection(7, 'Canonical Sheets', 'Tasks, Subtasks, Team, Defects, Features, Config_Dropdowns, Config_Templates, Config_CustomFields, Config_CustomFieldOptions, Data_TaskDependencies, Data_TaskGUIScreens, Data_TaskWorkflows, Data_SubTaskWorkflows, Data_MemberLeaves, Data_FeatureScreens, System State. These sheets are authoritative when importing back into ProjectPulse.');
-            addSection(9, 'Helper & Dashboards', 'README, ValidationLists, DataDictionary, HelperMaps, Executive Dashboard, Config_Layouts, State_Filters. These are derived helper sheets designed for user guidance and executive presentation. They are not required for import.');
-            addSection(11, 'State & Configurations', 'System State maintains Next Task/Member IDs, Active Theme, Color Mode, and Display Level. Config_Settings maintains complexity factors and alert preferences. Config_GridState maintains custom column widths, order, and filters.');
-            addSection(13, 'Smart Features', 'Dropdowns are provided for Assignees, Categories, Modules, Statuses, and Priorities. Helper columns automatically calculate Derived Health, Blocking Issues, and Workflow Hints.');
-            addSection(15, 'Sync Instructions', 'To sync your edits back to ProjectPulse, save this workbook in Excel and click the Sync button in the ProjectPulse application.');
+            addSection(8, 'Canonical Sheets', 'Tasks, Subtasks, Team, Defects, Features, Config_Dropdowns, Config_Templates, Config_CustomFields, Config_CustomFieldOptions, Data_TaskDependencies, Data_TaskGUIScreens, Data_TaskWorkflows, Data_SubTaskWorkflows, Data_MemberLeaves, Data_FeatureScreens, System State. These sheets are authoritative when importing back into ProjectPulse.');
+            addSection(11, 'Helper & Dashboards', 'README, ValidationLists, DataDictionary, HelperMaps, Executive Dashboard, Config_Layouts, State_Filters. These are derived helper sheets designed for user guidance and executive presentation. They are not required for import.');
+            addSection(14, 'State & Configurations', 'System State maintains Next Task/Member IDs, Active Theme, Color Mode, and Display Level. Config_Settings maintains complexity factors and alert preferences. Config_GridState maintains custom column widths, order, and filters.');
+            addSection(17, 'Smart Features', 'Dropdowns are provided for Assignees, Categories, Modules, Statuses, and Priorities. Helper columns automatically calculate Derived Health, Blocking Issues, and Workflow Hints.');
+            addSection(20, 'Sync Instructions', 'To sync your edits back to ProjectPulse, save this workbook in Excel and click the Sync button in the ProjectPulse application.');
           },
 
           buildDataDictionarySheet(wb, safeMode, COLORS, hdrStyle) {
