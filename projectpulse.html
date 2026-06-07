@@ -32757,13 +32757,20 @@
             baseCols.forEach((col, colIdx) => {
               const cell = headerRow.getCell(colIdx + 1);
               cell.value = col.header;
-              if (colIdx >= baseCols.length - 4) {
-                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.slate } };
-                cell.font = { name: 'Courier New', color: { argb: 'FFFFFFFF' }, bold: true, size: 10, italic: true };
-                cell.alignment = { vertical: 'middle', horizontal: 'center' };
-              } else {
-                cell.style = customHdrStyle;
-              }
+              
+              // Group headers functionally
+              let headerBg = COLORS.slate;
+              if (colIdx < 4) headerBg = COLORS.navy;                    // Core Identification
+              else if (colIdx < 9) headerBg = COLORS.indigo;             // Architecture & Releases
+              else if (colIdx < 13) headerBg = COLORS.emerald;           // Ownership & Flow
+              else if (colIdx < 17) headerBg = COLORS.amber;             // Schedules & Milestones
+              else if (colIdx < 21) headerBg = COLORS.rose;              // Efforts & Complexity
+              else headerBg = COLORS.slate;                              // Metadata & Helpers
+
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: headerBg } };
+              cell.font = { name: 'Courier New', color: { argb: 'FFFFFFFF' }, bold: true, size: 9 };
+              cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+              cell.border = { bottom: { style: 'medium', color: { argb: COLORS.navy } } };
             });
 
             tasks.forEach((t, i) => {
@@ -33014,7 +33021,20 @@
             cols.forEach((col, colIdx) => {
               const cell = headerRow.getCell(colIdx + 1);
               cell.value = col.header;
-              cell.style = customHdrStyle;
+
+              // Group headers functionally
+              let headerBg = COLORS.rose;
+              if (colIdx < 4) headerBg = COLORS.navy;                    // Identification
+              else if (colIdx < 8) headerBg = COLORS.rose;               // Defect Classification
+              else if (colIdx < 10) headerBg = COLORS.emerald;           // Ownership
+              else if (colIdx < 13) headerBg = COLORS.indigo;            // Entity Association
+              else if (colIdx < 15) headerBg = COLORS.amber;             // Release & Lifespan
+              else headerBg = COLORS.slate;                              // Metadata
+
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: headerBg } };
+              cell.font = { name: 'Courier New', color: { argb: 'FFFFFFFF' }, bold: true, size: 9 };
+              cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+              cell.border = { bottom: { style: 'medium', color: { argb: COLORS.navy } } };
             });
 
             defects.forEach((d, i) => {
@@ -33393,9 +33413,7 @@
             if (safeMode) return;
             const ds = wb.addWorksheet('Executive Dashboard', { views: safeMode ? [] : [{ showGridLines: false, state: 'frozen', ySplit: 6 }] });
             ds.getColumn(1).width = 2.0; for (let i = 2; i <= 18; i++) ds.getColumn(i).width = 14; ds.getColumn(19).width = 2.0;
-            for (let i = 1; i <= 250; i++) ds.getRow(i).height = 16;
-
-            // Theme-Aware Trader Workstation Palette & Styling
+            
             const isThemeDark = _COLORS.isDark;
             const COLORS = {
               bg: _COLORS.bg || (isThemeDark ? 'FF090D16' : 'FFF8FAFC'),
@@ -33447,19 +33465,10 @@
               border: { bottom: { style: 'thin', color: { argb: COLORS.divider } } }
             };
 
-            const isColorDarkLocal = (argb) => {
-              if (!argb || argb.length < 8) return false;
-              let hex = argb.substring(argb.length - 6);
-              let r = parseInt(hex.substring(0, 2), 16);
-              let g = parseInt(hex.substring(2, 4), 16);
-              let b = parseInt(hex.substring(4, 6), 16);
-              let luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b);
-              return luminance < 140;
-            };
-
             const applyBg = (r, c, color) => { ds.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } }; };
 
-            for (let r = 1; r <= 200; r++) {
+            for (let r = 1; r <= 350; r++) {
+              ds.getRow(r).height = 16;
               for (let c = 2; c <= 18; c++) {
                 applyBg(r, c, COLORS.bg);
               }
@@ -33472,7 +33481,6 @@
               const ctx = canvas.getContext('2d');
               ctx.scale(2, 2);
 
-              // Monospace font interceptor for Fintech theme
               const originalFillText = ctx.fillText;
               ctx.fillText = function (text, x, y, maxWidth) {
                 if (this.font && this.font.includes('Segoe UI')) {
@@ -33505,7 +33513,7 @@
                 let r = parseInt(c.substring(0, 2), 16) || 0;
                 let g = parseInt(c.substring(2, 4), 16) || 0;
                 let b = parseInt(c.substring(4, 6), 16) || 0;
-                return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + alpha + ')';
               }
 
               ctx.fillStyle = toWebColor(COLORS.surface);
@@ -33532,7 +33540,6 @@
                 const radius = Math.min(centerX, centerY) * 0.7;
                 const innerRadius = radius * 0.5;
 
-                // 1. Draw outer tactical sonar rings
                 ctx.strokeStyle = isDarkTheme ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.08)';
                 ctx.lineWidth = 1;
                 ctx.beginPath();
@@ -33543,7 +33550,6 @@
                 ctx.arc(centerX, centerY, innerRadius * 0.75, 0, 2 * Math.PI);
                 ctx.stroke();
 
-                // Draw tactical compass angle ticks
                 for (let angle = 0; angle < 360; angle += 30) {
                   const rad = (angle * Math.PI) / 180;
                   const xStart = centerX + Math.cos(rad) * radius * 1.15;
@@ -33556,7 +33562,6 @@
                   ctx.stroke();
                 }
 
-                // 2. Draw standard donut slices
                 let startAngle = -Math.PI / 2;
                 data.forEach(item => {
                   const sliceAngle = (item.value / total) * 2 * Math.PI;
@@ -33576,21 +33581,18 @@
                   startAngle += sliceAngle;
                 });
 
-                // 3. Draw tactical crosshair overlay (Distinct Design Anchor)
                 ctx.strokeStyle = isDarkTheme ? 'rgba(99, 102, 241, 0.25)' : 'rgba(99, 102, 241, 0.12)';
                 ctx.lineWidth = 0.75;
                 ctx.beginPath();
-                // Horizontal crosshair
                 ctx.moveTo(centerX - radius * 1.25, centerY);
                 ctx.lineTo(centerX + radius * 1.25, centerY);
-                // Vertical crosshair
                 ctx.moveTo(centerX, centerY - radius * 1.25);
                 ctx.lineTo(centerX, centerY + radius * 1.25);
                 ctx.stroke();
 
                 if (colors && colors.centerText) {
                   ctx.fillStyle = isDarkTheme ? '#FFFFFF' : '#0F172A';
-                  ctx.font = `bold ${Math.round(11 * scale)}px Segoe UI`;
+                  ctx.font = 'bold ' + Math.round(11 * scale) + 'px Segoe UI';
                   ctx.textAlign = 'center';
                   ctx.textBaseline = 'middle';
                   ctx.fillText(colors.centerText, centerX, centerY);
@@ -33605,7 +33607,6 @@
 
                 const maxVal = Math.max(...data.ideal, ...data.actual, 1) * 1.15;
 
-                // 1. Draw oscilloscope background grid mesh (Distinct Design Anchor)
                 ctx.strokeStyle = isDarkTheme ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)';
                 ctx.lineWidth = 0.75;
                 const gridSpacing = 15;
@@ -33618,7 +33619,7 @@
 
                 ctx.strokeStyle = isDarkTheme ? '#334155' : '#F1F5F9';
                 ctx.lineWidth = 1;
-                ctx.font = `${Math.round(8 * scale)}px Segoe UI`;
+                ctx.font = Math.round(8 * scale) + 'px Segoe UI';
                 ctx.fillStyle = isDarkTheme ? '#94A3B8' : '#64748B';
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'middle';
@@ -33687,7 +33688,7 @@
                   if (idx === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
                 });
                 ctx.stroke();
-                ctx.shadowBlur = 0; // reset glow
+                ctx.shadowBlur = 0;
 
                 data.actual.forEach((val, idx) => {
                   const pt = getPt(idx, val);
@@ -33711,7 +33712,7 @@
 
                 ctx.strokeStyle = isDarkTheme ? '#334155' : '#F1F5F9';
                 ctx.lineWidth = 1;
-                ctx.font = `${Math.round(8 * scale)}px Segoe UI`;
+                ctx.font = Math.round(8 * scale) + 'px Segoe UI';
                 ctx.fillStyle = isDarkTheme ? '#94A3B8' : '#64748B';
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'middle';
@@ -33747,12 +33748,12 @@
                   ctx.fillRect(x, y, barWidth, h);
 
                   ctx.fillStyle = isDarkTheme ? '#FFFFFF' : '#1E293B';
-                  ctx.font = `bold ${Math.round(8.5 * scale)}px Segoe UI`;
+                  ctx.font = 'bold ' + Math.round(8.5 * scale) + 'px Segoe UI';
                   ctx.textBaseline = 'bottom';
                   ctx.fillText(String(Math.round(val)), xCenter, y - 2);
 
                   ctx.fillStyle = isDarkTheme ? '#94A3B8' : '#64748B';
-                  ctx.font = `${Math.round(8 * scale)}px Segoe UI`;
+                  ctx.font = Math.round(8 * scale) + 'px Segoe UI';
                   ctx.textBaseline = 'top';
                   ctx.fillText(data.labels[idx], xCenter, height - padB + 4);
                 });
@@ -33770,7 +33771,7 @@
 
                 const maxVal = 100;
 
-                ctx.font = `${Math.round(8 * scale)}px Segoe UI`;
+                ctx.font = Math.round(8 * scale) + 'px Segoe UI';
                 ctx.textBaseline = 'middle';
 
                 data.values.forEach((val, idx) => {
@@ -33790,13 +33791,13 @@
 
                   ctx.fillStyle = isDarkTheme ? '#E2E8F0' : '#475569';
                   ctx.textAlign = 'right';
-                  ctx.font = `bold ${Math.round(8 * scale)}px Segoe UI`;
+                  ctx.font = 'bold ' + Math.round(8 * scale) + 'px Segoe UI';
                   const cleanLbl = String(data.labels[idx]).length > 15 ? String(data.labels[idx]).substring(0, 13) + '..' : data.labels[idx];
                   ctx.fillText(cleanLbl, padL - 6, yCenter);
 
                   ctx.fillStyle = isDarkTheme ? '#FFFFFF' : '#0F172A';
                   ctx.textAlign = 'left';
-                  ctx.font = `bold ${Math.round(8.5 * scale)}px Segoe UI`;
+                  ctx.font = 'bold ' + Math.round(8.5 * scale) + 'px Segoe UI';
                   ctx.fillText(Math.round(val) + '%', padL + w + 4, yCenter);
                 });
               } else if (type === 'stackedHorizontalBar') {
@@ -33819,7 +33820,7 @@
                 }
                 maxVal = Math.max(maxVal, 1) * 1.1;
 
-                ctx.font = `${Math.round(8 * scale)}px Segoe UI`;
+                ctx.font = Math.round(8 * scale) + 'px Segoe UI';
                 ctx.textBaseline = 'middle';
 
                 for (let i = 0; i < numBars; i++) {
@@ -33845,7 +33846,7 @@
 
                   ctx.fillStyle = isDarkTheme ? '#E2E8F0' : '#475569';
                   ctx.textAlign = 'right';
-                  ctx.font = `bold ${Math.round(8 * scale)}px Segoe UI`;
+                  ctx.font = 'bold ' + Math.round(8 * scale) + 'px Segoe UI';
                   const cleanLbl = String(data.labels[i]).length > 15 ? String(data.labels[i]).substring(0, 13) + '..' : data.labels[i];
                   ctx.fillText(cleanLbl, padL - 6, yCenter);
                 }
@@ -33871,7 +33872,7 @@
 
                 ctx.strokeStyle = isDarkTheme ? '#334155' : '#F1F5F9';
                 ctx.lineWidth = 1;
-                ctx.font = `${Math.round(8 * scale)}px Segoe UI`;
+                ctx.font = Math.round(8 * scale) + 'px Segoe UI';
                 ctx.fillStyle = isDarkTheme ? '#94A3B8' : '#64748B';
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'middle';
@@ -33943,13 +33944,12 @@
               const shadowColor = COLORS.isDark ? 'FF020612' : 'FFCBD5E1';
               const highlightColor = COLORS.isDark ? 'FF2A364F' : 'FFE2E8F0';
               cell.border = {
-                top: { style: 'thin', color: { argb: highlightColor } },      // beveled light highlight
-                left: { style: 'medium', color: { argb: accentColor } },  // neon status highlight
-                bottom: { style: 'medium', color: { argb: shadowColor } },  // beveled dark shadow
-                right: { style: 'thin', color: { argb: shadowColor } }      // beveled dark shadow
+                top: { style: 'thin', color: { argb: highlightColor } },
+                left: { style: 'medium', color: { argb: accentColor } },
+                bottom: { style: 'medium', color: { argb: shadowColor } },
+                right: { style: 'thin', color: { argb: shadowColor } }
               };
 
-              // Determine symbol prefix for fintech feel
               let sym = '▶ ';
               if (label.includes('Health')) sym = (parseInt(value) >= 80) ? '▲ ' : '▼ ';
               else if (label.includes('Completed')) sym = '▲ ';
@@ -33957,8 +33957,8 @@
 
               cell.value = {
                 richText: [
-                  { text: `[${label.toUpperCase().replace(/ \/ /g, '.').substring(0, 12)}] \n`, font: { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.slate } } },
-                  { text: `${sym}${String(value)} \n`, font: { name: 'Courier New', size: 16, bold: true, color: { argb: accentColor } } },
+                  { text: '[' + label.toUpperCase().replace(/ \\/ /g, '.').substring(0, 12) + '] \\n', font: { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.slate } } },
+                  { text: sym + String(value) + ' \\n', font: { name: 'Courier New', size: 16, bold: true, color: { argb: accentColor } } },
                   { text: subLabel || '', font: { name: 'Courier New', size: 7.5, italic: true, color: { argb: COLORS.slate } } }
                 ]
               };
@@ -33969,7 +33969,7 @@
               ds.getRow(row).height = 20;
               ds.mergeCells(row, 2, row, 18);
               const cell = ds.getCell(row, 2);
-              cell.value = ` >> [${title.toUpperCase()}]`;
+              cell.value = ' >> [' + title.toUpperCase() + ']';
               cell.font = { name: 'Courier New', size: 9, bold: true, color: { argb: COLORS.blue } };
               cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
               cell.border = { bottom: { style: 'medium', color: { argb: COLORS.blue } } };
@@ -33980,7 +33980,7 @@
               ds.getRow(row).height = 18;
               headers.forEach((h, i) => {
                 const cell = ds.getCell(row, startCol + i);
-                cell.value = `[${h.toUpperCase()}]`;
+                cell.value = '[' + h.toUpperCase() + ']';
                 cell.font = { name: 'Courier New', size: 8, bold: true, color: { argb: 'FFFFFFFF' } };
                 cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
                 cell.alignment = { vertical: 'middle', horizontal: 'center' };
@@ -34032,22 +34032,22 @@
               gradient: 'angle',
               degree: 90,
               stops: [
-                { position: 0, color: { argb: COLORS.bg } },    // Dynamic background
-                { position: 1, color: { argb: COLORS.surface } } // Dynamic surface
+                { position: 0, color: { argb: COLORS.bg } },
+                { position: 1, color: { argb: COLORS.surface } }
               ]
             };
 
             for (let c = 2; c <= 18; c++) {
               ds.getCell(2, c).fill = gradFill;
               ds.getCell(3, c).fill = gradFill;
-              ds.getCell(3, c).border = { bottom: { style: 'medium', color: { argb: COLORS.indigo } } }; // glowing theme primary indicator strip
+              ds.getCell(3, c).border = { bottom: { style: 'medium', color: { argb: COLORS.indigo } } };
             }
 
             const avgP = total ? Math.round(tasks.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / total) : 0;
-            // ── KPI Row 1: Core Status ──
             const onHoldCount = tasks.filter(t => t.status === 'On Hold').length;
             const cancelledCount = tasks.filter(t => t.status === 'Cancelled').length;
             const criticalPri = tasks.filter(t => t.priority === 'Critical' && t.status !== 'Completed' && t.status !== 'Cancelled').length;
+
             drawPremiumCard(2, 4, 3, 2, 'Health Score', healthScore + '%', healthScore >= 80 ? '▲ On Track' : healthScore >= 60 ? '► Monitor' : '▼ Critical', healthScore >= 80 ? COLORS.emerald : healthScore >= 60 ? COLORS.amber : COLORS.rose);
             drawPremiumCard(5, 4, 3, 2, 'Total / Done', total + ' / ' + done, completionPct + '% delivery rate', COLORS.indigo);
             drawPremiumCard(8, 4, 3, 2, 'Active Scope', (total - done - cancelledCount), (total - done - cancelledCount) + ' tasks in flight', COLORS.blue);
@@ -34055,21 +34055,9 @@
             drawPremiumCard(14, 4, 3, 2, 'Blocked', blocked, blocked ? '⚠ Dependency debt' : '✔ Unblocked', blocked ? COLORS.rose : COLORS.emerald);
             drawPremiumCard(17, 4, 2, 2, 'Critical Pri', criticalPri, criticalPri ? 'Escalate now' : 'Clear', criticalPri ? COLORS.rose : COLORS.emerald);
 
+            // Row 2: Sonar Charts
             drawSectionTitle(7, 'Project Health & Distribution Analysis');
-            drawTableHeader(9, ['Status', 'Count', '%'], 2);
-            STATUSES.forEach((s, i) => {
-              const cnt = tasks.filter(t => t.status === s).length; const pct = total ? Math.round(cnt / total * 100) : 0;
-              drawTableRow(10 + i, [styledVal(s, STATUS_COLORS[s] || COLORS.textDark, true), cnt, pct + '%'], 2, i % 2 === 1);
-            });
-
-            drawTableHeader(9, ['Priority', 'Count', '%'], 10);
-            const priColors = { 'Critical': COLORS.rose, 'High': COLORS.amber, 'Medium': 'FFEAB308', 'Low': COLORS.muted };
-            PRIORITIES.forEach((p, i) => {
-              const cnt = tasks.filter(t => t.priority === p).length; const pct = total ? Math.round(cnt / total * 100) : 0;
-              drawTableRow(10 + i, [styledVal(p, priColors[p] || COLORS.textDark, true), cnt, pct + '%'], 10, i % 2 === 1);
-            });
-
-            // Render Status Distribution Donut Chart
+            
             const statusChartData = STATUSES.map(s => ({
               label: s,
               value: tasks.filter(t => t.status === s).length,
@@ -34077,17 +34065,17 @@
             })).filter(item => item.value > 0);
 
             try {
-              const donutImgBase64 = generateCanvasChart(250, 140, 'donut', statusChartData, { centerText: total + ' Tasks' });
+              const donutImgBase64 = generateCanvasChart(520, 250, 'donut', statusChartData, { centerText: total + ' Tasks' });
               const donutImgId = wb.addImage({ base64: donutImgBase64, extension: 'png' });
               ds.addImage(donutImgId, {
-                tl: { col: 5, row: 8 },
-                ext: { width: 250, height: 140 }
+                tl: { col: 1, row: 8 },
+                ext: { width: 520, height: 250 }
               });
             } catch (err) {
               console.error('Error generating status donut chart', err);
             }
 
-            // Render Priority Distribution Donut Chart
+            const priColors = { 'Critical': COLORS.rose, 'High': COLORS.amber, 'Medium': 'FFEAB308', 'Low': COLORS.muted };
             const priChartData = PRIORITIES.map(p => ({
               label: p,
               value: tasks.filter(t => t.priority === p).length,
@@ -34095,21 +34083,22 @@
             })).filter(item => item.value > 0);
 
             try {
-              const priDonutImgBase64 = generateCanvasChart(250, 140, 'donut', priChartData, { centerText: 'By Priority' });
+              const priDonutImgBase64 = generateCanvasChart(520, 250, 'donut', priChartData, { centerText: 'By Priority' });
               const priDonutImgId = wb.addImage({ base64: priDonutImgBase64, extension: 'png' });
               ds.addImage(priDonutImgId, {
-                tl: { col: 13, row: 8 },
-                ext: { width: 250, height: 140 }
+                tl: { col: 9, row: 8 },
+                ext: { width: 520, height: 250 }
               });
             } catch (err) {
               console.error('Error generating priority donut chart', err);
             }
 
-            let curRow = 18;
-
-            drawSectionTitle(curRow, 'Predictive Velocity & Remaining Effort Burndown'); curRow += 2;
+            // Row 3: Oscilloscopes
+            drawSectionTitle(22, 'Predictive Velocity & Remaining Effort Burndown');
+            
             const vLs = []; for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); vLs.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) }); }
             const velData = vLs.map(w => tasks.filter(t => { if (t.status !== 'Completed' || !t.dueDate) return false; const d = new Date(t.dueDate); return getWeekNumber(d) === w.w && d.getFullYear() === w.y; }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
+            
             const startDates = tasks.map(t => new Date(t.startDate)).filter(d => !isNaN(d)); const endDates = tasks.map(t => new Date(t.dueDate)).filter(d => !isNaN(d));
             const bStart = startDates.length ? new Date(Math.min(...startDates)) : new Date(); const bEnd = endDates.length ? new Date(Math.max(...endDates)) : new Date(bStart.getTime() + 30 * 864e5);
             const bWeeks = Math.max(2, Math.ceil((bEnd - bStart) / (7 * 864e5)) + 1); const bLabels = Array.from({ length: bWeeks }, (_, i) => 'W' + (i + 1));
@@ -34117,51 +34106,184 @@
             const bIdeal = bLabels.map((_, i) => Math.max(0, totalEffort - (totalEffort / Math.max(1, bWeeks - 1)) * i));
             const bActual = bLabels.map((_, i) => { const wEnd = new Date(bStart.getTime() + (i + 1) * 7 * 864e5); return tasks.filter(t => t.status !== 'Completed' || new Date(t.updatedAt || t.dueDate) > wEnd).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0); });
 
-            drawTableHeader(curRow, ['Week', 'Velocity'], 2); vLs.forEach((w, i) => { drawTableRow(curRow + 1 + i, [w.l, velData[i]], 2, i % 2 === 1); });
-            ds.addConditionalFormatting({ ref: `C${curRow + 1}:C${curRow + vLs.length}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 100 }], color: { argb: COLORS.indigo } }] });
-            drawTableHeader(curRow, ['Week', 'Ideal', 'Actual'], 7); bLabels.slice(0, 10).forEach((l, i) => { drawTableRow(curRow + 1 + i, [l, Math.round(bIdeal[i]), Math.round(bActual[i])], 7, i % 2 === 1); });
-            drawPremiumCard(13, curRow, 5, 3, 'Total Effort', totalEffort + ' days', 'Estimated', COLORS.indigo);
-            drawPremiumCard(13, curRow + 4, 5, 3, 'Remaining', Math.round(bActual[bActual.length - 1] || 0) + ' days', 'Current', COLORS.amber);
-
-            // Render Velocity Bar Chart next to Velocity table (col 5)
             try {
               const velocityData = {
                 labels: vLs.map(w => w.l),
                 values: velData
               };
-              const barImgBase64 = generateCanvasChart(220, 150, 'bar', velocityData);
+              const barImgBase64 = generateCanvasChart(520, 250, 'bar', velocityData);
               const barImgId = wb.addImage({ base64: barImgBase64, extension: 'png' });
               ds.addImage(barImgId, {
-                tl: { col: 4, row: curRow - 1 },
-                ext: { width: 220, height: 150 }
+                tl: { col: 1, row: 23 },
+                ext: { width: 520, height: 250 }
               });
             } catch (err) {
               console.error('Error generating velocity bar chart', err);
             }
 
-            // Render Burndown Line Chart next to Burndown table (col 11)
             try {
               const burndownData = {
                 labels: bLabels.slice(0, 10),
                 ideal: bIdeal.slice(0, 10).map(Math.round),
                 actual: bActual.slice(0, 10).map(Math.round)
               };
-              const lineImgBase64 = generateCanvasChart(220, 150, 'line', burndownData);
+              const lineImgBase64 = generateCanvasChart(520, 250, 'line', burndownData);
               const lineImgId = wb.addImage({ base64: lineImgBase64, extension: 'png' });
               ds.addImage(lineImgId, {
-                tl: { col: 10, row: curRow - 1 },
-                ext: { width: 220, height: 150 }
+                tl: { col: 9, row: 23 },
+                ext: { width: 520, height: 250 }
               });
             } catch (err) {
               console.error('Error generating burndown line chart', err);
             }
 
-            curRow = curRow + 11 + 2;
+            // Row 4: Team Workload & Module Progress
+            drawSectionTitle(36, 'Team Workload & Module Progress');
+            
+            const teamNames = [...new Set(tasks.map(t => t.assignee).filter(Boolean))].slice(0, 10);
+            const doneMData = [];
+            const activeMData = [];
+            teamNames.forEach(m => {
+              const totalM = tasks.filter(t => t.assignee === m).length;
+              const doneM = tasks.filter(t => t.assignee === m && t.status === 'Completed').length;
+              doneMData.push(doneM);
+              activeMData.push(totalM - doneM);
+            });
 
-            // ── Team Performance Section ──
-            drawSectionTitle(curRow, 'Team Performance & Workload Distribution'); curRow += 2;
+            try {
+              const teamWorkloadData = {
+                labels: teamNames,
+                series: [
+                  { label: 'Done', values: doneMData, color: '#10B981' },
+                  { label: 'Active', values: activeMData, color: '#4F46E5' }
+                ]
+              };
+              const teamBarImgBase64 = generateCanvasChart(520, 250, 'stackedHorizontalBar', teamWorkloadData);
+              const teamBarImgId = wb.addImage({ base64: teamBarImgBase64, extension: 'png' });
+              ds.addImage(teamBarImgId, {
+                tl: { col: 1, row: 37 },
+                ext: { width: 520, height: 250 }
+              });
+            } catch (err) {
+              console.error('Error generating team workload chart', err);
+            }
+
+            const modSet = [...new Set(tasks.map(t => t.module).filter(Boolean))].slice(0, 10);
+            try {
+              const modChartLabels = [];
+              const modChartValues = [];
+              modSet.forEach(m => {
+                const mt = tasks.filter(t => t.module === m);
+                const mAvg = mt.length ? Math.round(mt.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / mt.length) : 0;
+                modChartLabels.push(m);
+                modChartValues.push(mAvg);
+              });
+              const modBarImgBase64 = generateCanvasChart(520, 250, 'horizontalBar', {
+                labels: modChartLabels,
+                values: modChartValues
+              });
+              const modBarImgId = wb.addImage({ base64: modBarImgBase64, extension: 'png' });
+              ds.addImage(modBarImgId, {
+                tl: { col: 9, row: 37 },
+                ext: { width: 520, height: 250 }
+              });
+            } catch (err) {
+              console.error('Error generating module progress chart', err);
+            }
+
+            // Row 5: CFD & Quality Intelligence
+            drawSectionTitle(50, 'Cumulative Flow History & Defect Module Analysis');
+
+            const last8WeeksCFD = [];
+            for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); d.setHours(23, 59, 59, 999); last8WeeksCFD.push({ w: getWeekNumber(d), l: 'W' + getWeekNumber(d), date: d }); }
+            const cfdStacks = STATUSES.map(s => last8WeeksCFD.map(w => tasks.filter(t => {
+              if (new Date(t.createdAt || 0) > w.date) return false;
+              const logs = (P.log || []).filter(l => l.taskId === t.id && l.action === 'Status Changed');
+              const priorLogs = logs.filter(l => new Date(l.ts) <= w.date).sort((a, b) => new Date(b.ts) - new Date(a.ts));
+              let statusAtTime = 'Not Started'; if (priorLogs.length > 0) statusAtTime = priorLogs[0].newVal; else if (logs.length === 0) statusAtTime = t.status;
+              return statusAtTime === s;
+            }).length));
+
+            try {
+              const cfdSeries = STATUSES.map((s, si) => ({
+                label: s,
+                values: cfdStacks[si],
+                color: '#' + (STATUS_COLORS[s] || COLORS.textDark).replace('#', '')
+              }));
+              const cfdChartData = {
+                labels: last8WeeksCFD.map(w => w.l),
+                series: cfdSeries
+              };
+              const cfdImgBase64 = generateCanvasChart(520, 250, 'stackedArea', cfdChartData);
+              const cfdImgId = wb.addImage({ base64: cfdImgBase64, extension: 'png' });
+              ds.addImage(cfdImgId, {
+                tl: { col: 1, row: 51 },
+                ext: { width: 520, height: 250 }
+              });
+            } catch (err) {
+              console.error('Error generating CFD chart', err);
+            }
+
+            const defs = P.defects || [];
+            const pdfCache = buildDashCache(tasks, P.log); const modBugs = {}; defs.forEach(d => { let mod = 'General'; if (pdfCache.taskById[d.linkedId]) { mod = pdfCache.taskById[d.linkedId].module || 'General'; } else if (pdfCache.subtaskById[d.linkedId]) { mod = pdfCache.subtaskById[d.linkedId].parentTask.module || 'General'; } else if (pdfCache.screenByName[d.linkedId]) { mod = pdfCache.screenByName[d.linkedId].module || 'General'; } modBugs[mod] = (modBugs[mod] || 0) + 1; });
+            const mbEntries = Object.entries(modBugs).sort((a, b) => b[1] - a[1]).slice(0, 8);
+            
+            try {
+              const defModChartLabels = mbEntries.map(e => e[0]);
+              const defModChartValues = mbEntries.map(e => e[1]);
+              const defModImgBase64 = generateCanvasChart(520, 250, 'horizontalBar', {
+                labels: defModChartLabels,
+                values: defModChartValues
+              }, {
+                isCount: true,
+                barColorStart: '#EF4444',
+                barColorEnd: '#F87171'
+              });
+              const defModImgId = wb.addImage({ base64: defModImgBase64, extension: 'png' });
+              ds.addImage(defModImgId, {
+                tl: { col: 9, row: 51 },
+                ext: { width: 520, height: 250 }
+              });
+            } catch (err) {
+              console.error('Error generating defect module chart', err);
+            }
+
+            let curRow = 65;
+
+            // ── Section: Distribution Tables ──
+            drawSectionTitle(curRow, 'Project Health & Distribution Directories'); curRow += 2;
+            drawTableHeader(curRow, ['Status', 'Count', '%'], 2);
+            STATUSES.forEach((s, i) => {
+              const cnt = tasks.filter(t => t.status === s).length; const pct = total ? Math.round(cnt / total * 100) : 0;
+              drawTableRow(curRow + 1 + i, [styledVal(s, STATUS_COLORS[s] || COLORS.textDark, true), cnt, pct + '%'], 2, i % 2 === 1);
+            });
+            drawTableHeader(curRow, ['Priority', 'Count', '%'], 7);
+            const priColors2 = { 'Critical': COLORS.rose, 'High': COLORS.amber, 'Medium': 'FFEAB308', 'Low': COLORS.muted };
+            PRIORITIES.forEach((p, i) => {
+              const cnt = tasks.filter(t => t.priority === p).length; const pct = total ? Math.round(cnt / total * 100) : 0;
+              drawTableRow(curRow + 1 + i, [styledVal(p, priColors2[p] || COLORS.textDark, true), cnt, pct + '%'], 7, i % 2 === 1);
+            });
+            
+            // Draw Effort Estimations Table
+            drawTableHeader(curRow, ['Metric', 'Duration (Days)'], 12);
+            drawTableRow(curRow + 1, ['Total Effort Estimated', totalEffort], 12, false);
+            drawTableRow(curRow + 2, ['Remaining Effort (Burndown)', Math.round(bActual[bActual.length - 1] || 0)], 12, true);
+            drawTableRow(curRow + 3, ['Done Effort', Math.round(totalEffort - (bActual[bActual.length - 1] || 0))], 12, false);
+            curRow += Math.max(STATUSES.length, PRIORITIES.length, 4) + 2;
+
+            // ── Section: Project Milestones ──
+            const msTasks = tasks.filter(t => (t.startDate && t.startDate === t.dueDate) || (t.tags && t.tags.includes('Milestone')));
+            if (msTasks.length) {
+              drawSectionTitle(curRow, 'Project Milestones & Key Roadmap Markers'); curRow += 2;
+              drawTableHeader(curRow, ['ID', 'Milestone Name', 'Due Date', 'Status', 'Progress'], 2);
+              msTasks.forEach((t, i) => { const r = curRow + 1 + i; drawTableRow(r, [t.id, t.name, cleanFmtDate(t.dueDate), styledVal(t.status, STATUS_COLORS[t.status] || COLORS.textDark, true), (t.progress || 0) + '%'], 2, i % 2 === 1); });
+              curRow += msTasks.length + 2;
+            }
+
+            // ── Section: Team Directory ──
             const members = P.members || [];
             if (members.length > 0) {
+              drawSectionTitle(curRow, 'Team Directory & Resource Performance'); curRow += 2;
               drawTableHeader(curRow, ['Team Member', 'Role', 'Active Tasks', 'Done', 'Effort (Est)', 'Effort (Act)', 'Utilization%'], 2);
               members.slice(0, 12).forEach((m, i) => {
                 const mTasks = tasks.filter(t => t.assignee === m.name);
@@ -34174,13 +34296,11 @@
                 const utilColor = utilization > 100 ? COLORS.rose : utilization > 80 ? COLORS.amber : COLORS.emerald;
                 drawTableRow(curRow + 1 + i, [m.name, m.role || '—', mActive, mDone, mEst.toFixed(1), mAct.toFixed(1), styledVal(utilization + '%', utilColor, true)], 2, i % 2 === 1);
               });
-              curRow += members.slice(0, 12).length + 3;
-            } else {
-              curRow += 2;
+              curRow += members.slice(0, 12).length + 2;
             }
 
+            // ── Section: Module & Feature Delivery ──
             drawSectionTitle(curRow, 'Module & Feature Delivery Intelligence'); curRow += 2;
-            const modSet = [...new Set(tasks.map(t => t.module).filter(Boolean))].slice(0, 12);
             drawTableHeader(curRow, ['Module', 'Tasks', 'Done', 'Overdue', 'Avg Progress'], 2);
             modSet.forEach((m, i) => {
               const mt = tasks.filter(t => t.module === m);
@@ -34189,10 +34309,9 @@
               const mAvg = mt.length ? Math.round(mt.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / mt.length) : 0;
               const mOverColor = mOver > 0 ? COLORS.rose : COLORS.emerald;
               drawTableRow(curRow + 1 + i, [m, mt.length, styledVal(mDone, COLORS.emerald, true), styledVal(mOver, mOverColor, true), mAvg + '%'], 2, i % 2 === 1);
-              // Add databar for progress column
               try {
                 ds.addConditionalFormatting({
-                  ref: `F${curRow + 1 + i}:F${curRow + 1 + i}`,
+                  ref: 'F' + (curRow + 1 + i) + ':F' + (curRow + 1 + i),
                   rules: [{
                     type: 'dataBar',
                     cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 100 }],
@@ -34202,6 +34321,7 @@
                 });
               } catch (e) { }
             });
+
             const feats = (P.features || []).slice(0, 12);
             if (feats.length) {
               drawTableHeader(curRow, ['Feature', 'Screens', 'Avg Progress'], 10);
@@ -34211,207 +34331,13 @@
                 drawTableRow(curRow + 1 + i, [feat.name, scs.length, fAvg + '%'], 10, i % 2 === 1);
               });
             }
+            curRow += Math.max(modSet.length, feats.length, 10) + 2;
 
-            // Render Module Progress Horizontal Bar Chart
-            if (modSet.length) {
-              try {
-                const modChartLabels = [];
-                const modChartValues = [];
-                modSet.forEach(m => {
-                  const mt = tasks.filter(t => t.module === m);
-                  const mAvg = mt.length ? Math.round(mt.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / mt.length) : 0;
-                  modChartLabels.push(m);
-                  modChartValues.push(mAvg);
-                });
-                const modBarImgBase64 = generateCanvasChart(250, 160, 'horizontalBar', {
-                  labels: modChartLabels,
-                  values: modChartValues
-                });
-                const modBarImgId = wb.addImage({ base64: modBarImgBase64, extension: 'png' });
-                ds.addImage(modBarImgId, {
-                  tl: { col: 5, row: curRow - 1 },
-                  ext: { width: 250, height: 160 }
-                });
-              } catch (err) {
-                console.error('Error generating module progress chart', err);
-              }
-            }
-
-            // Render Feature Progress Horizontal Bar Chart
-            if (feats.length) {
-              try {
-                const featChartLabels = [];
-                const featChartValues = [];
-                feats.forEach(feat => {
-                  const scs = feat.screens || [];
-                  const screenData = tasks.filter(t => (t.subtasks || []).some(st => scs.includes(st.name)) || (t.guiScreens || []).some(sc => scs.includes(sc)));
-                  const fAvg = screenData.length ? Math.round(screenData.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / screenData.length) : 0;
-                  featChartLabels.push(feat.name);
-                  featChartValues.push(fAvg);
-                });
-                const featBarImgBase64 = generateCanvasChart(250, 160, 'horizontalBar', {
-                  labels: featChartLabels,
-                  values: featChartValues
-                });
-                const featBarImgId = wb.addImage({ base64: featBarImgBase64, extension: 'png' });
-                ds.addImage(featBarImgId, {
-                  tl: { col: 13, row: curRow - 1 },
-                  ext: { width: 250, height: 160 }
-                });
-              } catch (err) {
-                console.error('Error generating feature progress chart', err);
-              }
-            }
-
-            curRow = curRow + Math.max(modSet.length, feats.length, 10) + 2;
-
-            drawSectionTitle(curRow, 'Team Workload & Capacity Analysis'); curRow += 2;
-            const teamNames = [...new Set(tasks.map(t => t.assignee).filter(Boolean))].slice(0, 10);
-            drawTableHeader(curRow, ['Assignee', 'Total', 'Active', 'Done', 'Completion'], 2);
-            teamNames.forEach((m, i) => {
-              const totalM = tasks.filter(t => t.assignee === m).length; const doneM = tasks.filter(t => t.assignee === m && t.status === 'Completed').length;
-              const activeM = totalM - doneM; const pct = totalM ? doneM / totalM : 0;
-              drawTableRow(curRow + 1 + i, [m, totalM, activeM, doneM, pct], 2, i % 2 === 1); ds.getCell(curRow + 1 + i, 6).numFmt = '0%';
-            });
-            if (teamNames.length) ds.addConditionalFormatting({ ref: `F${curRow + 1}:F${curRow + teamNames.length}`, rules: [{ type: 'dataBar', cfvo: [{ type: 'min', value: 0 }, { type: 'max', value: 1 }], color: { argb: COLORS.blue } }] });
-
-            // Render Team Workload Stacked Horizontal Bar Chart (col 8 to 18)
-            if (teamNames.length) {
-              try {
-                const doneMData = [];
-                const activeMData = [];
-                teamNames.forEach(m => {
-                  const totalM = tasks.filter(t => t.assignee === m).length;
-                  const doneM = tasks.filter(t => t.assignee === m && t.status === 'Completed').length;
-                  doneMData.push(doneM);
-                  activeMData.push(totalM - doneM);
-                });
-                const teamWorkloadData = {
-                  labels: teamNames,
-                  series: [
-                    { label: 'Done', values: doneMData, color: '#10B981' },
-                    { label: 'Active', values: activeMData, color: '#4F46E5' }
-                  ]
-                };
-                const teamBarImgBase64 = generateCanvasChart(500, 200, 'stackedHorizontalBar', teamWorkloadData);
-                const teamBarImgId = wb.addImage({ base64: teamBarImgBase64, extension: 'png' });
-                ds.addImage(teamBarImgId, {
-                  tl: { col: 7, row: curRow - 1 },
-                  ext: { width: 500, height: 200 }
-                });
-              } catch (err) {
-                console.error('Error generating team workload chart', err);
-              }
-            }
-
-            curRow = curRow + Math.max(teamNames.length, 10) + 2;
-
-            drawSectionTitle(curRow, 'Cumulative Flow History (8-Week Status Distribution)'); curRow += 2;
-            const last8WeeksCFD = [];
-            for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); d.setHours(23, 59, 59, 999); last8WeeksCFD.push({ w: getWeekNumber(d), l: 'W' + getWeekNumber(d), date: d }); }
-            const cfdStacks = STATUSES.map(s => last8WeeksCFD.map(w => tasks.filter(t => {
-              if (new Date(t.createdAt || 0) > w.date) return false;
-              const logs = (P.log || []).filter(l => l.taskId === t.id && l.action === 'Status Changed');
-              const priorLogs = logs.filter(l => new Date(l.ts) <= w.date).sort((a, b) => new Date(b.ts) - new Date(a.ts));
-              let statusAtTime = 'Not Started'; if (priorLogs.length > 0) statusAtTime = priorLogs[0].newVal; else if (logs.length === 0) statusAtTime = t.status;
-              return statusAtTime === s;
-            }).length));
-            drawTableHeader(curRow, ['Week', ...STATUSES], 2);
-            last8WeeksCFD.forEach((w, i) => { const rowVals = [w.l]; STATUSES.forEach((s, si) => rowVals.push(cfdStacks[si][i])); drawTableRow(curRow + 1 + i, rowVals, 2, i % 2 === 1); });
-
-            // Render Stacked Area CFD Chart (col 11 to 18)
-            try {
-              const cfdSeries = STATUSES.map((s, si) => ({
-                label: s,
-                values: cfdStacks[si],
-                color: '#' + (STATUS_COLORS[s] || COLORS.textDark).replace('#', '')
-              }));
-              const cfdChartData = {
-                labels: last8WeeksCFD.map(w => w.l),
-                series: cfdSeries
-              };
-              const cfdImgBase64 = generateCanvasChart(500, 200, 'stackedArea', cfdChartData);
-              const cfdImgId = wb.addImage({ base64: cfdImgBase64, extension: 'png' });
-              ds.addImage(cfdImgId, {
-                tl: { col: 10, row: curRow - 1 },
-                ext: { width: 500, height: 200 }
-              });
-            } catch (err) {
-              console.error('Error generating CFD chart', err);
-            }
-
-            curRow = curRow + Math.max(last8WeeksCFD.length, 10) + 2;
-
-            const screens = tasks.flatMap(t => {
-              const subs = (t.subtasks || []).filter(st => st.type === 'screen').map(st => ({ ...st, parent: t.name, module: t.module }));
-              if (subs.length) return subs;
-              return (t.guiScreens || []).map(sc => ({ name: typeof sc === 'string' ? sc : sc.name, status: t.status, progress: t.progress, assignee: t.assignee, module: t.module }));
-            });
-            if (screens.length) {
-              drawSectionTitle(curRow, 'Screen Inventory & Delivery Status'); curRow += 2;
-              drawTableHeader(curRow, ['Screen', 'Module', 'Status', 'Progress'], 2);
-              screens.slice(0, 20).forEach((s, i) => { const r = curRow + 1 + i; const p = (parseInt(s.progress) || 0); drawTableRow(r, [s.name, s.module || '-', styledVal(s.status, STATUS_COLORS[s.status] || COLORS.textDark, true), p + '%'], 2, i % 2 === 1); });
-
-              // Render Screen Progress Donut Chart (col 7 to 18)
-              try {
-                const screenStatusCounts = {};
-                screens.forEach(s => {
-                  const status = s.status || 'Not Started';
-                  screenStatusCounts[status] = (screenStatusCounts[status] || 0) + 1;
-                });
-                const screenChartData = Object.keys(screenStatusCounts).map(status => ({
-                  label: status,
-                  value: screenStatusCounts[status],
-                  color: '#' + (STATUS_COLORS[status] || COLORS.textDark).replace('#', '')
-                }));
-                const scrImgBase64 = generateCanvasChart(450, 180, 'donut', screenChartData, { centerText: screens.length + ' Screens' });
-                const scrImgId = wb.addImage({ base64: scrImgBase64, extension: 'png' });
-                ds.addImage(scrImgId, {
-                  tl: { col: 6, row: curRow - 1 },
-                  ext: { width: 450, height: 180 }
-                });
-              } catch (err) {
-                console.error('Error generating screen progress donut chart', err);
-              }
-
-              curRow = curRow + Math.max(Math.min(20, screens.length), 10) + 2;
-            }
-
-            const msTasks = tasks.filter(t => (t.startDate && t.startDate === t.dueDate) || (t.tags && t.tags.includes('Milestone')));
-            if (msTasks.length) {
-              drawSectionTitle(curRow, 'Project Milestones & Key Roadmap Markers'); curRow += 2;
-              drawTableHeader(curRow, ['ID', 'Milestone Name', 'Due Date', 'Status', 'Progress'], 2);
-              msTasks.forEach((t, i) => { const r = curRow + 1 + i; drawTableRow(r, [t.id, t.name, cleanFmtDate(t.dueDate), styledVal(t.status, STATUS_COLORS[t.status] || COLORS.textDark, true), (t.progress || 0) + '%'], 2, i % 2 === 1); });
-
-              // Render Milestone Status Donut Chart (col 8 to 18)
-              try {
-                const msStatusCounts = {};
-                msTasks.forEach(t => {
-                  const status = t.status || 'Not Started';
-                  msStatusCounts[status] = (msStatusCounts[status] || 0) + 1;
-                });
-                const msChartData = Object.keys(msStatusCounts).map(status => ({
-                  label: status,
-                  value: msStatusCounts[status],
-                  color: '#' + (STATUS_COLORS[status] || COLORS.textDark).replace('#', '')
-                }));
-                const msImgBase64 = generateCanvasChart(450, 180, 'donut', msChartData, { centerText: msTasks.length + ' Milestones' });
-                const msImgId = wb.addImage({ base64: msImgBase64, extension: 'png' });
-                ds.addImage(msImgId, {
-                  tl: { col: 7, row: curRow - 1 },
-                  ext: { width: 450, height: 180 }
-                });
-              } catch (err) {
-                console.error('Error generating milestone chart', err);
-              }
-
-              curRow = curRow + Math.max(msTasks.length, 10) + 2;
-            }
-
-            drawSectionTitle(curRow, 'Strategic Module Delivery Matrix'); curRow += 2;
+            // ── Section: Module Delivery Grid ──
             const mMods = Array.from(new Set(tasks.map(t => t.module).filter(Boolean))).sort();
             const mTypes = Array.from(new Set(tasks.map(t => t.moduleType).filter(Boolean))).sort((a, b) => { if (a === 'Server') return -1; if (b === 'Server') return 1; if (a === 'GUI') return -1; if (b === 'GUI') return 1; return a.localeCompare(b); });
             if (mMods.length && mTypes.length) {
+              drawSectionTitle(curRow, 'Strategic Module Delivery Matrix'); curRow += 2;
               drawTableHeader(curRow, ['Module', ...mTypes], 2);
               mMods.forEach((m, i) => {
                 const r = curRow + 1 + i; ds.getRow(r).height = 26; const rowVals = [m];
@@ -34420,233 +34346,48 @@
                   if (!mtTasks.length) { rowVals.push(styledVal('—', COLORS.muted, false)); return; }
                   const statuses = mtTasks.map(t => getTaskDerivedStatus(t)); const sCounts = {}; statuses.forEach(s => sCounts[s] = (sCounts[s] || 0) + 1);
                   let dsVal = 'Not Started'; if (sCounts['Blocked']) dsVal = 'Blocked'; else if (sCounts['On Hold']) dsVal = 'On Hold'; else if (sCounts['In Progress']) dsVal = 'In Progress'; else if (sCounts['Under Review']) dsVal = 'Under Review'; else if (sCounts['Completed'] === mtTasks.length) dsVal = 'Completed'; else if (sCounts['Completed']) dsVal = 'In Progress';
-                  const mAvgP = Math.round(mtTasks.reduce((s, t) => s + (t.progress || 0), 0) / mtTasks.length); const label = dsVal === 'Completed' ? dsVal : `${dsVal} (${mAvgP}%)`;
+                  const mAvgP = Math.round(mtTasks.reduce((s, t) => s + (t.progress || 0), 0) / mtTasks.length); const label = dsVal === 'Completed' ? dsVal : dsVal + ' (' + mAvgP + '%)';
                   rowVals.push(styledVal(label, STATUS_COLORS[dsVal] || COLORS.textDark, true));
                 });
                 drawTableRow(r, rowVals, 2, i % 2 === 1);
               });
-
-              // Render Module Health Bar Chart (col 11 to 18)
-              try {
-                const modHealthLabels = [];
-                const modHealthValues = [];
-                mMods.forEach(m => {
-                  const mTasks = tasks.filter(t => t.module === m);
-                  const mAvg = mTasks.length ? Math.round(mTasks.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / mTasks.length) : 0;
-                  modHealthLabels.push(m);
-                  modHealthValues.push(mAvg);
-                });
-                const modHealthBarImgBase64 = generateCanvasChart(500, 200, 'bar', {
-                  labels: modHealthLabels,
-                  values: modHealthValues
-                });
-                const modHealthBarImgId = wb.addImage({ base64: modHealthBarImgBase64, extension: 'png' });
-                ds.addImage(modHealthBarImgId, {
-                  tl: { col: 10, row: curRow - 1 },
-                  ext: { width: 500, height: 200 }
-                });
-              } catch (err) {
-                console.error('Error generating module health chart', err);
-              }
-
-              curRow = curRow + Math.max(mMods.length, 10) + 2;
+              curRow += mMods.length + 2;
             }
 
-            const defs = P.defects || [];
-            if (defs.length) {
-              drawSectionTitle(curRow, 'Quality Intelligence & Defect Analysis'); curRow += 2;
-              const sevMix = {}; defs.forEach(d => sevMix[d.priority] = (sevMix[d.priority] || 0) + 1); const sevEntries = Object.entries(sevMix);
-              drawTableHeader(curRow, ['Severity', 'Count', '%'], 2); sevEntries.forEach(([s, cnt], i) => { drawTableRow(curRow + 1 + i, [styledVal(s, priColors[s] || COLORS.textDark, true), cnt, defs.length ? Math.round(cnt / defs.length * 100) + '%' : '0%'], 2, i % 2 === 1); });
-
-              const pdfCache = buildDashCache(tasks, P.log); const modBugs = {}; defs.forEach(d => { let mod = 'General'; if (pdfCache.taskById[d.linkedId]) { mod = pdfCache.taskById[d.linkedId].module || 'General'; } else if (pdfCache.subtaskById[d.linkedId]) { mod = pdfCache.subtaskById[d.linkedId].parentTask.module || 'General'; } else if (pdfCache.screenByName[d.linkedId]) { mod = pdfCache.screenByName[d.linkedId].module || 'General'; } modBugs[mod] = (modBugs[mod] || 0) + 1; });
-              const mbEntries = Object.entries(modBugs).sort((a, b) => b[1] - a[1]).slice(0, 8); drawTableHeader(curRow, ['Module', 'Defects', '%'], 10); mbEntries.forEach(([m, cnt], i) => { drawTableRow(curRow + 1 + i, [m, cnt, defs.length ? Math.round(cnt / defs.length * 100) + '%' : '0%'], 10, i % 2 === 1); });
-
-              // Render Defect Severity Donut Chart
-              const defSeverityChartData = sevEntries.map(([s, cnt]) => ({
-                label: s,
-                value: cnt,
-                color: '#' + (priColors[s] || COLORS.textDark).replace('#', '')
-              }));
-              try {
-                const defDonutImgBase64 = generateCanvasChart(280, 150, 'donut', defSeverityChartData, { centerText: defs.length + ' Bugs' });
-                const defDonutImgId = wb.addImage({ base64: defDonutImgBase64, extension: 'png' });
-                ds.addImage(defDonutImgId, {
-                  tl: { col: 5, row: curRow - 1 },
-                  ext: { width: 280, height: 150 }
-                });
-              } catch (err) {
-                console.error('Error generating defect severity chart', err);
-              }
-
-              // Render Defect Module Horizontal Bar Chart (Count scale)
-              try {
-                const defModChartLabels = mbEntries.map(e => e[0]);
-                const defModChartValues = mbEntries.map(e => e[1]);
-                const defModImgBase64 = generateCanvasChart(280, 150, 'horizontalBar', {
-                  labels: defModChartLabels,
-                  values: defModChartValues
-                }, {
-                  isCount: true,
-                  barColorStart: '#EF4444',
-                  barColorEnd: '#F87171'
-                });
-                const defModImgId = wb.addImage({ base64: defModImgBase64, extension: 'png' });
-                ds.addImage(defModImgId, {
-                  tl: { col: 13, row: curRow - 1 },
-                  ext: { width: 280, height: 150 }
-                });
-              } catch (err) {
-                console.error('Error generating defect module chart', err);
-              }
-
-              curRow = curRow + Math.max(sevEntries.length, mbEntries.length, 7) + 2;
-            }
-
-            if (overdueTasks.length) {
-              drawSectionTitle(curRow, 'Overdue Tasks — Immediate Attention'); curRow += 2; drawTableHeader(curRow, ['ID', 'Task', 'Assignee', 'Due Date', 'Days Late', 'Priority'], 2);
-              overdueTasks.slice(0, 15).forEach((t, i) => { const daysLate = Math.abs(daysDiff(t.dueDate)); drawTableRow(curRow + 1 + i, [t.id, t.name, t.assignee || '-', cleanFmtDate(t.dueDate), styledVal(daysLate + 'd', COLORS.rose, true), styledVal(t.priority, priColors[t.priority] || COLORS.textDark, true)], 2, i % 2 === 1); });
-              curRow = curRow + overdueTasks.length + 3;
-            }
-
-            // ────────────────────────────────────────────────────────
-            // APPENDED SECTIONS (Moved from separate sheets)
-            // ────────────────────────────────────────────────────────
-            curRow += 2;
-            drawSectionTitle(curRow, 'Strategic Metrics Checklist & Release Rollup'); curRow += 2;
-
-            // Side-by-side header
-            drawTableHeader(curRow, ['Metric Key', 'Value', 'Category', 'Notes'], 2); // left table
-            drawTableHeader(curRow, ['Release Name', 'Tasks', 'Done', 'Overdue', 'Progress', 'Est Effort', 'Act Effort', 'RAG'], 11); // right table
-            
-            const metricsStartRow = curRow + 1;
-
-            // Prepare metrics data
-            const totalEstEffort = tasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
-            const totalActEffort = tasks.reduce((s, t) => s + (parseFloat(t.actEffort) || 0), 0);
-            const effortVariance = totalActEffort - totalEstEffort;
-            const openDefects = (P.defects || []).filter(d => d.status !== 'Closed' && d.status !== 'Resolved').length;
-            
-            const metricsList = [
-              { label: 'Total Task Backlog', val: total, cat: 'Scope', note: 'Total scope items' },
-              { label: 'Delivered / Completed', val: done, cat: 'Scope', note: `${completionPct}% delivery rate` },
-              { label: 'Tasks in Progress', val: inProg, cat: 'Scope', note: 'Currently active' },
-              { label: 'Active Blocked Items', val: blocked, cat: 'Risk', note: blocked > 0 ? '⚠ Blocked' : '✔ Clear' },
-              { label: 'Overdue Tasks Delay', val: overdueTasks.length, cat: 'Risk', note: overdueTasks.length > 0 ? '⚠ Delayed' : '✔ On Schedule' },
-              { label: 'Critical Priority Tasks', val: criticalPri, cat: 'Risk', note: criticalPri > 0 ? '⚠ High Risk' : '✔ Clear' },
-              { label: 'Total Est. Effort', val: totalEstEffort.toFixed(1) + ' d', cat: 'Effort', note: 'Estimated' },
-              { label: 'Total Act. Effort', val: totalActEffort.toFixed(1) + ' d', cat: 'Effort', note: 'Actual logged' },
-              { label: 'Logged Effort Variance', val: (effortVariance >= 0 ? '+' : '') + effortVariance.toFixed(1) + ' d', cat: 'Effort', note: effortVariance <= 0 ? '✔ Under' : '⚠ Over' },
-              { label: 'Active Open Defects', val: openDefects, cat: 'Quality', note: openDefects > 0 ? 'Quality Debt' : '✔ Zero bugs' }
-            ];
-
-            // Render Metrics rows
-            metricsList.forEach((m, idx) => {
-              const rIdx = metricsStartRow + idx;
-              ds.getRow(rIdx).height = 18;
-              const bg = idx % 2 === 0 ? getThemeTint(COLORS.blue, 0.04) : getThemeTint(COLORS.blue, 0.01);
-              
-              // Key cell (merged B-C)
-              ds.mergeCells(rIdx, 2, rIdx, 3);
-              const lblC = ds.getCell(rIdx, 2);
-              lblC.value = m.label;
-              lblC.font = { name: 'Courier New', size: 8.5, color: { argb: COLORS.textDark } };
-              lblC.alignment = { vertical: 'middle', indent: 1 };
-              
-              // Value cell (merged D-E)
-              ds.mergeCells(rIdx, 4, rIdx, 5);
-              const valC = ds.getCell(rIdx, 4);
-              valC.value = m.val;
-              valC.font = { name: 'Courier New', size: 9, bold: true, color: { argb: COLORS.indigo } };
-              valC.alignment = { vertical: 'middle', horizontal: 'center' };
-
-              // Category cell (merged F-G)
-              ds.mergeCells(rIdx, 6, rIdx, 7);
-              const catC = ds.getCell(rIdx, 6);
-              catC.value = m.cat;
-              catC.font = { name: 'Courier New', size: 8, italic: true, color: { argb: COLORS.slate } };
-              catC.alignment = { vertical: 'middle', horizontal: 'center' };
-
-              // Note cell (merged H-I)
-              ds.mergeCells(rIdx, 8, rIdx, 9);
-              const noteC = ds.getCell(rIdx, 8);
-              noteC.value = m.note;
-              noteC.font = { name: 'Courier New', size: 8, color: { argb: COLORS.textDark } };
-              noteC.alignment = { vertical: 'middle', indent: 1 };
-
-              [2, 3, 4, 5, 6, 7, 8, 9].forEach(c => {
-                const cell = ds.getCell(rIdx, c);
-                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-                cell.border = {
-                  top: { style: 'thin', color: { argb: COLORS.divider } },
-                  bottom: { style: 'thin', color: { argb: COLORS.divider } },
-                  left: { style: 'thin', color: { argb: COLORS.divider } },
-                  right: { style: 'thin', color: { argb: COLORS.divider } }
-                };
-              });
+            // ── Section: Screen Inventory ──
+            const screens = tasks.flatMap(t => {
+              const subs = (t.subtasks || []).filter(st => st.type === 'screen').map(st => ({ ...st, parent: t.name, module: t.module }));
+              if (subs.length) return subs;
+              return (t.guiScreens || []).map(sc => ({ name: typeof sc === 'string' ? sc : sc.name, status: t.status, progress: t.progress, assignee: t.assignee, module: t.module }));
             });
+            if (screens.length) {
+              drawSectionTitle(curRow, 'Screen Inventory & Delivery Status'); curRow += 2;
+              drawTableHeader(curRow, ['Screen', 'Module', 'Status', 'Progress'], 2);
+              screens.slice(0, 15).forEach((s, i) => { const r = curRow + 1 + i; const p = (parseInt(s.progress) || 0); drawTableRow(r, [s.name, s.module || '-', styledVal(s.status, STATUS_COLORS[s.status] || COLORS.textDark, true), p + '%'], 2, i % 2 === 1); });
+              curRow += Math.min(15, screens.length) + 2;
+            }
 
-            // Render Releases rows (side-by-side, starting at metricsStartRow)
-            const releases = P.releases || (P.dropdowns && P.dropdowns.release) || [];
-            const releaseNames = releases.map(r => typeof r === 'string' ? r : (r.name || r.version || String(r)));
-            let relRowOffset = 0;
-            
-            releaseNames.forEach((rel, ri) => {
-              const relTasks = tasks.filter(t => t.release === rel);
-              if (!relTasks.length) return;
-
-              const rIdx = metricsStartRow + relRowOffset;
-              ds.getRow(rIdx).height = 18;
-              relRowOffset++;
-
-              const totalRel = relTasks.length;
-              const doneRel = relTasks.filter(t => t.status === 'Completed').length;
-              const overdueRel = relTasks.filter(t => t.dueDate && t.status !== 'Completed' && t.status !== 'Cancelled' && new Date(t.dueDate) < new Date()).length;
-              const progressRel = totalRel ? Math.round(doneRel / totalRel * 100) : 0;
-              const estEffRel = relTasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
-              const actEffRel = relTasks.reduce((s, t) => s + (parseFloat(t.actEffort) || 0), 0);
-              const ragRel = overdueRel > 0 ? '🔴 RISK' : doneRel === totalRel ? '🟢 DONE' : '🟡 WORK';
-              const ragColorRel = overdueRel > 0 ? COLORS.rose : doneRel === totalRel ? COLORS.emerald : COLORS.amber;
-
-              const relVals = [
-                rel, 
-                totalRel, 
-                doneRel, 
-                overdueRel, 
-                progressRel + '%', 
-                estEffRel.toFixed(1), 
-                actEffRel.toFixed(1), 
-                styledVal(ragRel, ragColorRel, true)
-              ];
-
-              drawTableRow(rIdx, relVals, 11, ri % 2 === 1);
-            });
-
-            // Align current row to the max of metrics table vs releases table
-            curRow = metricsStartRow + Math.max(metricsList.length, relRowOffset) + 2;
-
-            // ── RAID Register Section ──
-            const activeRaids = (P.raids || []).filter(r => r.status !== 'Closed' && r.status !== 'Mitigated').slice(0, 10);
+            // ── Section: RAID & Defects Snapshots ──
+            const activeRaids = (P.raids || []).filter(r => r.status === 'Open').slice(0, 10);
             if (activeRaids.length) {
-              drawSectionTitle(curRow, 'Active RAID Register Snapshot'); curRow += 2;
-              drawTableHeader(curRow, ['ID', 'Type', 'Summary & Description', 'Impact', 'Probability', 'Severity', 'Owner', 'Status'], 2);
-              
+              drawSectionTitle(curRow, 'RAID Intelligence - Active Open Risks & Issues'); curRow += 2;
+              drawTableHeader(curRow, ['ID', 'Type', 'Title & Description', 'Impact', 'Probability', 'Owner', 'Status'], 2);
+
               activeRaids.forEach((r, i) => {
                 const rIdx = curRow + 1 + i;
-                const typeColor = r.type === 'Risk' ? COLORS.rose : r.type === 'Issue' ? COLORS.amber : COLORS.blue;
                 const raidVals = [
                   r.id,
-                  styledVal(r.type, typeColor, true),
-                  styledVal(`${r.title} - ${r.description || r.desc || ''}`, COLORS.textDark, false),
-                  r.impact || '—',
-                  r.probability || '—',
-                  r.severity || '—',
+                  r.type,
+                  styledVal(r.title + (r.description || r.desc ? '\nDesc: ' + (r.description || r.desc) : ''), COLORS.textDark, false),
+                  r.impact || 'Medium',
+                  r.probability || 'Medium',
                   r.owner || '—',
-                  styledVal(r.status, r.status === 'Open' ? COLORS.rose : COLORS.emerald, true)
+                  styledVal(r.status, COLORS.rose, true)
                 ];
-                
-                ds.getRow(rIdx).height = 18;
+
+                ds.getRow(rIdx).height = 20;
                 const bg = i % 2 === 1 ? getThemeTint(COLORS.blue, 0.08) : getThemeTint(COLORS.blue, 0.02);
-                
+
                 ds.mergeCells(rIdx, 4, rIdx, 9);
                 
                 const cellsMapping = [
@@ -34656,8 +34397,7 @@
                   { c: 10, val: raidVals[3], alignment: 'center' },
                   { c: 11, val: raidVals[4], alignment: 'center' },
                   { c: 12, val: raidVals[5], alignment: 'center' },
-                  { c: 13, val: raidVals[6], alignment: 'center' },
-                  { c: 14, val: raidVals[7], alignment: 'center' }
+                  { c: 13, val: raidVals[6], alignment: 'center' }
                 ];
                 
                 [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].forEach(c => {
@@ -34687,7 +34427,6 @@
               curRow += activeRaids.length + 2;
             }
 
-            // ── Quality Issues & Open Defects Snapshot Section ──
             const openBugs = (P.defects || []).filter(d => d.status !== 'Closed' && d.status !== 'Resolved').slice(0, 10);
             if (openBugs.length) {
               drawSectionTitle(curRow, 'Quality Intelligence - Open Defects Log Snapshot'); curRow += 2;
@@ -34697,7 +34436,7 @@
                 const rIdx = curRow + 1 + i;
                 const bugVals = [
                   d.id,
-                  styledVal(`${d.title} ${d.steps ? '\nSteps: ' + d.steps : ''}`, COLORS.textDark, false),
+                  styledVal(d.title + (d.steps ? '\nSteps: ' + d.steps : ''), COLORS.textDark, false),
                   d.type || 'Bug',
                   styledVal(d.severity, d.severity.includes('S1') || d.severity.includes('Critical') ? COLORS.rose : COLORS.amber, true),
                   d.priority || 'Medium',
@@ -34750,8 +34489,7 @@
             }
 
             drawSectionTitle(curRow, 'Executive Sentiment & Momentum Analysis'); curRow += 2;
-            const momentum = healthScore > 80 ? 'Exceptional' : healthScore > 60 ? 'Positive' : 'Concerning'; const riskLevel = blocked + overdueTasks.length > 5 ? 'High Risk' : 'Managed';
-            const summaryText = `Project momentum is currently ${momentum} with a ${riskLevel} profile. ${completionPct}% of planned scope is finalized. ` + (overdueTasks.length ? `${overdueTasks.length} tasks require immediate resolution to maintain schedule integrity.` : 'The project is tracking effectively against all major milestones.');
+            const summaryText = 'Project momentum is currently ' + momentum + ' with a ' + riskLevel + ' profile. ' + completionPct + '% of planned scope is finalized. ' + (overdueTasks.length ? overdueTasks.length + ' tasks require immediate resolution to maintain schedule integrity.' : 'The project is tracking effectively against all major milestones.');
             ds.getRow(curRow).height = 24; ds.getRow(curRow + 1).height = 24; ds.mergeCells(curRow, 2, curRow + 1, 18);
             const summCell = ds.getCell(curRow, 2); summCell.value = S(summaryText); summCell.alignment = { wrapText: true, vertical: 'top' }; summCell.font = { name: 'Segoe UI', size: 11, color: { argb: COLORS.textDark } }; curRow += 3;
 
@@ -34760,6 +34498,8 @@
 
             ds.properties.tabColor = { argb: COLORS.indigo }; ds.pageSetup.fitToPage = true; ds.pageSetup.orientation = 'landscape';
           },
+
+
 
           applyWorkbookProtectionRules(wb, safeMode) {
             ['ValidationLists', 'DataDictionary', 'HelperMaps', 'System State', 'Config_Layouts', 'State_Filters'].forEach(name => {
