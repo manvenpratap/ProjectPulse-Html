@@ -14815,6 +14815,7 @@
           await saveHandle(handle.name + '_dir', handle); // Save for persistence
           notify('Project directory connected: ' + handle.name, 'ok');
           updateFsInd();
+          PulsePersistence.compileUserManualToDirectory(handle);
         } catch (e) { if (e.name !== 'AbortError') notify('Could not open directory', 'err'); }
       },
       async createProjectFile() {
@@ -14897,6 +14898,71 @@
           notify('Failed to load project from file', 'err');
         } finally {
           P._isLoading = false;
+        }
+      },
+      async compileUserManualToDirectory(dirHandle) {
+        if (!dirHandle) return;
+        try {
+          const docsDir = await dirHandle.getDirectoryHandle('docs', { create: true });
+          const manualDir = await docsDir.getDirectoryHandle('user_manual', { create: true });
+
+          // 1. Generate configuration_reference.md content
+          let configMd = `# Configuration Reference\n\nThis page is auto-generated daily to reflect the active configuration settings, role schemas, and taxonomy types configured in the ProjectPulse codebase.\n\n---\n\n## Active Dropdown Options\n\n`;
+          for (const [key, values] of Object.entries(P.dropdowns || {})) {
+            const title = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+            configMd += `### \${title}\n*   **Key**: \\\`\${key}\\\`\n*   **Options**:\n`;
+            if (Array.isArray(values)) {
+              values.forEach(val => { configMd += `    - \${val}\n`; });
+            } else {
+              configMd += `    - *No options configured.*\n`;
+            }
+            configMd += `\n`;
+          }
+          configMd += `---\n\n*Last compiled on: \${new Date().toUTCString()}*\n`;
+
+          const configFile = await manualDir.getFileHandle('configuration_reference.md', { create: true });
+          const configWr = await configFile.createWritable();
+          await configWr.write(configMd);
+          await configWr.close();
+
+          // 2. Generate project_status.md content
+          const taskCount = P.tasks ? P.tasks.length : 0;
+          const completedTasks = P.tasks ? P.tasks.filter(t => t.status === 'Completed').length : 0;
+          const progressAvg = P.tasks && taskCount > 0 ? (P.tasks.reduce((sum, t) => sum + (t.progress || 0), 0) / taskCount).toFixed(1) : 0;
+          const defectCount = P.defects ? P.defects.length : 0;
+          const activeDefects = P.defects ? P.defects.filter(d => d.status !== 'Closed' && d.status !== 'Rejected').length : 0;
+          const activeRaids = P.raids ? P.raids.filter(r => r.status === 'Active' || r.status === 'Identified').length : 0;
+
+          let statusMd = `# Live Project Status Dashboard\n\nThis status dashboard is updated daily. It aggregates the live operational statistics of the project, including progress indices, risk logs, and team loads.\n\n## Real-time Telemetry Dashboard\n\n### 1. High-level Summary\n`;
+          statusMd += `- **Project Name**: \${P.name || 'Unnamed Project'}\n`;
+          statusMd += `- **Description**: \${P.desc || 'No description provided.'}\n`;
+          statusMd += `- **Overall Completion**: **\${progressAvg}%**\n`;
+          statusMd += `- **Active RAID Log Count**: **\${activeRaids}** elements\n`;
+          statusMd += `- **Open Defects**: **\${activeDefects}** (out of \${defectCount} logged)\n\n`;
+          statusMd += `### 2. Task Completion Progress\n- **Total Registered Tasks**: \${taskCount}\n- **Completed Tasks**: \${completedTasks}\n- **Pending Tasks**: \${taskCount - completedTasks}\n\n`;
+          statusMd += `### 3. Core Task List Summary\n| ID | Module | Task Name | Assignee | Status | Progress |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n`;
+
+          if (P.tasks && P.tasks.length > 0) {
+            P.tasks.slice(0, 20).forEach(t => {
+              statusMd += `| \${t.id || 'N/A'} | \${t.module || 'N/A'} | \${t.name || 'N/A'} | \${t.assignee || 'Unassigned'} | \${t.status || 'N/A'} | \${t.progress || 0}% |\n`;
+            });
+            if (P.tasks.length > 20) {
+              statusMd += `| ... | ... | ... and \${P.tasks.length - 20} more tasks ... | ... | ... | ... |\n`;
+            }
+          } else {
+            statusMd += `| *No tasks configured.* | | | | | |\n`;
+          }
+          statusMd += `\n---\n*Last updated: \${new Date().toUTCString()}*\n`;
+
+          const statusFile = await manualDir.getFileHandle('project_status.md', { create: true });
+          const statusWr = await statusFile.createWritable();
+          await statusWr.write(statusMd);
+          await statusWr.close();
+
+          console.log('Browser-based manual auto-update completed.');
+          localStorage.setItem('pp-last-manual-update', new Date().toISOString());
+        } catch (e) {
+          console.error('Browser manual compilation failed:', e);
         }
       },
       updateFsInd() {
@@ -29691,6 +29757,137 @@
           }
         }
 
+        function showSchedulerTooltip(e, htmlContent) {
+          let tooltip = document.getElementById('scheduler-tooltip');
+          if (!tooltip) {
+            tooltip = document.createElement('div');
+            tooltip.id = 'scheduler-tooltip';
+            tooltip.style.position = 'absolute';
+            tooltip.style.display = 'none';
+            tooltip.style.background = 'var(--color-surface-3)';
+            tooltip.style.border = '1px solid var(--color-divider)';
+            tooltip.style.padding = '8px 12px';
+            tooltip.style.borderRadius = '8px';
+            tooltip.style.fontSize = '11px';
+            tooltip.style.zIndex = '10000';
+            tooltip.style.boxShadow = '0 4px 12px rgba(0,0,0,0.25)';
+            tooltip.style.pointerEvents = 'none';
+            tooltip.style.color = 'var(--color-text)';
+            tooltip.style.fontFamily = 'Satoshi, Inter, sans-serif';
+            tooltip.style.maxWidth = '250px';
+            tooltip.style.transition = 'opacity 0.1s ease-in-out';
+            tooltip.style.opacity = '0';
+            document.body.appendChild(tooltip);
+          }
+          tooltip.innerHTML = htmlContent;
+          tooltip.style.display = 'block';
+          tooltip.offsetHeight; // force repaint
+          tooltip.style.opacity = '1';
+          positionTooltip(e);
+        }
+
+        function positionTooltip(e) {
+          const tooltip = document.getElementById('scheduler-tooltip');
+          if (!tooltip) return;
+          const x = e.pageX + 12;
+          const y = e.pageY + 12;
+          const tooltipWidth = tooltip.offsetWidth;
+          const tooltipHeight = tooltip.offsetHeight;
+          const pageWidth = window.innerWidth;
+          const pageHeight = window.innerHeight;
+          let left = x;
+          let top = y;
+          if (x + tooltipWidth > pageWidth + window.pageXOffset) {
+            left = e.pageX - tooltipWidth - 12;
+          }
+          if (y + tooltipHeight > pageHeight + window.pageYOffset) {
+            top = e.pageY - tooltipHeight - 12;
+          }
+          tooltip.style.left = `${left}px`;
+          tooltip.style.top = `${top}px`;
+        }
+
+        function hideSchedulerTooltip() {
+          const tooltip = document.getElementById('scheduler-tooltip');
+          if (!tooltip) return;
+          tooltip.style.opacity = '0';
+          tooltip.style.display = 'none';
+        }
+
+        function showCellTooltip(e, member, day) {
+          const sandbox = P._schedulerSandboxTasks;
+          if (!sandbox) return;
+          const dayDate = new Date(day);
+          const activeTasks = sandbox.filter(t => {
+            if (t.assignee !== member || t.status === 'Completed' || t.status === 'Cancelled') return false;
+            if (!t.startDate || !t.dueDate) return false;
+            const s = new Date(t.startDate);
+            const ev = new Date(t.dueDate);
+            return dayDate >= s && dayDate <= ev;
+          });
+          let totalLoad = 0;
+          let tasksHtml = '';
+          if (activeTasks.length > 0) {
+            activeTasks.forEach(t => {
+              const totalBusDays = getBusinessDays(t.startDate, t.dueDate) || 1;
+              const totalDaysInt = parseFloat(totalBusDays) || 1;
+              const effortDays = convertEffortToDays(t.estEffort) || 1;
+              const dailyLoad = effortDays / totalDaysInt;
+              totalLoad += dailyLoad;
+              tasksHtml += `
+                <div style="margin-top:6px; border-top:1px solid var(--color-divider); padding-top:4px">
+                  <div style="font-weight:700">${esc(t.id)}: ${esc(t.name)}</div>
+                  <div style="display:flex; justify-content:space-between; margin-top:2px; font-size:10px; color:var(--color-text-muted)">
+                    <span>Daily Load: ${Math.round(dailyLoad * 100)}%</span>
+                    <span>Effort: ${t.estEffort}</span>
+                  </div>
+                </div>
+              `;
+            });
+          }
+          const loadPct = Math.round(totalLoad * 100);
+          const color = totalLoad > 1.05 ? 'var(--red)' : (totalLoad > 0.8 ? 'var(--amber)' : 'var(--green)');
+          const content = `
+            <div style="font-weight:700; font-size:12px; margin-bottom:4px">${esc(member)}</div>
+            <div style="font-size:10px; color:var(--color-text-muted); margin-bottom:4px">${formatDateStringFriendly(day)}</div>
+            <div style="display:flex; justify-content:space-between; font-weight:700; color:${color}; font-size:11px; margin-top:4px">
+              <span>Total Allocation:</span>
+              <span>${loadPct}%</span>
+            </div>
+            <div style="width:100%; height:4px; background:var(--color-surface-3); border-radius:2px; margin-top:3px; overflow:hidden">
+              <div style="width:${Math.min(100, loadPct)}%; height:100%; background:${color}"></div>
+            </div>
+            ${tasksHtml || '<div style="margin-top:6px; color:var(--color-text-faint)">No tasks allocated.</div>'}
+          `;
+          showSchedulerTooltip(e, content);
+        }
+
+        function showTaskTooltip(e, taskId) {
+          const sandbox = P._schedulerSandboxTasks;
+          if (!sandbox) return;
+          const t = sandbox.find(x => x.id === taskId);
+          if (!t) return;
+          const totalBusDays = getBusinessDays(t.startDate, t.dueDate) || 1;
+          const effortDays = convertEffortToDays(t.estEffort) || 1;
+          const dailyLoad = Math.round((effortDays / totalBusDays) * 100);
+          const deps = Array.isArray(t.dependsOn) ? t.dependsOn : (t.dependsOn ? String(t.dependsOn).split(',').map(s => s.trim()).filter(Boolean) : []);
+          const depsText = deps.length > 0 ? deps.join(', ') : 'None';
+          const prioColor = t.priority === 'Critical' ? 'var(--red)' : (t.priority === 'High' ? 'var(--amber)' : 'var(--color-text-muted)');
+          const content = `
+            <div style="font-weight:700; font-size:12px; color:var(--color-primary); margin-bottom:4px">${esc(t.id)}: ${esc(t.name)}</div>
+            <div style="margin-top:6px; display:grid; grid-template-columns: auto 1fr; gap:6px; font-size:10px">
+              <span style="color:var(--color-text-muted)">Assignee:</span><span><b>${esc(t.assignee || 'Unassigned')}</b></span>
+              <span style="color:var(--color-text-muted)">Timeline:</span><span>${formatDateStringFriendly(t.startDate)} - ${formatDateStringFriendly(t.dueDate)} (${totalBusDays}d)</span>
+              <span style="color:var(--color-text-muted)">Effort:</span><span>${t.estEffort} (${effortDays}d)</span>
+              <span style="color:var(--color-text-muted)">Daily Load:</span><span>${dailyLoad}%</span>
+              <span style="color:var(--color-text-muted)">Priority:</span><span><b style="color:${prioColor}">${t.priority}</b></span>
+              <span style="color:var(--color-text-muted)">Predecessors:</span><span>${esc(depsText)}</span>
+              <span style="color:var(--color-text-muted)">Status:</span><span>${t.status}</span>
+            </div>
+          `;
+          showSchedulerTooltip(e, content);
+        }
+
         function shiftSchedulerTaskTimeline(taskId, offsetDays) {
           const sandbox = P._schedulerSandboxTasks;
           if (!sandbox) return;
@@ -30021,6 +30218,9 @@
                     <button onclick="setSchedulerRightTab('copilot')" style="flex:1; padding:6px 12px; border:none; background:${rightTab === 'copilot' ? 'var(--color-surface)' : 'transparent'}; border-radius:6px; color:${rightTab === 'copilot' ? 'var(--color-text)' : 'var(--color-text-muted)'}; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px">
                       <i data-lucide="sparkles" style="width:12px;height:12px;color:${rightTab === 'copilot' ? 'var(--color-primary)' : 'var(--color-text-muted)'}"></i> Copilot
                     </button>
+                    <button onclick="setSchedulerRightTab('tips')" style="flex:1; padding:6px 12px; border:none; background:${rightTab === 'tips' ? 'var(--color-surface)' : 'transparent'}; border-radius:6px; color:${rightTab === 'tips' ? 'var(--color-text)' : 'var(--color-text-muted)'}; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px">
+                      <i data-lucide="help-circle" style="width:12px;height:12px;color:${rightTab === 'tips' ? 'var(--color-accent)' : 'var(--color-text-muted)'}"></i> Tips
+                    </button>
                   </div>
 
                   <div style="display:flex; flex-direction:column; gap:12px; max-height: 500px; overflow-y:auto">
@@ -30032,7 +30232,7 @@
                           <div style="font-size:11px; color:var(--color-text-muted); margin-top:4px">No allocation or dependency overlaps.</div>
                         </div>
                       ` : conflicts.map((c, idx) => renderConflictCard(c, idx, days)).join('')
-                    ) : (
+                    ) : rightTab === 'copilot' ? (
                       suggestions.length === 0 ? `
                         <div style="text-align:center; padding:40px 20px; color:var(--color-text-muted)">
                           <i data-lucide="sparkles" style="width:36px; height:36px; margin:0 auto 12px auto; display:block; opacity:0.3"></i>
@@ -30040,7 +30240,50 @@
                           <div style="font-size:11px; margin-top:4px">No optimization suggestions needed for this week.</div>
                         </div>
                       ` : suggestions.map((s, idx) => renderSuggestionCard(s, idx, days)).join('')
-                    )}
+                    ) : `
+                      <!-- Quick Tips Tab -->
+                      <div style="display:flex; flex-direction:column; gap:10px; padding:4px">
+                        <div style="background:var(--color-surface-2); border-left:3px solid var(--color-accent); padding:10px; border-radius:8px; border-top:1px solid var(--color-divider); border-bottom:1px solid var(--color-divider); border-right:1px solid var(--color-divider)">
+                          <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:11px; color:var(--color-accent); margin-bottom:4px">
+                            <i data-lucide="info" style="width:12px; height:12px"></i>
+                            <span>Sandboxed Timelines</span>
+                          </div>
+                          <div style="font-size:10px; color:var(--color-text); line-height:1.4">
+                            All adjustments made here affect a temporary sandbox. Click <b>Apply & Save</b> in the top right to commit them to the live project database, or click <b>Reset Sandbox</b> to revert.
+                          </div>
+                        </div>
+
+                        <div style="background:var(--color-surface-2); border-left:3px solid var(--color-primary); padding:10px; border-radius:8px; border-top:1px solid var(--color-divider); border-bottom:1px solid var(--color-divider); border-right:1px solid var(--color-divider)">
+                          <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:11px; color:var(--color-primary); margin-bottom:4px">
+                            <i data-lucide="arrow-right-left" style="width:12px; height:12px"></i>
+                            <span>Date Shifting</span>
+                          </div>
+                          <div style="font-size:10px; color:var(--color-text); line-height:1.4">
+                            Hover over task chips to reveal <b>◀</b> and <b>▶</b> buttons. Clicking these shifts the task timeline by -1 or +1 business days.
+                          </div>
+                        </div>
+
+                        <div style="background:var(--color-surface-2); border-left:3px solid var(--red); padding:10px; border-radius:8px; border-top:1px solid var(--color-divider); border-bottom:1px solid var(--color-divider); border-right:1px solid var(--color-divider)">
+                          <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:11px; color:var(--red); margin-bottom:4px">
+                            <i data-lucide="alert-triangle" style="width:12px; height:12px"></i>
+                            <span>Conflict Indicators</span>
+                          </div>
+                          <div style="font-size:10px; color:var(--color-text); line-height:1.4">
+                            Over-allocations (>100% daily effort) show in Red. Dependency violations (starting before a predecessor ends) show in Amber. Overdue incomplete tasks flag in Red.
+                          </div>
+                        </div>
+
+                        <div style="background:var(--color-surface-2); border-left:3px solid var(--green); padding:10px; border-radius:8px; border-top:1px solid var(--color-divider); border-bottom:1px solid var(--color-divider); border-right:1px solid var(--color-divider)">
+                          <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:11px; color:var(--green); margin-bottom:4px">
+                            <i data-lucide="zap" style="width:12px; height:12px"></i>
+                            <span>Automatic Resolvers</span>
+                          </div>
+                          <div style="font-size:10px; color:var(--color-text); line-height:1.4">
+                            Use the <b>Diagnostics</b> panel actions to auto-sequence individual assignees, or click <b>Auto-Resolve All</b> to run the global cascading resolver.
+                          </div>
+                        </div>
+                      </div>
+                    `}
                   </div>
                 </div>
               </div>
@@ -30087,9 +30330,10 @@
 
           const loadPct = Math.round(totalLoad * 100);
           const cellId = `cell-${member.replace(/\s+/g, '_')}-${day}`;
+          const escMember = member.replace(/'/g, "\\'");
 
           return `
-            <td id="${cellId}" style="padding:10px; text-align:center; background:${bg}; border:${border}; vertical-align:top; min-height:85px; width:100px">
+            <td id="${cellId}" onmouseenter="showCellTooltip(event, '${escMember}', '${day}')" onmousemove="positionTooltip(event)" onmouseleave="hideSchedulerTooltip()" style="padding:10px; text-align:center; background:${bg}; border:${border}; vertical-align:top; min-height:85px; width:100px; cursor:default">
               ${totalLoad > 0 ? `
                 <div style="font-family:'Courier New', monospace; font-size:10px; font-weight:700; color:${labelColor}">${loadPct}% Load</div>
                 <div style="width:100%; height:3px; background:var(--color-surface-3); border-radius:2px; margin:4px 0 6px 0; overflow:hidden">
@@ -30101,11 +30345,11 @@
                     if (t.priority === 'Critical') prioBorder = 'var(--red)';
                     else if (t.priority === 'High') prioBorder = 'var(--amber)';
                     return `
-                      <div class="task-chip task-chip-${t.id}" onmouseover="highlightTaskChips('${t.id}')" onmouseout="clearTaskChipsHighlight('${t.id}')" style="font-size:10px; padding:3px 6px; border-radius:6px; background:var(--color-surface-2); border:1px solid ${prioBorder}; width:100%; box-sizing:border-box; display:flex; justify-content:space-between; align-items:center; cursor:pointer" title="${esc(t.id)}: ${esc(t.name)}" onclick="openFlyout('${t.id}')">
+                      <div class="task-chip task-chip-${t.id}" onmouseenter="event.stopPropagation(); showTaskTooltip(event, '${t.id}')" onmousemove="event.stopPropagation(); positionTooltip(event)" onmouseleave="event.stopPropagation(); hideSchedulerTooltip()" onmouseover="highlightTaskChips('${t.id}')" onmouseout="clearTaskChipsHighlight('${t.id}')" style="font-size:10px; padding:3px 6px; border-radius:6px; background:var(--color-surface-2); border:1px solid ${prioBorder}; width:100%; box-sizing:border-box; display:flex; justify-content:space-between; align-items:center; cursor:pointer" onclick="openFlyout('${t.id}')">
                         <span style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1"><b>${t.id}</b></span>
                         <div class="chip-actions" style="display:none; gap:4px; margin-left:4px">
-                          <span onclick="event.stopPropagation(); shiftSchedulerTaskTimeline('${t.id}', -1)" style="font-size:8px; padding:0 3px; border-radius:3px; background:var(--color-surface-3); border:1px solid var(--color-divider); color:var(--color-text); cursor:pointer" title="Shift start -1d">◀</span>
-                          <span onclick="event.stopPropagation(); shiftSchedulerTaskTimeline('${t.id}', 1)" style="font-size:8px; padding:0 3px; border-radius:3px; background:var(--color-surface-3); border:1px solid var(--color-divider); color:var(--color-text); cursor:pointer" title="Shift start +1d">▶</span>
+                          <span onclick="event.stopPropagation(); hideSchedulerTooltip(); shiftSchedulerTaskTimeline('${t.id}', -1)" style="font-size:8px; padding:0 3px; border-radius:3px; background:var(--color-surface-3); border:1px solid var(--color-divider); color:var(--color-text); cursor:pointer" title="Shift start -1d">◀</span>
+                          <span onclick="event.stopPropagation(); hideSchedulerTooltip(); shiftSchedulerTaskTimeline('${t.id}', 1)" style="font-size:8px; padding:0 3px; border-radius:3px; background:var(--color-surface-3); border:1px solid var(--color-divider); color:var(--color-text); cursor:pointer" title="Shift start +1d">▶</span>
                         </div>
                       </div>
                     `;
@@ -30293,6 +30537,11 @@
         window.generateIntelligentSuggestions = generateIntelligentSuggestions;
         window.getMemberLoadOnDay = getMemberLoadOnDay;
         window.totalWeekLoadForMember = totalWeekLoadForMember;
+        window.showSchedulerTooltip = showSchedulerTooltip;
+        window.positionTooltip = positionTooltip;
+        window.hideSchedulerTooltip = hideSchedulerTooltip;
+        window.showCellTooltip = showCellTooltip;
+        window.showTaskTooltip = showTaskTooltip;
 
         // Define stubs and Admin helpers if not present
         window.renderOverviewView = renderOverviewView;
@@ -34856,12 +35105,19 @@
             if (stateMap['Show Explanations']) P.showExplanations = stateMap['Show Explanations'] === 'true';
             if (stateMap['Sidebar Collapsed']) { try { P.sidebarCollapsed = JSON.parse(stateMap['Sidebar Collapsed']); } catch (e) { } }
             if (stateMap['Pivot State']) { try { P._pvS = JSON.parse(stateMap['Pivot State']); } catch (e) { } }
-            P.fsDirName = stateMap['Local Folder Sync Path'] || '';
+             P.fsDirName = stateMap['Local Folder Sync Path'] || '';
             if (P.fsDirName) {
               getHandle(P.fsDirName + '_dir').then(h => {
                 if (h) {
                   P.fsDirHandle = h;
                   updateFsInd();
+                  
+                  // Trigger browser-based daily auto-compile check
+                  const lastUpdate = localStorage.getItem('pp-last-manual-update');
+                  const now = new Date();
+                  if (!lastUpdate || (now - new Date(lastUpdate)) > 24 * 60 * 60 * 1000) {
+                    PulsePersistence.compileUserManualToDirectory(h);
+                  }
                 }
               });
             }
