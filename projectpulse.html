@@ -13361,6 +13361,21 @@
           '<b>Accessibility:</b> Themes automatically provide optimized light and dark modes with proper contrast.',
           '<b>Sharing:</b> Your active theme is automatically applied to all exported report artifacts.'
         ]
+      },
+      scheduler: {
+        t: 'Intelligent Scheduler & Conflict Resolver Guide',
+        d: 'An interactive planning sandbox to identify capacity bottlenecks, resolve dependency violations, and balance team allocations.',
+        f: [
+          ['Timeline Heatmap', 'Calculates daily assignee effort. Over-allocations (>100% daily load) are flagged in Red, high loads (80-100%) in Amber, and normal loads (<80%) in Green.'],
+          ['Conflict Diagnostics', 'Real-time detection of resource over-allocations and dependency sequence violations (e.g. task starting before predecessor due date).'],
+          ['Sandbox Mode', 'Isolated planning state. All changes are temporary and do not affect live databases until explicitly committed via "Apply & Save".'],
+          ['Adaptive Copilot', 'Generates contextual recommendation cards to balance assignments, recommend alternate assignees, and flag underutilization.']
+        ],
+        a: [
+          '<b>Interactive Date Shifting:</b> Hover over any task chip in the grid to reveal ◀ and ▶ buttons. Click them to shift the task timeline by -1 or +1 business days. All dependent tasks shift in cascade.',
+          '<b>Cascading Auto-Resolver:</b> Click "Auto-Resolve All" in the top bar to run the global heuristic solver. It automatically shifts schedules and balances assignments.',
+          '<b>Diagnostics Action Hooks:</b> In the Diagnostics tab, click "Resolve Assignee" to run the local resolver for a single team member\'s overlaps.'
+        ]
       }
     };
 
@@ -22962,6 +22977,110 @@
         }
 
 
+        } else if (v === 'scheduler') {
+        sbStats.style.display = 'grid';
+        if (!P._schedulerSandboxTasks) {
+          P._schedulerSandboxTasks = JSON.parse(JSON.stringify(P.tasks));
+        }
+        if (P._schedulerWeekOffset === undefined) {
+          P._schedulerWeekOffset = 0;
+        }
+        const offset = P._schedulerWeekOffset;
+        const days = getWorkDaysForWeekOffset(offset);
+        const conflicts = findScheduleConflicts(P._schedulerSandboxTasks, days);
+        const activeTasks = P._schedulerSandboxTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
+        const hasUnsavedChanges = JSON.stringify(P._schedulerSandboxTasks) !== JSON.stringify(P.tasks);
+
+        sbStats.innerHTML = `
+          <div class="sb-stat" title="Total active conflicts detected for this week"><span>Conflicts</span><span class="val" style="color:${conflicts.length ? 'var(--red)' : 'var(--green)'}">${conflicts.length}</span></div>
+          <div class="sb-stat" title="Active incomplete/not-cancelled tasks being tracked"><span>Monitored</span><span class="val">${activeTasks}</span></div>
+          <div class="sb-stat" title="Sandbox status: Clean (saved) vs Dirty (unsaved adjustments)"><span>Sandbox</span><span class="val" style="color:${hasUnsavedChanges ? 'var(--amber)' : 'var(--green)'}">${hasUnsavedChanges ? 'DIRTY' : 'CLEAN'}</span></div>
+          <div class="sb-stat" title="Week range offset relative to today's week"><span>Week Offset</span><span class="val" style="font-family:'Courier New', monospace">${offset === 0 ? 'Current' : (offset > 0 ? `+${offset}w` : `${offset}w`)}</span></div>
+        `;
+
+        qhContent = `
+          <div style="margin-bottom:8px"><i data-lucide="help-circle"></i> <b>Interactive Heatmap:</b> Balance assignee workloads. Hover grid cells to view individual allocation metrics.</div>
+          <div style="margin-bottom:8px"><i data-lucide="arrow-right-left"></i> <b>Timeline Date Shifter:</b> Hover any task chip to display ◀ and ▶ buttons for sliding task dates.</div>
+          <div style="margin-bottom:8px"><i data-lucide="zap"></i> <b>Conflict Resolver:</b> Over-allocations turn cells Red. Use Diagnostics tab actions to fix overlaps.</div>
+          <div style="margin-bottom:8px"><i data-lucide="save"></i> <b>Sandbox Engine:</b> Edits are isolated. Commit them to the live data via <b>Apply & Save</b>.</div>
+        `;
+
+        // Render Active Conflicts list in the sidebar
+        if (conflicts.length > 0) {
+          const confSec = document.createElement('div');
+          confSec.className = 'sb-sec';
+          let confHtml = `<div class="sb-stit" style="display:flex; align-items:center; gap:6px; color:var(--red)"><i data-lucide="alert-triangle" style="width:12px; height:12px"></i> Active Conflicts</div>
+            <div style="padding:0 12px 12px 12px; display:flex; flex-direction:column; gap:6px; max-height:160px; overflow-y:auto">`;
+          
+          conflicts.forEach((c) => {
+            let icon = 'alert-circle';
+            let color = 'var(--red)';
+            let title = 'Conflict';
+            if (c.type === 'dependency') {
+              icon = 'arrow-right-left';
+              color = 'var(--amber)';
+              title = 'Dependency Link';
+            } else if (c.type === 'overdue') {
+              icon = 'clock';
+              color = 'var(--red)';
+              title = 'Overdue Task';
+            } else if (c.type === 'over-allocation') {
+              icon = 'users';
+              color = 'var(--red)';
+              title = 'Over-allocated';
+            }
+            
+            confHtml += `
+              <div style="padding:6px 8px; border-radius:6px; background:var(--color-surface-2); border:1px solid var(--color-divider); font-size:10px; display:flex; align-items:start; gap:6px">
+                <i data-lucide="${icon}" style="width:12px; height:12px; color:${color}; flex-shrink:0; margin-top:1px"></i>
+                <div style="min-width:0; flex:1">
+                  <div style="font-weight:700; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${title}</div>
+                  <div style="color:var(--color-text-muted); font-size:9px; margin-top:2px; line-height:1.3">${esc(c.text)}</div>
+                </div>
+              </div>
+            `;
+          });
+          confHtml += `</div>`;
+          confSec.innerHTML = confHtml;
+          sbInner.appendChild(confSec);
+        }
+
+        // Render Team Workload widget in the sidebar
+        const teamNames = getTeamNames();
+        const wlSec = document.createElement('div');
+        wlSec.className = 'sb-sec';
+        let wlHtml = `<div class="sb-stit" style="display:flex; align-items:center; gap:6px"><i data-lucide="users" style="width:12px; height:12px"></i> Team Workload</div>
+          <div style="padding:0 12px 12px 12px; display:flex; flex-direction:column; gap:8px">`;
+        
+        if (teamNames.length === 0) {
+          wlHtml += `<div style="font-size:11px; color:var(--color-text-faint); padding:8px 0; font-style:italic">No active team members</div>`;
+        } else {
+          teamNames.forEach(member => {
+            const totalWeekLoad = totalWeekLoadForMember(member, days, P._schedulerSandboxTasks);
+            const loadBarColor = totalWeekLoad > 5 ? 'var(--red)' : (totalWeekLoad > 4 ? 'var(--amber)' : 'var(--green)');
+            const pct = Math.round((totalWeekLoad / 5) * 100);
+            const initials = member.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+            
+            wlHtml += `
+              <div style="display:flex; flex-direction:column; gap:4px">
+                <div style="display:flex; justify-content:space-between; align-items:center">
+                  <div style="display:flex; align-items:center; gap:6px; min-width:0; flex:1">
+                    <div style="width:18px; height:18px; border-radius:50%; background:var(--color-surface-3); display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:700; color:var(--color-text); flex-shrink:0">${initials}</div>
+                    <span style="font-size:11px; font-weight:600; color:var(--color-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(member)}</span>
+                  </div>
+                  <span style="font-family:'Courier New', monospace; font-size:10px; font-weight:700; color:${loadBarColor}">${totalWeekLoad.toFixed(1)}d</span>
+                </div>
+                <div style="width:100%; height:3px; background:var(--color-surface-3); border-radius:1.5px; overflow:hidden">
+                  <div style="width:${Math.min(100, pct)}%; height:100%; background:${loadBarColor}"></div>
+                </div>
+              </div>
+            `;
+          });
+        }
+        wlHtml += `</div>`;
+        wlSec.innerHTML = wlHtml;
+        sbInner.appendChild(wlSec);
+
         // ── DEFAULT (fallback) ──
       } else {
         sbStats.style.display = 'none';
@@ -30291,6 +30410,7 @@
           `;
 
           if (window.lucide) window.lucide.createIcons(container);
+          if (typeof renderSidebar === 'function') renderSidebar();
         }
 
         function renderGridDayCell(member, day, tasks) {

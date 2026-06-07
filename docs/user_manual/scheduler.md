@@ -24,16 +24,27 @@ Hovering over elements on the grid displays live data details:
 
 ---
 
-## 3. The Diagnostics Cockpit & "Quick Tips"
+## 3. The Left Navigation Sidebar & "How this view works"
 
-On the right side of the scheduler layout, a multi-tab cockpit provides real-time information:
-- **Tab 1: Diagnostics**: Displays a list of active conflicts (e.g., "Overallocated", "Task Dependency Violations").
-- **Tab 2: Copilot Actions**: Offers automated quick actions.
-- **Tab 3: Quick Tips**: Shows shortcuts, operation guides, and sandbox reminders.
+The left navigation sidebar is fully utilized in the Scheduler view to provide key stats, live summaries, and quick documentation:
+- **Statistics Bar**: Displays real-time metrics for Active Conflicts, Monitored Tasks, Sandbox State (`CLEAN` vs `DIRTY`), and Week Offset.
+- **Quick Tips**: Offers structured guidance on utilizing the sandboxed timeline, shifting task dates, and interpreting color codes.
+- **Team Workload Widget**: Renders a live progress-bar checklist showing the total weekly allocated days for each active team member, alerting you immediately to overallocations.
+- **Active Conflicts Widget**: Stacks all active schedule overlaps and dependency violations directly in the sidebar with Lucide indicators.
+- **How this view works**: Clicking this button at the bottom of the sidebar launches the interactive Help Guide modal, detailing metrics, heatmap thresholds, and resolution shortcuts.
 
 ---
 
-## 4. Conflict Resolution Heuristics
+## 4. The Right-Side Diagnostics Cockpit
+
+On the right side of the scheduler layout, a multi-tab cockpit panel provides planning recommendations:
+- **Tab 1: Diagnostics**: Displays a list of active conflicts (e.g., "Overallocated", "Task Dependency Violations").
+- **Tab 2: Copilot Actions**: Offers automated quick actions.
+- **Tab 3: Tips**: Shows basic shortcuts and sandbox reminders.
+
+---
+
+## 5. Conflict Resolution Heuristics
 
 ProjectPulse features an automated conflict resolver (`autoResolveAllSchedulerConflicts`) that evaluates tasks in the sandbox state:
 
