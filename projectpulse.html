@@ -29653,50 +29653,6 @@
           return conflicts;
         }
 
-        function generateIntelligentSuggestions(tasks, days) {
-          const suggestions = [];
-          const conflicts = findScheduleConflicts(tasks, days);
-          
-          const overAllocations = conflicts.filter(c => c.type === 'over-allocation');
-          overAllocations.forEach(c => {
-            c.tasks.forEach(t => {
-              const members = getTeamNames();
-              for (const m of members) {
-                if (m === c.member) continue;
-                const mLoad = getMemberLoadOnDay(m, c.day, tasks);
-                const currentMember = P.members.find(x => x.name === c.member) || {};
-                const candidateMember = P.members.find(x => x.name === m) || {};
-                const roleMatch = currentMember.role === candidateMember.role;
-
-                if (mLoad + t.loadContribution <= 1.0) {
-                  suggestions.push({
-                    type: 'reassign',
-                    taskId: t.id,
-                    fromMember: c.member,
-                    toMember: m,
-                    day: c.day,
-                    text: `Reassign task <b>${t.id}</b> from overloaded resource <b>${esc(c.member)}</b> to <b>${esc(m)}</b> ${roleMatch ? `(${esc(candidateMember.role)})` : ''} who has capacity on ${formatDateStringFriendly(c.day)}.`
-                  });
-                  break; 
-                }
-              }
-            });
-          });
-
-          const depViolations = conflicts.filter(c => c.type === 'dependency-violation');
-          depViolations.forEach(c => {
-            const shiftDays = getBusinessDays(c.task.startDate, c.predecessor.dueDate);
-            suggestions.push({
-              type: 'shift-dep',
-              taskId: c.task.id,
-              shiftDays,
-              text: `Reschedule task <b>${c.task.id}</b> to start on <b>${formatDateStringFriendly(getNextBusDay(c.predecessor.dueDate))}</b> so it follows predecessor <b>${c.predecessor.id}</b>.`
-            });
-          });
-
-          return suggestions;
-        }
-
         function autoSequenceAssignee(assignee) {
           const sandbox = P._schedulerSandboxTasks;
           if (!sandbox) return;
@@ -29729,7 +29685,6 @@
           if (!sandbox) return;
           const t = sandbox.find(x => x.id === taskId);
           if (t) {
-            const old = t.assignee;
             t.assignee = newAssignee;
             showToast(`Reassigned ${taskId} to ${newAssignee}`);
             renderIntelligentScheduler();
@@ -29822,384 +29777,38 @@
           }
         }
 
-        function setSchedulerRightTab(tab) {
-          P._schedulerActiveRightTab = tab;
-          renderIntelligentScheduler();
-        }
-
-        function renderIntelligentScheduler() {
-          const container = $id('scheduler-inner');
-          if (!container) return;
-
-          const vTitle = $id('v-title');
-          if (vTitle) vTitle.innerHTML = `<i data-lucide="calendar" style="margin-right:10px"></i> Intelligent Scheduler`;
-
-          const vAct = $id('view-actions');
-          if (vAct) {
-            vAct.innerHTML = `
-              <button class="btn secondary" onclick="autoResolveAllSchedulerConflicts()"><i data-lucide="zap" style="margin-right:6px"></i> Auto-Resolve All</button>
-              <button class="btn primary" onclick="commitSchedulerSchedule()"><i data-lucide="save" style="margin-right:6px"></i> Apply & Save</button>
-              <button class="btn accent" onclick="resetSchedulerSandbox()"><i data-lucide="rotate-ccw" style="margin-right:6px"></i> Reset Sandbox</button>
-            `;
-          }
-
-          if (!P._schedulerSandboxTasks) {
-            P._schedulerSandboxTasks = JSON.parse(JSON.stringify(P.tasks));
-          }
-          if (P._schedulerWeekOffset === undefined) {
-            P._schedulerWeekOffset = 0;
-          }
-          if (P._schedulerActiveRightTab === undefined) {
-            P._schedulerActiveRightTab = 'conflicts';
-          }
-
-          const offset = P._schedulerWeekOffset;
-          const days = getWorkDaysForWeekOffset(offset);
-          const conflicts = findScheduleConflicts(P._schedulerSandboxTasks, days);
-          const suggestions = generateIntelligentSuggestions(P._schedulerSandboxTasks, days);
-          const rightTab = P._schedulerActiveRightTab;
-
-          container.innerHTML = `
-            <div style="display:flex; flex-direction:column; gap:20px; width:100%; box-sizing:border-box">
-              <!-- Week Selector Banner -->
-              <div style="display:flex; justify-content:space-between; align-items:center; background:var(--color-surface); padding:16px 20px; border-radius:12px; border:1px solid var(--color-divider)">
-                <div style="display:flex; align-items:center; gap:12px">
-                  <button class="btn secondary mini" onclick="changeSchedulerWeek(-1)" style="padding:4px 8px"><i data-lucide="chevron-left" style="width:14px;height:14px"></i></button>
-                  <div style="font-size:16px; font-weight:700; font-family:'Courier New', monospace; color:var(--color-text)">
-                    WEEK OF: ${formatDateStringFriendly(days[0])} — ${formatDateStringFriendly(days[4])}
-                  </div>
-                  <button class="btn secondary mini" onclick="changeSchedulerWeek(1)" style="padding:4px 8px"><i data-lucide="chevron-right" style="width:14px;height:14px"></i></button>
-                </div>
-                <div style="font-size:12px; font-weight:600; color:var(--color-text-muted); display:flex; gap:16px">
-                  <span>Active Conflicts: <b style="color:${conflicts.length ? 'var(--red)' : 'var(--green)'}">${conflicts.length}</b></span>
-                  <span>Tasks Monitored: <b>${P._schedulerSandboxTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length}</b></span>
-                </div>
-              </div>
-
-              <div style="display:grid; grid-template-columns: 3fr 1.1fr; gap:20px; align-items: flex-start">
-                <!-- Left: Allocation Grid -->
-                <div style="background:var(--color-surface); border-radius:16px; border:1px solid var(--color-divider); padding:20px; display:flex; flex-direction:column; gap:16px; overflow-x:auto">
-                  <div style="font-weight:700; font-size:14px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px">Resource Timeline Heatmap</div>
-                  <table style="width:100%; border-collapse:collapse; min-width:600px">
-                    <thead>
-                      <tr style="border-bottom:1px solid var(--color-divider)">
-                        <th style="padding:10px; text-align:left; color:var(--color-text-muted); font-size:11px; font-weight:800; width:180px">RESOURCE</th>
-                        ${days.map(d => `<th style="padding:10px; text-align:center; color:var(--color-text-muted); font-size:11px; font-weight:800">${formatDayNameHeader(d)}<br><small style="font-weight:400;opacity:0.6">${d.substring(5)}</small></th>`).join('')}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${getTeamNames().map(member => {
-                        const initials = member.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
-                        let totalWeekLoad = 0;
-                        days.forEach(d => {
-                          totalWeekLoad += getMemberLoadOnDay(member, d, P._schedulerSandboxTasks);
-                        });
-                        const weekPct = Math.round((totalWeekLoad / 5) * 100);
-                        const weekBarColor = totalWeekLoad > 5 ? 'var(--red)' : (totalWeekLoad > 4 ? 'var(--amber)' : 'var(--green)');
-
-                        return `
-                          <tr style="border-bottom:1px solid var(--color-divider); transition: background 0.2s">
-                            <td style="padding:12px 10px; display:flex; flex-direction:column; gap:6px; min-width:160px">
-                              <div style="display:flex; align-items:center; gap:8px">
-                                <div style="width:28px; height:28px; border-radius:50%; background:var(--color-surface-3); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:var(--color-text)">${initials}</div>
-                                <div>
-                                  <div style="font-weight:600; font-size:13px">${esc(member)}</div>
-                                  <div style="font-size:10px; color:var(--color-text-muted)">${esc(P.members.find(m => m.name === member)?.role || 'Team Member')}</div>
-                                </div>
-                              </div>
-                              <div style="margin-top:4px">
-                                <div style="display:flex; justify-content:space-between; font-size:9px; color:var(--color-text-muted); margin-bottom:2px">
-                                  <span>Week Load:</span>
-                                  <span style="font-family:'Courier New', monospace; font-weight:700; color:${weekBarColor}">${totalWeekLoad.toFixed(1)}d / 5d</span>
-                                </div>
-                                <div style="width:100%; height:4px; background:var(--color-surface-3); border-radius:2px; overflow:hidden">
-                                  <div style="width:${Math.min(100, weekPct)}%; height:100%; background:${weekBarColor}"></div>
-                                </div>
-                              </div>
-                            </td>
-                            ${days.map(day => renderGridDayCell(member, day, P._schedulerSandboxTasks)).join('')}
-                          </tr>
-                        `;
-                      }).join('')}
-                    </tbody>
-                  </table>
-                </div>
-
-                <!-- Right: Cockpit / Tabbed Panel -->
-                <div style="background:var(--color-surface); border-radius:16px; border:1px solid var(--color-divider); padding:20px; display:flex; flex-direction:column; gap:16px">
-                  <!-- Tab Header Switcher -->
-                  <div style="display:flex; background:var(--color-surface-2); padding:4px; border-radius:8px; border:1px solid var(--color-divider)">
-                    <button onclick="setSchedulerRightTab('conflicts')" style="flex:1; padding:6px 12px; border:none; background:${rightTab === 'conflicts' ? 'var(--color-surface)' : 'transparent'}; border-radius:6px; color:${rightTab === 'conflicts' ? 'var(--color-text)' : 'var(--color-text-muted)'}; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px">
-                      Diagnostics ${conflicts.length ? `<span style="background:var(--red); color:white; font-size:9px; font-weight:700; padding:1px 5px; border-radius:10px">${conflicts.length}</span>` : ''}
-                    </button>
-                    <button onclick="setSchedulerRightTab('copilot')" style="flex:1; padding:6px 12px; border:none; background:${rightTab === 'copilot' ? 'var(--color-surface)' : 'transparent'}; border-radius:6px; color:${rightTab === 'copilot' ? 'var(--color-text)' : 'var(--color-text-muted)'}; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px">
-                      <i data-lucide="sparkles" style="width:12px;height:12px;color:var(--color-primary)"></i> Copilot
-                    </button>
-                  </div>
-
-                  <div style="display:flex; flex-direction:column; gap:12px; max-height: 500px; overflow-y:auto">
-                    ${rightTab === 'conflicts' ? (
-                      conflicts.length === 0 ? `
-                        <div style="text-align:center; padding:40px 20px; color:var(--green)">
-                          <i data-lucide="check-circle" style="width:36px; height:36px; margin:0 auto 12px auto; display:block"></i>
-                          <div style="font-weight:700; font-size:14px">Zero Conflicts</div>
-                          <div style="font-size:11px; color:var(--color-text-muted); margin-top:4px">No allocation or dependency overlaps.</div>
-                        </div>
-                      ` : conflicts.map((c, idx) => renderConflictCard(c, idx, days)).join('')
-                    ) : (
-                      suggestions.length === 0 ? `
-                        <div style="text-align:center; padding:40px 20px; color:var(--color-text-muted)">
-                          <i data-lucide="sparkles" style="width:36px; height:36px; margin:0 auto 12px auto; display:block; opacity:0.3"></i>
-                          <div style="font-weight:700; font-size:14px">All Clear</div>
-                          <div style="font-size:11px; margin-top:4px">No optimization suggestions needed for this week.</div>
-                        </div>
-                      ` : suggestions.map((s, idx) => renderSuggestionCard(s, idx, days)).join('')
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          `;
-
-          if (window.lucide) window.lucide.createIcons(container);
-        }
-
-        function renderGridDayCell(member, day, tasks) {
-          const dayDate = new Date(day);
-          const activeTasks = tasks.filter(t => {
-            if (t.assignee !== member || t.status === 'Completed' || t.status === 'Cancelled') return false;
-            if (!t.startDate || !t.dueDate) return false;
-            const s = new Date(t.startDate);
-            const e = new Date(t.dueDate);
-            return dayDate >= s && dayDate <= e;
+        function highlightTaskChips(taskId) {
+          const chips = document.querySelectorAll(`.task-chip-${taskId}`);
+          chips.forEach(c => {
+            c.style.background = 'rgba(99, 102, 241, 0.15)';
+            c.style.borderColor = 'var(--color-primary)';
+            c.style.boxShadow = '0 0 8px rgba(99, 102, 241, 0.4)';
+            c.style.transform = 'scale(1.03)';
+            c.style.transition = 'all 0.15s ease';
           });
+          const elements = document.querySelectorAll(`.task-chip-${taskId} .chip-actions`);
+          elements.forEach(el => el.style.display = 'flex');
+        }
 
-          let totalLoad = 0;
-          activeTasks.forEach(t => {
-            const totalBusDays = getBusinessDays(t.startDate, t.dueDate) || 1;
-            const totalDaysInt = parseFloat(totalBusDays) || 1;
-            const effortDays = convertEffortToDays(t.estEffort) || 1;
-            totalLoad += effortDays / totalDaysInt;
+        function clearTaskChipsHighlight(taskId) {
+          const chips = document.querySelectorAll(`.task-chip-${taskId}`);
+          chips.forEach(c => {
+            c.style.background = 'var(--color-surface-2)';
+            c.style.boxShadow = '';
+            c.style.transform = '';
+            const task = P._schedulerSandboxTasks.find(x => x.id === taskId) || {};
+            let prioBorder = 'var(--color-divider)';
+            if (task.priority === 'Critical') prioBorder = 'var(--red)';
+            else if (task.priority === 'High') prioBorder = 'var(--amber)';
+            c.style.borderColor = prioBorder;
           });
-
-          let bg = 'transparent';
-          let labelColor = 'var(--color-text-muted)';
-          let border = '1px solid var(--color-divider)';
-          if (totalLoad > 1.05) {
-            bg = 'rgba(239, 68, 68, 0.08)';
-            labelColor = 'var(--red)';
-            border = '1px solid rgba(239, 68, 68, 0.2)';
-          } else if (totalLoad > 0.8) {
-            bg = 'rgba(245, 158, 11, 0.08)';
-            labelColor = 'var(--amber)';
-            border = '1px solid rgba(245, 158, 11, 0.2)';
-          } else if (totalLoad > 0) {
-            bg = 'rgba(16, 185, 129, 0.04)';
-            labelColor = 'var(--green)';
-            border = '1px solid rgba(16, 185, 129, 0.15)';
-          }
-
-          const loadPct = Math.round(totalLoad * 100);
-          const cellId = `cell-${member.replace(/\s+/g, '_')}-${day}`;
-
-          return `
-            <td id="${cellId}" style="padding:10px; text-align:center; background:${bg}; border:${border}; vertical-align:top; min-height:85px; width:100px">
-              ${totalLoad > 0 ? `
-                <div style="font-family:'Courier New', monospace; font-size:10px; font-weight:700; color:${labelColor}">${loadPct}% Load</div>
-                <div style="width:100%; height:3px; background:var(--color-surface-3); border-radius:2px; margin:4px 0 6px 0; overflow:hidden">
-                  <div style="width:${Math.min(100, loadPct)}%; height:100%; background:${labelColor}"></div>
-                </div>
-                <div style="display:flex; flex-direction:column; gap:4px; align-items:center">
-                  ${activeTasks.map(t => {
-                    let prioBorder = 'var(--color-divider)';
-                    if (t.priority === 'Critical') prioBorder = 'var(--red)';
-                    else if (t.priority === 'High') prioBorder = 'var(--amber)';
-                    return `
-                      <div class="task-chip" style="font-size:10px; padding:3px 6px; border-radius:6px; background:var(--color-surface-2); border:1px solid ${prioBorder}; width:100%; box-sizing:border-box; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; cursor:pointer" title="${esc(t.id)}: ${esc(t.name)}" onclick="openFlyout('${t.id}')">
-                        <b>${t.id}</b>
-                      </div>
-                    `;
-                  }).join('')}
-                </div>
-              ` : `<div style="color:var(--color-text-faint); font-size:10px; padding:10px 0">—</div>`}
-            </td>
-          `;
-        }
-
-        function renderConflictCard(c, idx, days) {
-          let title = '';
-          let icon = 'alert-triangle';
-          let color = 'var(--amber)';
-          let actionHtml = '';
-          let desc = '';
-
-          const escMember = c.member ? c.member.replace(/'/g, "\\'") : '';
-
-          if (c.type === 'over-allocation') {
-            title = `Over-allocation: ${esc(c.member)}`;
-            color = 'var(--red)';
-            icon = 'user-x';
-            desc = `Assigned to ${c.tasks.length} overlapping tasks on <b>${formatDateStringFriendly(c.day)}</b> (Load: <b>${Math.round(c.load * 100)}%</b>).`;
-            actionHtml = `
-              <button class="btn secondary mini" onclick="autoSequenceAssignee('${escMember}')" style="margin-top:8px; width:100%; font-size:11px">
-                <i data-lucide="zap" style="width:12px;height:12px;margin-right:4px"></i> Auto-Sequence ${esc(c.member.split(' ')[0])}
-              </button>
-              <div style="margin-top:8px; display:flex; flex-direction:column; gap:4px">
-                <div style="font-size:10px; color:var(--color-text-muted)">Shift timeline or reassign tasks:</div>
-                ${c.tasks.map(t => `
-                  <div style="display:flex; justify-content:space-between; align-items:center; background:var(--color-surface-3); padding:4px 6px; border-radius:6px; font-size:10px">
-                    <span><b>${t.id}</b></span>
-                    <div style="display:flex; gap:4px">
-                      <button onclick="shiftSchedulerTaskTimeline('${t.id}', 1)" class="btn secondary mini" style="padding:1px 4px;font-size:9px" title="Shift +1d">+1d</button>
-                      <select onchange="reassignSchedulerTask('${t.id}', this.value)" style="background:var(--color-surface-2); border:1px solid var(--color-divider); color:var(--color-text); font-size:9px; border-radius:4px; padding:1px 2px">
-                        <option value="" disabled selected>Reassign</option>
-                        ${getTeamNames().filter(name => name !== c.member).map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join('')}
-                      </select>
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-            `;
-          } else if (c.type === 'dependency-violation') {
-            title = `Dependency Violation`;
-            color = 'var(--amber)';
-            icon = 'link-2';
-            desc = `Task <b>${c.task.id}</b> starts on <b>${formatDateStringFriendly(c.task.startDate)}</b>, but predecessor <b>${c.predecessor.id}</b> is due on <b>${formatDateStringFriendly(c.predecessor.dueDate)}</b>.`;
-            actionHtml = `
-              <button class="btn secondary mini" onclick="shiftSchedulerTaskTimeline('${c.task.id}', ${getBusinessDays(c.task.startDate, c.predecessor.dueDate)})" style="margin-top:8px; width:100%; font-size:11px">
-                <i data-lucide="arrow-right-left" style="width:12px;height:12px;margin-right:4px"></i> Shift ${c.task.id} past ${c.predecessor.id}
-              </button>
-            `;
-          } else if (c.type === 'overdue') {
-            title = `Overdue: ${c.task.id}`;
-            color = 'var(--red)';
-            icon = 'clock';
-            desc = `Task is incomplete but due date <b>${formatDateStringFriendly(c.task.dueDate)}</b> has passed.`;
-            actionHtml = `
-              <button class="btn secondary mini" onclick="shiftSchedulerTaskTimeline('${c.task.id}', 5)" style="margin-top:8px; width:100%; font-size:11px">
-                <i data-lucide="calendar" style="width:12px;height:12px;margin-right:4px"></i> Shift due date by +5 days
-              </button>
-            `;
-          }
-
-          return `
-            <div style="background:var(--color-surface-2); border-left:4px solid ${color}; padding:12px; border-radius:8px; display:flex; flex-direction:column; gap:6px; border-top:1px solid var(--color-divider); border-bottom:1px solid var(--color-divider); border-right:1px solid var(--color-divider)">
-              <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:12px; color:${color}">
-                <i data-lucide="${icon}" style="width:14px; height:14px"></i>
-                <span>${title}</span>
-              </div>
-              <div style="font-size:11px; color:var(--color-text); line-height:1.4">${desc}</div>
-              ${actionHtml}
-            </div>
-          `;
-        }
-
-        function formatDateStringFriendly(dateStr) {
-          if (!dateStr) return '—';
-          const d = new Date(dateStr);
-          if (isNaN(d.getTime())) return dateStr;
-          return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-        }
-
-        function formatDayNameHeader(dateStr) {
-          if (!dateStr) return '';
-          const d = new Date(dateStr);
-          const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-          return names[d.getDay()];
-        }
-
-        function changeSchedulerWeek(delta) {
-          P._schedulerWeekOffset = (P._schedulerWeekOffset || 0) + delta;
-          renderIntelligentScheduler();
-        }
-
-        function resetSchedulerSandbox() {
-          P._schedulerSandboxTasks = JSON.parse(JSON.stringify(P.tasks));
-          showToast("Sandbox timeline reset successfully.");
-          renderIntelligentScheduler();
-        }
-
-        function commitSchedulerSchedule() {
-          if (!confirm("Are you sure you want to apply all sandboxed scheduling changes to the live project timeline?")) return;
-          P.tasks = JSON.parse(JSON.stringify(P._schedulerSandboxTasks));
-          P.tasks.forEach(t => recalcDatesAndStatus(t, true));
-          save();
-          showToast("Schedule applied and saved to local state!");
-          render();
-        }
-
-        function highlightCell(member, day) {
-          const cellId = `cell-${member.replace(/\s+/g, '_')}-${day}`;
-          const cell = document.getElementById(cellId);
-          if (cell) {
-            cell.style.boxShadow = '0 0 15px rgba(239, 68, 68, 0.6)';
-            cell.style.borderColor = 'var(--red)';
-            cell.style.transform = 'scale(1.02)';
-            cell.style.transition = 'all 0.2s ease';
-          }
-        }
-
-        function clearCellHighlight(member, day) {
-          const cellId = `cell-${member.replace(/\s+/g, '_')}-${day}`;
-          const cell = document.getElementById(cellId);
-          if (cell) {
-            cell.style.boxShadow = '';
-            cell.style.transform = '';
-            const load = getMemberLoadOnDay(member, day, P._schedulerSandboxTasks);
-            cell.style.borderColor = load > 1.05 ? 'rgba(239, 68, 68, 0.2)' : (load > 0.8 ? 'rgba(245, 158, 11, 0.2)' : (load > 0 ? 'rgba(16, 185, 129, 0.15)' : 'var(--color-divider)'));
-          }
+          const elements = document.querySelectorAll(`.task-chip-${taskId} .chip-actions`);
+          elements.forEach(el => el.style.display = 'none');
         }
 
         function setSchedulerRightTab(tab) {
           P._schedulerActiveRightTab = tab;
           renderIntelligentScheduler();
-        }
-
-        function renderSuggestionCard(s, idx, days) {
-          let title = '';
-          let icon = 'sparkles';
-          let color = 'var(--color-primary)';
-          let actionHtml = '';
-
-          const escToMember = s.toMember ? s.toMember.replace(/'/g, "\\'") : '';
-
-          if (s.type === 'reassign') {
-            title = 'Optimize Assignment';
-            actionHtml = `
-              <button class="btn primary mini" onclick="reassignSchedulerTask('${s.taskId}', '${escToMember}')" style="margin-top:8px; width:100%; font-size:11px">
-                <i data-lucide="check" style="width:12px;height:12px;margin-right:4px"></i> Apply Assignment
-              </button>
-            `;
-          } else if (s.type === 'shift-dep') {
-            title = 'Align Predecessor';
-            icon = 'arrow-right-left';
-            color = 'var(--amber)';
-            actionHtml = `
-              <button class="btn secondary mini" onclick="shiftSchedulerTaskTimeline('${s.taskId}', ${s.shiftDays})" style="margin-top:8px; width:100%; font-size:11px">
-                <i data-lucide="check" style="width:12px;height:12px;margin-right:4px"></i> Shift Timeline
-              </button>
-            `;
-          } else if (s.type === 'underutilized') {
-            title = 'Balance Workload';
-            icon = 'info';
-            color = 'var(--green)';
-            actionHtml = `
-              <button class="btn secondary mini" onclick="setView('tasks')" style="margin-top:8px; width:100%; font-size:11px">
-                <i data-lucide="list" style="width:12px;height:12px;margin-right:4px"></i> Open Backlog
-              </button>
-            `;
-          }
-
-          return `
-            <div style="background:rgba(99, 102, 241, 0.04); border-left:4px solid ${color}; padding:12px; border-radius:8px; display:flex; flex-direction:column; gap:6px; border-top:1px solid var(--color-divider); border-bottom:1px solid var(--color-divider); border-right:1px solid var(--color-divider); transition:all 0.2s">
-              <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:12px; color:${color}">
-                <i data-lucide="${icon}" style="width:14px; height:14px"></i>
-                <span>${title}</span>
-              </div>
-              <div style="font-size:11px; color:var(--color-text); line-height:1.4">${s.text}</div>
-              ${actionHtml}
-            </div>
-          `;
         }
 
         function totalWeekLoadForMember(member, days, tasks) {
@@ -30307,6 +29916,359 @@
           return suggestions;
         }
 
+        function renderIntelligentScheduler() {
+          const container = $id('scheduler-inner');
+          if (!container) return;
+
+          const vTitle = $id('v-title');
+          if (vTitle) vTitle.innerHTML = `<i data-lucide="calendar" style="margin-right:10px"></i> Intelligent Scheduler`;
+
+          const vAct = $id('view-actions');
+          if (vAct) {
+            vAct.innerHTML = `
+              <button class="btn secondary" onclick="autoResolveAllSchedulerConflicts()"><i data-lucide="zap" style="margin-right:6px"></i> Auto-Resolve All</button>
+              <button class="btn primary" onclick="commitSchedulerSchedule()"><i data-lucide="save" style="margin-right:6px"></i> Apply & Save</button>
+              <button class="btn accent" onclick="resetSchedulerSandbox()"><i data-lucide="rotate-ccw" style="margin-right:6px"></i> Reset Sandbox</button>
+            `;
+          }
+
+          if (!P._schedulerSandboxTasks) {
+            P._schedulerSandboxTasks = JSON.parse(JSON.stringify(P.tasks));
+          }
+          if (P._schedulerWeekOffset === undefined) {
+            P._schedulerWeekOffset = 0;
+          }
+          if (P._schedulerActiveRightTab === undefined) {
+            P._schedulerActiveRightTab = 'conflicts';
+          }
+
+          const offset = P._schedulerWeekOffset;
+          const days = getWorkDaysForWeekOffset(offset);
+          const conflicts = findScheduleConflicts(P._schedulerSandboxTasks, days);
+          const suggestions = generateIntelligentSuggestions(P._schedulerSandboxTasks, days);
+          const rightTab = P._schedulerActiveRightTab;
+
+          container.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:20px; width:100%; box-sizing:border-box">
+              <!-- Week Selector Banner -->
+              <div style="display:flex; justify-content:space-between; align-items:center; background:var(--color-surface); padding:16px 20px; border-radius:12px; border:1px solid var(--color-divider)">
+                <div style="display:flex; align-items:center; gap:12px">
+                  <button class="btn secondary mini" onclick="changeSchedulerWeek(-1)" style="padding:4px 8px"><i data-lucide="chevron-left" style="width:14px;height:14px"></i></button>
+                  <div style="font-size:16px; font-weight:700; font-family:'Courier New', monospace; color:var(--color-text)">
+                    WEEK OF: ${formatDateStringFriendly(days[0])} — ${formatDateStringFriendly(days[4])}
+                  </div>
+                  <button class="btn secondary mini" onclick="changeSchedulerWeek(1)" style="padding:4px 8px"><i data-lucide="chevron-right" style="width:14px;height:14px"></i></button>
+                </div>
+                <div style="font-size:12px; font-weight:600; color:var(--color-text-muted); display:flex; gap:16px">
+                  <span>Active Conflicts: <b style="color:${conflicts.length ? 'var(--red)' : 'var(--green)'}">${conflicts.length}</b></span>
+                  <span>Tasks Monitored: <b>${P._schedulerSandboxTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length}</b></span>
+                </div>
+              </div>
+
+              <div style="display:grid; grid-template-columns: 3fr 1.1fr; gap:20px; align-items: flex-start">
+                <!-- Left: Allocation Grid -->
+                <div style="background:var(--color-surface); border-radius:16px; border:1px solid var(--color-divider); padding:20px; display:flex; flex-direction:column; gap:16px; overflow-x:auto">
+                  <div style="font-weight:700; font-size:14px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px">Resource Timeline Heatmap</div>
+                  <table style="width:100%; border-collapse:collapse; min-width:600px">
+                    <thead>
+                      <tr style="border-bottom:1px solid var(--color-divider)">
+                        <th style="padding:10px; text-align:left; color:var(--color-text-muted); font-size:11px; font-weight:800; width:180px">RESOURCE</th>
+                        ${days.map(d => `<th style="padding:10px; text-align:center; color:var(--color-text-muted); font-size:11px; font-weight:800">${formatDayNameHeader(d)}<br><small style="font-weight:400;opacity:0.6">${d.substring(5)}</small></th>`).join('')}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${getTeamNames().map(member => {
+                        const initials = member.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+                        const totalWeekLoad = totalWeekLoadForMember(member, days, P._schedulerSandboxTasks);
+                        const weekPct = Math.round((totalWeekLoad / 5) * 100);
+                        const weekBarColor = totalWeekLoad > 5 ? 'var(--red)' : (totalWeekLoad > 4 ? 'var(--amber)' : 'var(--green)');
+
+                        return `
+                          <tr style="border-bottom:1px solid var(--color-divider); transition: background 0.2s">
+                            <td style="padding:12px 10px; display:flex; flex-direction:column; gap:6px; min-width:160px">
+                              <div style="display:flex; align-items:center; gap:8px">
+                                <div style="width:28px; height:28px; border-radius:50%; background:var(--color-surface-3); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:var(--color-text)">${initials}</div>
+                                <div>
+                                  <div style="font-weight:600; font-size:13px">${esc(member)}</div>
+                                  <div style="font-size:10px; color:var(--color-text-muted)">${esc(P.members.find(m => m.name === member)?.role || 'Team Member')}</div>
+                                </div>
+                              </div>
+                              <div style="margin-top:4px">
+                                <div style="display:flex; justify-content:space-between; font-size:9px; color:var(--color-text-muted); margin-bottom:2px">
+                                  <span>Week Load:</span>
+                                  <span style="font-family:'Courier New', monospace; font-weight:700; color:${weekBarColor}">${totalWeekLoad.toFixed(1)}d / 5d</span>
+                                </div>
+                                <div style="width:100%; height:4px; background:var(--color-surface-3); border-radius:2px; overflow:hidden">
+                                  <div style="width:${Math.min(100, weekPct)}%; height:100%; background:${weekBarColor}"></div>
+                                </div>
+                              </div>
+                            </td>
+                            ${days.map(day => renderGridDayCell(member, day, P._schedulerSandboxTasks)).join('')}
+                          </tr>
+                        `;
+                      }).join('')}
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Right: Cockpit / Tabbed Panel -->
+                <div style="background:var(--color-surface); border-radius:16px; border:1px solid var(--color-divider); padding:20px; display:flex; flex-direction:column; gap:16px">
+                  <!-- Tab Header Switcher -->
+                  <div style="display:flex; background:var(--color-surface-2); padding:4px; border-radius:8px; border:1px solid var(--color-divider)">
+                    <button onclick="setSchedulerRightTab('conflicts')" style="flex:1; padding:6px 12px; border:none; background:${rightTab === 'conflicts' ? 'var(--color-surface)' : 'transparent'}; border-radius:6px; color:${rightTab === 'conflicts' ? 'var(--color-text)' : 'var(--color-text-muted)'}; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px">
+                      <i data-lucide="activity" style="width:12px;height:12px;color:${rightTab === 'conflicts' ? 'var(--red)' : 'var(--color-text-muted)'}"></i> Diagnostics ${conflicts.length ? `<span style="background:var(--red); color:white; font-size:9px; font-weight:700; padding:1px 5px; border-radius:10px">${conflicts.length}</span>` : ''}
+                    </button>
+                    <button onclick="setSchedulerRightTab('copilot')" style="flex:1; padding:6px 12px; border:none; background:${rightTab === 'copilot' ? 'var(--color-surface)' : 'transparent'}; border-radius:6px; color:${rightTab === 'copilot' ? 'var(--color-text)' : 'var(--color-text-muted)'}; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px">
+                      <i data-lucide="sparkles" style="width:12px;height:12px;color:${rightTab === 'copilot' ? 'var(--color-primary)' : 'var(--color-text-muted)'}"></i> Copilot
+                    </button>
+                  </div>
+
+                  <div style="display:flex; flex-direction:column; gap:12px; max-height: 500px; overflow-y:auto">
+                    ${rightTab === 'conflicts' ? (
+                      conflicts.length === 0 ? `
+                        <div style="text-align:center; padding:40px 20px; color:var(--green)">
+                          <i data-lucide="check-circle" style="width:36px; height:36px; margin:0 auto 12px auto; display:block"></i>
+                          <div style="font-weight:700; font-size:14px">Zero Conflicts</div>
+                          <div style="font-size:11px; color:var(--color-text-muted); margin-top:4px">No allocation or dependency overlaps.</div>
+                        </div>
+                      ` : conflicts.map((c, idx) => renderConflictCard(c, idx, days)).join('')
+                    ) : (
+                      suggestions.length === 0 ? `
+                        <div style="text-align:center; padding:40px 20px; color:var(--color-text-muted)">
+                          <i data-lucide="sparkles" style="width:36px; height:36px; margin:0 auto 12px auto; display:block; opacity:0.3"></i>
+                          <div style="font-weight:700; font-size:14px">All Clear</div>
+                          <div style="font-size:11px; margin-top:4px">No optimization suggestions needed for this week.</div>
+                        </div>
+                      ` : suggestions.map((s, idx) => renderSuggestionCard(s, idx, days)).join('')
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+
+          if (window.lucide) window.lucide.createIcons(container);
+        }
+
+        function renderGridDayCell(member, day, tasks) {
+          const dayDate = new Date(day);
+          const activeTasks = tasks.filter(t => {
+            if (t.assignee !== member || t.status === 'Completed' || t.status === 'Cancelled') return false;
+            if (!t.startDate || !t.dueDate) return false;
+            const s = new Date(t.startDate);
+            const e = new Date(t.dueDate);
+            return dayDate >= s && dayDate <= e;
+          });
+
+          let totalLoad = 0;
+          activeTasks.forEach(t => {
+            const totalBusDays = getBusinessDays(t.startDate, t.dueDate) || 1;
+            const totalDaysInt = parseFloat(totalBusDays) || 1;
+            const effortDays = convertEffortToDays(t.estEffort) || 1;
+            totalLoad += effortDays / totalDaysInt;
+          });
+
+          let bg = 'transparent';
+          let labelColor = 'var(--color-text-muted)';
+          let border = '1px solid var(--color-divider)';
+          if (totalLoad > 1.05) {
+            bg = 'rgba(239, 68, 68, 0.08)';
+            labelColor = 'var(--red)';
+            border = '1px solid rgba(239, 68, 68, 0.2)';
+          } else if (totalLoad > 0.8) {
+            bg = 'rgba(245, 158, 11, 0.08)';
+            labelColor = 'var(--amber)';
+            border = '1px solid rgba(245, 158, 11, 0.2)';
+          } else if (totalLoad > 0) {
+            bg = 'rgba(16, 185, 129, 0.04)';
+            labelColor = 'var(--green)';
+            border = '1px solid rgba(16, 185, 129, 0.15)';
+          }
+
+          const loadPct = Math.round(totalLoad * 100);
+          const cellId = `cell-${member.replace(/\s+/g, '_')}-${day}`;
+
+          return `
+            <td id="${cellId}" style="padding:10px; text-align:center; background:${bg}; border:${border}; vertical-align:top; min-height:85px; width:100px">
+              ${totalLoad > 0 ? `
+                <div style="font-family:'Courier New', monospace; font-size:10px; font-weight:700; color:${labelColor}">${loadPct}% Load</div>
+                <div style="width:100%; height:3px; background:var(--color-surface-3); border-radius:2px; margin:4px 0 6px 0; overflow:hidden">
+                  <div style="width:${Math.min(100, loadPct)}%; height:100%; background:${labelColor}"></div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:4px; align-items:center">
+                  ${activeTasks.map(t => {
+                    let prioBorder = 'var(--color-divider)';
+                    if (t.priority === 'Critical') prioBorder = 'var(--red)';
+                    else if (t.priority === 'High') prioBorder = 'var(--amber)';
+                    return `
+                      <div class="task-chip task-chip-${t.id}" onmouseover="highlightTaskChips('${t.id}')" onmouseout="clearTaskChipsHighlight('${t.id}')" style="font-size:10px; padding:3px 6px; border-radius:6px; background:var(--color-surface-2); border:1px solid ${prioBorder}; width:100%; box-sizing:border-box; display:flex; justify-content:space-between; align-items:center; cursor:pointer" title="${esc(t.id)}: ${esc(t.name)}" onclick="openFlyout('${t.id}')">
+                        <span style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1"><b>${t.id}</b></span>
+                        <div class="chip-actions" style="display:none; gap:4px; margin-left:4px">
+                          <span onclick="event.stopPropagation(); shiftSchedulerTaskTimeline('${t.id}', -1)" style="font-size:8px; padding:0 3px; border-radius:3px; background:var(--color-surface-3); border:1px solid var(--color-divider); color:var(--color-text); cursor:pointer" title="Shift start -1d">◀</span>
+                          <span onclick="event.stopPropagation(); shiftSchedulerTaskTimeline('${t.id}', 1)" style="font-size:8px; padding:0 3px; border-radius:3px; background:var(--color-surface-3); border:1px solid var(--color-divider); color:var(--color-text); cursor:pointer" title="Shift start +1d">▶</span>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              ` : `<div style="color:var(--color-text-faint); font-size:10px; padding:10px 0">—</div>`}
+            </td>
+          `;
+        }
+
+        function renderConflictCard(c, idx, days) {
+          let title = '';
+          let icon = 'alert-triangle';
+          let color = 'var(--amber)';
+          let actionHtml = '';
+          let desc = '';
+
+          const escMember = c.member ? c.member.replace(/'/g, "\\'") : '';
+
+          if (c.type === 'over-allocation') {
+            title = `Over-allocation: ${esc(c.member)}`;
+            color = 'var(--red)';
+            icon = 'user-x';
+            desc = `Assigned to ${c.tasks.length} overlapping tasks on <b>${formatDateStringFriendly(c.day)}</b> (Load: <b>${Math.round(c.load * 100)}%</b>).`;
+            actionHtml = `
+              <button class="btn secondary mini" onclick="autoSequenceAssignee('${escMember}')" style="margin-top:8px; width:100%; font-size:11px">
+                <i data-lucide="zap" style="width:12px;height:12px;margin-right:4px"></i> Auto-Sequence ${esc(c.member.split(' ')[0])}
+              </button>
+              <div style="margin-top:8px; display:flex; flex-direction:column; gap:4px">
+                <div style="font-size:10px; color:var(--color-text-muted)">Shift timeline or reassign tasks:</div>
+                ${c.tasks.map(t => `
+                  <div style="display:flex; justify-content:space-between; align-items:center; background:var(--color-surface-3); padding:4px 6px; border-radius:6px; font-size:10px">
+                    <span><b>${t.id}</b></span>
+                    <div style="display:flex; gap:4px">
+                      <button onclick="shiftSchedulerTaskTimeline('${t.id}', 1)" class="btn secondary mini" style="padding:1px 4px;font-size:9px" title="Shift +1d">+1d</button>
+                      <select onchange="reassignSchedulerTask('${t.id}', this.value)" style="background:var(--color-surface-2); border:1px solid var(--color-divider); color:var(--color-text); font-size:9px; border-radius:4px; padding:1px 2px">
+                        <option value="" disabled selected>Reassign</option>
+                        ${getTeamNames().filter(name => name !== c.member).map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join('')}
+                      </select>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            `;
+          } else if (c.type === 'dependency-violation') {
+            title = `Dependency Violation`;
+            color = 'var(--amber)';
+            icon = 'link-2';
+            desc = `Task <b>${c.task.id}</b> starts on <b>${formatDateStringFriendly(c.task.startDate)}</b>, but predecessor <b>${c.predecessor.id}</b> is due on <b>${formatDateStringFriendly(c.predecessor.dueDate)}</b>.`;
+            actionHtml = `
+              <button class="btn secondary mini" onclick="shiftSchedulerTaskTimeline('${c.task.id}', ${getBusinessDays(c.task.startDate, c.predecessor.dueDate)})" style="margin-top:8px; width:100%; font-size:11px">
+                <i data-lucide="arrow-right-left" style="width:12px;height:12px;margin-right:4px"></i> Shift ${c.task.id} past ${c.predecessor.id}
+              </button>
+            `;
+          } else if (c.type === 'overdue') {
+            title = `Overdue: ${c.task.id}`;
+            color = 'var(--red)';
+            icon = 'clock';
+            desc = `Task is incomplete but due date <b>${formatDateStringFriendly(c.task.dueDate)}</b> has passed.`;
+            actionHtml = `
+              <button class="btn secondary mini" onclick="shiftSchedulerTaskTimeline('${c.task.id}', 5)" style="margin-top:8px; width:100%; font-size:11px">
+                <i data-lucide="calendar" style="width:12px;height:12px;margin-right:4px"></i> Shift due date by +5 days
+              </button>
+            `;
+          }
+
+          const hoverAttr = c.day ? `onmouseover="highlightCell('${escMember}', '${c.day}')" onmouseout="clearCellHighlight('${escMember}', '${c.day}')"` : '';
+
+          return `
+            <div ${hoverAttr} style="background:var(--color-surface-2); border-left:4px solid ${color}; padding:12px; border-radius:8px; display:flex; flex-direction:column; gap:6px; border-top:1px solid var(--color-divider); border-bottom:1px solid var(--color-divider); border-right:1px solid var(--color-divider); transition:all 0.2s">
+              <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:12px; color:${color}">
+                <i data-lucide="${icon}" style="width:14px; height:14px"></i>
+                <span>${title}</span>
+              </div>
+              <div style="font-size:11px; color:var(--color-text); line-height:1.4">${desc}</div>
+              ${actionHtml}
+            </div>
+          `;
+        }
+
+        function renderSuggestionCard(s, idx, days) {
+          let title = '';
+          let icon = 'sparkles';
+          let color = 'var(--color-primary)';
+          let actionHtml = '';
+
+          const escToMember = s.toMember ? s.toMember.replace(/'/g, "\\'") : '';
+
+          if (s.type === 'reassign') {
+            title = 'Optimize Assignment';
+            actionHtml = `
+              <button class="btn primary mini" onclick="reassignSchedulerTask('${s.taskId}', '${escToMember}')" style="margin-top:8px; width:100%; font-size:11px">
+                <i data-lucide="check" style="width:12px;height:12px;margin-right:4px"></i> Apply Assignment
+              </button>
+            `;
+          } else if (s.type === 'shift-dep') {
+            title = 'Align Predecessor';
+            icon = 'arrow-right-left';
+            color = 'var(--amber)';
+            actionHtml = `
+              <button class="btn secondary mini" onclick="shiftSchedulerTaskTimeline('${s.taskId}', ${s.shiftDays})" style="margin-top:8px; width:100%; font-size:11px">
+                <i data-lucide="check" style="width:12px;height:12px;margin-right:4px"></i> Shift Timeline
+              </button>
+            `;
+          } else if (s.type === 'underutilized') {
+            title = 'Balance Workload';
+            icon = 'info';
+            color = 'var(--green)';
+            actionHtml = `
+              <button class="btn secondary mini" onclick="setView('tasks')" style="margin-top:8px; width:100%; font-size:11px">
+                <i data-lucide="list" style="width:12px;height:12px;margin-right:4px"></i> Open Backlog
+              </button>
+            `;
+          }
+
+          const hoverAttr = (s.fromMember && s.day) ? `onmouseover="highlightCell('${s.fromMember.replace(/'/g, "\\'")}', '${s.day}')" onmouseout="clearCellHighlight('${s.fromMember.replace(/'/g, "\\'")}', '${s.day}')"` : '';
+
+          return `
+            <div ${hoverAttr} style="background:rgba(99, 102, 241, 0.04); border-left:4px solid ${color}; padding:12px; border-radius:8px; display:flex; flex-direction:column; gap:6px; border-top:1px solid var(--color-divider); border-bottom:1px solid var(--color-divider); border-right:1px solid var(--color-divider); transition:all 0.2s">
+              <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:12px; color:${color}">
+                <i data-lucide="${icon}" style="width:14px; height:14px"></i>
+                <span>${title}</span>
+              </div>
+              <div style="font-size:11px; color:var(--color-text); line-height:1.4">${s.text}</div>
+              ${actionHtml}
+            </div>
+          `;
+        }
+
+        function formatDateStringFriendly(dateStr) {
+          if (!dateStr) return '—';
+          const d = new Date(dateStr);
+          if (isNaN(d.getTime())) return dateStr;
+          return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+
+        function formatDayNameHeader(dateStr) {
+          if (!dateStr) return '';
+          const d = new Date(dateStr);
+          const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          return names[d.getDay()];
+        }
+
+        function changeSchedulerWeek(delta) {
+          P._schedulerWeekOffset = (P._schedulerWeekOffset || 0) + delta;
+          renderIntelligentScheduler();
+        }
+
+        function resetSchedulerSandbox() {
+          P._schedulerSandboxTasks = JSON.parse(JSON.stringify(P.tasks));
+          showToast("Sandbox timeline reset successfully.");
+          renderIntelligentScheduler();
+        }
+
+        function commitSchedulerSchedule() {
+          if (!confirm("Are you sure you want to apply all sandboxed scheduling changes to the live project timeline?")) return;
+          P.tasks = JSON.parse(JSON.stringify(P._schedulerSandboxTasks));
+          P.tasks.forEach(t => recalcDatesAndStatus(t, true));
+          save();
+          showToast("Schedule applied and saved to local state!");
+          render();
+        }
+
         // Expose to window scope for HTML onclick events
         window.getWorkDaysForWeekOffset = getWorkDaysForWeekOffset;
         window.findScheduleConflicts = findScheduleConflicts;
@@ -30324,10 +30286,13 @@
         window.formatDayNameHeader = formatDayNameHeader;
         window.highlightCell = highlightCell;
         window.clearCellHighlight = clearCellHighlight;
+        window.highlightTaskChips = highlightTaskChips;
+        window.clearTaskChipsHighlight = clearTaskChipsHighlight;
         window.setSchedulerRightTab = setSchedulerRightTab;
         window.renderSuggestionCard = renderSuggestionCard;
         window.generateIntelligentSuggestions = generateIntelligentSuggestions;
         window.getMemberLoadOnDay = getMemberLoadOnDay;
+        window.totalWeekLoadForMember = totalWeekLoadForMember;
 
         // Define stubs and Admin helpers if not present
         window.renderOverviewView = renderOverviewView;
