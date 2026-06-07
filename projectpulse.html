@@ -33532,6 +33532,31 @@
                 const radius = Math.min(centerX, centerY) * 0.7;
                 const innerRadius = radius * 0.5;
 
+                // 1. Draw outer tactical sonar rings
+                ctx.strokeStyle = isDarkTheme ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.08)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius * 1.15, 0, 2 * Math.PI);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, innerRadius * 0.75, 0, 2 * Math.PI);
+                ctx.stroke();
+
+                // Draw tactical compass angle ticks
+                for (let angle = 0; angle < 360; angle += 30) {
+                  const rad = (angle * Math.PI) / 180;
+                  const xStart = centerX + Math.cos(rad) * radius * 1.15;
+                  const yStart = centerY + Math.sin(rad) * radius * 1.15;
+                  const xEnd = centerX + Math.cos(rad) * (radius * 1.15 - 4);
+                  const yEnd = centerY + Math.sin(rad) * (radius * 1.15 - 4);
+                  ctx.beginPath();
+                  ctx.moveTo(xStart, yStart);
+                  ctx.lineTo(xEnd, yEnd);
+                  ctx.stroke();
+                }
+
+                // 2. Draw standard donut slices
                 let startAngle = -Math.PI / 2;
                 data.forEach(item => {
                   const sliceAngle = (item.value / total) * 2 * Math.PI;
@@ -33551,6 +33576,18 @@
                   startAngle += sliceAngle;
                 });
 
+                // 3. Draw tactical crosshair overlay (Distinct Design Anchor)
+                ctx.strokeStyle = isDarkTheme ? 'rgba(99, 102, 241, 0.25)' : 'rgba(99, 102, 241, 0.12)';
+                ctx.lineWidth = 0.75;
+                ctx.beginPath();
+                // Horizontal crosshair
+                ctx.moveTo(centerX - radius * 1.25, centerY);
+                ctx.lineTo(centerX + radius * 1.25, centerY);
+                // Vertical crosshair
+                ctx.moveTo(centerX, centerY - radius * 1.25);
+                ctx.lineTo(centerX, centerY + radius * 1.25);
+                ctx.stroke();
+
                 if (colors && colors.centerText) {
                   ctx.fillStyle = isDarkTheme ? '#FFFFFF' : '#0F172A';
                   ctx.font = `bold ${Math.round(11 * scale)}px Segoe UI`;
@@ -33567,6 +33604,17 @@
                 const chartH = height - padT - padB;
 
                 const maxVal = Math.max(...data.ideal, ...data.actual, 1) * 1.15;
+
+                // 1. Draw oscilloscope background grid mesh (Distinct Design Anchor)
+                ctx.strokeStyle = isDarkTheme ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)';
+                ctx.lineWidth = 0.75;
+                const gridSpacing = 15;
+                for (let x = padL; x <= width - padR; x += gridSpacing) {
+                  ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, height - padB); ctx.stroke();
+                }
+                for (let y = padT; y <= height - padB; y += gridSpacing) {
+                  ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(width - padR, y); ctx.stroke();
+                }
 
                 ctx.strokeStyle = isDarkTheme ? '#334155' : '#F1F5F9';
                 ctx.lineWidth = 1;
@@ -33629,12 +33677,17 @@
 
                 ctx.strokeStyle = actualColor;
                 ctx.lineWidth = 2.5;
+                if (isDarkTheme) {
+                  ctx.shadowColor = actualColor;
+                  ctx.shadowBlur = 6;
+                }
                 ctx.beginPath();
                 data.actual.forEach((val, idx) => {
                   const pt = getPt(idx, val);
                   if (idx === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
                 });
                 ctx.stroke();
+                ctx.shadowBlur = 0; // reset glow
 
                 data.actual.forEach((val, idx) => {
                   const pt = getPt(idx, val);
