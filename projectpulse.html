@@ -31700,8 +31700,8 @@
           },
 
           buildUnifiedTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
-            const ws = wb.addWorksheet('Tasks & Subtasks', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 3 }] });
-            ws.properties.tabColor = { argb: COLORS.emerald };
+            const ws = wb.addWorksheet('Tasks & Subtasks', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 7, xSplit: 3 }] });
+            ws.properties.tabColor = { argb: COLORS.indigo || 'FF6366F1' };
 
             ws.properties.outlineProperties = {
               summaryBelow: false
@@ -31709,7 +31709,7 @@
 
             const customHdrStyle = {
               fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } },
-              font: { name: 'Trebuchet MS', size: 10, bold: true, color: { argb: 'FFFFFFFF' } },
+              font: { name: 'Courier New', size: 10, bold: true, color: { argb: 'FFFFFFFF' } },
               alignment: { vertical: 'middle', horizontal: 'center', wrapText: true },
               border: { bottom: { style: 'medium', color: { argb: COLORS.navy } } }
             };
@@ -31718,7 +31718,7 @@
               { header: '', key: '_spacer', width: 3 },
               { header: 'ID', key: 'id', width: 15 },
               { header: 'Task / Subtask Name', key: 'name', width: 45 },
-              { header: 'Type', key: 'type', width: 12 },
+              { header: 'Type', key: 'type', width: 15 },
               { header: 'Category', key: 'category', width: 20 },
               { header: 'Module', key: 'module', width: 18 },
               { header: 'Module Type', key: 'moduleType', width: 15 },
@@ -31737,11 +31737,69 @@
 
             (P.customFields || []).forEach(f => { cols.push({ header: f.name, key: f.name, width: 22 }); });
 
-            ws.columns = cols;
-            ws.getRow(1).height = 32;
-            ws.getRow(1).eachCell((c, colIdx) => {
-              if (colIdx === 1) return;
-              c.style = customHdrStyle;
+            ws.columns = cols.map(c => ({ key: c.key, width: c.width }));
+
+            // ── Top KPI Telemetry Cockpit Section ──
+            const drawTopKpiCard = (sheet, col, row, w, h, label, value, subLabel, accentColor) => {
+              const cardBg = COLORS.isDark ? 'FF1E293B' : 'FFFFFFFF';
+              const shadowColor = COLORS.isDark ? 'FF020612' : 'FFCBD5E1';
+              const highlightColor = COLORS.isDark ? 'FF2A364F' : 'FFE2E8F0';
+              
+              for (let r = row; r < row + h; r++) {
+                for (let c = col; c < col + w; c++) {
+                  const cell = sheet.getCell(r, c);
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: cardBg } };
+                }
+              }
+              sheet.mergeCells(row, col, row + h - 1, col + w - 1);
+              const mainCell = sheet.getCell(row, col);
+              mainCell.border = {
+                top: { style: 'thin', color: { argb: highlightColor } },
+                left: { style: 'medium', color: { argb: accentColor } },
+                bottom: { style: 'medium', color: { argb: shadowColor } },
+                right: { style: 'thin', color: { argb: shadowColor } }
+              };
+              mainCell.value = {
+                richText: [
+                  { text: `[${label.toUpperCase()}]\n`, font: { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.slate } } },
+                  { text: `${value}\n`, font: { name: 'Courier New', size: 14, bold: true, color: { argb: accentColor } } },
+                  { text: subLabel || '', font: { name: 'Courier New', size: 7.5, italic: true, color: { argb: COLORS.slate } } }
+                ]
+              };
+              mainCell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
+            };
+
+            const tasks = P.tasks || [];
+            const total = tasks.length;
+            const done = tasks.filter(t => t.status === 'Completed').length;
+            const progress = total ? Math.round(done / total * 100) : 0;
+            const estEff = tasks.reduce((sum, t) => sum + (parseFloat(t.estEffort) || 0), 0);
+            const actEff = tasks.reduce((sum, t) => sum + (parseFloat(t.actEffort) || 0), 0);
+            const overdue = tasks.filter(t => t.dueDate && t.status !== 'Completed' && t.status !== 'Cancelled' && new Date(t.dueDate) < new Date()).length;
+            const blocked = tasks.filter(t => t.status === 'Blocked').length;
+
+            ws.getRow(1).height = 10;
+            ws.mergeCells('B2:R2');
+            ws.getRow(2).height = 20;
+            const titleCell = ws.getCell('B2');
+            titleCell.value = ' >> COCKPIT.TELEMETRY: HIERARCHICAL DELIVERY MATRIX';
+            titleCell.font = { name: 'Courier New', size: 10, bold: true, color: { argb: COLORS.indigo } };
+            titleCell.alignment = { vertical: 'middle', indent: 1 };
+
+            drawTopKpiCard(ws, 2, 3, 4, 3, 'Delivery Progress', `${done} / ${total}`, `${progress}% complete`, COLORS.indigo);
+            drawTopKpiCard(ws, 7, 3, 4, 3, 'Effort Telemetry', `${estEff.toFixed(1)} / ${actEff.toFixed(1)} d`, 'Estimated vs Actual', COLORS.blue);
+            drawTopKpiCard(ws, 12, 3, 4, 3, 'Overdue Items', `${overdue}`, overdue > 0 ? '⚠ Attention Required' : '✔ On Schedule', overdue > 0 ? COLORS.rose : COLORS.emerald);
+            drawTopKpiCard(ws, 17, 3, 2, 3, 'Blocked Scope', `${blocked}`, blocked > 0 ? '⚠ Blocked' : '✔ Clear', blocked > 0 ? COLORS.rose : COLORS.emerald);
+
+            ws.getRow(6).height = 10;
+
+            const headerRow = ws.getRow(7);
+            headerRow.height = 32;
+            cols.forEach((col, colIdx) => {
+              if (colIdx === 0) return;
+              const cell = headerRow.getCell(colIdx + 1);
+              cell.value = col.header;
+              cell.style = customHdrStyle;
             });
 
             // Level 0: Task — premium soft-lavender bg, 11pt bold deep navy, thick purple left border
@@ -32051,7 +32109,7 @@
           },
 
           buildFeatureRolloutsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
-            const ws = wb.addWorksheet('Feature Rollouts', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 3 }] });
+            const ws = wb.addWorksheet('Feature Rollouts', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 7, xSplit: 3 }] });
             ws.properties.tabColor = { argb: COLORS.indigo || 'FF6366F1' };
 
             ws.properties.outlineProperties = {
@@ -32060,7 +32118,7 @@
 
             const customHdrStyle = {
               fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } },
-              font: { name: 'Trebuchet MS', size: 10, bold: true, color: { argb: 'FFFFFFFF' } },
+              font: { name: 'Courier New', size: 10, bold: true, color: { argb: 'FFFFFFFF' } },
               alignment: { vertical: 'middle', horizontal: 'center', wrapText: true },
               border: { bottom: { style: 'medium', color: { argb: COLORS.navy } } }
             };
@@ -32076,11 +32134,79 @@
               { header: 'Progress', key: 'progress', width: 12 },
               { header: 'Task Link', key: 'link', width: 15 }
             ];
-            ws.columns = cols;
-            ws.getRow(1).height = 32;
-            ws.getRow(1).eachCell((c, colIdx) => {
-              if (colIdx === 1) return;
-              c.style = customHdrStyle;
+
+            ws.columns = cols.map(c => ({ key: c.key, width: c.width }));
+
+            // ── Top KPI Telemetry Cockpit Section ──
+            const drawTopKpiCard = (sheet, col, row, w, h, label, value, subLabel, accentColor) => {
+              const cardBg = COLORS.isDark ? 'FF1E293B' : 'FFFFFFFF';
+              const shadowColor = COLORS.isDark ? 'FF020612' : 'FFCBD5E1';
+              const highlightColor = COLORS.isDark ? 'FF2A364F' : 'FFE2E8F0';
+              
+              for (let r = row; r < row + h; r++) {
+                for (let c = col; c < col + w; c++) {
+                  const cell = sheet.getCell(r, c);
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: cardBg } };
+                }
+              }
+              sheet.mergeCells(row, col, row + h - 1, col + w - 1);
+              const mainCell = sheet.getCell(row, col);
+              mainCell.border = {
+                top: { style: 'thin', color: { argb: highlightColor } },
+                left: { style: 'medium', color: { argb: accentColor } },
+                bottom: { style: 'medium', color: { argb: shadowColor } },
+                right: { style: 'thin', color: { argb: shadowColor } }
+              };
+              mainCell.value = {
+                richText: [
+                  { text: `[${label.toUpperCase()}]\n`, font: { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.slate } } },
+                  { text: `${value}\n`, font: { name: 'Courier New', size: 14, bold: true, color: { argb: accentColor } } },
+                  { text: subLabel || '', font: { name: 'Courier New', size: 7.5, italic: true, color: { argb: COLORS.slate } } }
+                ]
+              };
+              mainCell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
+            };
+
+            const releaseGroups = {};
+            (P.features || []).forEach(feat => {
+              const rel = feat.release ? S(feat.release).trim() : 'Future Release';
+              if (!releaseGroups[rel]) releaseGroups[rel] = [];
+              releaseGroups[rel].push(feat);
+            });
+
+            const sortedReleases = Object.keys(releaseGroups).sort((a, b) => {
+              if (a === 'Future Release') return 1;
+              if (b === 'Future Release') return -1;
+              return a.localeCompare(b);
+            });
+
+            const totalFeats = P.features || [];
+            const totalFeatCount = totalFeats.length;
+            const releaseCount = sortedReleases.length;
+            const screenCount = totalFeats.reduce((sum, f) => sum + (f.screens || []).length, 0);
+            const backlogCount = (releaseGroups['Future Release'] || []).length;
+
+            ws.getRow(1).height = 10;
+            ws.mergeCells('B2:H2');
+            ws.getRow(2).height = 20;
+            const titleCell = ws.getCell('B2');
+            titleCell.value = ' >> COCKPIT.TELEMETRY: FEATURE ROLLOUT MATRIX';
+            titleCell.font = { name: 'Courier New', size: 10, bold: true, color: { argb: COLORS.indigo } };
+            titleCell.alignment = { vertical: 'middle', indent: 1 };
+
+            drawTopKpiCard(ws, 2, 3, 2, 3, 'Releases Mapped', `${releaseCount}`, `${backlogCount} in backlog`, COLORS.indigo);
+            drawTopKpiCard(ws, 5, 3, 2, 3, 'Total Features', `${totalFeatCount}`, 'Feature nodes', COLORS.blue);
+            drawTopKpiCard(ws, 8, 3, 2, 3, 'Rollout Density', `${screenCount} screens`, 'GUI layout coverage', COLORS.emerald);
+
+            ws.getRow(6).height = 10;
+
+            const headerRow = ws.getRow(7);
+            headerRow.height = 32;
+            cols.forEach((col, colIdx) => {
+              if (colIdx === 0) return;
+              const cell = headerRow.getCell(colIdx + 1);
+              cell.value = col.header;
+              cell.style = customHdrStyle;
             });
 
             // Level 0: Release  — soft royal bg (#F1F5F9), 12pt bold deep-indigo, thick navy border
@@ -32496,21 +32622,43 @@
           },
 
           buildTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
-            // Improved Tasks Sheet with summary banner
-            const ws = wb.addWorksheet('Tasks', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 2 }] });
+            // Improved Tasks Sheet with summary cockpit panel
+            const ws = wb.addWorksheet('Tasks', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 7, xSplit: 3 }] });
             ws.properties.tabColor = { argb: COLORS.emerald };
 
+            const customHdrStyle = {
+              fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } },
+              font: { name: 'Courier New', size: 10, bold: true, color: { argb: 'FFFFFFFF' } },
+              alignment: { vertical: 'middle', horizontal: 'center', wrapText: true },
+              border: { bottom: { style: 'medium', color: { argb: COLORS.navy } } }
+            };
+
             const baseCols = [
-              { header: 'ID', key: 'id', width: 15 }, { header: 'Task Name', key: 'name', width: 35 },
-              { header: 'Summary', key: 'title', width: 40 }, { header: 'Category', key: 'category', width: 20 },
-              { header: 'Module', key: 'module', width: 20 }, { header: 'Module Type', key: 'moduleType', width: 15 },
-              { header: 'Release Version', key: 'releaseVersion', width: 18 }, { header: 'Assignee', key: 'assignee', width: 22 },
-              { header: 'Status', key: 'status', width: 18 }, { header: 'Priority', key: 'priority', width: 15 },
-              { header: 'Progress', key: 'progress', width: 12 }, { header: 'Start Date', key: 'startDate', width: 15 },
-              { header: 'Due Date', key: 'dueDate', width: 15 }, { header: 'Actual Completion Date', key: 'actCompletionDate', width: 22 },
-              { header: `Estimated ${effortUnitLabel('col')}`, key: 'estEffort', width: 18 }, { header: `Actual ${effortUnitLabel('col')}`, key: 'actEffort', width: 15 },
-              { header: 'Complexity', key: 'complexity', width: 15 }, { header: 'Notes', key: 'notes', width: 35 },
-              { header: 'Created At', key: 'createdAt', width: 15 }, { header: 'Updated At', key: 'updatedAt', width: 15 }
+              { header: 'ID', key: 'id', width: 15 },
+              { header: 'Task Name', key: 'name', width: 35 },
+              { header: 'Summary', key: 'title', width: 40 },
+              { header: 'Category', key: 'category', width: 20 },
+              { header: 'Module', key: 'module', width: 20 },
+              { header: 'Module Type', key: 'moduleType', width: 15 },
+              { header: 'Release Version', key: 'releaseVersion', width: 18 },
+              { header: 'Feature', key: 'feature', width: 20 },
+              { header: 'Predecessors', key: 'predecessors', width: 20 },
+              { header: 'Assignee', key: 'assignee', width: 22 },
+              { header: 'Status', key: 'status', width: 18 },
+              { header: 'Priority', key: 'priority', width: 15 },
+              { header: 'Progress', key: 'progress', width: 12 },
+              { header: 'Start Date', key: 'startDate', width: 15 },
+              { header: 'Due Date', key: 'dueDate', width: 15 },
+              { header: 'Delay', key: 'delay', width: 12 },
+              { header: 'Actual Completion Date', key: 'actCompletionDate', width: 22 },
+              { header: `Estimated ${effortUnitLabel('col')}`, key: 'estEffort', width: 18 },
+              { header: `Actual ${effortUnitLabel('col')}`, key: 'actEffort', width: 15 },
+              { header: 'Variance', key: 'variance', width: 15 },
+              { header: 'Complexity', key: 'complexity', width: 15 },
+              { header: 'Tags', key: 'tags', width: 20 },
+              { header: 'Notes', key: 'notes', width: 35 },
+              { header: 'Created At', key: 'createdAt', width: 15 },
+              { header: 'Updated At', key: 'updatedAt', width: 15 }
             ];
 
             (P.customFields || []).forEach(f => { baseCols.push({ header: f.name, key: f.name, width: 22 }); });
@@ -32520,30 +32668,127 @@
             baseCols.push({ header: 'Workflow Hints', key: 'Workflow Hints', width: 25 });
             baseCols.push({ header: 'Suggested Due Date', key: 'Suggested Due Date', width: 20 });
 
-            ws.columns = baseCols;
-            ws.getRow(1).height = 30;
-            ws.getRow(1).eachCell((c, colIdx) => {
-              if (colIdx > baseCols.length - 4) {
-                c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.slate } };
-                c.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 10, italic: true };
-                c.alignment = { vertical: 'middle', horizontal: 'center' };
-              } else { c.style = hdrStyle; }
+            ws.columns = baseCols.map(c => ({ key: c.key, width: c.width }));
+
+            // ── Top KPI Telemetry Cockpit Section ──
+            const drawTopKpiCard = (sheet, col, row, w, h, label, value, subLabel, accentColor) => {
+              const cardBg = COLORS.isDark ? 'FF1E293B' : 'FFFFFFFF';
+              const shadowColor = COLORS.isDark ? 'FF020612' : 'FFCBD5E1';
+              const highlightColor = COLORS.isDark ? 'FF2A364F' : 'FFE2E8F0';
+              
+              for (let r = row; r < row + h; r++) {
+                for (let c = col; c < col + w; c++) {
+                  const cell = sheet.getCell(r, c);
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: cardBg } };
+                }
+              }
+              sheet.mergeCells(row, col, row + h - 1, col + w - 1);
+              const mainCell = sheet.getCell(row, col);
+              mainCell.border = {
+                top: { style: 'thin', color: { argb: highlightColor } },
+                left: { style: 'medium', color: { argb: accentColor } },
+                bottom: { style: 'medium', color: { argb: shadowColor } },
+                right: { style: 'thin', color: { argb: shadowColor } }
+              };
+              mainCell.value = {
+                richText: [
+                  { text: `[${label.toUpperCase()}]\n`, font: { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.slate } } },
+                  { text: `${value}\n`, font: { name: 'Courier New', size: 14, bold: true, color: { argb: accentColor } } },
+                  { text: subLabel || '', font: { name: 'Courier New', size: 7.5, italic: true, color: { argb: COLORS.slate } } }
+                ]
+              };
+              mainCell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
+            };
+
+            const tasks = P.tasks || [];
+            const total = tasks.length;
+            const done = tasks.filter(t => t.status === 'Completed').length;
+            const progress = total ? Math.round(done / total * 100) : 0;
+            const estEff = tasks.reduce((sum, t) => sum + (parseFloat(t.estEffort) || 0), 0);
+            const actEff = tasks.reduce((sum, t) => sum + (parseFloat(t.actEffort) || 0), 0);
+            const overdue = tasks.filter(t => t.dueDate && t.status !== 'Completed' && t.status !== 'Cancelled' && new Date(t.dueDate) < new Date()).length;
+            const blocked = tasks.filter(t => t.status === 'Blocked').length;
+
+            ws.getRow(1).height = 10;
+            ws.mergeCells('A2:H2');
+            ws.getRow(2).height = 20;
+            const titleCell = ws.getCell('A2');
+            titleCell.value = ' >> COCKPIT.TELEMETRY: TASK REGISTRY';
+            titleCell.font = { name: 'Courier New', size: 10, bold: true, color: { argb: COLORS.indigo } };
+            titleCell.alignment = { vertical: 'middle', indent: 1 };
+
+            drawTopKpiCard(ws, 1, 3, 3, 3, 'Delivery Progress', `${done} / ${total}`, `${progress}% complete`, COLORS.indigo);
+            drawTopKpiCard(ws, 5, 3, 3, 3, 'Effort Telemetry', `${estEff.toFixed(1)} / ${actEff.toFixed(1)} d`, 'Estimated vs Actual', COLORS.blue);
+            drawTopKpiCard(ws, 9, 3, 3, 3, 'Health Indices', `${overdue} overdue`, `${blocked} blocked items`, overdue > 0 || blocked > 0 ? COLORS.rose : COLORS.emerald);
+
+            ws.getRow(6).height = 10;
+
+            const headerRow = ws.getRow(7);
+            headerRow.height = 32;
+            baseCols.forEach((col, colIdx) => {
+              const cell = headerRow.getCell(colIdx + 1);
+              cell.value = col.header;
+              if (colIdx >= baseCols.length - 4) {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.slate } };
+                cell.font = { name: 'Courier New', color: { argb: 'FFFFFFFF' }, bold: true, size: 10, italic: true };
+                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+              } else {
+                cell.style = customHdrStyle;
+              }
             });
 
-            (P.tasks || []).forEach((t, i) => {
+            tasks.forEach((t, i) => {
+              const rowIdx = i + 8;
               const rowValues = {
                 id: S(t.id), name: S(t.name), title: S(t.title), category: S(t.category), module: S(t.module),
-                moduleType: S(t.moduleType), releaseVersion: S(t.releaseVersion), assignee: S(t.assignee),
+                moduleType: S(t.moduleType), releaseVersion: S(t.releaseVersion), feature: S(t.feature || ''),
+                predecessors: (t.predecessors || []).join(', '), assignee: S(t.assignee),
                 status: S(t.status), priority: S(t.priority), progress: t.progress !== undefined ? t.progress : 0,
                 startDate: cleanFmtDate(t.startDate), dueDate: cleanFmtDate(t.dueDate),
+                delay: { formula: `IF(AND(K${rowIdx}<>"Completed", O${rowIdx}<TODAY()), TODAY()-O${rowIdx}, 0)` },
                 actCompletionDate: cleanFmtDate(t.actCompletionDate), estEffort: t.estEffort || 0,
-                actEffort: t.actEffort || 0, complexity: S(t.complexity), notes: S(t.notes),
+                actEffort: t.actEffort || 0,
+                variance: { formula: `S${rowIdx}-R${rowIdx}` },
+                complexity: S(t.complexity), tags: (t.tags || []).join(', '), notes: S(t.notes),
                 createdAt: cleanFmtDate(t.createdAt), updatedAt: cleanFmtDate(t.updatedAt)
               };
               (P.customFields || []).forEach(f => { rowValues[f.name] = S(t[f.name]); });
 
-              const row = ws.addRow(rowValues); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
+              const row = ws.addRow(rowValues);
+              row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
               COLORS.styleRow(row, i);
+
+              // Conditional highlights
+              const delayCell = row.getCell('delay');
+              const varianceCell = row.getCell('variance');
+              
+              const isOverdue = t.status !== 'Completed' && t.dueDate && new Date(t.dueDate) < new Date();
+              if (isOverdue) {
+                delayCell.fill = {
+                  type: 'pattern',
+                  pattern: 'solid',
+                  fgColor: { argb: COLORS.isDark ? 'FF7F1D1D' : 'FFFFD8D8' }
+                };
+                delayCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: COLORS.isDark ? 'FFFEE2E2' : 'FF990000' } };
+              }
+
+              const estVal = parseFloat(t.estEffort) || 0;
+              const actVal = parseFloat(t.actEffort) || 0;
+              if (actVal > estVal) {
+                varianceCell.fill = {
+                  type: 'pattern',
+                  pattern: 'solid',
+                  fgColor: { argb: COLORS.isDark ? 'FF78350F' : 'FFFFF0D0' }
+                };
+                varianceCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: COLORS.isDark ? 'FFFEF3C7' : 'FF92400E' } };
+              } else if (actVal < estVal && t.status === 'Completed') {
+                varianceCell.fill = {
+                  type: 'pattern',
+                  pattern: 'solid',
+                  fgColor: { argb: COLORS.isDark ? 'FF064E3B' : 'FFE6F9ED' }
+                };
+                varianceCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: COLORS.isDark ? 'FFF0FDF4' : 'FF15803D' } };
+              }
             });
 
             applyTaskSheetValidations(ws, wb, safeMode);
@@ -32551,16 +32796,18 @@
           },
 
           applyTaskSheetValidations(ws, wb, safeMode) {
-            const taskCount = Math.max(100, (P.tasks || []).length + 50);
-            for (let r = 2; r <= taskCount; r++) {
+            const taskCount = (P.tasks || []).length;
+            const startRow = 8;
+            const endRow = Math.max(100, startRow + taskCount + 50);
+            for (let r = startRow; r <= endRow; r++) {
               ws.getCell(`D${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Categories'] };
               ws.getCell(`E${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Modules'] };
               ws.getCell(`F${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_ModuleTypes'] };
               ws.getCell(`G${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Releases'] };
-              ws.getCell(`H${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Team'], showErrorMessage: true, errorTitle: 'Invalid Assignee', error: 'Please select a valid team member.' };
-              ws.getCell(`I${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['Val_Statuses'], showErrorMessage: true, errorTitle: 'Invalid Status', error: 'Please select a valid status.' };
-              ws.getCell(`J${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['Val_Priorities'] };
-              ws.getCell(`K${r}`).dataValidation = { type: 'whole', operator: 'between', formulae: [0, 100], showErrorMessage: true, errorTitle: 'Invalid Progress', error: 'Progress must be between 0 and 100.' };
+              ws.getCell(`J${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Team'], showErrorMessage: true, errorTitle: 'Invalid Assignee', error: 'Please select a valid team member.' };
+              ws.getCell(`K${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['Val_Statuses'], showErrorMessage: true, errorTitle: 'Invalid Status', error: 'Please select a valid status.' };
+              ws.getCell(`L${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['Val_Priorities'] };
+              ws.getCell(`M${r}`).dataValidation = { type: 'whole', operator: 'between', formulae: [0, 100], showErrorMessage: true, errorTitle: 'Invalid Progress', error: 'Progress must be between 0 and 100.' };
             }
           },
 
@@ -32568,12 +32815,15 @@
             const taskCount = (P.tasks || []).length;
             const cHealth = ws.getColumn(totalCols - 3).letter; const cBlock = ws.getColumn(totalCols - 2).letter;
             const cHint = ws.getColumn(totalCols - 1).letter; const cSugg = ws.getColumn(totalCols).letter;
+            
+            const startRow = 8;
+            const endRow = startRow + taskCount - 1;
 
-            for (let r = 2; r <= taskCount + 1; r++) {
-              ws.getCell(`${cHealth}${r}`).value = { formula: `IF(I${r}="Completed","Excellent",IF(AND(M${r}<>"",M${r}<TODAY(),I${r}<>"Completed"),"Overdue",IF(I${r}="Blocked","Critical","Stable")))` };
-              ws.getCell(`${cBlock}${r}`).value = { formula: `IF(I${r}="Blocked","Task is marked as Blocked. Check dependencies.","None")` };
-              ws.getCell(`${cHint}${r}`).value = { formula: `IF(I${r}="Not Started","Ready for pickup",IF(I${r}="In Progress","Active development",IF(I${r}="Under Review","Pending approval","Closed")))` };
-              ws.getCell(`${cSugg}${r}`).value = { formula: `IF(M${r}="",L${r}+7,M${r})` };
+            for (let r = startRow; r <= endRow; r++) {
+              ws.getCell(`${cHealth}${r}`).value = { formula: `IF(K${r}="Completed","Excellent",IF(AND(O${r}<>"",O${r}<TODAY(),K${r}<>"Completed"),"Overdue",IF(K${r}="Blocked","Critical","Stable")))` };
+              ws.getCell(`${cBlock}${r}`).value = { formula: `IF(K${r}="Blocked","Task is marked as Blocked. Check dependencies.","None")` };
+              ws.getCell(`${cHint}${r}`).value = { formula: `IF(K${r}="Not Started","Ready for pickup",IF(K${r}="In Progress","Active development",IF(K${r}="Under Review","Pending approval","Closed")))` };
+              ws.getCell(`${cSugg}${r}`).value = { formula: `IF(O${r}="",N${r}+7,O${r})` };
 
               [cHealth, cBlock, cHint, cSugg].forEach(col => {
                 const cell = ws.getCell(`${col}${r}`);
@@ -32635,35 +32885,156 @@
           },
 
           buildDefectsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
-            const ws = wb.addWorksheet('Defects', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 2 }] });
+            const ws = wb.addWorksheet('Defects', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 7, xSplit: 3 }] });
             ws.properties.tabColor = { argb: COLORS.rose };
-            const cols = [
-              { header: 'ID', key: 'id', width: 15 }, { header: 'Summary', key: 'title', width: 40 },
-              { header: 'Description', key: 'desc', width: 50 }, { header: 'Steps to Reproduce', key: 'steps', width: 50 },
-              { header: 'Type', key: 'type', width: 18 }, { header: 'Status', key: 'status', width: 18 },
-              { header: 'Severity', key: 'severity', width: 18 },
-              { header: 'Priority', key: 'priority', width: 15 }, { header: 'Assignee', key: 'assignee', width: 22 },
-              { header: 'Reporter', key: 'reporter', width: 22 },
-              { header: 'Linked Type', key: 'linkedType', width: 18 }, { header: 'Linked ID', key: 'linkedId', width: 18 },
-              { header: 'Created At', key: 'createdAt', width: 15 }, { header: 'Updated At', key: 'updatedAt', width: 15 }
-            ];
-            (P.defCustomFields || []).forEach(f => { cols.push({ header: f.name, key: f.name, width: 22 }); });
-            ws.columns = cols; ws.getRow(1).height = 30; ws.getRow(1).eachCell(c => c.style = hdrStyle);
 
-            (P.defects || []).forEach((d, i) => {
+            const customHdrStyle = {
+              fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } },
+              font: { name: 'Courier New', size: 10, bold: true, color: { argb: 'FFFFFFFF' } },
+              alignment: { vertical: 'middle', horizontal: 'center', wrapText: true },
+              border: { bottom: { style: 'medium', color: { argb: COLORS.navy } } }
+            };
+
+            const cols = [
+              { header: 'ID', key: 'id', width: 15 },
+              { header: 'Summary', key: 'title', width: 40 },
+              { header: 'Description', key: 'desc', width: 50 },
+              { header: 'Steps to Reproduce', key: 'steps', width: 50 },
+              { header: 'Type', key: 'type', width: 18 },
+              { header: 'Status', key: 'status', width: 18 },
+              { header: 'Severity', key: 'severity', width: 18 },
+              { header: 'Priority', key: 'priority', width: 15 },
+              { header: 'Assignee', key: 'assignee', width: 22 },
+              { header: 'Reporter', key: 'reporter', width: 22 },
+              { header: 'Linked Type', key: 'linkedType', width: 18 },
+              { header: 'Linked ID', key: 'linkedId', width: 18 },
+              { header: 'Linked Name', key: 'linkedName', width: 25 },
+              { header: 'Release', key: 'releaseVersion', width: 18 },
+              { header: 'Age (Days)', key: 'age', width: 12 },
+              { header: 'Created At', key: 'createdAt', width: 15 },
+              { header: 'Updated At', key: 'updatedAt', width: 15 }
+            ];
+
+            (P.defCustomFields || []).forEach(f => { cols.push({ header: f.name, key: f.name, width: 22 }); });
+
+            ws.columns = cols.map(c => ({ key: c.key, width: c.width }));
+
+            // ── Top KPI Telemetry Cockpit Section ──
+            const drawTopKpiCard = (sheet, col, row, w, h, label, value, subLabel, accentColor) => {
+              const cardBg = COLORS.isDark ? 'FF1E293B' : 'FFFFFFFF';
+              const shadowColor = COLORS.isDark ? 'FF020612' : 'FFCBD5E1';
+              const highlightColor = COLORS.isDark ? 'FF2A364F' : 'FFE2E8F0';
+              
+              for (let r = row; r < row + h; r++) {
+                for (let c = col; c < col + w; c++) {
+                  const cell = sheet.getCell(r, c);
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: cardBg } };
+                }
+              }
+              sheet.mergeCells(row, col, row + h - 1, col + w - 1);
+              const mainCell = sheet.getCell(row, col);
+              mainCell.border = {
+                top: { style: 'thin', color: { argb: highlightColor } },
+                left: { style: 'medium', color: { argb: accentColor } },
+                bottom: { style: 'medium', color: { argb: shadowColor } },
+                right: { style: 'thin', color: { argb: shadowColor } }
+              };
+              mainCell.value = {
+                richText: [
+                  { text: `[${label.toUpperCase()}]\n`, font: { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.slate } } },
+                  { text: `${value}\n`, font: { name: 'Courier New', size: 14, bold: true, color: { argb: accentColor } } },
+                  { text: subLabel || '', font: { name: 'Courier New', size: 7.5, italic: true, color: { argb: COLORS.slate } } }
+                ]
+              };
+              mainCell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
+            };
+
+            const defects = P.defects || [];
+            const total = defects.length;
+            const open = defects.filter(d => d.status !== 'Closed' && d.status !== 'Resolved').length;
+            const criticalOrHigh = defects.filter(d => d.severity === 'Critical' || d.severity === 'High').length;
+            
+            let totalAge = 0;
+            let openCount = 0;
+            defects.forEach(d => {
+              if (d.status !== 'Closed' && d.status !== 'Resolved') {
+                const created = d.createdAt ? new Date(d.createdAt) : new Date();
+                const ageDays = Math.round((new Date() - created) / (1000 * 60 * 60 * 24));
+                totalAge += Math.max(0, ageDays);
+                openCount++;
+              }
+            });
+            const avgAge = openCount ? Math.round(totalAge / openCount) : 0;
+
+            ws.getRow(1).height = 10;
+            ws.mergeCells('A2:H2');
+            ws.getRow(2).height = 20;
+            const titleCell = ws.getCell('A2');
+            titleCell.value = ' >> COCKPIT.TELEMETRY: DEFECT REGISTRY';
+            titleCell.font = { name: 'Courier New', size: 10, bold: true, color: { argb: COLORS.indigo } };
+            titleCell.alignment = { vertical: 'middle', indent: 1 };
+
+            drawTopKpiCard(ws, 1, 3, 3, 3, 'Active Defects', `${open} / ${total}`, 'Open defects count', COLORS.rose);
+            drawTopKpiCard(ws, 5, 3, 3, 3, 'Severity Alert', `${criticalOrHigh}`, 'Critical & High severity', criticalOrHigh > 0 ? COLORS.rose : COLORS.emerald);
+            drawTopKpiCard(ws, 9, 3, 3, 3, 'Mean Active Age', `${avgAge} Days`, 'Average open duration', avgAge > 14 ? COLORS.rose : COLORS.emerald);
+
+            ws.getRow(6).height = 10;
+
+            const headerRow = ws.getRow(7);
+            headerRow.height = 32;
+            cols.forEach((col, colIdx) => {
+              const cell = headerRow.getCell(colIdx + 1);
+              cell.value = col.header;
+              cell.style = customHdrStyle;
+            });
+
+            defects.forEach((d, i) => {
+              const rowIdx = i + 8;
               const rowValues = {
                 id: S(d.id), title: S(d.title), desc: S(d.desc), steps: S(d.steps), type: S(d.type), status: S(d.status),
                 severity: S(d.severity), priority: S(d.priority), assignee: S(d.assignee), reporter: S(d.reporter),
-                linkedType: S(d.linkedType), linkedId: S(d.linkedId),
+                linkedType: S(d.linkedType), linkedId: S(d.linkedId), linkedName: S(d.linkedName || ''),
+                releaseVersion: S(d.releaseVersion || ''),
+                age: { formula: `IF(F${rowIdx}="Closed", Q${rowIdx}-P${rowIdx}, TODAY()-P${rowIdx})` },
                 createdAt: cleanFmtDate(d.createdAt), updatedAt: cleanFmtDate(d.updatedAt)
               };
               (P.defCustomFields || []).forEach(f => { rowValues[f.name] = S(d[f.name]); });
-              const row = ws.addRow(rowValues); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
+              
+              const row = ws.addRow(rowValues);
+              row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
               COLORS.styleRow(row, i);
+
+              // Conditional highlights
+              const sevCell = row.getCell('severity');
+              const statusCell = row.getCell('status');
+
+              const sev = S(d.severity);
+              if (sev === 'Critical' || sev === 'High') {
+                sevCell.fill = {
+                  type: 'pattern',
+                  pattern: 'solid',
+                  fgColor: { argb: COLORS.isDark ? 'FF7F1D1D' : 'FFFFD8D8' }
+                };
+                sevCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: COLORS.isDark ? 'FFFEE2E2' : 'FF990000' } };
+              }
+
+              const st = S(d.status);
+              if (st === 'Closed' || st === 'Resolved') {
+                statusCell.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF94A3B8' } };
+              } else if (st === 'New' || st === 'Open') {
+                statusCell.fill = {
+                  type: 'pattern',
+                  pattern: 'solid',
+                  fgColor: { argb: COLORS.isDark ? 'FF1E1B4B' : 'FFE6E6FA' }
+                };
+                statusCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: COLORS.isDark ? 'FFE0E7FF' : 'FF4B0082' } };
+              }
             });
 
-            const defCount = Math.max(100, (P.defects || []).length + 50);
-            for (let r = 2; r <= defCount; r++) {
+            const defCount = Math.max(100, defects.length + 50);
+            const startRow = 8;
+            const endRow = startRow + defCount;
+            for (let r = startRow; r <= endRow; r++) {
               ws.getCell(`F${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['Val_Statuses'] };
               ws.getCell(`H${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['Val_Priorities'] };
               ws.getCell(`I${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Team'] };
@@ -32995,27 +33366,28 @@
             ds.getColumn(1).width = 2.0; for (let i = 2; i <= 18; i++) ds.getColumn(i).width = 14; ds.getColumn(19).width = 2.0;
             for (let i = 1; i <= 250; i++) ds.getRow(i).height = 16;
 
-            // Fintech Trader Workstation Palette & Styling Override
+            // Theme-Aware Trader Workstation Palette & Styling
+            const isThemeDark = _COLORS.isDark;
             const COLORS = {
-              bg: 'FF090D16',           // Deep terminal black background
-              surface: 'FF121722',      // Bloomberg graphite panel surface
-              surfaceAlt: 'FF1F2633',   // Modular window title gray
-              textDark: 'FFE2E8F0',     // Soft gray telemetry text
-              slate: 'FF64748B',        // Telemetry label gray
-              divider: 'FF1F2633',      // Dark grid line divider
-              indigo: 'FF6366F1',       // Electric indigo
-              emerald: 'FF00E676',      // Neon ticker green
-              amber: 'FFFFD600',        // Warning neon gold
-              rose: 'FFFF1744',         // Neon red (alert/downward)
-              blue: 'FF00E5FF',         // Telemetry cyber cyan
-              muted: 'FF475569',
-              isDark: true
+              bg: _COLORS.bg || (isThemeDark ? 'FF090D16' : 'FFF8FAFC'),
+              surface: _COLORS.surface || (isThemeDark ? 'FF121722' : 'FFFFFFFF'),
+              surfaceAlt: _COLORS.surfaceAlt || (isThemeDark ? 'FF1F2633' : 'FFF1F5F9'),
+              textDark: _COLORS.textDark || (isThemeDark ? 'FFE2E8F0' : 'FF0F172A'),
+              slate: _COLORS.slate || 'FF64748B',
+              divider: _COLORS.divider || (isThemeDark ? 'FF1F2633' : 'FFE2E8F0'),
+              indigo: _COLORS.indigo || 'FF6366F1',
+              emerald: _COLORS.emerald || 'FF10B981',
+              amber: _COLORS.amber || 'FFF59E0B',
+              rose: _COLORS.rose || 'FFF43F5E',
+              blue: _COLORS.blue || 'FF3B82F6',
+              muted: _COLORS.muted || 'FF475569',
+              isDark: isThemeDark
             };
 
             const STATUS_COLORS = {
               'Completed': COLORS.emerald,
               'In Progress': COLORS.indigo,
-              'Under Review': COLORS.blue,
+              'Under Review': 'FF0284C7',
               'On Hold': COLORS.amber,
               'Blocked': COLORS.rose,
               'Not Started': COLORS.muted,
@@ -33027,10 +33399,12 @@
               let r = parseInt(hex.substring(0, 2), 16) || 0;
               let g = parseInt(hex.substring(2, 4), 16) || 0;
               let b = parseInt(hex.substring(4, 6), 16) || 0;
-              // Blend with Bloomberg graphite background (#090D16)
-              const bgR = 9;
-              const bgG = 13;
-              const bgB = 22;
+              
+              const bgHex = (COLORS.bg || 'FF090D16').substring(COLORS.bg.length - 6);
+              const bgR = parseInt(bgHex.substring(0, 2), 16) || 9;
+              const bgG = parseInt(bgHex.substring(2, 4), 16) || 13;
+              const bgB = parseInt(bgHex.substring(4, 6), 16) || 22;
+              
               r = Math.round(r * factor + bgR * (1 - factor));
               g = Math.round(g * factor + bgG * (1 - factor));
               b = Math.round(b * factor + bgB * (1 - factor));
@@ -33039,7 +33413,7 @@
 
             const hdrStyle = {
               fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } },
-              font: { name: 'Courier New', color: { argb: 'FFFFFFFF' }, bold: true, size: 9 },
+              font: { name: 'Courier New', color: { argb: COLORS.isDark ? 'FFFFFFFF' : COLORS.textDark }, bold: true, size: 9 },
               alignment: { vertical: 'middle', horizontal: 'center' },
               border: { bottom: { style: 'thin', color: { argb: COLORS.divider } } }
             };
@@ -33484,11 +33858,13 @@
               for (let r = row; r < row + h; r++) { ds.getRow(r).height = 20; for (let c = col; c < col + w; c++) applyBg(r, c, COLORS.surface); }
               ds.mergeCells(row, col, row + h - 1, col + w - 1);
               const cell = ds.getCell(row, col);
+              const shadowColor = COLORS.isDark ? 'FF020612' : 'FFCBD5E1';
+              const highlightColor = COLORS.isDark ? 'FF2A364F' : 'FFE2E8F0';
               cell.border = {
-                top: { style: 'thin', color: { argb: 'FF2A364F' } },      // beveled light highlight
+                top: { style: 'thin', color: { argb: highlightColor } },      // beveled light highlight
                 left: { style: 'medium', color: { argb: accentColor } },  // neon status highlight
-                bottom: { style: 'medium', color: { argb: 'FF020612' } },  // beveled dark shadow
-                right: { style: 'thin', color: { argb: 'FF020612' } }      // beveled dark shadow
+                bottom: { style: 'medium', color: { argb: shadowColor } },  // beveled dark shadow
+                right: { style: 'thin', color: { argb: shadowColor } }      // beveled dark shadow
               };
 
               // Determine symbol prefix for fintech feel
@@ -33566,7 +33942,7 @@
 
             ds.mergeCells('B2:R3'); ds.getRow(2).height = 20; ds.getRow(3).height = 20;
             const titleCell = ds.getCell('B2');
-            titleCell.value = { richText: [{ text: ' >> SYSTEM.PULSE: ' + (P.name || 'Project').toUpperCase(), font: { name: 'Courier New', size: 12, bold: true, color: { argb: 'FFFFFFFF' } } }, { text: '   |   REAL-TIME PORTFOLIO TELEMETRY', font: { name: 'Courier New', size: 8, bold: true, color: { argb: 'FF00E5FF' } } }] };
+            titleCell.value = { richText: [{ text: ' >> SYSTEM.PULSE: ' + (P.name || 'Project').toUpperCase(), font: { name: 'Courier New', size: 12, bold: true, color: { argb: COLORS.isDark ? 'FFFFFFFF' : COLORS.textDark } } }, { text: '   |   REAL-TIME PORTFOLIO TELEMETRY', font: { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.indigo } } }] };
             titleCell.alignment = { vertical: 'middle', indent: 1 };
 
             const gradFill = {
@@ -33574,15 +33950,15 @@
               gradient: 'angle',
               degree: 90,
               stops: [
-                { position: 0, color: { argb: 'FF090D16' } },    // Pitch black canopy shadow
-                { position: 1, color: { argb: 'FF121722' } }     // Bloomberg graphite
+                { position: 0, color: { argb: COLORS.bg } },    // Dynamic background
+                { position: 1, color: { argb: COLORS.surface } } // Dynamic surface
               ]
             };
 
             for (let c = 2; c <= 18; c++) {
               ds.getCell(2, c).fill = gradFill;
               ds.getCell(3, c).fill = gradFill;
-              ds.getCell(3, c).border = { bottom: { style: 'medium', color: { argb: 'FF00E5FF' } } }; // glowing neon-cyan status indicator strip
+              ds.getCell(3, c).border = { bottom: { style: 'medium', color: { argb: COLORS.indigo } } }; // glowing theme primary indicator strip
             }
 
             const avgP = total ? Math.round(tasks.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / total) : 0;
