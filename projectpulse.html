@@ -33481,14 +33481,6 @@
               const ctx = canvas.getContext('2d');
               ctx.scale(2, 2);
 
-              const originalFillText = ctx.fillText;
-              ctx.fillText = function (text, x, y, maxWidth) {
-                if (this.font && this.font.includes('Segoe UI')) {
-                  this.font = this.font.replace('Segoe UI', 'Courier New');
-                }
-                originalFillText.call(this, text, x, y, maxWidth);
-              };
-
               const isColorDarkLocal = (argb) => {
                 if (!argb || argb.length < 8) return false;
                 let hex = argb.substring(argb.length - 6);
@@ -33535,10 +33527,10 @@
 
               if (type === 'donut') {
                 const total = data.reduce((sum, item) => sum + item.value, 0) || 1;
-                const centerX = width * 0.5;
+                const centerX = width * 0.32;
                 const centerY = height * 0.5;
-                const radius = Math.min(centerX, centerY) * 0.7;
-                const innerRadius = radius * 0.5;
+                const radius = Math.min(width, height) * 0.35;
+                const innerRadius = radius * 0.55;
 
                 ctx.strokeStyle = isDarkTheme ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.08)';
                 ctx.lineWidth = 1;
@@ -33592,15 +33584,37 @@
 
                 if (colors && colors.centerText) {
                   ctx.fillStyle = isDarkTheme ? '#FFFFFF' : '#0F172A';
-                  ctx.font = 'bold ' + Math.round(11 * scale) + 'px Segoe UI';
+                  ctx.font = 'bold ' + Math.round(9 * scale) + 'px Courier New';
                   ctx.textAlign = 'center';
                   ctx.textBaseline = 'middle';
                   ctx.fillText(colors.centerText, centerX, centerY);
                 }
+
+                // Donut Legend
+                const legendX = width * 0.58;
+                let legendY = height * 0.18;
+                const boxSize = 8;
+
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+
+                data.slice(0, 10).forEach(item => {
+                  ctx.fillStyle = toWebColor(item.color);
+                  ctx.fillRect(legendX, legendY - boxSize / 2, boxSize, boxSize);
+
+                  ctx.fillStyle = isDarkTheme ? '#E2E8F0' : '#0F172A';
+                  ctx.font = 'bold ' + Math.round(7.5 * scale) + 'px Courier New';
+                  const pct = Math.round((item.value / total) * 100);
+                  const cleanLbl = String(item.label).toUpperCase().substring(0, 12);
+                  const text = `${cleanLbl}: ${item.value} (${pct}%)`;
+                  ctx.fillText(text, legendX + boxSize + 8, legendY);
+
+                  legendY += 20;
+                });
               } else if (type === 'line') {
                 const padL = Math.round(35 * scale);
                 const padR = Math.round(15 * scale);
-                const padT = Math.round(20 * scale);
+                const padT = Math.round(30 * scale);
                 const padB = Math.round(25 * scale);
                 const chartW = width - padL - padR;
                 const chartH = height - padT - padB;
@@ -33619,7 +33633,7 @@
 
                 ctx.strokeStyle = isDarkTheme ? '#334155' : '#F1F5F9';
                 ctx.lineWidth = 1;
-                ctx.font = Math.round(8 * scale) + 'px Segoe UI';
+                ctx.font = Math.round(8 * scale) + 'px Courier New';
                 ctx.fillStyle = isDarkTheme ? '#94A3B8' : '#64748B';
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'middle';
@@ -33700,10 +33714,36 @@
                   ctx.lineWidth = Math.round(1.5 * scale);
                   ctx.stroke();
                 });
+
+                // Line Chart Legend
+                const legendY = 12;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.font = 'bold ' + Math.round(7.5 * scale) + 'px Courier New';
+
+                ctx.strokeStyle = isDarkTheme ? '#475569' : '#CBD5E1';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.moveTo(width - 240, legendY);
+                ctx.lineTo(width - 220, legendY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = isDarkTheme ? '#94A3B8' : '#64748B';
+                ctx.fillText('IDEAL BURN', width - 215, legendY);
+
+                ctx.strokeStyle = actualColor;
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.moveTo(width - 120, legendY);
+                ctx.lineTo(width - 100, legendY);
+                ctx.stroke();
+                ctx.fillStyle = isDarkTheme ? '#FFFFFF' : '#0F172A';
+                ctx.fillText('ACTUAL REMAINING', width - 95, legendY);
               } else if (type === 'bar') {
                 const padL = Math.round(35 * scale);
                 const padR = Math.round(15 * scale);
-                const padT = Math.round(20 * scale);
+                const padT = Math.round(30 * scale);
                 const padB = Math.round(25 * scale);
                 const chartW = width - padL - padR;
                 const chartH = height - padT - padB;
@@ -33712,7 +33752,7 @@
 
                 ctx.strokeStyle = isDarkTheme ? '#334155' : '#F1F5F9';
                 ctx.lineWidth = 1;
-                ctx.font = Math.round(8 * scale) + 'px Segoe UI';
+                ctx.font = Math.round(8 * scale) + 'px Courier New';
                 ctx.fillStyle = isDarkTheme ? '#94A3B8' : '#64748B';
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'middle';
@@ -33748,19 +33788,27 @@
                   ctx.fillRect(x, y, barWidth, h);
 
                   ctx.fillStyle = isDarkTheme ? '#FFFFFF' : '#1E293B';
-                  ctx.font = 'bold ' + Math.round(8.5 * scale) + 'px Segoe UI';
+                  ctx.font = 'bold ' + Math.round(8.5 * scale) + 'px Courier New';
                   ctx.textBaseline = 'bottom';
                   ctx.fillText(String(Math.round(val)), xCenter, y - 2);
 
                   ctx.fillStyle = isDarkTheme ? '#94A3B8' : '#64748B';
-                  ctx.font = Math.round(8 * scale) + 'px Segoe UI';
+                  ctx.font = Math.round(8 * scale) + 'px Courier New';
                   ctx.textBaseline = 'top';
                   ctx.fillText(data.labels[idx], xCenter, height - padB + 4);
                 });
+
+                // Title Label
+                const legendY = 12;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.font = 'bold ' + Math.round(7.5 * scale) + 'px Courier New';
+                ctx.fillStyle = isDarkTheme ? '#E2E8F0' : '#475569';
+                ctx.fillText('COMPLETED ESTIMATED EFFORT BY WEEK', Math.round(15 * scale), legendY);
               } else if (type === 'horizontalBar') {
                 const padL = Math.round(70 * scale);
                 const padR = Math.round(35 * scale);
-                const padT = Math.round(20 * scale);
+                const padT = Math.round(30 * scale);
                 const padB = Math.round(20 * scale);
                 const chartW = width - padL - padR;
                 const chartH = height - padT - padB;
@@ -33771,7 +33819,7 @@
 
                 const maxVal = 100;
 
-                ctx.font = Math.round(8 * scale) + 'px Segoe UI';
+                ctx.font = Math.round(8 * scale) + 'px Courier New';
                 ctx.textBaseline = 'middle';
 
                 data.values.forEach((val, idx) => {
@@ -33791,19 +33839,27 @@
 
                   ctx.fillStyle = isDarkTheme ? '#E2E8F0' : '#475569';
                   ctx.textAlign = 'right';
-                  ctx.font = 'bold ' + Math.round(8 * scale) + 'px Segoe UI';
+                  ctx.font = 'bold ' + Math.round(8 * scale) + 'px Courier New';
                   const cleanLbl = String(data.labels[idx]).length > 15 ? String(data.labels[idx]).substring(0, 13) + '..' : data.labels[idx];
                   ctx.fillText(cleanLbl, padL - 6, yCenter);
 
                   ctx.fillStyle = isDarkTheme ? '#FFFFFF' : '#0F172A';
                   ctx.textAlign = 'left';
-                  ctx.font = 'bold ' + Math.round(8.5 * scale) + 'px Segoe UI';
+                  ctx.font = 'bold ' + Math.round(8.5 * scale) + 'px Courier New';
                   ctx.fillText(Math.round(val) + '%', padL + w + 4, yCenter);
                 });
+
+                // Title Label
+                const legendY = 12;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.font = 'bold ' + Math.round(7.5 * scale) + 'px Courier New';
+                ctx.fillStyle = isDarkTheme ? '#E2E8F0' : '#475569';
+                ctx.fillText('AVERAGE COMPLETION PROGRESS BY MODULE', Math.round(15 * scale), legendY);
               } else if (type === 'stackedHorizontalBar') {
                 const padL = Math.round(70 * scale);
                 const padR = Math.round(25 * scale);
-                const padT = Math.round(20 * scale);
+                const padT = Math.round(30 * scale);
                 const padB = Math.round(20 * scale);
                 const chartW = width - padL - padR;
                 const chartH = height - padT - padB;
@@ -33820,7 +33876,7 @@
                 }
                 maxVal = Math.max(maxVal, 1) * 1.1;
 
-                ctx.font = Math.round(8 * scale) + 'px Segoe UI';
+                ctx.font = Math.round(8 * scale) + 'px Courier New';
                 ctx.textBaseline = 'middle';
 
                 for (let i = 0; i < numBars; i++) {
@@ -33846,14 +33902,31 @@
 
                   ctx.fillStyle = isDarkTheme ? '#E2E8F0' : '#475569';
                   ctx.textAlign = 'right';
-                  ctx.font = 'bold ' + Math.round(8 * scale) + 'px Segoe UI';
+                  ctx.font = 'bold ' + Math.round(8 * scale) + 'px Courier New';
                   const cleanLbl = String(data.labels[i]).length > 15 ? String(data.labels[i]).substring(0, 13) + '..' : data.labels[i];
                   ctx.fillText(cleanLbl, padL - 6, yCenter);
                 }
+
+                // Legend
+                const legendY = 12;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.font = 'bold ' + Math.round(7.5 * scale) + 'px Courier New';
+                const boxSize = 8;
+
+                ctx.fillStyle = toWebColor(data.series[0].color);
+                ctx.fillRect(width - 150, legendY - boxSize / 2, boxSize, boxSize);
+                ctx.fillStyle = isDarkTheme ? '#94A3B8' : '#64748B';
+                ctx.fillText(data.series[0].label.toUpperCase(), width - 138, legendY);
+
+                ctx.fillStyle = toWebColor(data.series[1].color);
+                ctx.fillRect(width - 90, legendY - boxSize / 2, boxSize, boxSize);
+                ctx.fillStyle = isDarkTheme ? '#FFFFFF' : '#0F172A';
+                ctx.fillText(data.series[1].label.toUpperCase(), width - 78, legendY);
               } else if (type === 'stackedArea') {
                 const padL = Math.round(35 * scale);
                 const padR = Math.round(15 * scale);
-                const padT = Math.round(20 * scale);
+                const padT = Math.round(30 * scale);
                 const padB = Math.round(25 * scale);
                 const chartW = width - padL - padR;
                 const chartH = height - padT - padB;
@@ -33872,7 +33945,7 @@
 
                 ctx.strokeStyle = isDarkTheme ? '#334155' : '#F1F5F9';
                 ctx.lineWidth = 1;
-                ctx.font = Math.round(8 * scale) + 'px Segoe UI';
+                ctx.font = Math.round(8 * scale) + 'px Courier New';
                 ctx.fillStyle = isDarkTheme ? '#94A3B8' : '#64748B';
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'middle';
@@ -33932,13 +34005,30 @@
                   }
                   ctx.stroke();
                 });
+
+                // CFD Legend (horizontal top layout)
+                const legendY = 12;
+                let legendX = padL;
+                ctx.font = 'bold ' + Math.round(7.5 * scale) + 'px Courier New';
+                ctx.textBaseline = 'middle';
+                ctx.textAlign = 'left';
+                const boxSize = 7;
+
+                data.series.forEach(s => {
+                  ctx.fillStyle = toWebColor(s.color);
+                  ctx.fillRect(legendX, legendY - boxSize / 2, boxSize, boxSize);
+                  ctx.fillStyle = isDarkTheme ? '#E2E8F0' : '#0F172A';
+                  ctx.fillText(s.label.toUpperCase(), legendX + boxSize + 4, legendY);
+                  legendX += ctx.measureText(s.label.toUpperCase()).width + boxSize + 16;
+                });
               }
 
               return canvas.toDataURL('image/png');
             }
 
+
             const drawPremiumCard = (col, row, w, h, label, value, subLabel, accentColor) => {
-              for (let r = row; r < row + h; r++) { ds.getRow(r).height = 20; for (let c = col; c < col + w; c++) applyBg(r, c, COLORS.surface); }
+              for (let r = row; r < row + h; r++) { ds.getRow(r).height = 24; for (let c = col; c < col + w; c++) applyBg(r, c, COLORS.surface); }
               ds.mergeCells(row, col, row + h - 1, col + w - 1);
               const cell = ds.getCell(row, col);
               const shadowColor = COLORS.isDark ? 'FF020612' : 'FFCBD5E1';
@@ -33957,9 +34047,9 @@
 
               cell.value = {
                 richText: [
-                  { text: '[' + label.toUpperCase().replace(/ \/ /g, '.').substring(0, 12) + ']\n', font: { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.slate } } },
-                  { text: sym + String(value) + '\n', font: { name: 'Courier New', size: 16, bold: true, color: { argb: accentColor } } },
-                  { text: subLabel || '', font: { name: 'Courier New', size: 7.5, italic: true, color: { argb: COLORS.slate } } }
+                  { text: '[' + label.toUpperCase().replace(/ \/ /g, '.').substring(0, 12) + ']\n', font: { name: 'Courier New', size: 9, bold: true, color: { argb: COLORS.slate } } },
+                  { text: sym + String(value) + '\n', font: { name: 'Courier New', size: 22, bold: true, color: { argb: accentColor } } },
+                  { text: subLabel || '', font: { name: 'Courier New', size: 8, italic: true, color: { argb: COLORS.slate } } }
                 ]
               };
               cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
@@ -34048,15 +34138,16 @@
             const cancelledCount = tasks.filter(t => t.status === 'Cancelled').length;
             const criticalPri = tasks.filter(t => t.priority === 'Critical' && t.status !== 'Completed' && t.status !== 'Cancelled').length;
 
-            drawPremiumCard(2, 4, 3, 2, 'Health Score', healthScore + '%', healthScore >= 80 ? '▲ On Track' : healthScore >= 60 ? '► Monitor' : '▼ Critical', healthScore >= 80 ? COLORS.emerald : healthScore >= 60 ? COLORS.amber : COLORS.rose);
-            drawPremiumCard(5, 4, 3, 2, 'Total / Done', total + ' / ' + done, completionPct + '% delivery rate', COLORS.indigo);
-            drawPremiumCard(8, 4, 3, 2, 'Active Scope', (total - done - cancelledCount), (total - done - cancelledCount) + ' tasks in flight', COLORS.blue);
-            drawPremiumCard(11, 4, 3, 2, 'Overdue', overdueTasks.length, overdueTasks.length ? '⚠ Requires attention' : '✔ All on schedule', overdueTasks.length ? COLORS.rose : COLORS.emerald);
-            drawPremiumCard(14, 4, 3, 2, 'Blocked', blocked, blocked ? '⚠ Dependency debt' : '✔ Unblocked', blocked ? COLORS.rose : COLORS.emerald);
-            drawPremiumCard(17, 4, 2, 2, 'Critical Pri', criticalPri, criticalPri ? 'Escalate now' : 'Clear', criticalPri ? COLORS.rose : COLORS.emerald);
+            drawPremiumCard(2, 4, 3, 3, 'Health Score', healthScore + '%', healthScore >= 80 ? '▲ On Track' : healthScore >= 60 ? '► Monitor' : '▼ Critical', healthScore >= 80 ? COLORS.emerald : healthScore >= 60 ? COLORS.amber : COLORS.rose);
+            drawPremiumCard(5, 4, 3, 3, 'Total / Done', total + ' / ' + done, completionPct + '% delivery rate', COLORS.indigo);
+            drawPremiumCard(8, 4, 3, 3, 'Active Scope', (total - done - cancelledCount), (total - done - cancelledCount) + ' tasks in flight', COLORS.blue);
+            drawPremiumCard(11, 4, 3, 3, 'Overdue', overdueTasks.length, overdueTasks.length ? '⚠ Requires attention' : '✔ All on schedule', overdueTasks.length ? COLORS.rose : COLORS.emerald);
+            drawPremiumCard(14, 4, 3, 3, 'Blocked', blocked, blocked ? '⚠ Dependency debt' : '✔ Unblocked', blocked ? COLORS.rose : COLORS.emerald);
+            drawPremiumCard(17, 4, 2, 3, 'Critical Pri', criticalPri, criticalPri ? 'Escalate now' : 'Clear', criticalPri ? COLORS.rose : COLORS.emerald);
 
             // Row 2: Sonar Charts
-            drawSectionTitle(7, 'Project Health & Distribution Analysis');
+            drawSectionTitle(8, 'Project Health & Distribution Analysis');
+            for (let r = 9; r <= 22; r++) ds.getRow(r).height = 20;
             
             const statusChartData = STATUSES.map(s => ({
               label: s,
@@ -34065,11 +34156,11 @@
             })).filter(item => item.value > 0);
 
             try {
-              const donutImgBase64 = generateCanvasChart(520, 250, 'donut', statusChartData, { centerText: total + ' Tasks' });
+              const donutImgBase64 = generateCanvasChart(660, 280, 'donut', statusChartData, { centerText: total + ' Tasks' });
               const donutImgId = wb.addImage({ base64: donutImgBase64, extension: 'png' });
               ds.addImage(donutImgId, {
-                tl: { col: 1, row: 8 },
-                ext: { width: 520, height: 250 }
+                tl: { col: 1, row: 9 },
+                ext: { width: 660, height: 280 }
               });
             } catch (err) {
               console.error('Error generating status donut chart', err);
@@ -34083,18 +34174,19 @@
             })).filter(item => item.value > 0);
 
             try {
-              const priDonutImgBase64 = generateCanvasChart(520, 250, 'donut', priChartData, { centerText: 'By Priority' });
+              const priDonutImgBase64 = generateCanvasChart(660, 280, 'donut', priChartData, { centerText: 'By Priority' });
               const priDonutImgId = wb.addImage({ base64: priDonutImgBase64, extension: 'png' });
               ds.addImage(priDonutImgId, {
-                tl: { col: 9, row: 8 },
-                ext: { width: 520, height: 250 }
+                tl: { col: 9.8, row: 9 },
+                ext: { width: 660, height: 280 }
               });
             } catch (err) {
               console.error('Error generating priority donut chart', err);
             }
 
             // Row 3: Oscilloscopes
-            drawSectionTitle(22, 'Predictive Velocity & Remaining Effort Burndown');
+            drawSectionTitle(24, 'Predictive Velocity & Remaining Effort Burndown');
+            for (let r = 25; r <= 38; r++) ds.getRow(r).height = 20;
             
             const vLs = []; for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); vLs.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) }); }
             const velData = vLs.map(w => tasks.filter(t => { if (t.status !== 'Completed' || !t.dueDate) return false; const d = new Date(t.dueDate); return getWeekNumber(d) === w.w && d.getFullYear() === w.y; }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
@@ -34111,11 +34203,11 @@
                 labels: vLs.map(w => w.l),
                 values: velData
               };
-              const barImgBase64 = generateCanvasChart(520, 250, 'bar', velocityData);
+              const barImgBase64 = generateCanvasChart(660, 280, 'bar', velocityData);
               const barImgId = wb.addImage({ base64: barImgBase64, extension: 'png' });
               ds.addImage(barImgId, {
-                tl: { col: 1, row: 23 },
-                ext: { width: 520, height: 250 }
+                tl: { col: 1, row: 25 },
+                ext: { width: 660, height: 280 }
               });
             } catch (err) {
               console.error('Error generating velocity bar chart', err);
@@ -34127,18 +34219,19 @@
                 ideal: bIdeal.slice(0, 10).map(Math.round),
                 actual: bActual.slice(0, 10).map(Math.round)
               };
-              const lineImgBase64 = generateCanvasChart(520, 250, 'line', burndownData);
+              const lineImgBase64 = generateCanvasChart(660, 280, 'line', burndownData);
               const lineImgId = wb.addImage({ base64: lineImgBase64, extension: 'png' });
               ds.addImage(lineImgId, {
-                tl: { col: 9, row: 23 },
-                ext: { width: 520, height: 250 }
+                tl: { col: 9.8, row: 25 },
+                ext: { width: 660, height: 280 }
               });
             } catch (err) {
               console.error('Error generating burndown line chart', err);
             }
 
             // Row 4: Team Workload & Module Progress
-            drawSectionTitle(36, 'Team Workload & Module Progress');
+            drawSectionTitle(40, 'Team Workload & Module Progress');
+            for (let r = 41; r <= 54; r++) ds.getRow(r).height = 20;
             
             const teamNames = [...new Set(tasks.map(t => t.assignee).filter(Boolean))].slice(0, 10);
             const doneMData = [];
@@ -34158,11 +34251,11 @@
                   { label: 'Active', values: activeMData, color: '#4F46E5' }
                 ]
               };
-              const teamBarImgBase64 = generateCanvasChart(520, 250, 'stackedHorizontalBar', teamWorkloadData);
+              const teamBarImgBase64 = generateCanvasChart(660, 280, 'stackedHorizontalBar', teamWorkloadData);
               const teamBarImgId = wb.addImage({ base64: teamBarImgBase64, extension: 'png' });
               ds.addImage(teamBarImgId, {
-                tl: { col: 1, row: 37 },
-                ext: { width: 520, height: 250 }
+                tl: { col: 1, row: 41 },
+                ext: { width: 660, height: 280 }
               });
             } catch (err) {
               console.error('Error generating team workload chart', err);
@@ -34178,21 +34271,22 @@
                 modChartLabels.push(m);
                 modChartValues.push(mAvg);
               });
-              const modBarImgBase64 = generateCanvasChart(520, 250, 'horizontalBar', {
+              const modBarImgBase64 = generateCanvasChart(660, 280, 'horizontalBar', {
                 labels: modChartLabels,
                 values: modChartValues
               });
               const modBarImgId = wb.addImage({ base64: modBarImgBase64, extension: 'png' });
               ds.addImage(modBarImgId, {
-                tl: { col: 9, row: 37 },
-                ext: { width: 520, height: 250 }
+                tl: { col: 9.8, row: 41 },
+                ext: { width: 660, height: 280 }
               });
             } catch (err) {
               console.error('Error generating module progress chart', err);
             }
 
             // Row 5: CFD & Quality Intelligence
-            drawSectionTitle(50, 'Cumulative Flow History & Defect Module Analysis');
+            drawSectionTitle(56, 'Cumulative Flow History & Defect Module Analysis');
+            for (let r = 57; r <= 70; r++) ds.getRow(r).height = 20;
 
             const last8WeeksCFD = [];
             for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); d.setHours(23, 59, 59, 999); last8WeeksCFD.push({ w: getWeekNumber(d), l: 'W' + getWeekNumber(d), date: d }); }
@@ -34210,45 +34304,41 @@
                 values: cfdStacks[si],
                 color: '#' + (STATUS_COLORS[s] || COLORS.textDark).replace('#', '')
               }));
-              const cfdChartData = {
+              const cfdData = {
                 labels: last8WeeksCFD.map(w => w.l),
                 series: cfdSeries
               };
-              const cfdImgBase64 = generateCanvasChart(520, 250, 'stackedArea', cfdChartData);
+              const cfdImgBase64 = generateCanvasChart(660, 280, 'stackedArea', cfdData);
               const cfdImgId = wb.addImage({ base64: cfdImgBase64, extension: 'png' });
               ds.addImage(cfdImgId, {
-                tl: { col: 1, row: 51 },
-                ext: { width: 520, height: 250 }
+                tl: { col: 1, row: 57 },
+                ext: { width: 660, height: 280 }
               });
             } catch (err) {
               console.error('Error generating CFD chart', err);
             }
 
-            const defs = P.defects || [];
-            const pdfCache = buildDashCache(tasks, P.log); const modBugs = {}; defs.forEach(d => { let mod = 'General'; if (pdfCache.taskById[d.linkedId]) { mod = pdfCache.taskById[d.linkedId].module || 'General'; } else if (pdfCache.subtaskById[d.linkedId]) { mod = pdfCache.subtaskById[d.linkedId].parentTask.module || 'General'; } else if (pdfCache.screenByName[d.linkedId]) { mod = pdfCache.screenByName[d.linkedId].module || 'General'; } modBugs[mod] = (modBugs[mod] || 0) + 1; });
-            const mbEntries = Object.entries(modBugs).sort((a, b) => b[1] - a[1]).slice(0, 8);
-            
+            const defectModules = Array.from(new Set(P.defects.map(d => d.module).filter(Boolean)));
+            const defModData = defectModules.map(m => ({
+              label: m,
+              value: P.defects.filter(d => d.module === m && d.status !== 'Closed' && d.status !== 'Resolved').length,
+              color: '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')
+            })).filter(item => item.value > 0);
+
             try {
-              const defModChartLabels = mbEntries.map(e => e[0]);
-              const defModChartValues = mbEntries.map(e => e[1]);
-              const defModImgBase64 = generateCanvasChart(520, 250, 'horizontalBar', {
-                labels: defModChartLabels,
-                values: defModChartValues
-              }, {
-                isCount: true,
-                barColorStart: '#EF4444',
-                barColorEnd: '#F87171'
-              });
+              const defModImgBase64 = generateCanvasChart(660, 280, 'donut', defModData, { centerText: 'Defects' });
               const defModImgId = wb.addImage({ base64: defModImgBase64, extension: 'png' });
               ds.addImage(defModImgId, {
-                tl: { col: 9, row: 51 },
-                ext: { width: 520, height: 250 }
+                tl: { col: 9.8, row: 57 },
+                ext: { width: 660, height: 280 }
               });
             } catch (err) {
               console.error('Error generating defect module chart', err);
             }
 
-            let curRow = 65;
+
+            let curRow = 72;
+
 
             // ── Section: Distribution Tables ──
             drawSectionTitle(curRow, 'Project Health & Distribution Directories'); curRow += 2;
