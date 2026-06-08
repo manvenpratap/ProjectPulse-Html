@@ -12901,7 +12901,10 @@
     }
 
     const nowISO = () => new Date().toISOString();
-    const todayStr = () => new Date().toISOString().split('T')[0];
+    const todayStr = () => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
     // ── PROJECT PULSE SCHEDULER SYSTEM ──
     const PulseScheduler = {
       isWorkDay(date) {
@@ -29735,16 +29738,28 @@
 
         function getWorkDaysForWeekOffset(offset) {
           const today = new Date();
-          const nextMonday = new Date(today);
-          const daysToNextMonday = (8 - today.getDay()) % 7 || 7;
-          nextMonday.setDate(today.getDate() + daysToNextMonday + (offset * 7));
-          nextMonday.setHours(0, 0, 0, 0);
+          const day = today.getDay();
+          let diff = 0;
+          if (day === 0) {
+            diff = 1;
+          } else if (day === 6) {
+            diff = 2;
+          } else {
+            diff = 1 - day;
+          }
+
+          const monday = new Date(today);
+          monday.setDate(today.getDate() + diff + (offset * 7));
+          monday.setHours(0, 0, 0, 0);
 
           const days = [];
           for (let i = 0; i < 5; i++) {
-            const d = new Date(nextMonday);
-            d.setDate(nextMonday.getDate() + i);
-            days.push(d.toISOString().split('T')[0]);
+            const d = new Date(monday);
+            d.setDate(monday.getDate() + i);
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            days.push(`${yyyy}-${mm}-${dd}`);
           }
           return days;
         }
