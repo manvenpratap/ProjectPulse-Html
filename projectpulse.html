@@ -34073,7 +34073,7 @@
                 cell.value = '[' + h.toUpperCase() + ']';
                 cell.font = { name: 'Courier New', size: 8, bold: true, color: { argb: 'FFFFFFFF' } };
                 cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
-                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
                 cell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
               });
             };
@@ -34086,7 +34086,7 @@
               values.forEach((val, i) => {
                 const cell = ds.getCell(row, startCol + i);
                 cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
 
                 if (val && val._styled) {
                   cell.value = val.text;
@@ -34281,24 +34281,44 @@
               color: sev === 'High' || sev === 'Critical' ? COLORS.rose : sev === 'Medium' ? COLORS.amber : COLORS.emerald
             })).filter(item => item.value > 0);
 
+            // Colorful Defect Status Donut Data
             const defStatusMap = {};
             (P.defects || []).filter(d => d.status !== 'Closed' && d.status !== 'Resolved').forEach(d => {
               if (d.status) defStatusMap[d.status] = (defStatusMap[d.status] || 0) + 1;
             });
-            const defStatusChartData = Object.keys(defStatusMap).map(st => ({
+            const defectStatusColors = {
+              'New': COLORS.indigo,
+              'Open': COLORS.blue,
+              'In Progress': COLORS.amber,
+              'Under Review': 'FF8B5CF6',
+              'Resolved': COLORS.emerald,
+              'Closed': 'FF6B7280'
+            };
+            const defStatusChartData = Object.keys(defStatusMap).map((st, idx) => ({
               label: st,
               value: defStatusMap[st],
-              color: STATUS_COLORS[st] || COLORS.indigo
+              color: defectStatusColors[st] || VIBRANT_ACCENTS[idx % VIBRANT_ACCENTS.length]
             })).filter(item => item.value > 0);
 
+            // Colorful Defect Severity Donut Data
             const defSevMap = {};
             (P.defects || []).filter(d => d.status !== 'Closed' && d.status !== 'Resolved').forEach(d => {
               if (d.severity) defSevMap[d.severity] = (defSevMap[d.severity] || 0) + 1;
             });
-            const defSevChartData = Object.keys(defSevMap).map(sev => ({
+            const defectSeverityColors = {
+              'Critical': COLORS.rose,
+              'S1': COLORS.rose,
+              'High': 'FFF97316',
+              'S2': 'FFF97316',
+              'Medium': COLORS.amber,
+              'S3': COLORS.amber,
+              'Low': COLORS.emerald,
+              'S4': COLORS.emerald
+            };
+            const defSevChartData = Object.keys(defSevMap).map((sev, idx) => ({
               label: sev,
               value: defSevMap[sev],
-              color: sev === 'Critical' || sev === 'S1' || sev === 'High' || sev === 'S2' ? COLORS.rose : sev === 'Medium' || sev === 'S3' ? COLORS.amber : COLORS.blue
+              color: defectSeverityColors[sev] || VIBRANT_ACCENTS[idx % VIBRANT_ACCENTS.length]
             })).filter(item => item.value > 0);
 
             const defTypeMap = {};
@@ -34309,20 +34329,35 @@
               color: VIBRANT_ACCENTS[(ti + 3) % VIBRANT_ACCENTS.length]
             })).filter(item => item.value > 0);
 
+            // Colorful Decisions Donut Data
             const decStatusMap = {};
             (P.decisions || []).forEach(d => { if (d.status) decStatusMap[d.status] = (decStatusMap[d.status] || 0) + 1; });
-            const decStatusChartData = Object.keys(decStatusMap).map(st => ({
+            const decisionColors = {
+              'Decided': COLORS.emerald,
+              'Approved': COLORS.emerald,
+              'Deferred': COLORS.amber,
+              'Postponed': COLORS.amber,
+              'Proposed': COLORS.blue,
+              'Draft': COLORS.blue,
+              'Rejected': COLORS.rose
+            };
+            const decStatusChartData = Object.keys(decStatusMap).map((st, idx) => ({
               label: st,
               value: decStatusMap[st],
-              color: st === 'Decided' ? COLORS.emerald : st === 'Deferred' ? COLORS.amber : COLORS.indigo
+              color: decisionColors[st] || VIBRANT_ACCENTS[idx % VIBRANT_ACCENTS.length]
             })).filter(item => item.value > 0);
 
+            // Colorful Milestones Donut Data
             const milestoneTasks = tasks.filter(t => (t.startDate && t.startDate === t.dueDate) || (t.tags && t.tags.includes('Milestone')));
             const msComp = milestoneTasks.filter(t => t.status === 'Completed').length;
-            const msActive = milestoneTasks.length - msComp;
+            const msActive = milestoneTasks.filter(t => t.status === 'In Progress' || t.status === 'Under Review').length;
+            const msNotStarted = milestoneTasks.filter(t => t.status === 'Not Started').length;
+            const msBlocked = milestoneTasks.filter(t => t.status === 'Blocked' || t.status === 'On Hold').length;
             const msChartData = [
               { label: 'Completed', value: msComp, color: COLORS.emerald },
-              { label: 'Active', value: msActive, color: COLORS.indigo }
+              { label: 'Active', value: msActive, color: COLORS.indigo },
+              { label: 'Not Started', value: msNotStarted, color: COLORS.blue },
+              { label: 'Blocked / On Hold', value: msBlocked, color: COLORS.rose }
             ].filter(item => item.value > 0);
 
             const defModDensitiesMap = {};
@@ -34334,27 +34369,27 @@
             const defModDensitiesValues = Object.values(defModDensitiesMap);
 
 
-            // ── Section: Render Visualization Panels (3 per row) ──
+            // ── Section: Render Visualization Panels (3 per row, centered) ──
             // Row 1: Scope Health, Priority & Complexity Profiles
             drawSectionTitle(8, 'Scope Health, Priority & Complexity Profiles');
             for (let r = 9; r <= 20; r++) ds.getRow(r).height = 20;
 
             try {
-              const donutImgBase64 = generateCanvasChart(440, 240, 'donut', statusChartData, { centerText: total + ' Tasks' });
+              const donutImgBase64 = generateCanvasChart(500, 240, 'donut', statusChartData, { centerText: total + ' Tasks' });
               const donutImgId = wb.addImage({ base64: donutImgBase64, extension: 'png' });
-              ds.addImage(donutImgId, { tl: { col: 1, row: 9 }, ext: { width: 440, height: 240 } });
+              ds.addImage(donutImgId, { tl: { col: 1, row: 9, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating status donut chart', err); }
 
             try {
-              const priDonutImgBase64 = generateCanvasChart(440, 240, 'donut', priChartData, { centerText: 'By Priority' });
+              const priDonutImgBase64 = generateCanvasChart(500, 240, 'donut', priChartData, { centerText: 'By Priority' });
               const priDonutImgId = wb.addImage({ base64: priDonutImgBase64, extension: 'png' });
-              ds.addImage(priDonutImgId, { tl: { col: 7, row: 9 }, ext: { width: 440, height: 240 } });
+              ds.addImage(priDonutImgId, { tl: { col: 7, row: 9, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating priority donut chart', err); }
 
             try {
-              const compImgBase64 = generateCanvasChart(440, 240, 'donut', complexityChartData, { centerText: 'Complexity' });
+              const compImgBase64 = generateCanvasChart(500, 240, 'donut', complexityChartData, { centerText: 'Complexity' });
               const compImgId = wb.addImage({ base64: compImgBase64, extension: 'png' });
-              ds.addImage(compImgId, { tl: { col: 13, row: 9 }, ext: { width: 440, height: 240 } });
+              ds.addImage(compImgId, { tl: { col: 13, row: 9, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating complexity chart', err); }
 
 
@@ -34364,22 +34399,22 @@
 
             try {
               const velocityData = { labels: vLs.map(w => w.l), values: velData };
-              const barImgBase64 = generateCanvasChart(440, 240, 'bar', velocityData);
+              const barImgBase64 = generateCanvasChart(500, 240, 'bar', velocityData);
               const barImgId = wb.addImage({ base64: barImgBase64, extension: 'png' });
-              ds.addImage(barImgId, { tl: { col: 1, row: 23 }, ext: { width: 440, height: 240 } });
+              ds.addImage(barImgId, { tl: { col: 1, row: 23, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating velocity bar chart', err); }
 
             try {
               const burndownData = { labels: bLabels.slice(0, 10), ideal: bIdeal.slice(0, 10).map(Math.round), actual: bActual.slice(0, 10).map(Math.round) };
-              const lineImgBase64 = generateCanvasChart(440, 240, 'line', burndownData);
+              const lineImgBase64 = generateCanvasChart(500, 240, 'line', burndownData);
               const lineImgId = wb.addImage({ base64: lineImgBase64, extension: 'png' });
-              ds.addImage(lineImgId, { tl: { col: 7, row: 23 }, ext: { width: 440, height: 240 } });
+              ds.addImage(lineImgId, { tl: { col: 7, row: 23, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating burndown line chart', err); }
 
             try {
-              const catImgBase64 = generateCanvasChart(440, 240, 'donut', catChartData, { centerText: 'Category' });
+              const catImgBase64 = generateCanvasChart(500, 240, 'donut', catChartData, { centerText: 'Category' });
               const catImgId = wb.addImage({ base64: catImgBase64, extension: 'png' });
-              ds.addImage(catImgId, { tl: { col: 13, row: 23 }, ext: { width: 440, height: 240 } });
+              ds.addImage(catImgId, { tl: { col: 13, row: 23, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating category chart', err); }
 
 
@@ -34388,21 +34423,21 @@
             for (let r = 37; r <= 48; r++) ds.getRow(r).height = 20;
 
             try {
-              const modBarImgBase64 = generateCanvasChart(440, 240, 'horizontalBar', { labels: modChartLabels, values: modChartValues });
+              const modBarImgBase64 = generateCanvasChart(500, 240, 'horizontalBar', { labels: modChartLabels, values: modChartValues });
               const modBarImgId = wb.addImage({ base64: modBarImgBase64, extension: 'png' });
-              ds.addImage(modBarImgId, { tl: { col: 1, row: 37 }, ext: { width: 440, height: 240 } });
+              ds.addImage(modBarImgId, { tl: { col: 1, row: 37, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating module progress chart', err); }
 
             try {
-              const teamBarImgBase64 = generateCanvasChart(440, 240, 'stackedHorizontalBar', teamWorkloadData);
+              const teamBarImgBase64 = generateCanvasChart(500, 240, 'stackedHorizontalBar', teamWorkloadData);
               const teamBarImgId = wb.addImage({ base64: teamBarImgBase64, extension: 'png' });
-              ds.addImage(teamBarImgId, { tl: { col: 7, row: 37 }, ext: { width: 440, height: 240 } });
+              ds.addImage(teamBarImgId, { tl: { col: 7, row: 37, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating team workload chart', err); }
 
             try {
-              const raidTypeImgBase64 = generateCanvasChart(440, 240, 'donut', raidTypeChartData, { centerText: 'RAID Types' });
+              const raidTypeImgBase64 = generateCanvasChart(500, 240, 'donut', raidTypeChartData, { centerText: 'RAID Types' });
               const raidTypeImgId = wb.addImage({ base64: raidTypeImgBase64, extension: 'png' });
-              ds.addImage(raidTypeImgId, { tl: { col: 13, row: 37 }, ext: { width: 440, height: 240 } });
+              ds.addImage(raidTypeImgId, { tl: { col: 13, row: 37, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating RAID type chart', err); }
 
 
@@ -34411,21 +34446,21 @@
             for (let r = 51; r <= 62; r++) ds.getRow(r).height = 20;
 
             try {
-              const cfdImgBase64 = generateCanvasChart(440, 240, 'stackedArea', cfdData);
+              const cfdImgBase64 = generateCanvasChart(500, 240, 'stackedArea', cfdData);
               const cfdImgId = wb.addImage({ base64: cfdImgBase64, extension: 'png' });
-              ds.addImage(cfdImgId, { tl: { col: 1, row: 51 }, ext: { width: 440, height: 240 } });
+              ds.addImage(cfdImgId, { tl: { col: 1, row: 51, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating CFD chart', err); }
 
             try {
-              const defModImgBase64 = generateCanvasChart(440, 240, 'donut', defModData, { centerText: 'Defects' });
+              const defModImgBase64 = generateCanvasChart(500, 240, 'donut', defModData, { centerText: 'Defects' });
               const defModImgId = wb.addImage({ base64: defModImgBase64, extension: 'png' });
-              ds.addImage(defModImgId, { tl: { col: 7, row: 51 }, ext: { width: 440, height: 240 } });
+              ds.addImage(defModImgId, { tl: { col: 7, row: 51, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating defect module chart', err); }
 
             try {
-              const raidSevImgBase64 = generateCanvasChart(440, 240, 'donut', raidSevChartData, { centerText: 'RAID Severity' });
+              const raidSevImgBase64 = generateCanvasChart(500, 240, 'donut', raidSevChartData, { centerText: 'RAID Severity' });
               const raidSevImgId = wb.addImage({ base64: raidSevImgBase64, extension: 'png' });
-              ds.addImage(raidSevImgId, { tl: { col: 13, row: 51 }, ext: { width: 440, height: 240 } });
+              ds.addImage(raidSevImgId, { tl: { col: 13, row: 51, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating RAID severity chart', err); }
 
 
@@ -34434,21 +34469,21 @@
             for (let r = 65; r <= 76; r++) ds.getRow(r).height = 20;
 
             try {
-              const defStatusImgBase64 = generateCanvasChart(440, 240, 'donut', defStatusChartData, { centerText: 'Defect Status' });
+              const defStatusImgBase64 = generateCanvasChart(500, 240, 'donut', defStatusChartData, { centerText: 'Defect Status' });
               const defStatusImgId = wb.addImage({ base64: defStatusImgBase64, extension: 'png' });
-              ds.addImage(defStatusImgId, { tl: { col: 1, row: 65 }, ext: { width: 440, height: 240 } });
+              ds.addImage(defStatusImgId, { tl: { col: 1, row: 65, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating defect status chart', err); }
 
             try {
-              const defSevImgBase64 = generateCanvasChart(440, 240, 'donut', defSevChartData, { centerText: 'Defect Severity' });
+              const defSevImgBase64 = generateCanvasChart(500, 240, 'donut', defSevChartData, { centerText: 'Defect Severity' });
               const defSevImgId = wb.addImage({ base64: defSevImgBase64, extension: 'png' });
-              ds.addImage(defSevImgId, { tl: { col: 7, row: 65 }, ext: { width: 440, height: 240 } });
+              ds.addImage(defSevImgId, { tl: { col: 7, row: 65, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating defect severity chart', err); }
 
             try {
-              const defTypeImgBase64 = generateCanvasChart(440, 240, 'donut', defTypeChartData, { centerText: 'Defect Types' });
+              const defTypeImgBase64 = generateCanvasChart(500, 240, 'donut', defTypeChartData, { centerText: 'Defect Types' });
               const defTypeImgId = wb.addImage({ base64: defTypeImgBase64, extension: 'png' });
-              ds.addImage(defTypeImgId, { tl: { col: 13, row: 65 }, ext: { width: 440, height: 240 } });
+              ds.addImage(defTypeImgId, { tl: { col: 13, row: 65, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating defect type chart', err); }
 
 
@@ -34457,21 +34492,21 @@
             for (let r = 79; r <= 90; r++) ds.getRow(r).height = 20;
 
             try {
-              const decStatusImgBase64 = generateCanvasChart(440, 240, 'donut', decStatusChartData, { centerText: 'Decisions' });
+              const decStatusImgBase64 = generateCanvasChart(500, 240, 'donut', decStatusChartData, { centerText: 'Decisions' });
               const decStatusImgId = wb.addImage({ base64: decStatusImgBase64, extension: 'png' });
-              ds.addImage(decStatusImgId, { tl: { col: 1, row: 79 }, ext: { width: 440, height: 240 } });
+              ds.addImage(decStatusImgId, { tl: { col: 1, row: 79, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating decision status chart', err); }
 
             try {
-              const msImgBase64 = generateCanvasChart(440, 240, 'donut', msChartData, { centerText: 'Milestones' });
+              const msImgBase64 = generateCanvasChart(500, 240, 'donut', msChartData, { centerText: 'Milestones' });
               const msImgId = wb.addImage({ base64: msImgBase64, extension: 'png' });
-              ds.addImage(msImgId, { tl: { col: 7, row: 79 }, ext: { width: 440, height: 240 } });
+              ds.addImage(msImgId, { tl: { col: 7, row: 79, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating milestone chart', err); }
 
             try {
-              const defModDensitiesImgBase64 = generateCanvasChart(440, 240, 'horizontalBar', { labels: defModDensitiesLabels, values: defModDensitiesValues });
+              const defModDensitiesImgBase64 = generateCanvasChart(500, 240, 'horizontalBar', { labels: defModDensitiesLabels, values: defModDensitiesValues });
               const defModDensitiesImgId = wb.addImage({ base64: defModDensitiesImgBase64, extension: 'png' });
-              ds.addImage(defModDensitiesImgId, { tl: { col: 13, row: 79 }, ext: { width: 440, height: 240 } });
+              ds.addImage(defModDensitiesImgId, { tl: { col: 13, row: 79, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
             } catch (err) { console.error('Error generating defect densities chart', err); }
 
 
@@ -34653,13 +34688,13 @@
                 ds.mergeCells(rIdx, 18, rIdx, 19);
                 
                 const cellsMapping = [
-                  { c: 2, val: raidVals[0], alignment: 'center' },
-                  { c: 3, val: raidVals[1], alignment: 'center' },
+                  { c: 2, val: raidVals[0], alignment: 'left' },
+                  { c: 3, val: raidVals[1], alignment: 'left' },
                   { c: 4, val: raidVals[2], alignment: 'left' },
-                  { c: 14, val: raidVals[3], alignment: 'center' },
-                  { c: 15, val: raidVals[4], alignment: 'center' },
-                  { c: 16, val: raidVals[5], alignment: 'center' },
-                  { c: 18, val: raidVals[6], alignment: 'center' }
+                  { c: 14, val: raidVals[3], alignment: 'left' },
+                  { c: 15, val: raidVals[4], alignment: 'left' },
+                  { c: 16, val: raidVals[5], alignment: 'left' },
+                  { c: 18, val: raidVals[6], alignment: 'left' }
                 ];
                 
                 for (let c = 2; c <= 19; c++) {
@@ -34698,13 +34733,14 @@
                 ds.getRow(row).height = 18;
                 const headerMapping = [
                   { c1: 2, c2: 2, label: 'ID' },
-                  { c1: 3, c2: 11, label: 'Title & Steps to Reproduce' },
-                  { c1: 12, c2: 12, label: 'Type' },
-                  { c1: 13, c2: 13, label: 'Severity' },
-                  { c1: 14, c2: 14, label: 'Priority' },
-                  { c1: 15, c2: 16, label: 'Assignee' },
-                  { c1: 17, c2: 18, label: 'Reporter' },
-                  { c1: 19, c2: 19, label: 'Status' }
+                  { c1: 3, c2: 8, label: 'Title' },
+                  { c1: 9, c2: 9, label: 'Type' },
+                  { c1: 10, c2: 10, label: 'Severity' },
+                  { c1: 11, c2: 11, label: 'Priority' },
+                  { c1: 12, c2: 13, label: 'Assignee' },
+                  { c1: 14, c2: 15, label: 'Reporter' },
+                  { c1: 16, c2: 17, label: 'Created' },
+                  { c1: 18, c2: 19, label: 'Status' }
                 ];
                 headerMapping.forEach(h => {
                   if (h.c1 !== h.c2) {
@@ -34714,7 +34750,7 @@
                   cell.value = '[' + h.label.toUpperCase() + ']';
                   cell.font = { name: 'Courier New', size: 8, bold: true, color: { argb: 'FFFFFFFF' } };
                   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
-                  cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                  cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
                 });
                 for (let c = 2; c <= 19; c++) {
                   const cell = ds.getCell(row, c);
@@ -34731,31 +34767,35 @@
                 const rIdx = curRow + 1 + i;
                 const bugVals = [
                   d.id,
-                  styledVal(d.title + (d.steps ? '\nSteps: ' + d.steps : ''), COLORS.textDark, false),
+                  styledVal(d.title, COLORS.textDark, false),
                   d.type || 'Bug',
                   styledVal(d.severity, d.severity.includes('S1') || d.severity.includes('Critical') ? COLORS.rose : COLORS.amber, true),
                   d.priority || 'Medium',
                   d.assignee || '—',
                   d.reporter || '—',
+                  cleanFmtDate(d.createdAt || d.updatedAt),
                   styledVal(d.status, COLORS.rose, true)
                 ];
                 
                 ds.getRow(rIdx).height = 20;
                 const bg = i % 2 === 1 ? getThemeTint(COLORS.blue, 0.08) : getThemeTint(COLORS.blue, 0.02);
                 
-                ds.mergeCells(rIdx, 3, rIdx, 11);
-                ds.mergeCells(rIdx, 15, rIdx, 16);
-                ds.mergeCells(rIdx, 17, rIdx, 18);
+                ds.mergeCells(rIdx, 3, rIdx, 8);
+                ds.mergeCells(rIdx, 12, rIdx, 13);
+                ds.mergeCells(rIdx, 14, rIdx, 15);
+                ds.mergeCells(rIdx, 16, rIdx, 17);
+                ds.mergeCells(rIdx, 18, rIdx, 19);
                 
                 const cellsMapping = [
-                  { c: 2, val: bugVals[0], alignment: 'center' },
+                  { c: 2, val: bugVals[0], alignment: 'left' },
                   { c: 3, val: bugVals[1], alignment: 'left' },
-                  { c: 12, val: bugVals[2], alignment: 'center' },
-                  { c: 13, val: bugVals[3], alignment: 'center' },
-                  { c: 14, val: bugVals[4], alignment: 'center' },
-                  { c: 15, val: bugVals[5], alignment: 'center' },
-                  { c: 17, val: bugVals[6], alignment: 'center' },
-                  { c: 19, val: bugVals[7], alignment: 'center' }
+                  { c: 9, val: bugVals[2], alignment: 'left' },
+                  { c: 10, val: bugVals[3], alignment: 'left' },
+                  { c: 11, val: bugVals[4], alignment: 'left' },
+                  { c: 12, val: bugVals[5], alignment: 'left' },
+                  { c: 14, val: bugVals[6], alignment: 'left' },
+                  { c: 16, val: bugVals[7], alignment: 'left' },
+                  { c: 18, val: bugVals[8], alignment: 'left' }
                 ];
                 
                 for (let c = 2; c <= 19; c++) {
@@ -34778,7 +34818,7 @@
                     cell.value = cfg.val;
                     cell.font = { name: 'Courier New', size: 8.5, color: { argb: COLORS.textDark } };
                   }
-                  cell.alignment = { vertical: 'middle', horizontal: cfg.alignment, wrapText: cfg.c === 3, indent: cfg.alignment === 'left' ? 1 : 0 };
+                  cell.alignment = { vertical: 'middle', horizontal: cfg.alignment, wrapText: cfg.c === 3, indent: 1 };
                 });
               });
               
