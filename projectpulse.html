@@ -33469,7 +33469,7 @@
 
             for (let r = 1; r <= 350; r++) {
               ds.getRow(r).height = 16;
-              for (let c = 2; c <= 18; c++) {
+              for (let c = 2; c <= 19; c++) {
                 applyBg(r, c, COLORS.bg);
               }
             }
@@ -34146,25 +34146,12 @@
             drawPremiumCard(17, 4, 3, 3, 'Critical Pri', criticalPri, criticalPri ? 'Escalate now' : 'Clear', criticalPri ? COLORS.rose : COLORS.emerald);
 
             // Row 2: Sonar Charts
-            drawSectionTitle(8, 'Project Health & Distribution Analysis');
-            for (let r = 9; r <= 22; r++) ds.getRow(r).height = 20;
-            
+            // ── Section: Compute Data Sets Upfront ──
             const statusChartData = STATUSES.map(s => ({
               label: s,
               value: tasks.filter(t => t.status === s).length,
               color: STATUS_COLORS[s] || COLORS.textDark
             })).filter(item => item.value > 0);
-
-            try {
-              const donutImgBase64 = generateCanvasChart(660, 280, 'donut', statusChartData, { centerText: total + ' Tasks' });
-              const donutImgId = wb.addImage({ base64: donutImgBase64, extension: 'png' });
-              ds.addImage(donutImgId, {
-                tl: { col: 1, row: 9 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating status donut chart', err);
-            }
 
             const priColors = { 'Critical': COLORS.rose, 'High': COLORS.amber, 'Medium': 'FFEAB308', 'Low': COLORS.muted };
             const priChartData = PRIORITIES.map(p => ({
@@ -34173,150 +34160,21 @@
               color: priColors[p] || COLORS.textDark
             })).filter(item => item.value > 0);
 
-            try {
-              const priDonutImgBase64 = generateCanvasChart(660, 280, 'donut', priChartData, { centerText: 'By Priority' });
-              const priDonutImgId = wb.addImage({ base64: priDonutImgBase64, extension: 'png' });
-              ds.addImage(priDonutImgId, {
-                tl: { col: 10, row: 9 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating priority donut chart', err);
-            }
+            const complexityChartData = ['Easy', 'Medium', 'Complex'].map(c => ({
+              label: c,
+              value: tasks.filter(t => t.complexity === c).length,
+              color: c === 'Complex' ? COLORS.rose : c === 'Medium' ? COLORS.amber : COLORS.emerald
+            })).filter(item => item.value > 0);
 
-            // Row 3: Oscilloscopes
-            drawSectionTitle(24, 'Predictive Velocity & Remaining Effort Burndown');
-            for (let r = 25; r <= 38; r++) ds.getRow(r).height = 20;
-            
             const vLs = []; for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); vLs.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) }); }
             const velData = vLs.map(w => tasks.filter(t => { if (t.status !== 'Completed' || !t.dueDate) return false; const d = new Date(t.dueDate); return getWeekNumber(d) === w.w && d.getFullYear() === w.y; }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
-            
+
             const startDates = tasks.map(t => new Date(t.startDate)).filter(d => !isNaN(d)); const endDates = tasks.map(t => new Date(t.dueDate)).filter(d => !isNaN(d));
             const bStart = startDates.length ? new Date(Math.min(...startDates)) : new Date(); const bEnd = endDates.length ? new Date(Math.max(...endDates)) : new Date(bStart.getTime() + 30 * 864e5);
             const bWeeks = Math.max(2, Math.ceil((bEnd - bStart) / (7 * 864e5)) + 1); const bLabels = Array.from({ length: bWeeks }, (_, i) => 'W' + (i + 1));
             const totalEffort = tasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
             const bIdeal = bLabels.map((_, i) => Math.max(0, totalEffort - (totalEffort / Math.max(1, bWeeks - 1)) * i));
             const bActual = bLabels.map((_, i) => { const wEnd = new Date(bStart.getTime() + (i + 1) * 7 * 864e5); return tasks.filter(t => t.status !== 'Completed' || new Date(t.updatedAt || t.dueDate) > wEnd).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0); });
-
-            try {
-              const velocityData = {
-                labels: vLs.map(w => w.l),
-                values: velData
-              };
-              const barImgBase64 = generateCanvasChart(660, 280, 'bar', velocityData);
-              const barImgId = wb.addImage({ base64: barImgBase64, extension: 'png' });
-              ds.addImage(barImgId, {
-                tl: { col: 1, row: 25 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating velocity bar chart', err);
-            }
-
-            try {
-              const burndownData = {
-                labels: bLabels.slice(0, 10),
-                ideal: bIdeal.slice(0, 10).map(Math.round),
-                actual: bActual.slice(0, 10).map(Math.round)
-              };
-              const lineImgBase64 = generateCanvasChart(660, 280, 'line', burndownData);
-              const lineImgId = wb.addImage({ base64: lineImgBase64, extension: 'png' });
-              ds.addImage(lineImgId, {
-                tl: { col: 10, row: 25 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating burndown line chart', err);
-            }
-
-            // Row 4: Team Workload & Module Progress
-            drawSectionTitle(40, 'Team Workload & Module Progress');
-            for (let r = 41; r <= 54; r++) ds.getRow(r).height = 20;
-            
-            const teamNames = [...new Set(tasks.map(t => t.assignee).filter(Boolean))].slice(0, 10);
-            const doneMData = [];
-            const activeMData = [];
-            teamNames.forEach(m => {
-              const totalM = tasks.filter(t => t.assignee === m).length;
-              const doneM = tasks.filter(t => t.assignee === m && t.status === 'Completed').length;
-              doneMData.push(doneM);
-              activeMData.push(totalM - doneM);
-            });
-
-            try {
-              const teamWorkloadData = {
-                labels: teamNames,
-                series: [
-                  { label: 'Done', values: doneMData, color: '#10B981' },
-                  { label: 'Active', values: activeMData, color: '#4F46E5' }
-                ]
-              };
-              const teamBarImgBase64 = generateCanvasChart(660, 280, 'stackedHorizontalBar', teamWorkloadData);
-              const teamBarImgId = wb.addImage({ base64: teamBarImgBase64, extension: 'png' });
-              ds.addImage(teamBarImgId, {
-                tl: { col: 1, row: 41 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating team workload chart', err);
-            }
-
-            const modSet = [...new Set(tasks.map(t => t.module).filter(Boolean))].slice(0, 10);
-            try {
-              const modChartLabels = [];
-              const modChartValues = [];
-              modSet.forEach(m => {
-                const mt = tasks.filter(t => t.module === m);
-                const mAvg = mt.length ? Math.round(mt.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / mt.length) : 0;
-                modChartLabels.push(m);
-                modChartValues.push(mAvg);
-              });
-              const modBarImgBase64 = generateCanvasChart(660, 280, 'horizontalBar', {
-                labels: modChartLabels,
-                values: modChartValues
-              });
-              const modBarImgId = wb.addImage({ base64: modBarImgBase64, extension: 'png' });
-              ds.addImage(modBarImgId, {
-                tl: { col: 10, row: 41 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating module progress chart', err);
-            }
-
-            // Row 5: CFD & Quality Intelligence
-            drawSectionTitle(56, 'Cumulative Flow History & Defect Module Analysis');
-            for (let r = 57; r <= 70; r++) ds.getRow(r).height = 20;
-
-            const last8WeeksCFD = [];
-            for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); d.setHours(23, 59, 59, 999); last8WeeksCFD.push({ w: getWeekNumber(d), l: 'W' + getWeekNumber(d), date: d }); }
-            const cfdStacks = STATUSES.map(s => last8WeeksCFD.map(w => tasks.filter(t => {
-              if (new Date(t.createdAt || 0) > w.date) return false;
-              const logs = (P.log || []).filter(l => l.taskId === t.id && l.action === 'Status Changed');
-              const priorLogs = logs.filter(l => new Date(l.ts) <= w.date).sort((a, b) => new Date(b.ts) - new Date(a.ts));
-              let statusAtTime = 'Not Started'; if (priorLogs.length > 0) statusAtTime = priorLogs[0].newVal; else if (logs.length === 0) statusAtTime = t.status;
-              return statusAtTime === s;
-            }).length));
-
-            try {
-              const cfdSeries = STATUSES.map((s, si) => ({
-                label: s,
-                values: cfdStacks[si],
-                color: '#' + (STATUS_COLORS[s] || COLORS.textDark).replace('#', '')
-              }));
-              const cfdData = {
-                labels: last8WeeksCFD.map(w => w.l),
-                series: cfdSeries
-              };
-              const cfdImgBase64 = generateCanvasChart(660, 280, 'stackedArea', cfdData);
-              const cfdImgId = wb.addImage({ base64: cfdImgBase64, extension: 'png' });
-              ds.addImage(cfdImgId, {
-                tl: { col: 1, row: 57 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating CFD chart', err);
-            }
 
             const getDefectModule = (d) => {
               if (d.module) return d.module;
@@ -34333,11 +34191,75 @@
               COLORS.amber,
               COLORS.rose,
               COLORS.blue,
-              'FF8B5CF6', // violet
-              'FFEC4899', // pink
-              'FF06B6D4', // cyan
-              'FFF97316'  // orange
+              'FF8B5CF6',
+              'FFEC4899',
+              'FF06B6D4',
+              'FFF97316'
             ];
+
+            const catMap = {};
+            tasks.forEach(t => { if (t.category) catMap[t.category] = (catMap[t.category] || 0) + 1; });
+            const catChartData = Object.keys(catMap).map((cat, ci) => ({
+              label: cat,
+              value: catMap[cat],
+              color: VIBRANT_ACCENTS[ci % VIBRANT_ACCENTS.length]
+            })).filter(item => item.value > 0);
+
+            const modSet = [...new Set(tasks.map(t => t.module).filter(Boolean))].slice(0, 10);
+            const modChartLabels = [];
+            const modChartValues = [];
+            modSet.forEach(m => {
+              const mt = tasks.filter(t => t.module === m);
+              const mAvg = mt.length ? Math.round(mt.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / mt.length) : 0;
+              modChartLabels.push(m);
+              modChartValues.push(mAvg);
+            });
+
+            const teamNames = [...new Set(tasks.map(t => t.assignee).filter(Boolean))].slice(0, 10);
+            const doneMData = [];
+            const activeMData = [];
+            teamNames.forEach(m => {
+              const totalM = tasks.filter(t => t.assignee === m).length;
+              const doneM = tasks.filter(t => t.assignee === m && t.status === 'Completed').length;
+              doneMData.push(doneM);
+              activeMData.push(totalM - doneM);
+            });
+
+            const teamWorkloadData = {
+              labels: teamNames,
+              series: [
+                { label: 'Done', values: doneMData, color: '#10B981' },
+                { label: 'Active', values: activeMData, color: '#4F46E5' }
+              ]
+            };
+
+            const raidTypeMap = {};
+            (P.raids || []).forEach(r => { if (r.type) raidTypeMap[r.type] = (raidTypeMap[r.type] || 0) + 1; });
+            const raidTypeChartData = Object.keys(raidTypeMap).map((type, ti) => ({
+              label: type,
+              value: raidTypeMap[type],
+              color: type === 'Issue' || type === 'Risk' ? COLORS.rose : type === 'Dependency' ? COLORS.indigo : COLORS.blue
+            })).filter(item => item.value > 0);
+
+            const last8WeeksCFD = [];
+            for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); d.setHours(23, 59, 59, 999); last8WeeksCFD.push({ w: getWeekNumber(d), l: 'W' + getWeekNumber(d), date: d }); }
+            const cfdStacks = STATUSES.map(s => last8WeeksCFD.map(w => tasks.filter(t => {
+              if (new Date(t.createdAt || 0) > w.date) return false;
+              const logs = (P.log || []).filter(l => l.taskId === t.id && l.action === 'Status Changed');
+              const priorLogs = logs.filter(l => new Date(l.ts) <= w.date).sort((a, b) => new Date(b.ts) - new Date(a.ts));
+              let statusAtTime = 'Not Started'; if (priorLogs.length > 0) statusAtTime = priorLogs[0].newVal; else if (logs.length === 0) statusAtTime = t.status;
+              return statusAtTime === s;
+            }).length));
+
+            const cfdSeries = STATUSES.map((s, si) => ({
+              label: s,
+              values: cfdStacks[si],
+              color: '#' + (STATUS_COLORS[s] || COLORS.textDark).replace('#', '')
+            }));
+            const cfdData = {
+              labels: last8WeeksCFD.map(w => w.l),
+              series: cfdSeries
+            };
 
             const defectModulesMap = {};
             (P.defects || []).forEach(d => {
@@ -34351,81 +34273,6 @@
               color: VIBRANT_ACCENTS[mi % VIBRANT_ACCENTS.length]
             }));
 
-            try {
-              const defModImgBase64 = generateCanvasChart(660, 280, 'donut', defModData, { centerText: 'Defects' });
-              const defModImgId = wb.addImage({ base64: defModImgBase64, extension: 'png' });
-              ds.addImage(defModImgId, {
-                tl: { col: 10, row: 57 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating defect module chart', err);
-            }
-
-            // ── Section: 10 New Cockpit Visualizations ──
-            // Row 5: Task Complexity & Task Category
-            drawSectionTitle(72, 'Task Complexity & Category Distributions');
-            for (let r = 73; r <= 86; r++) ds.getRow(r).height = 20;
-
-            const complexityChartData = ['Easy', 'Medium', 'Complex'].map(c => ({
-              label: c,
-              value: tasks.filter(t => t.complexity === c).length,
-              color: c === 'Complex' ? COLORS.rose : c === 'Medium' ? COLORS.amber : COLORS.emerald
-            })).filter(item => item.value > 0);
-
-            try {
-              const compImgBase64 = generateCanvasChart(660, 280, 'donut', complexityChartData, { centerText: 'Complexity' });
-              const compImgId = wb.addImage({ base64: compImgBase64, extension: 'png' });
-              ds.addImage(compImgId, {
-                tl: { col: 1, row: 73 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating complexity chart', err);
-            }
-
-            const catMap = {};
-            tasks.forEach(t => { if (t.category) catMap[t.category] = (catMap[t.category] || 0) + 1; });
-            const catChartData = Object.keys(catMap).map((cat, ci) => ({
-              label: cat,
-              value: catMap[cat],
-              color: VIBRANT_ACCENTS[ci % VIBRANT_ACCENTS.length]
-            })).filter(item => item.value > 0);
-
-            try {
-              const catImgBase64 = generateCanvasChart(660, 280, 'donut', catChartData, { centerText: 'Category' });
-              const catImgId = wb.addImage({ base64: catImgBase64, extension: 'png' });
-              ds.addImage(catImgId, {
-                tl: { col: 10, row: 73 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating category chart', err);
-            }
-
-            // Row 6: RAID Registry Diagnostics
-            drawSectionTitle(88, 'RAID Registry Type & Severity Analysis');
-            for (let r = 89; r <= 102; r++) ds.getRow(r).height = 20;
-
-            const raidTypeMap = {};
-            (P.raids || []).forEach(r => { if (r.type) raidTypeMap[r.type] = (raidTypeMap[r.type] || 0) + 1; });
-            const raidTypeChartData = Object.keys(raidTypeMap).map((type, ti) => ({
-              label: type,
-              value: raidTypeMap[type],
-              color: type === 'Issue' || type === 'Risk' ? COLORS.rose : type === 'Dependency' ? COLORS.indigo : COLORS.blue
-            })).filter(item => item.value > 0);
-
-            try {
-              const raidTypeImgBase64 = generateCanvasChart(660, 280, 'donut', raidTypeChartData, { centerText: 'RAID Types' });
-              const raidTypeImgId = wb.addImage({ base64: raidTypeImgBase64, extension: 'png' });
-              ds.addImage(raidTypeImgId, {
-                tl: { col: 1, row: 89 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating RAID type chart', err);
-            }
-
             const raidSevMap = {};
             (P.raids || []).forEach(r => { const sev = r.severity || r.impact || 'Medium'; raidSevMap[sev] = (raidSevMap[sev] || 0) + 1; });
             const raidSevChartData = Object.keys(raidSevMap).map(sev => ({
@@ -34433,21 +34280,6 @@
               value: raidSevMap[sev],
               color: sev === 'High' || sev === 'Critical' ? COLORS.rose : sev === 'Medium' ? COLORS.amber : COLORS.emerald
             })).filter(item => item.value > 0);
-
-            try {
-              const raidSevImgBase64 = generateCanvasChart(660, 280, 'donut', raidSevChartData, { centerText: 'RAID Severity' });
-              const raidSevImgId = wb.addImage({ base64: raidSevImgBase64, extension: 'png' });
-              ds.addImage(raidSevImgId, {
-                tl: { col: 10, row: 89 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating RAID severity chart', err);
-            }
-
-            // Row 7: Open Defects Diagnostics
-            drawSectionTitle(104, 'Open Defects Status & Severity Diagnostics');
-            for (let r = 105; r <= 118; r++) ds.getRow(r).height = 20;
 
             const defStatusMap = {};
             (P.defects || []).filter(d => d.status !== 'Closed' && d.status !== 'Resolved').forEach(d => {
@@ -34459,17 +34291,6 @@
               color: STATUS_COLORS[st] || COLORS.indigo
             })).filter(item => item.value > 0);
 
-            try {
-              const defStatusImgBase64 = generateCanvasChart(660, 280, 'donut', defStatusChartData, { centerText: 'Defect Status' });
-              const defStatusImgId = wb.addImage({ base64: defStatusImgBase64, extension: 'png' });
-              ds.addImage(defStatusImgId, {
-                tl: { col: 1, row: 105 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating defect status chart', err);
-            }
-
             const defSevMap = {};
             (P.defects || []).filter(d => d.status !== 'Closed' && d.status !== 'Resolved').forEach(d => {
               if (d.severity) defSevMap[d.severity] = (defSevMap[d.severity] || 0) + 1;
@@ -34480,20 +34301,13 @@
               color: sev === 'Critical' || sev === 'S1' || sev === 'High' || sev === 'S2' ? COLORS.rose : sev === 'Medium' || sev === 'S3' ? COLORS.amber : COLORS.blue
             })).filter(item => item.value > 0);
 
-            try {
-              const defSevImgBase64 = generateCanvasChart(660, 280, 'donut', defSevChartData, { centerText: 'Defect Severity' });
-              const defSevImgId = wb.addImage({ base64: defSevImgBase64, extension: 'png' });
-              ds.addImage(defSevImgId, {
-                tl: { col: 10, row: 105 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating defect severity chart', err);
-            }
-
-            // Row 8: Project Decisions & Milestones Overview
-            drawSectionTitle(120, 'Project Decisions & Roadmap Milestones');
-            for (let r = 121; r <= 134; r++) ds.getRow(r).height = 20;
+            const defTypeMap = {};
+            (P.defects || []).forEach(d => { if (d.type) defTypeMap[d.type] = (defTypeMap[d.type] || 0) + 1; });
+            const defTypeChartData = Object.keys(defTypeMap).map((type, ti) => ({
+              label: type,
+              value: defTypeMap[type],
+              color: VIBRANT_ACCENTS[(ti + 3) % VIBRANT_ACCENTS.length]
+            })).filter(item => item.value > 0);
 
             const decStatusMap = {};
             (P.decisions || []).forEach(d => { if (d.status) decStatusMap[d.status] = (decStatusMap[d.status] || 0) + 1; });
@@ -34503,17 +34317,6 @@
               color: st === 'Decided' ? COLORS.emerald : st === 'Deferred' ? COLORS.amber : COLORS.indigo
             })).filter(item => item.value > 0);
 
-            try {
-              const decStatusImgBase64 = generateCanvasChart(660, 280, 'donut', decStatusChartData, { centerText: 'Decisions' });
-              const decStatusImgId = wb.addImage({ base64: decStatusImgBase64, extension: 'png' });
-              ds.addImage(decStatusImgId, {
-                tl: { col: 1, row: 121 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating decision status chart', err);
-            }
-
             const milestoneTasks = tasks.filter(t => (t.startDate && t.startDate === t.dueDate) || (t.tags && t.tags.includes('Milestone')));
             const msComp = milestoneTasks.filter(t => t.status === 'Completed').length;
             const msActive = milestoneTasks.length - msComp;
@@ -34521,40 +34324,6 @@
               { label: 'Completed', value: msComp, color: COLORS.emerald },
               { label: 'Active', value: msActive, color: COLORS.indigo }
             ].filter(item => item.value > 0);
-
-            try {
-              const msImgBase64 = generateCanvasChart(660, 280, 'donut', msChartData, { centerText: 'Milestones' });
-              const msImgId = wb.addImage({ base64: msImgBase64, extension: 'png' });
-              ds.addImage(msImgId, {
-                tl: { col: 10, row: 121 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating milestone chart', err);
-            }
-
-            // Row 9: Quality & Defect Distribution
-            drawSectionTitle(136, 'Quality Intelligence - Defect Types & Module Densities');
-            for (let r = 137; r <= 150; r++) ds.getRow(r).height = 20;
-
-            const defTypeMap = {};
-            (P.defects || []).forEach(d => { if (d.type) defTypeMap[d.type] = (defTypeMap[d.type] || 0) + 1; });
-            const defTypeChartData = Object.keys(defTypeMap).map((type, ti) => ({
-              label: type,
-              value: defTypeMap[type],
-              color: VIBRANT_ACCENTS[(ti + 3) % VIBRANT_ACCENTS.length]
-            })).filter(item => item.value > 0);
-
-            try {
-              const defTypeImgBase64 = generateCanvasChart(660, 280, 'donut', defTypeChartData, { centerText: 'Defect Types' });
-              const defTypeImgId = wb.addImage({ base64: defTypeImgBase64, extension: 'png' });
-              ds.addImage(defTypeImgId, {
-                tl: { col: 1, row: 137 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating defect type chart', err);
-            }
 
             const defModDensitiesMap = {};
             (P.defects || []).filter(d => d.status !== 'Closed' && d.status !== 'Resolved').forEach(d => {
@@ -34564,22 +34333,149 @@
             const defModDensitiesLabels = Object.keys(defModDensitiesMap);
             const defModDensitiesValues = Object.values(defModDensitiesMap);
 
+
+            // ── Section: Render Visualization Panels (3 per row) ──
+            // Row 1: Scope Health, Priority & Complexity Profiles
+            drawSectionTitle(8, 'Scope Health, Priority & Complexity Profiles');
+            for (let r = 9; r <= 20; r++) ds.getRow(r).height = 20;
+
             try {
-              const defModDensitiesImgBase64 = generateCanvasChart(660, 280, 'horizontalBar', {
-                labels: defModDensitiesLabels,
-                values: defModDensitiesValues
-              });
+              const donutImgBase64 = generateCanvasChart(440, 240, 'donut', statusChartData, { centerText: total + ' Tasks' });
+              const donutImgId = wb.addImage({ base64: donutImgBase64, extension: 'png' });
+              ds.addImage(donutImgId, { tl: { col: 1, row: 9 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating status donut chart', err); }
+
+            try {
+              const priDonutImgBase64 = generateCanvasChart(440, 240, 'donut', priChartData, { centerText: 'By Priority' });
+              const priDonutImgId = wb.addImage({ base64: priDonutImgBase64, extension: 'png' });
+              ds.addImage(priDonutImgId, { tl: { col: 7, row: 9 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating priority donut chart', err); }
+
+            try {
+              const compImgBase64 = generateCanvasChart(440, 240, 'donut', complexityChartData, { centerText: 'Complexity' });
+              const compImgId = wb.addImage({ base64: compImgBase64, extension: 'png' });
+              ds.addImage(compImgId, { tl: { col: 13, row: 9 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating complexity chart', err); }
+
+
+            // Row 2: Predictive Velocity, Burndown & Task Categories
+            drawSectionTitle(22, 'Predictive Velocity, Burndown & Task Categories');
+            for (let r = 23; r <= 34; r++) ds.getRow(r).height = 20;
+
+            try {
+              const velocityData = { labels: vLs.map(w => w.l), values: velData };
+              const barImgBase64 = generateCanvasChart(440, 240, 'bar', velocityData);
+              const barImgId = wb.addImage({ base64: barImgBase64, extension: 'png' });
+              ds.addImage(barImgId, { tl: { col: 1, row: 23 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating velocity bar chart', err); }
+
+            try {
+              const burndownData = { labels: bLabels.slice(0, 10), ideal: bIdeal.slice(0, 10).map(Math.round), actual: bActual.slice(0, 10).map(Math.round) };
+              const lineImgBase64 = generateCanvasChart(440, 240, 'line', burndownData);
+              const lineImgId = wb.addImage({ base64: lineImgBase64, extension: 'png' });
+              ds.addImage(lineImgId, { tl: { col: 7, row: 23 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating burndown line chart', err); }
+
+            try {
+              const catImgBase64 = generateCanvasChart(440, 240, 'donut', catChartData, { centerText: 'Category' });
+              const catImgId = wb.addImage({ base64: catImgBase64, extension: 'png' });
+              ds.addImage(catImgId, { tl: { col: 13, row: 23 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating category chart', err); }
+
+
+            // Row 3: Module Progress, Developer Workload & RAID Type Overview
+            drawSectionTitle(36, 'Module Progress, Developer Workload & RAID Type Overview');
+            for (let r = 37; r <= 48; r++) ds.getRow(r).height = 20;
+
+            try {
+              const modBarImgBase64 = generateCanvasChart(440, 240, 'horizontalBar', { labels: modChartLabels, values: modChartValues });
+              const modBarImgId = wb.addImage({ base64: modBarImgBase64, extension: 'png' });
+              ds.addImage(modBarImgId, { tl: { col: 1, row: 37 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating module progress chart', err); }
+
+            try {
+              const teamBarImgBase64 = generateCanvasChart(440, 240, 'stackedHorizontalBar', teamWorkloadData);
+              const teamBarImgId = wb.addImage({ base64: teamBarImgBase64, extension: 'png' });
+              ds.addImage(teamBarImgId, { tl: { col: 7, row: 37 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating team workload chart', err); }
+
+            try {
+              const raidTypeImgBase64 = generateCanvasChart(440, 240, 'donut', raidTypeChartData, { centerText: 'RAID Types' });
+              const raidTypeImgId = wb.addImage({ base64: raidTypeImgBase64, extension: 'png' });
+              ds.addImage(raidTypeImgId, { tl: { col: 13, row: 37 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating RAID type chart', err); }
+
+
+            // Row 4: Cumulative Flow, Defect Modules & RAID Severity
+            drawSectionTitle(50, 'Cumulative Flow, Defect Modules & RAID Severity');
+            for (let r = 51; r <= 62; r++) ds.getRow(r).height = 20;
+
+            try {
+              const cfdImgBase64 = generateCanvasChart(440, 240, 'stackedArea', cfdData);
+              const cfdImgId = wb.addImage({ base64: cfdImgBase64, extension: 'png' });
+              ds.addImage(cfdImgId, { tl: { col: 1, row: 51 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating CFD chart', err); }
+
+            try {
+              const defModImgBase64 = generateCanvasChart(440, 240, 'donut', defModData, { centerText: 'Defects' });
+              const defModImgId = wb.addImage({ base64: defModImgBase64, extension: 'png' });
+              ds.addImage(defModImgId, { tl: { col: 7, row: 51 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating defect module chart', err); }
+
+            try {
+              const raidSevImgBase64 = generateCanvasChart(440, 240, 'donut', raidSevChartData, { centerText: 'RAID Severity' });
+              const raidSevImgId = wb.addImage({ base64: raidSevImgBase64, extension: 'png' });
+              ds.addImage(raidSevImgId, { tl: { col: 13, row: 51 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating RAID severity chart', err); }
+
+
+            // Row 5: Defects Diagnostics: Status, Severity & Types
+            drawSectionTitle(64, 'Defects Diagnostics: Status, Severity & Types');
+            for (let r = 65; r <= 76; r++) ds.getRow(r).height = 20;
+
+            try {
+              const defStatusImgBase64 = generateCanvasChart(440, 240, 'donut', defStatusChartData, { centerText: 'Defect Status' });
+              const defStatusImgId = wb.addImage({ base64: defStatusImgBase64, extension: 'png' });
+              ds.addImage(defStatusImgId, { tl: { col: 1, row: 65 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating defect status chart', err); }
+
+            try {
+              const defSevImgBase64 = generateCanvasChart(440, 240, 'donut', defSevChartData, { centerText: 'Defect Severity' });
+              const defSevImgId = wb.addImage({ base64: defSevImgBase64, extension: 'png' });
+              ds.addImage(defSevImgId, { tl: { col: 7, row: 65 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating defect severity chart', err); }
+
+            try {
+              const defTypeImgBase64 = generateCanvasChart(440, 240, 'donut', defTypeChartData, { centerText: 'Defect Types' });
+              const defTypeImgId = wb.addImage({ base64: defTypeImgBase64, extension: 'png' });
+              ds.addImage(defTypeImgId, { tl: { col: 13, row: 65 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating defect type chart', err); }
+
+
+            // Row 6: Decisions Status, Milestone Delivery & Defect Densities
+            drawSectionTitle(78, 'Decisions Status, Milestone Delivery & Defect Densities');
+            for (let r = 79; r <= 90; r++) ds.getRow(r).height = 20;
+
+            try {
+              const decStatusImgBase64 = generateCanvasChart(440, 240, 'donut', decStatusChartData, { centerText: 'Decisions' });
+              const decStatusImgId = wb.addImage({ base64: decStatusImgBase64, extension: 'png' });
+              ds.addImage(decStatusImgId, { tl: { col: 1, row: 79 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating decision status chart', err); }
+
+            try {
+              const msImgBase64 = generateCanvasChart(440, 240, 'donut', msChartData, { centerText: 'Milestones' });
+              const msImgId = wb.addImage({ base64: msImgBase64, extension: 'png' });
+              ds.addImage(msImgId, { tl: { col: 7, row: 79 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating milestone chart', err); }
+
+            try {
+              const defModDensitiesImgBase64 = generateCanvasChart(440, 240, 'horizontalBar', { labels: defModDensitiesLabels, values: defModDensitiesValues });
               const defModDensitiesImgId = wb.addImage({ base64: defModDensitiesImgBase64, extension: 'png' });
-              ds.addImage(defModDensitiesImgId, {
-                tl: { col: 10, row: 137 },
-                ext: { width: 660, height: 280 }
-              });
-            } catch (err) {
-              console.error('Error generating defect densities chart', err);
-            }
+              ds.addImage(defModDensitiesImgId, { tl: { col: 13, row: 79 }, ext: { width: 440, height: 240 } });
+            } catch (err) { console.error('Error generating defect densities chart', err); }
 
 
-            let curRow = 152;
+            let curRow = 94;
 
 
             // ── Section: Distribution Tables ──
