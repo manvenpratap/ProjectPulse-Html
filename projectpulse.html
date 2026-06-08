@@ -34602,6 +34602,38 @@
             if (mMods.length && mTypes.length) {
               drawSectionTitle(curRow, 'Strategic Module Delivery Matrix'); curRow += 2;
               drawTableHeader(curRow, ['Module', ...mTypes], 2);
+
+              const getTaskProgressHierarchical = (t) => {
+                const subs = t.subtasks || [];
+                if (!subs.length) {
+                  return t.progress || 0;
+                }
+                const factor = (P.complexityFactors && t.complexity) ? (P.complexityFactors[t.complexity] || 1) : 1;
+                let totalEffort = 0;
+                let doneEffort = 0;
+                subs.forEach(s => {
+                  const eff = parseFloat(s.effort) || 1;
+                  if (s.type === 'screen') {
+                    const wf = s.workflow || [];
+                    if (wf.length > 0) {
+                      const compFactor = (P.complexityFactors && s.complexity) ? (P.complexityFactors[s.complexity] || 1) : 1;
+                      const wfTotal = wf.reduce((sum, w) => sum + ((w.effort || 1) * compFactor), 0);
+                      const wfDone = wf.filter(w => w.status === 'Completed' || w.done).reduce((sum, w) => sum + ((w.effort || 1) * compFactor), 0);
+                      const wfProgress = wfTotal > 0 ? (wfDone / wfTotal) : 0;
+                      totalEffort += eff;
+                      doneEffort += eff * wfProgress;
+                    } else {
+                      totalEffort += eff;
+                      doneEffort += eff * ((s.progress || 0) / 100);
+                    }
+                  } else {
+                    totalEffort += eff * factor;
+                    doneEffort += (s.status === 'Completed' ? eff : 0) * factor;
+                  }
+                });
+                return totalEffort > 0 ? Math.round((doneEffort / totalEffort) * 100) : 0;
+              };
+
               mMods.forEach((m, i) => {
                 const r = curRow + 1 + i; ds.getRow(r).height = 26; const rowVals = [m];
                 mTypes.forEach(ty => {
@@ -34609,7 +34641,8 @@
                   if (!mtTasks.length) { rowVals.push(styledVal('—', COLORS.muted, false)); return; }
                   const statuses = mtTasks.map(t => getTaskDerivedStatus(t)); const sCounts = {}; statuses.forEach(s => sCounts[s] = (sCounts[s] || 0) + 1);
                   let dsVal = 'Not Started'; if (sCounts['Blocked']) dsVal = 'Blocked'; else if (sCounts['On Hold']) dsVal = 'On Hold'; else if (sCounts['In Progress']) dsVal = 'In Progress'; else if (sCounts['Under Review']) dsVal = 'Under Review'; else if (sCounts['Completed'] === mtTasks.length) dsVal = 'Completed'; else if (sCounts['Completed']) dsVal = 'In Progress';
-                  const mAvgP = Math.round(mtTasks.reduce((s, t) => s + (t.progress || 0), 0) / mtTasks.length); const label = dsVal === 'Completed' ? dsVal : dsVal + ' (' + mAvgP + '%)';
+                  const taskProgresses = mtTasks.map(getTaskProgressHierarchical);
+                  const mAvgP = Math.round(taskProgresses.reduce((s, p) => s + p, 0) / mtTasks.length); const label = dsVal === 'Completed' ? dsVal : dsVal + ' (' + mAvgP + '%)';
                   rowVals.push(styledVal(label, STATUS_COLORS[dsVal] || COLORS.textDark, true));
                 });
                 drawTableRow(r, rowVals, 2, i % 2 === 1);
