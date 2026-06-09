@@ -8307,25 +8307,40 @@
         position: fixed !important;
         top: 60px !important;
         bottom: 0;
-        width: 0 !important;
+        left: 0;
+        width: 72px !important;
         z-index: 1000 !important;
         background: var(--color-surface) !important;
-        border-right: 0px solid transparent !important;
-        padding: 14px 0 !important;
+        border-right: 1px solid var(--color-border) !important;
+        padding: 14px 8px !important;
         transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), padding 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-right 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease !important;
         box-shadow: none !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
         overflow-x: hidden !important;
       }
 
       #sb.closed {
-        width: 0 !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
-        padding-left: 0 !important;
-        padding-right: 0 !important;
-        border-right: 0px solid transparent !important;
+        width: 72px !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        padding: 14px 8px !important;
+        border-right: 1px solid var(--color-border) !important;
+      }
+
+      #sb.closed #sb-stats,
+      #sb.closed #sb-inner,
+      #sb.closed .sb-bottom {
+        display: none !important;
+      }
+
+      #sb.closed .sb-nav-item {
+        justify-content: center;
+        padding: 10px !important;
+      }
+
+      #sb.closed .sb-nav-label {
+        display: none !important;
       }
 
       #sb:not(.closed) {
@@ -8338,8 +8353,12 @@
       }
 
       #cnt {
-        margin-left: 0 !important;
-        width: 100% !important;
+        margin-left: 72px !important;
+        width: calc(100% - 72px) !important;
+      }
+
+      #sb-nav {
+        display: flex !important;
       }
     }
 
@@ -10225,7 +10244,7 @@
 
     /* ═══════ IMPROVED SIDEBAR NAV ITEM STATES ═══════ */
     #sb-nav {
-      display: flex;
+      display: none;
       flex-direction: column;
       gap: 4px;
       margin-bottom: 16px;
@@ -13244,6 +13263,25 @@
           vsw.appendChild(btn);
         }
 
+        // Sidebar #sb-nav
+        if (sbNav) {
+          const btn = document.createElement('button');
+          btn.className = 'sb-nav-item';
+          if (P.view === vid) btn.classList.add('active');
+          btn.setAttribute('data-v', vid);
+          btn.onclick = () => {
+            if (vid === 'reports') P.activeReportId = null;
+            setView(vid);
+          };
+          btn.title = viewDef.title;
+          if (vid === 'log') {
+            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span class="sb-nav-label">${viewDef.label}</span><span id="sb-log-badge" class="badge" style="display:none;margin-left:auto;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">0</span>`;
+          } else {
+            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span class="sb-nav-label">${viewDef.label}</span>`;
+          }
+          sbNav.appendChild(btn);
+        }
+
 
 
         // Mobile #mobile-nav
@@ -13645,6 +13683,7 @@
       summary: 'Executive Summary',
       mgmt_insights: 'Management Insights',
       exec_reporting: 'Executive Reporting',
+      exec_capacity: 'Team Capacity Allocation',
       module_status_matrix: 'Strategic Module Status',
       module_matrix: 'Project Status Matrix',
       health: 'Project Health & Quality',
@@ -23492,6 +23531,7 @@
                       { id: 'summary', t: 'Summary Cards', on: true },
                       { id: 'mgmt_insights', t: 'Management Insights', on: true },
                       { id: 'exec_reporting', t: 'Executive Reporting', on: true },
+                      { id: 'exec_capacity', t: 'Team Capacity Allocation', on: true },
                       { id: 'module_status_matrix', t: 'Strategic Module Status', on: true },
                       { id: 'health', t: 'Project Health', on: true },
                       { id: 'defect_intel', t: 'Defect Intelligence', on: true },
@@ -24643,6 +24683,7 @@
         { id: 'summary', t: 'Summary Cards', on: true },
         { id: 'mgmt_insights', t: 'Management Insights', on: true },
         { id: 'exec_reporting', t: 'Executive Reporting', on: true },
+        { id: 'exec_capacity', t: 'Team Capacity Allocation', on: true },
         { id: 'module_status_matrix', t: 'Strategic Module Status', on: true },
         { id: 'health', t: 'Project Health', on: true },
         { id: 'defect_intel', t: 'Defect Intelligence', on: true },
@@ -25247,8 +25288,23 @@
                   }
 
                   // 2. RAID snapshot items
-                  const activeRaids = (P.raids || [])
-                    .filter(r => r.status === 'Active' || r.status === 'Identified')
+                  const allRaids = P.raids || [];
+                  const activeRaidsList = allRaids.filter(r => r.status === 'Active' || r.status === 'Identified');
+                  const risksCount = activeRaidsList.filter(r => r.type === 'Risk').length;
+                  const issuesCount = activeRaidsList.filter(r => r.type === 'Issue').length;
+                  const depsAssCount = activeRaidsList.filter(r => r.type === 'Dependency' || r.type === 'Assumption').length;
+
+                  const activeRaids = [...activeRaidsList]
+                    .sort((a, b) => {
+                      const impactWeight = { 'High': 3, 'Medium': 2, 'Low': 1 };
+                      const typeWeight = { 'Issue': 4, 'Risk': 3, 'Dependency': 2, 'Assumption': 1 };
+                      const aImpact = impactWeight[a.impact] || 0;
+                      const bImpact = impactWeight[b.impact] || 0;
+                      if (bImpact !== aImpact) return bImpact - aImpact;
+                      const aType = typeWeight[a.type] || 0;
+                      const bType = typeWeight[b.type] || 0;
+                      return bType - aType;
+                    })
                     .slice(0, 4);
 
                   // 3. Team capacity snapshot
@@ -25330,36 +25386,61 @@
                   raidCard.style.gridColumn = `span ${raidSpan}`;
                   raidCard.querySelector('.cb').innerHTML = `
             <div style="display:flex; flex-direction:column; gap:12px; padding:12px; width:100%; height:100%;">
+              <!-- KPI Counters -->
+              <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;">
+                <div style="padding:10px; background:var(--color-surface-3); border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; border-left:3px solid var(--red);">
+                  <div style="font-size:9px; color:var(--color-text-faint); text-transform:uppercase; font-weight:700; letter-spacing:0.5px;">Risks</div>
+                  <div style="font-size:16px; font-weight:800; color:var(--red); margin-top:2px;">${risksCount}</div>
+                </div>
+                <div style="padding:10px; background:var(--color-surface-3); border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; border-left:3px solid var(--orange);">
+                  <div style="font-size:9px; color:var(--color-text-faint); text-transform:uppercase; font-weight:700; letter-spacing:0.5px;">Issues</div>
+                  <div style="font-size:16px; font-weight:800; color:var(--orange); margin-top:2px;">${issuesCount}</div>
+                </div>
+                <div style="padding:10px; background:var(--color-surface-3); border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; border-left:3px solid var(--color-primary);">
+                  <div style="font-size:9px; color:var(--color-text-faint); text-transform:uppercase; font-weight:700; letter-spacing:0.5px;">Deps & Assump</div>
+                  <div style="font-size:16px; font-weight:800; color:var(--color-primary); margin-top:2px;">${depsAssCount}</div>
+                </div>
+              </div>
+
+              <!-- List of active items -->
               ${activeRaids.length > 0 ? `
-                <div style="overflow-x:auto; margin:0 -4px; flex-grow:1;">
-                  <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left;">
-                    <thead>
-                      <tr style="border-bottom:1.5px solid var(--color-border); color:var(--color-text-faint);">
-                        <th style="padding:6px 4px; font-weight:700; text-transform:uppercase; font-size:9px;">Item</th>
-                        <th style="padding:6px 4px; font-weight:700; text-transform:uppercase; font-size:9px;">Type</th>
-                        <th style="padding:6px 4px; font-weight:700; text-transform:uppercase; font-size:9px;">Impact</th>
-                        <th style="padding:6px 4px; font-weight:700; text-transform:uppercase; font-size:9px;">Owner</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${activeRaids.map(r => {
+                <div style="display:flex; flex-direction:column; gap:8px; flex-grow:1; overflow-y:auto; max-height:220px; padding-right:2px;" class="custom-scroll">
+                  ${activeRaids.map(r => {
+                    const typeIcon = r.type === 'Risk' ? 'shield-alert' : r.type === 'Issue' ? 'alert-circle' : r.type === 'Dependency' ? 'git-pull-request' : 'help-circle';
+                    const typeColor = r.type === 'Risk' ? 'var(--red)' : r.type === 'Issue' ? 'var(--orange)' : r.type === 'Dependency' ? 'var(--amber)' : 'var(--color-primary)';
+                    const typeBg = r.type === 'Risk' ? 'rgba(239, 68, 68, 0.08)' : r.type === 'Issue' ? 'rgba(249, 115, 22, 0.08)' : r.type === 'Dependency' ? 'rgba(245, 158, 11, 0.08)' : 'var(--color-primary-highlight)';
                     const typeBadgeCls = r.type === 'Risk' ? 'red' : r.type === 'Issue' ? 'orange' : r.type === 'Dependency' ? 'amber' : 'primary';
                     const impBadgeCls = r.impact === 'High' ? 'red' : r.impact === 'Medium' ? 'amber' : 'green';
                     return `
-                          <tr onclick="window.openRaidModal('${r.id}')" style="cursor:pointer; border-bottom:1px solid var(--color-divider); transition:background 0.15s;" onmouseover="this.style.background='var(--color-surface-3)'" onmouseout="this.style.background='transparent'">
-                            <td style="padding:8px 4px; font-weight:700; color:var(--color-text);" title="${esc(r.desc)}">${esc(r.id)}<br><span style="font-weight:600; font-size:10px; color:var(--color-text-muted); display:inline-block; max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(r.title)}</span></td>
-                            <td style="padding:8px 4px;"><span class="badge ${typeBadgeCls}" style="font-size:9px; padding:2px 5px;">${esc(r.type)}</span></td>
-                            <td style="padding:8px 4px;"><span class="badge ${impBadgeCls}" style="font-size:9px; padding:2px 5px;">${esc(r.impact)}</span></td>
-                            <td style="padding:8px 4px; color:var(--color-text-muted); font-weight:600;">${esc(r.owner || 'Unassigned')}</td>
-                          </tr>
-                        `;
+                      <div onclick="window.openRaidModal('${r.id}')" style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:var(--color-surface-3); border-radius:8px; border:1px solid var(--color-divider); cursor:pointer; transition:background 0.2s, transform 0.15s;" onmouseover="this.style.background='var(--color-surface-2)'; this.style.transform='translateY(-1px)'" onmouseout="this.style.background='var(--color-surface-3)'; this.style.transform='none'">
+                        <div style="display:flex; align-items:center; gap:10px; min-width:0; flex-grow:1;">
+                          <div style="width:28px; height:28px; border-radius:50%; background:${typeBg}; color:${typeColor}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                            <i data-lucide="${typeIcon}" style="width:14px; height:14px;"></i>
+                          </div>
+                          <div style="min-width:0; flex-grow:1;">
+                            <div style="display:flex; align-items:center; gap:6px; margin-bottom:1px;">
+                              <span style="font-size:10px; font-weight:800; color:var(--color-text-faint); font-family:var(--mono);">${esc(r.id)}</span>
+                              <span style="font-size:11px; font-weight:800; color:var(--color-text); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; display:inline-block; max-width:140px;" title="${esc(r.title)}">${esc(r.title)}</span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:8px; font-size:9px; color:var(--color-text-muted);">
+                              <span>Owner: <strong style="color:var(--color-text-muted); font-weight:600;">${esc(r.owner || 'Unassigned')}</strong></span>
+                              ${r.due ? `<span>Due: <strong>${fmtDate(r.due)}</strong></span>` : ''}
+                            </div>
+                          </div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                          <span class="badge ${typeBadgeCls}" style="font-size:9px; padding:2px 5px;">${esc(r.type)}</span>
+                          <span class="badge ${impBadgeCls}" style="font-size:9px; padding:2px 5px;">${esc(r.impact)}</span>
+                        </div>
+                      </div>
+                    `;
                   }).join('')}
-                    </tbody>
-                  </table>
                 </div>
-                <button class="btn outline mini" style="margin-top:auto; font-size:10px; padding:6px; width:100%;" onclick="setView('risks')">Go to RAID Log</button>
+                <button class="btn outline mini" style="margin-top:auto; font-size:11px; padding:8px; width:100%; display:flex; align-items:center; justify-content:center; gap:6px;" onclick="setView('risks')">
+                  <i data-lucide="external-link" style="width:12px; height:12px;"></i> Go to RAID Log
+                </button>
               ` : `
-                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; flex-grow:1; color:var(--color-text-faint); text-align:center; padding:24px;">
+                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; flex-grow:1; color:var(--color-text-faint); text-align:center; padding:24px; background:var(--color-surface-3); border-radius:var(--radius-md); border:1px dashed var(--color-divider);">
                   <i data-lucide="check-shield" style="width:36px; height:36px; color:var(--green); margin-bottom:12px; opacity:0.8;"></i>
                   <span style="font-size:13px; font-weight:700; color:var(--color-text-muted)">Clean RAID Register</span>
                   <span style="font-size:11px; margin-top:4px;">No active Risks, Issues, or Dependencies logged.</span>
@@ -25368,7 +25449,36 @@
             </div>`;
                   grid.appendChild(raidCard);
 
-                  // Card 3: Team Capacity Allocation
+                  // Trigger Burnup Chart rendering
+                  dashDrawQueue.push(() => {
+                    try {
+                      const cvs = $id('dash-burnup-cvs');
+                      if (cvs) {
+                        drawLineChart(cvs, burnupWeeks.map(w => w.l), [totalScopeTrend, completedScopeTrend], ['Total Scope', 'Completed'], ['var(--color-primary)', 'var(--green)']);
+                      }
+                    } catch (err) {
+                      PP.error('Error drawing burnup chart:', err);
+                    }
+                  });
+
+                  setTimeout(() => {
+                    if (window.lucide) {
+                      lucide.createIcons(pacingCard);
+                      lucide.createIcons(raidCard);
+                    }
+                  }, 100);
+                } else if (sec.id === 'exec_capacity') {
+                  addST(inner, 'Team Capacity Allocation');
+                  const grid = addGrid(inner);
+
+                  // 3. Team capacity snapshot
+                  const capacity = P.settings?.daysPerWeek || 5;
+                  const teamDetails = (P.members || []).map(m => {
+                    const mTasks = tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled');
+                    const mEffort = mTasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+                    return { name: m.name, role: m.role || 'Member', count: mTasks.length, effort: mEffort };
+                  });
+
                   const capacityId = 'dash-exec-capacity';
                   const capacitySpan = (P.widgetSpans && P.widgetSpans[capacityId]) || 4;
                   const capacityCard = mkCC('Team Capacity Allocation', 'Active load versus capacity constraint', capacityId, '', 'standard', 'Workload allocations compared to member capacities.', 'View Explanation', 'users');
@@ -25404,22 +25514,8 @@
             </div>`;
                   grid.appendChild(capacityCard);
 
-                  // Trigger Burnup Chart rendering
-                  dashDrawQueue.push(() => {
-                    try {
-                      const cvs = $id('dash-burnup-cvs');
-                      if (cvs) {
-                        drawLineChart(cvs, burnupWeeks.map(w => w.l), [totalScopeTrend, completedScopeTrend], ['Total Scope', 'Completed'], ['var(--color-primary)', 'var(--green)']);
-                      }
-                    } catch (err) {
-                      PP.error('Error drawing burnup chart:', err);
-                    }
-                  });
-
                   setTimeout(() => {
                     if (window.lucide) {
-                      lucide.createIcons(pacingCard);
-                      lucide.createIcons(raidCard);
                       lucide.createIcons(capacityCard);
                     }
                   }, 100);
@@ -28307,6 +28403,25 @@
                 btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label}`;
               }
               vsw.appendChild(btn);
+            }
+
+            // Sidebar #sb-nav
+            if (sbNav) {
+              const btn = document.createElement('button');
+              btn.className = 'sb-nav-item';
+              if (P.view === vid) btn.classList.add('active');
+              btn.setAttribute('data-v', vid);
+              btn.onclick = () => {
+                if (vid === 'reports') P.activeReportId = null;
+                setView(vid);
+              };
+              btn.title = viewDef.title;
+              if (vid === 'log') {
+                btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span class="sb-nav-label">${viewDef.label}</span><span id="sb-log-badge" class="badge" style="display:none;margin-left:auto;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">0</span>`;
+              } else {
+                btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span class="sb-nav-label">${viewDef.label}</span>`;
+              }
+              sbNav.appendChild(btn);
             }
 
 
@@ -33652,12 +33767,12 @@
             let idxL = 0;
             const addLay = (v, lays) => (lays || []).forEach(l => {
               const wid = l.id || l.i || '';
-              const curSpan = (P.widgetSpans && P.widgetSpans[wid]) || l.span || l.w || (wid === 'summary' || wid === 'mgmt_insights' || wid === 'exec_reporting' || wid === 'activities' || wid === 'achievements' || wid === 'risks' || wid === 'plans' || wid === 'team' || wid === 'util' || wid === 'burndown' || wid === 'velocity' || wid === 'cfd' || wid === 'milestone-timeline' || wid === 'module_health' || wid === 'screen_status' || wid === 'intelligence' || wid === 'activity' || wid === 'overdue_tbl' || wid === 'overdue' || wid === 'workload' || wid === 'cat_hours' || wid === 'module_status_matrix' || wid === 'release_timeline' || wid === 'defect_intel' || wid === 'feature_insights' || wid === 'high_impact_entities' || wid === 'kpi_summary' ? 4 : wid === 'health' ? 2 : 2);
+              const curSpan = (P.widgetSpans && P.widgetSpans[wid]) || l.span || l.w || (wid === 'summary' || wid === 'mgmt_insights' || wid === 'exec_reporting' || wid === 'exec_capacity' || wid === 'activities' || wid === 'achievements' || wid === 'risks' || wid === 'plans' || wid === 'team' || wid === 'util' || wid === 'burndown' || wid === 'velocity' || wid === 'cfd' || wid === 'milestone-timeline' || wid === 'module_health' || wid === 'screen_status' || wid === 'intelligence' || wid === 'activity' || wid === 'overdue_tbl' || wid === 'overdue' || wid === 'workload' || wid === 'cat_hours' || wid === 'module_status_matrix' || wid === 'release_timeline' || wid === 'defect_intel' || wid === 'feature_insights' || wid === 'high_impact_entities' || wid === 'kpi_summary' ? 4 : wid === 'health' ? 2 : 2);
               const row = wsLay.addRow({ view: v, id: wid, t: l.t || wid, x: l.x || 0, y: l.y || 0, w: curSpan, h: l.h || 1 }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
               COLORS.styleRow(row, idxL++);
             });
             const defDashLay = [
-              { id: 'summary', t: 'Summary Cards', on: true }, { id: 'mgmt_insights', t: 'Management Insights', on: true }, { id: 'exec_reporting', t: 'Executive Reporting', on: true }, { id: 'module_status_matrix', t: 'Strategic Module Status', on: true }, { id: 'health', t: 'Project Health', on: true }, { id: 'defect_intel', t: 'Defect Intelligence', on: true }, { id: 'high_impact_entities', t: 'High Impact Entities', on: true }, { id: 'feature_insights', t: 'Feature Intelligence', on: true }, { id: 'release_timeline', t: 'Release Timeline', on: true }, { id: 'burndown', t: 'Burndown Chart', on: true }, { id: 'velocity', t: 'Weekly Velocity', on: true }, { id: 'cfd', t: 'Cumulative Flow', on: true }, { id: 'milestone-timeline', t: 'Milestone Timeline', on: true }, { id: 'module_health', t: 'Module & Release Health', on: true }, { id: 'screen_status', t: 'Screen Status Details', on: true }, { id: 'workload', t: 'Team Workload', on: true }, { id: 'cat_hours', t: 'Category & Effort', on: true }, { id: 'overdue', t: 'Overdue Attention', on: true }, { id: 'intelligence', t: 'Predictive Intelligence', on: true }, { id: 'activity', t: 'Recent Activity', on: true }, { id: 'analytics', t: 'Advanced Analytics', on: true }
+              { id: 'summary', t: 'Summary Cards', on: true }, { id: 'mgmt_insights', t: 'Management Insights', on: true }, { id: 'exec_reporting', t: 'Executive Reporting', on: true }, { id: 'exec_capacity', t: 'Team Capacity Allocation', on: true }, { id: 'module_status_matrix', t: 'Strategic Module Status', on: true }, { id: 'health', t: 'Project Health', on: true }, { id: 'defect_intel', t: 'Defect Intelligence', on: true }, { id: 'high_impact_entities', t: 'High Impact Entities', on: true }, { id: 'feature_insights', t: 'Feature Intelligence', on: true }, { id: 'release_timeline', t: 'Release Timeline', on: true }, { id: 'burndown', t: 'Burndown Chart', on: true }, { id: 'velocity', t: 'Weekly Velocity', on: true }, { id: 'cfd', t: 'Cumulative Flow', on: true }, { id: 'milestone-timeline', t: 'Milestone Timeline', on: true }, { id: 'module_health', t: 'Module & Release Health', on: true }, { id: 'screen_status', t: 'Screen Status Details', on: true }, { id: 'workload', t: 'Team Workload', on: true }, { id: 'cat_hours', t: 'Category & Effort', on: true }, { id: 'overdue', t: 'Overdue Attention', on: true }, { id: 'intelligence', t: 'Predictive Intelligence', on: true }, { id: 'activity', t: 'Recent Activity', on: true }, { id: 'analytics', t: 'Advanced Analytics', on: true }
             ];
             const defRptLay = [
               { id: 'kpi_summary', t: 'Executive Metrics', on: true }, { id: 'health', t: 'Project Health', on: true }, { id: 'defect_intel', t: 'Defect Intelligence', on: true }, { id: 'summary', t: 'Executive Summary', on: true }, { id: 'activities', t: 'Key Activities', on: true }, { id: 'achievements', t: 'Achievements', on: true }, { id: 'risks', t: 'Risks & Issues', on: true }, { id: 'plans', t: 'Upcoming Plans', on: true }, { id: 'team', t: 'Team Workload', on: true }, { id: 'util', t: 'Resource Utilization', on: true }, { id: 'burndown', t: 'Burndown Chart', on: true }, { id: 'velocity', t: 'Weekly Velocity', on: true }, { id: 'cfd', t: 'Cumulative Flow', on: true }, { id: 'milestone-timeline', t: 'Milestone Timeline', on: true }, { id: 'module_health', t: 'Module & Release Health', on: true }, { id: 'screen_status', t: 'Screen Status Details', on: true }, { id: 'intelligence', t: 'Predictive Intelligence', on: true }, { id: 'activity', t: 'Latest Updates', on: true }, { id: 'overdue_tbl', t: 'Overdue Table', on: true }
@@ -36566,6 +36681,7 @@
             { id: 'summary', t: 'Summary Cards', on: true },
             { id: 'mgmt_insights', t: 'Management Insights', on: true },
             { id: 'exec_reporting', t: 'Executive Reporting', on: true },
+            { id: 'exec_capacity', t: 'Team Capacity Allocation', on: true },
             { id: 'module_status_matrix', t: 'Strategic Module Status', on: true },
             { id: 'health', t: 'Project Health', on: true },
             { id: 'defect_intel', t: 'Defect Intelligence', on: true },
@@ -39051,6 +39167,17 @@
                 { id: 'DEF-001', title: 'Login button unresponsive on Safari', type: 'Functional Bug', status: 'New', severity: 'S2 - High', priority: 'High', assignee: 'Bob', reporter: 'David', linkedType: 'Task', linkedId: 'TASK-003', createdAt: '2026-02-16T10:00:00Z', updatedAt: '2026-02-16T12:00:00Z' },
                 { id: 'DEF-002', title: 'MFA SMS code delay > 5 mins', type: 'Performance', status: 'Assigned', severity: 'S1 - Blocker', priority: 'Critical', assignee: 'Bob', reporter: 'Eve', linkedType: 'Screen', linkedId: 'MFA Verification', createdAt: '2026-02-18T14:30:00Z', updatedAt: '2026-02-19T09:00:00Z' },
                 { id: 'DEF-003', title: 'Signup form missing mobile field', type: 'Suggestion', status: 'Closed', severity: 'S4 - Low', priority: 'Low', assignee: 'Alice', reporter: 'David', linkedType: 'Screen', linkedId: 'Signup Portal', createdAt: '2026-02-20T09:15:00Z', updatedAt: '2026-02-21T10:30:00Z' }
+              ],
+              raids: [
+                { id: 'RAID-001', type: 'Risk', title: 'Core API Gateway Bottleneck', desc: 'High volume of microservices calling the legacy gateway could cause cascading timeouts during peak market hours.', owner: 'Alice', impact: 'High', probability: 'High', severity: 'S1 - Critical', dueDate: '2026-05-06', mitigation: 'Implement Redis caching and circuit breakers at the gateway level. Assigning Carol to lead stress testing.', status: 'Active', linkedTasks: ['TASK-002'], linkedMilestones: [], createdAt: '2026-05-06T10:00:00Z', updatedAt: '2026-05-19T10:00:00Z' },
+                { id: 'RAID-002', type: 'Dependency', title: 'External KYC Provider API Integration', desc: 'Third party KYC API v3 release is delayed by 2 weeks, blocking the user account onboarding workflow.', owner: 'Bob', impact: 'High', probability: 'Medium', severity: 'S2 - Major', dueDate: '2026-05-16', mitigation: 'Develop mock KYC service to unblock frontend development. Escalated to vendor account manager.', status: 'Active', linkedTasks: ['TASK-004'], linkedMilestones: [], createdAt: '2026-05-11T10:00:00Z', updatedAt: '2026-05-18T10:00:00Z' },
+                { id: 'RAID-003', type: 'Issue', title: 'QA Staging Environment Unstable', desc: 'Memory leaks in staging database container causing daily crashes and blocking performance sign-off.', owner: 'David', impact: 'Medium', probability: 'High', severity: 'S2 - Major', dueDate: '2026-05-21', mitigation: 'Provision dedicated database instance for QA staging. DevOps team currently reconfiguring docker compose.', status: 'Active', linkedTasks: ['TASK-008'], linkedMilestones: [], createdAt: '2026-05-16T10:00:00Z', updatedAt: '2026-05-20T10:00:00Z' },
+                { id: 'RAID-004', type: 'Assumption', title: 'Existing User Data Schema Compatibility', desc: 'Assuming legacy user tables can be migrated to the new schema without requiring multi-hour maintenance downtime.', owner: 'Alice', impact: 'High', probability: 'Low', severity: 'S3 - Moderate', dueDate: '2026-05-31', mitigation: 'Verify with dry-run migration scripts on staging database. Completed successfully last week.', status: 'Mitigated', linkedTasks: ['TASK-001'], linkedMilestones: [], createdAt: '2026-05-01T10:00:00Z', updatedAt: '2026-05-13T10:00:00Z' }
+              ],
+              decisions: [
+                { id: 'DEC-001', title: 'Adopt GraphQL for Market Intelligence Feed', owner: 'Alice', date: '2026-05-11', rationale: 'Reduces over-fetching and allows dynamic client queries for complex financial dashboards. Approved by Architecture Board.', status: 'Approved', affectedScope: 'Market Intelligence Module' },
+                { id: 'DEC-002', title: 'Deprecate Legacy SOAP Payment Gateway', owner: 'Bob', date: '2026-05-16', rationale: 'Maintenance overhead exceeds transaction volume. Migrating all clients to REST API to simplify codebase.', status: 'Approved', affectedScope: 'Payment Module' },
+                { id: 'DEC-003', title: 'Delay User Profile Customization to v2.1.0', owner: 'Eve', date: '2026-05-20', rationale: 'Prioritizing core banking stability and security compliance for v2.0 release. UI resources reallocated to Cash Accounts GUI.', status: 'Pending Sign-off', affectedScope: 'User Interface' }
               ]
             },
             mobile: {
