@@ -14428,9 +14428,9 @@
     }
 
     const PulsePersistence = {
-      clearProjectState() {
+clearProjectState() {
         P.name = ''; P.desc = ''; P.tasks = []; P.log = []; P.members = []; P.reports = [];
-        P.defects = []; P.features = [];
+        P.defects = []; P.features = []; P.releases = [];
         P.raids = []; P.decisions = []; P.baselines = []; P.healthHistory = []; P.reportSnapshots = [];
         P.customFields = []; P.defCustomFields = []; P.stepTemplates = JSON.parse(JSON.stringify(STEP_TEMPLATES));
         P.dropdowns = {
@@ -14452,7 +14452,36 @@
           raidStatus: ['Identified', 'Active', 'Mitigated', 'Closed', 'Realized'],
           decisionStatus: ['Pending Sign-off', 'Approved', 'Rejected', 'Appealed']
         };
-        P.search = ''; P.filters = { status: new Set(), priority: new Set(), assignee: new Set(), module: new Set(), feature: new Set() };
+        P.search = ''; 
+        P.filters = { 
+          status: new Set(), priority: new Set(), assignee: new Set(), module: new Set(), feature: new Set(), category: new Set(),
+          action: new Set(), field: new Set(), featComplexity: new Set(), featScreens: new Set(), featModules: new Set(),
+          overdueOnly: false, blockedOnly: false
+        };
+        P.expanded = new Set();
+        P.collapsedNodes = new Set();
+        P.dismissedAlerts = new Set();
+        P.activeReportId = null;
+        P.dashLayout = null;
+        P.reportLayout = null;
+        P.teamLayout = null;
+        P.colWidths = null;
+        P.colOrder = null;
+        P.colFilters = {};
+        P.defColWidths = null;
+        P.defColOrder = null;
+        P.defHiddenCols = [];
+        P.defColFilters = {};
+        P.hiddenCols = [];
+        P.widgetSpans = {};
+        P.velocityWeeks = 8;
+        P.cfdWeeks = 8;
+        P._adminActiveTab = '';
+        P.fsHandle = null;
+        P.fsDirHandle = null;
+        P.fsDirName = '';
+        P.sbOpen = true;
+        P.view = 'tasks';
       },
 
       injectSampleData() {
@@ -14672,7 +14701,7 @@
         renderRecentProjects();
       },
 
-      save() {
+save() {
         if (P.readonly || P._isLoading) return;
         clearTimeout(_saveTimer);
         _saveTimer = setTimeout(() => {
@@ -14696,19 +14725,34 @@
               alertHistory: P.alertHistory,
               dismissedAlerts: Array.from(P.dismissedAlerts || []),
               expanded: Array.from(P.expanded || []),
+              collapsedNodes: Array.from(P.collapsedNodes || []),
+              search: P.search || '',
+              sbOpen: P.sbOpen,
+              velocityWeeks: P.velocityWeeks || 8,
+              cfdWeeks: P.cfdWeeks || 8,
+              teamLayout: P.teamLayout,
+              activeReportId: P.activeReportId,
+              _adminActiveTab: P._adminActiveTab,
               filters: {
                 status: Array.from((P.filters || {}).status || []),
                 priority: Array.from((P.filters || {}).priority || []),
                 assignee: Array.from((P.filters || {}).assignee || []),
                 module: Array.from((P.filters || {}).module || []),
                 feature: Array.from((P.filters || {}).feature || []),
-                category: Array.from((P.filters || {}).category || [])
+                category: Array.from((P.filters || {}).category || []),
+                action: Array.from((P.filters || {}).action || []),
+                field: Array.from((P.filters || {}).field || []),
+                featComplexity: Array.from((P.filters || {}).featComplexity || []),
+                featScreens: Array.from((P.filters || {}).featScreens || []),
+                featModules: Array.from((P.filters || {}).featModules || [])
               }
             }));
             if (P.dashLayout) localStorage.setItem('pp-dash-layout', JSON.stringify(P.dashLayout));
             else localStorage.removeItem('pp-dash-layout');
             if (P.reportLayout) localStorage.setItem('pp-report-layout', JSON.stringify(P.reportLayout));
             else localStorage.removeItem('pp-report-layout');
+            if (P.teamLayout) localStorage.setItem('pp-team-layout', JSON.stringify(P.teamLayout));
+            else localStorage.removeItem('pp-team-layout');
             if (P.widgetSpans) localStorage.setItem('pp-widget-spans', JSON.stringify(P.widgetSpans));
             else localStorage.removeItem('pp-widget-spans');
             createBackup(); // Create a sliding backup in IDB
@@ -14724,7 +14768,7 @@
           }
         }, 300);
       },
-      load() {
+load() {
         try {
           let d = JSON.parse(localStorage.getItem('pp-data'));
           if (d) {
@@ -14742,13 +14786,27 @@
 
             P.dismissedAlerts = new Set(d.dismissedAlerts || []);
             P.expanded = new Set(d.expanded || []);
+            P.collapsedNodes = new Set(d.collapsedNodes || []);
+            if (d.search !== undefined) P.search = d.search;
+            if (d.sbOpen !== undefined) P.sbOpen = d.sbOpen;
+            if (d.velocityWeeks !== undefined) P.velocityWeeks = d.velocityWeeks;
+            if (d.cfdWeeks !== undefined) P.cfdWeeks = d.cfdWeeks;
+            if (d.teamLayout !== undefined) P.teamLayout = d.teamLayout;
+            if (d.activeReportId !== undefined) P.activeReportId = d.activeReportId;
+            if (d._adminActiveTab !== undefined) P._adminActiveTab = d._adminActiveTab;
             if (d.filters) {
               P.filters = {
                 status: new Set(d.filters.status || []),
                 priority: new Set(d.filters.priority || []),
                 assignee: new Set(d.filters.assignee || []),
                 module: new Set(d.filters.module || []),
-                feature: new Set(d.filters.feature || [])
+                feature: new Set(d.filters.feature || []),
+                category: new Set(d.filters.category || []),
+                action: new Set(d.filters.action || []),
+                field: new Set(d.filters.field || []),
+                featComplexity: new Set(d.filters.featComplexity || []),
+                featScreens: new Set(d.filters.featScreens || []),
+                featModules: new Set(d.filters.featModules || [])
               };
             }
             if (P.sort && P.sort.dir === undefined) P.sort = { col: 'id', dir: 'asc' };
@@ -14768,8 +14826,11 @@
             if (!P.complexityFactors) {
               P.complexityFactors = { Easy: 0.5, Medium: 1.0, Complex: 1.5 };
             }
-            P.expanded = new Set();
-            P.filters = { status: new Set(), priority: new Set(), assignee: new Set(), module: new Set(), feature: new Set() };
+            if (!P.expanded) P.expanded = new Set();
+            if (!P.collapsedNodes) P.collapsedNodes = new Set();
+            if (!P.filters) {
+              P.filters = { status: new Set(), priority: new Set(), assignee: new Set(), module: new Set(), feature: new Set() };
+            }
 
             // Ensure defect properties exist for legacy data
             if (!P.defects) P.defects = [];
@@ -28460,7 +28521,7 @@
           });
         }
 
-        function setView(v) {
+function setView(v, preserveSearch = false) {
           if (v === 'timeline') {
             P.taskViewMode = 'timeline';
             v = 'tasks';
@@ -28489,9 +28550,11 @@
             p.style.display = 'none';
           });
 
-          const searchInp = $id('global-search');
-          if (searchInp) searchInp.value = '';
-          P.search = '';
+          if (!preserveSearch) {
+            const searchInp = $id('global-search');
+            if (searchInp) searchInp.value = '';
+            P.search = '';
+          }
           // Update topbar health badge on each view change
           setTimeout(() => { try { if (window.updateTopHealthBadge) updateTopHealthBadge(); } catch (e) { } }, 300);
           const vTitle = $id('v-title');
@@ -28537,7 +28600,12 @@
             const searchWrap = $id('search-wrap');
             if (searchWrap) searchWrap.style.display = (isTasks || isDefects || v === 'log' || v === 'risks') ? 'block' : 'none';
             const searchInp2 = $id('global-search');
-            if (searchInp2) searchInp2.placeholder = isDefects ? 'Search defects, IDs, severity...' : (v === 'risks' ? 'Search risks, owners, impact...' : (v === 'log' ? 'Search activity, tasks, IDs...' : 'Search tasks, IDs, notes...'));
+            if (searchInp2) {
+              searchInp2.placeholder = isDefects ? 'Search defects, IDs, severity...' : (v === 'risks' ? 'Search risks, owners, impact...' : (v === 'log' ? 'Search activity, tasks, IDs...' : 'Search tasks, IDs, notes...'));
+              if (preserveSearch) {
+                searchInp2.value = P.search || '';
+              }
+            }
             const taskInfo = $id('task-info');
             if (taskInfo) taskInfo.style.display = (isTasks || isDefects || v === 'log' || v === 'risks') ? 'block' : 'none';
             const taskViewControls = $id('task-view-controls');
@@ -33710,7 +33778,7 @@
             });
           },
 
-          buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S) {
+buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S) {
             const wsProj = wb.addWorksheet('System State', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
             wsProj.properties.tabColor = { argb: COLORS.indigo };
             wsProj.columns = [{ header: 'Property', key: 'key', width: 25 }, { header: 'Value', key: 'val', width: 50 }];
@@ -33736,7 +33804,13 @@
               { key: 'Show Explanations', val: P.showExplanations ? 'true' : 'false' },
               { key: 'Sidebar Collapsed', val: JSON.stringify(P.sidebarCollapsed || {}) },
               { key: 'Pivot State', val: JSON.stringify(P._pvS || {}) },
-              { key: 'Local Folder Sync Path', val: P.fsDirName || '' }
+              { key: 'Local Folder Sync Path', val: P.fsDirName || '' },
+              { key: 'Search Query', val: P.search || '' },
+              { key: 'sbOpen', val: P.sbOpen ? 'true' : 'false' },
+              { key: 'Active Report ID', val: P.activeReportId || '' },
+              { key: 'Velocity Weeks', val: P.velocityWeeks || 8 },
+              { key: 'CFD Weeks', val: P.cfdWeeks || 8 },
+              { key: 'Admin Active Tab', val: P._adminActiveTab || '' }
             ];
             projMeta.forEach((r, i) => {
               const row = wsProj.addRow(r); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
@@ -33762,13 +33836,22 @@
 
             const wsLay = wb.addWorksheet('Config_Layouts', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
             wsLay.properties.tabColor = { argb: COLORS.slate };
-            wsLay.columns = [{ header: 'View', key: 'view', width: 18 }, { header: 'Widget ID', key: 'id', width: 22 }, { header: 'Title', key: 't', width: 25 }, { header: 'X', key: 'x', width: 10 }, { header: 'Y', key: 'y', width: 10 }, { header: 'W', key: 'w', width: 10 }, { header: 'H', key: 'h', width: 10 }];
+            wsLay.columns = [
+              { header: 'View', key: 'view', width: 18 },
+              { header: 'Widget ID', key: 'id', width: 22 },
+              { header: 'Title', key: 't', width: 25 },
+              { header: 'X', key: 'x', width: 10 },
+              { header: 'Y', key: 'y', width: 10 },
+              { header: 'W', key: 'w', width: 10 },
+              { header: 'H', key: 'h', width: 10 },
+              { header: 'On', key: 'on', width: 10 }
+            ];
             wsLay.getRow(1).height = 30; wsLay.getRow(1).eachCell(c => c.style = hdrStyle);
             let idxL = 0;
             const addLay = (v, lays) => (lays || []).forEach(l => {
               const wid = l.id || l.i || '';
               const curSpan = (P.widgetSpans && P.widgetSpans[wid]) || l.span || l.w || (wid === 'summary' || wid === 'mgmt_insights' || wid === 'exec_reporting' || wid === 'exec_capacity' || wid === 'activities' || wid === 'achievements' || wid === 'risks' || wid === 'plans' || wid === 'team' || wid === 'util' || wid === 'burndown' || wid === 'velocity' || wid === 'cfd' || wid === 'milestone-timeline' || wid === 'module_health' || wid === 'screen_status' || wid === 'intelligence' || wid === 'activity' || wid === 'overdue_tbl' || wid === 'overdue' || wid === 'workload' || wid === 'cat_hours' || wid === 'module_status_matrix' || wid === 'release_timeline' || wid === 'defect_intel' || wid === 'feature_insights' || wid === 'high_impact_entities' || wid === 'kpi_summary' ? 4 : wid === 'health' ? 2 : 2);
-              const row = wsLay.addRow({ view: v, id: wid, t: l.t || wid, x: l.x || 0, y: l.y || 0, w: curSpan, h: l.h || 1 }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
+              const row = wsLay.addRow({ view: v, id: wid, t: l.t || wid, x: l.x || 0, y: l.y || 0, w: curSpan, h: l.h || 1, on: l.on ? 'true' : 'false' }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
               COLORS.styleRow(row, idxL++);
             });
             const defDashLay = [
@@ -33777,8 +33860,21 @@
             const defRptLay = [
               { id: 'kpi_summary', t: 'Executive Metrics', on: true }, { id: 'health', t: 'Project Health', on: true }, { id: 'defect_intel', t: 'Defect Intelligence', on: true }, { id: 'summary', t: 'Executive Summary', on: true }, { id: 'activities', t: 'Key Activities', on: true }, { id: 'achievements', t: 'Achievements', on: true }, { id: 'risks', t: 'Risks & Issues', on: true }, { id: 'plans', t: 'Upcoming Plans', on: true }, { id: 'team', t: 'Team Workload', on: true }, { id: 'util', t: 'Resource Utilization', on: true }, { id: 'burndown', t: 'Burndown Chart', on: true }, { id: 'velocity', t: 'Weekly Velocity', on: true }, { id: 'cfd', t: 'Cumulative Flow', on: true }, { id: 'milestone-timeline', t: 'Milestone Timeline', on: true }, { id: 'module_health', t: 'Module & Release Health', on: true }, { id: 'screen_status', t: 'Screen Status Details', on: true }, { id: 'intelligence', t: 'Predictive Intelligence', on: true }, { id: 'activity', t: 'Latest Updates', on: true }, { id: 'overdue_tbl', t: 'Overdue Table', on: true }
             ];
+            const defTeamLay = [
+              { id: 'bdays', t: 'Upcoming Birthdays', on: true },
+              { id: 'leaves', t: 'Upcoming Leaves', on: true },
+              { id: 'capacity_summary', t: 'Overall Resource Capacity', on: true },
+              { id: 'capacity_heatmap', t: 'Capacity Heatmap', on: true },
+              { id: 'workload_balance', t: 'Workload Balance', on: true },
+              { id: 'capacity_shortfalls', t: 'Predictive Capacity Shortfalls', on: true },
+              { id: 'burn_rate', t: 'Effort & Budget Burn-Rate Trajectory', on: true },
+              { id: 'team_velocity', t: 'Team Velocity', on: true },
+              { id: 'team_directory', t: 'Team Directory', on: true },
+              { id: 'org_chart', t: 'Organization Chart', on: true }
+            ];
             addLay('Dashboard', (Array.isArray(P.dashLayout) && P.dashLayout.length) ? P.dashLayout : defDashLay);
             addLay('Report', (Array.isArray(P.reportLayout) && P.reportLayout.length) ? P.reportLayout : defRptLay);
+            addLay('Team', (Array.isArray(P.teamLayout) && P.teamLayout.length) ? P.teamLayout : defTeamLay);
 
             const wsFilt = wb.addWorksheet('State_Filters', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
             wsFilt.properties.tabColor = { argb: COLORS.slate };
@@ -33809,6 +33905,10 @@
             });
             (P.expanded || new Set()).forEach(v => {
               const row = wsSets.addRow({ type: 'ExpandedNode', value: S(v) }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
+              COLORS.styleRow(row, idxS++);
+            });
+            (P.collapsedNodes || new Set()).forEach(v => {
+              const row = wsSets.addRow({ type: 'CollapsedNode', value: S(v) }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
               COLORS.styleRow(row, idxS++);
             });
 
@@ -36168,8 +36268,30 @@
               if (!ws && rawData.sheetAliases[name]) { for (const alias of rawData.sheetAliases[name]) { ws = wb.getWorksheet(alias); if (ws) break; } }
               if (!ws) return [];
 
+              let headerRowIdx = 1;
+              if (name === 'Tasks' || name === 'Defects' || name === 'Defects Registry') {
+                for (let r = 1; r <= 10; r++) {
+                  const row = ws.getRow(r);
+                  let foundId = false;
+                  row.eachCell(c => {
+                    let v = c.value;
+                    if (v && typeof v === 'object' && v.richText) v = v.richText.map(rt => rt.text).join('');
+                    if (v && typeof v === 'object' && v.text) v = v.text;
+                    if (v && typeof v === 'object' && v.result !== undefined) v = v.result;
+                    const cellVal = String(v || '').trim().toLowerCase();
+                    if (cellVal === 'id' || cellVal === 'task id' || cellVal === 'defect id' || cellVal === 'member id' || cellVal === 'subtask id') {
+                      foundId = true;
+                    }
+                  });
+                  if (foundId) {
+                    headerRowIdx = r;
+                    break;
+                  }
+                }
+              }
+
               const data = []; const hdrs = []; const revMap = window.PROJECT_SCHEMA.getRevMap();
-              ws.getRow(1).eachCell(c => {
+              ws.getRow(headerRowIdx).eachCell(c => {
                 let v = c.value; if (v && typeof v === 'object' && v.richText) v = v.richText.map(rt => rt.text).join(''); if (v && typeof v === 'object' && v.text) v = v.text; if (v && typeof v === 'object' && v.result !== undefined) v = v.result;
                 const raw = String(v || '').toLowerCase().replace(/\s/g, '');
                 let mapped = revMap[raw] || raw;
@@ -36196,7 +36318,7 @@
               });
 
               ws.eachRow((row, i) => {
-                if (i === 1) return; const obj = {};
+                if (i <= headerRowIdx) return; const obj = {};
                 row.eachCell({ includeEmpty: true }, (c, colIdx) => {
                   let v = c.value; if (v && typeof v === 'object' && v.richText) v = v.richText.map(rt => rt.text).join(''); if (v && typeof v === 'object' && v.text) v = v.text; if (v && typeof v === 'object' && v.result !== undefined) v = v.result;
                   if (v instanceof Date && !isNaN(v)) v = v.getFullYear() + '-' + String(v.getMonth() + 1).padStart(2, '0') + '-' + String(v.getDate()).padStart(2, '0');
@@ -36221,7 +36343,7 @@
             };
           },
 
-          parseAppStateSheets(wb, rawData) {
+parseAppStateSheets(wb, rawData) {
             const projData = rawData.getTable('Project'); const appStateData = rawData.getTable('App_State'); const stateMap = {};
             projData.forEach(r => { const k = r.key || r.property || r.settingkey; if (k) stateMap[k] = r.value !== undefined ? r.value : r.val; else if (r['Project Name']) stateMap['Project Name'] = r['Project Name']; });
             appStateData.forEach(r => { const k = r.key || r.property || r.settingkey; if (k) stateMap[k] = r.value !== undefined ? r.value : r.val; });
@@ -36258,7 +36380,15 @@
                 }
               });
             }
-            setTheme(P.theme); setView(P.view);
+
+            P.search = stateMap['Search Query'] || '';
+            P.sbOpen = stateMap['sbOpen'] !== undefined ? stateMap['sbOpen'] === 'true' : true;
+            P.activeReportId = parseInt(stateMap['Active Report ID']) || stateMap['Active Report ID'] || null;
+            P.velocityWeeks = parseInt(stateMap['Velocity Weeks']) || 8;
+            P.cfdWeeks = parseInt(stateMap['CFD Weeks']) || 8;
+            P._adminActiveTab = stateMap['Admin Active Tab'] || '';
+
+            setTheme(P.theme); setView(P.view, true);
 
             P.colorMode = stateMap['Color Mode'] || P.colorMode || 'default';
             if (P.colorMode) { localStorage.setItem('pp-color-mode', P.colorMode); document.documentElement.setAttribute('data-color-mode', P.colorMode); }
@@ -36286,15 +36416,21 @@
 
             const layRaw = rawData.getTable('App_Layouts');
             if (layRaw.length) {
-              P.dashLayout = layRaw.filter(r => r.view === 'Dashboard').map(r => { const wid = r.id || r.widgetId || r.i; const cleanId = (wid || '').toLowerCase().trim(); const rawT = r.t || r.title || wid; return { id: wid, t: (rawT && rawT.toLowerCase() !== (wid || '').toLowerCase() && rawT.toLowerCase() !== cleanId) ? rawT : (WIDGET_TITLES[cleanId] || wid), on: r.on !== undefined ? r.on : true, span: r.w || 2, type: r.type || ((cleanId || '').startsWith('pv_') ? 'pivot' : (cleanId || '').startsWith('cw_') ? 'custom' : 'standard') }; });
-              P.reportLayout = layRaw.filter(r => r.view === 'Report').map(r => { const wid = r.id || r.widgetId || r.i; const cleanId = (wid || '').toLowerCase().trim(); const rawT = r.t || r.title || wid; return { id: wid, t: (rawT && rawT.toLowerCase() !== (wid || '').toLowerCase() && rawT.toLowerCase() !== cleanId) ? rawT : (WIDGET_TITLES[cleanId] || wid), on: r.on !== undefined ? r.on : true, span: r.w || 2, type: r.type || ((cleanId || '').startsWith('pv_') ? 'pivot' : (cleanId || '').startsWith('cw_') ? 'custom' : 'standard') }; });
+              P.dashLayout = layRaw.filter(r => r.view === 'Dashboard').map(r => { const wid = r.id || r.widgetId || r.i; const cleanId = (wid || '').toLowerCase().trim(); const rawT = r.t || r.title || wid; return { id: wid, t: (rawT && rawT.toLowerCase() !== (wid || '').toLowerCase() && rawT.toLowerCase() !== cleanId) ? rawT : (WIDGET_TITLES[cleanId] || wid), on: (r.on === 'true' || r.on === true || r.on === '1' || r.on === 1 || r.on === undefined), span: r.w || 2, type: r.type || ((cleanId || '').startsWith('pv_') ? 'pivot' : (cleanId || '').startsWith('cw_') ? 'custom' : 'standard') }; });
+              P.reportLayout = layRaw.filter(r => r.view === 'Report').map(r => { const wid = r.id || r.widgetId || r.i; const cleanId = (wid || '').toLowerCase().trim(); const rawT = r.t || r.title || wid; return { id: wid, t: (rawT && rawT.toLowerCase() !== (wid || '').toLowerCase() && rawT.toLowerCase() !== cleanId) ? rawT : (WIDGET_TITLES[cleanId] || wid), on: (r.on === 'true' || r.on === true || r.on === '1' || r.on === 1 || r.on === undefined), span: r.w || 2, type: r.type || ((cleanId || '').startsWith('pv_') ? 'pivot' : (cleanId || '').startsWith('cw_') ? 'custom' : 'standard') }; });
+              P.teamLayout = layRaw.filter(r => r.view === 'Team').map(r => { const wid = r.id || r.widgetId || r.i; const cleanId = (wid || '').toLowerCase().trim(); const rawT = r.t || r.title || wid; return { id: wid, t: rawT, on: (r.on === 'true' || r.on === true || r.on === '1' || r.on === 1 || r.on === undefined), span: r.w || 2, h: r.h || 1 }; });
               P.widgetSpans = P.widgetSpans || {};
               layRaw.forEach(r => { const wid = r.id || r.widgetId || r.i; if (wid && r.w !== undefined) P.widgetSpans[wid] = parseInt(r.w) || 2; });
               localStorage.setItem('pp-widget-spans', JSON.stringify(P.widgetSpans));
+              if (P.teamLayout && P.teamLayout.length) localStorage.setItem('pp-team-layout', JSON.stringify(P.teamLayout));
             }
 
             const stateSets = rawData.getTable('State_Sets');
-            if (stateSets.length) { P.dismissedAlerts = new Set(stateSets.filter(s => s.type === 'DismissedAlert').map(s => s.value)); P.expanded = new Set(stateSets.filter(s => s.type === 'ExpandedNode').map(s => s.value)); }
+            if (stateSets.length) { 
+              P.dismissedAlerts = new Set(stateSets.filter(s => s.type === 'DismissedAlert').map(s => s.value)); 
+              P.expanded = new Set(stateSets.filter(s => s.type === 'ExpandedNode').map(s => s.value)); 
+              P.collapsedNodes = new Set(stateSets.filter(s => s.type === 'CollapsedNode').map(s => s.value)); 
+            }
             const stateFilters = rawData.getTable('App_Filters');
             P.filters = { status: new Set(), priority: new Set(), assignee: new Set(), module: new Set(), feature: new Set() };
             stateFilters.forEach(f => {
@@ -36312,14 +36448,6 @@
                   }
                 }
               }
-            });
-
-            const gridCols = rawData.getTable('Config_GridColumns');
-            if (gridCols.length) { const mapCols = (ws) => gridCols.filter(c => c.workshop === ws).map(c => ({ key: c.key, label: c.label, w: parseInt(c.w), type: c.type, edit: !!c.edit })); P.cols = mapCols('Task'); P.defCols = mapCols('Defect'); }
-            const gridState = rawData.getTable('Config_GridState');
-            gridState.forEach(s => {
-              const widths = s.widths ? JSON.parse(s.widths) : {}; const filters = s.filters ? JSON.parse(s.filters) : null;
-              if (s.workshop === 'Task') { P.colOrder = s.order ? s.order.split(',') : P.colOrder; P.hiddenCols = s.hidden ? s.hidden.split(',') : P.hiddenCols; P.colWidths = widths; if (filters) P.colFilters = filters; } else { P.defColOrder = s.order ? s.order.split(',') : P.defColOrder; P.defHiddenCols = s.hidden ? s.hidden.split(',') : P.defHiddenCols; P.defColWidths = widths; if (filters) P.defColFilters = filters; }
             });
           },
 
@@ -36432,7 +36560,7 @@
             });
           },
 
-          normalizeImportedData(rawData) {
+normalizeImportedData(rawData) {
             P.tasks.forEach(t => {
               if (!t.id) t.id = 'TSK-' + String(P.nextTaskId++).padStart(3, '0'); if (!t.name) t.name = 'Untitled Task'; if (!t.status) t.status = 'Not Started'; if (!t.priority) t.priority = 'Medium'; if (!t.complexity) t.complexity = 'Medium';
               t.progress = parseInt(t.progress); if (isNaN(t.progress) || t.progress < 0) t.progress = 0; if (t.progress > 100) t.progress = 100;
@@ -36440,6 +36568,7 @@
 
               if (t.subtasks) {
                 t.subtasks.forEach(s => {
+                  if (!s.id) s.id = 'ST-' + String(P.nextSubId++).padStart(3, '0');
                   s.progress = parseInt(s.progress); if (isNaN(s.progress) || s.progress < 0) s.progress = 0; if (s.progress > 100) s.progress = 100;
                   s.effort = parseFloat(s.effort); if (isNaN(s.effort) || s.effort <= 0) s.effort = 1;
                   s.actEffort = parseFloat(s.actEffort); if (isNaN(s.actEffort) || s.actEffort < 0) s.actEffort = 0;
@@ -36461,6 +36590,34 @@
               }
               recalcDatesAndStatus(t, true);
             });
+
+            // Normalize Defects
+            (P.defects || []).forEach(df => {
+              if (!df.id) df.id = 'DEF-' + String(P.nextDefectId++).padStart(3, '0');
+              if (!df.title) df.title = 'Untitled Defect';
+              if (!df.status) df.status = 'New';
+              if (!df.severity) df.severity = 'S3 - Medium';
+              if (!df.priority) df.priority = 'Medium';
+              if (!df.type) df.type = 'Functional Bug';
+            });
+
+            // Normalize RAID
+            (P.raids || []).forEach(r => {
+              if (!r.id) r.id = 'RAID-' + String(P.nextRaidId++).padStart(3, '0');
+              if (!r.title) r.title = 'Untitled RAID';
+              if (!r.type) r.type = 'Risk';
+              if (!r.status) r.status = 'Identified';
+              if (!r.severity) r.severity = 'S3 - Moderate';
+              if (!r.impact) r.impact = 'Medium';
+              if (!r.probability) r.probability = 'Medium';
+            });
+
+            // Normalize Decisions
+            (P.decisions || []).forEach(d => {
+              if (!d.id) d.id = 'DEC-' + String(P.nextDecisionId++).padStart(3, '0');
+              if (!d.title) d.title = 'Untitled Decision';
+              if (!d.status) d.status = 'Pending Sign-off';
+            });
           },
 
           collectImportIssues(rawData) {
@@ -36474,11 +36631,13 @@
             }
           },
 
-          rebuildDerivedState(rawData) {
+rebuildDerivedState(rawData) {
             let maxTaskId = 0; P.tasks.forEach(t => { const num = parseInt(String(t.id).replace(/\D/g, '')); if (!isNaN(num) && num > maxTaskId) maxTaskId = num; }); if (maxTaskId >= P.nextTaskId) P.nextTaskId = maxTaskId + 1;
             let maxMemId = 0; P.members.forEach(m => { const num = parseInt(String(m.id).replace(/\D/g, '')); if (!isNaN(num) && num > maxMemId) maxMemId = num; }); if (maxMemId >= P.nextMemberId) P.nextMemberId = maxMemId + 1;
             let maxRaidId = 0; P.raids.forEach(r => { const num = parseInt(String(r.id).replace(/\D/g, '')); if (!isNaN(num) && num > maxRaidId) maxRaidId = num; }); if (maxRaidId >= P.nextRaidId) P.nextRaidId = maxRaidId + 1;
             let maxDecId = 0; P.decisions.forEach(d => { const num = parseInt(String(d.id).replace(/\D/g, '')); if (!isNaN(num) && num > maxDecId) maxDecId = num; }); if (maxDecId >= P.nextDecisionId) P.nextDecisionId = maxDecId + 1;
+            let maxSubId = 0; P.tasks.forEach(t => { if (t.subtasks) t.subtasks.forEach(s => { const num = parseInt(String(s.id).replace(/\D/g, '')); if (!isNaN(num) && num > maxSubId) maxSubId = num; }); }); if (maxSubId >= P.nextSubId) P.nextSubId = maxSubId + 1;
+            let maxDefectId = 0; P.defects.forEach(d => { const num = parseInt(String(d.id).replace(/\D/g, '')); if (!isNaN(num) && num > maxDefectId) maxDefectId = num; }); if (maxDefectId >= P.nextDefectId) P.nextDefectId = maxDefectId + 1;
           },
 
           async reconstructProjectFromBuffer(buffer) {
@@ -36582,7 +36741,7 @@
         }
         window.animateCounters = animateCounters;
 
-        function enterApp() {
+function enterApp() {
           $id('setup').classList.add('out');
           setTimeout(() => { $id('setup').style.display = 'none'; }, 350);
           $id('main-app').style.display = 'flex';
@@ -36609,7 +36768,11 @@
           loadCustomLayouts();
           setTheme(P.theme);
           renderViewToggle();
-          setView(P.view || 'tasks');
+          setView(P.view || 'tasks', true);
+          if (window.innerWidth > 1024) {
+            const sb = $id('sb');
+            if (sb) sb.classList.toggle('closed', !P.sbOpen);
+          }
           // Initialize health badge
           setTimeout(() => { try { if (window.updateTopHealthBadge) updateTopHealthBadge(); } catch (e) { } }, 500);
         }
