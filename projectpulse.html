@@ -8,16 +8,25 @@
   <meta name="description" content="ProjectPulse — full-featured single-page project management suite">
   <meta name="version" content="2.0-enhanced">
   <meta name="build-date" content="2026-06-06">
+  <script>
+    // PP logger wrapper defined early to prevent ReferenceError in fallback loaders
+    window.PP = {
+      debug: true,
+      log(...args) { if (this.debug) console.log('[ProjectPulse]', ...args); },
+      warn(...args) { console.warn('[ProjectPulse]', ...args); },
+      error(...args) { console.error('[ProjectPulse]', ...args); }
+    };
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="./lib/google-fonts.css">
-  <script src="./lib/lucide.min.js"></script>
-  <script src="./lib/html2canvas.min.js"></script>
+  <script src="./lib/lucide.min.js" onerror="PP.warn('[ProjectPulse] Local Lucide not found. Loading from CDN...'); var cdn=document.createElement('script'); cdn.src='https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js'; document.head.appendChild(cdn);"></script>
+  <script src="./lib/html2canvas.min.js" onerror="PP.warn('[ProjectPulse] Local html2canvas not found. Loading from CDN...'); var cdn=document.createElement('script'); cdn.src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'; document.head.appendChild(cdn);"></script>
   <link rel="stylesheet" href="./lib/phosphor/src/regular/style.css">
   <script>
     // Offline / CDN Fallback Engine (Local SVG Icons)
     if (typeof lucide === 'undefined') {
-      console.warn('[ProjectPulse] Lucide CDN failed to load (offline mode). Falling back to local SVG icon engine.');
+      PP.warn('[ProjectPulse] Lucide CDN failed to load (offline mode). Falling back to local SVG icon engine.');
       window.lucide = {
         createIcons: (options) => {
           const root = (options && options.root) || document;
@@ -7313,6 +7322,10 @@
       background: var(--color-surface);
     }
 
+    .admin-mobile-nav {
+      display: none;
+    }
+
     .admin-sec-head {
       font-family: var(--font-display);
       font-size: 18px;
@@ -8287,6 +8300,51 @@
       }
     }
 
+    /* ── TABLET RESPONSIVE ADAPTATIONS (769px - 1024px) ── */
+    @media (min-width: 769px) and (max-width: 1024px) {
+
+      #sb {
+        position: fixed !important;
+        top: 60px !important;
+        bottom: 0;
+        width: 0 !important;
+        z-index: 1000 !important;
+        background: var(--color-surface) !important;
+        border-right: 0px solid transparent !important;
+        padding: 14px 0 !important;
+        transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), padding 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-right 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease !important;
+        box-shadow: none !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        overflow-x: hidden !important;
+      }
+
+      #sb.closed {
+        width: 0 !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        border-right: 0px solid transparent !important;
+      }
+
+      #sb:not(.closed) {
+        width: 299px !important;
+        padding: 14px 8px !important;
+        border-right: 1px solid var(--color-border) !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        box-shadow: var(--shadow-xl), 10px 0 30px rgba(0, 0, 0, 0.15) !important;
+      }
+
+      #cnt {
+        margin-left: 0 !important;
+        width: 100% !important;
+      }
+    }
+
+
+
     /* ── MOBILE RESPONSIVE ADAPTATIONS ── */
     @media (max-width: 768px) {
       #topbar {
@@ -8348,6 +8406,25 @@
         width: 100% !important;
         padding: 12px !important;
         padding-bottom: 70px;
+      }
+
+      .admin-layout {
+        flex-direction: column !important;
+        height: auto !important;
+        max-height: 75vh !important;
+        margin: -16px -12px !important;
+      }
+
+      .admin-sidebar {
+        display: none !important;
+      }
+
+      .admin-content {
+        padding: 16px !important;
+      }
+
+      .admin-mobile-nav {
+        display: block !important;
       }
 
       .g4,
@@ -8624,6 +8701,10 @@
       #task-view-controls {
         background: transparent !important;
         border: none !important;
+      }
+
+      .admin-mobile-nav {
+        display: block !important;
       }
     }
 
@@ -10143,8 +10224,40 @@
     }
 
     /* ═══════ IMPROVED SIDEBAR NAV ITEM STATES ═══════ */
+    #sb-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 16px;
+    }
+
     .sb-nav-item {
       position: relative;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-text-muted);
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      width: 100%;
+      background: transparent;
+      border: none;
+      text-align: left;
+    }
+
+    .sb-nav-item:hover {
+      background: var(--color-surface-2);
+      color: var(--color-text);
+    }
+
+    .sb-nav-item.active {
+      background: var(--color-primary-highlight);
+      color: var(--color-primary);
+      font-weight: 600;
     }
 
     .sb-nav-item.active::before {
@@ -10157,6 +10270,12 @@
       height: 60%;
       background: var(--color-primary);
       border-radius: 0 2px 2px 0;
+    }
+
+    @media (max-width: 768px) {
+      #sb-nav {
+        display: none !important;
+      }
     }
 
     /* ═══════ TOGGLE SWITCH COMPONENT ═══════ */
@@ -10640,6 +10759,7 @@
       <div id="mid">
         <div id="sb" class="glass">
           <!-- New Task button removed from sidebar -->
+          <div id="sb-nav"></div>
           <div id="sb-stats"
             style="display:grid;grid-template-columns:1fr 1fr;gap:16px 12px;margin-bottom:12px;padding:12px;background:var(--color-surface-2);border-radius:var(--radius-lg);border:1px solid var(--color-divider)">
           </div>
@@ -10777,6 +10897,22 @@
           </div>
           <!-- ADMIN VIEW (CONSOLIDATED HUB) -->
           <div class="view-panel scrollable" id="vw-admin">
+            <div class="admin-mobile-nav" style="display:none; padding: 12px 16px; background: var(--color-surface); border-bottom: 1px solid var(--color-border); margin-bottom: 16px;">
+              <label for="admin-tab-select" style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--color-text-muted); display: block; margin-bottom: 6px;">Select Setup Step</label>
+              <select id="admin-tab-select" class="finp" onchange="setAdminActiveTab(this.value)" style="width: 100%; height: 38px; font-size: 14px;">
+                <option value="general">1. General Settings</option>
+                <option value="complexity">2. Task Complexity</option>
+                <option value="backups">3. Data Recovery</option>
+                <option value="releases">4. Releases Roadmap</option>
+                <option value="steps">5. Step Templates</option>
+                <option value="dropdowns">6. Option Libraries</option>
+                <option value="fields">7. Field Architect</option>
+                <option value="blueprint">8. Blueprint Modules</option>
+                <option value="screens">9. GUI Screens</option>
+                <option value="features">Features Matrix</option>
+                <option value="view_order">View Navigation Order</option>
+              </select>
+            </div>
             <div class="admin-body" style="padding:24px;max-width:1400px;margin:0 auto;width:100%">
               <div id="admin-blueprint-tab" class="admin-sub-panel">
                 <div id="blueprint-container" style="width:100%"></div>
@@ -12426,7 +12562,7 @@
         return document.getElementById(id);
       },
       esc(s) {
-        return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
       },
       fmtN(n) {
         if (isNaN(n) || !isFinite(n)) return '–';
@@ -13072,18 +13208,76 @@
     ];
 
     function renderViewToggle() {
-      const nav = $id('mobile-nav');
-      if (!nav) return;
-      const order = P.settings?.viewOrder || ALL_VIEWS.map(v => v.id);
-      nav.innerHTML = order.map(id => {
-        const v = ALL_VIEWS.find(x => x.id === id);
-        return v ? `
-          <button class="mobile-nav-item" onclick="setView('${v.id}')" data-v="${v.id}">
-            <i data-lucide="${v.icon}"></i>
-            <span>${v.label}</span>
-          </button>` : '';
-      }).join('');
-      if (window.lucide) lucide.createIcons(nav);
+      if (!P.settings) P.settings = {};
+      if (!P.settings.viewOrder || !Array.isArray(P.settings.viewOrder) || P.settings.viewOrder.length === 0 ||
+        P.settings.viewOrder[2] === 'tasks' || P.settings.viewOrder[5] === 'reports') {
+        P.settings.viewOrder = ALL_VIEWS.map(v => v.id);
+      }
+
+      const vsw = document.querySelector('.vsw');
+      const mobileNav = $id('mobile-nav');
+      const sbNav = $id('sb-nav');
+      if (vsw) vsw.innerHTML = '';
+      if (mobileNav) mobileNav.innerHTML = '';
+      if (sbNav) sbNav.innerHTML = '';
+
+      P.settings.viewOrder.forEach(vid => {
+        const viewDef = ALL_VIEWS.find(v => v.id === vid);
+        if (!viewDef) return;
+
+        // Desktop .vsw
+        if (vsw) {
+          const btn = document.createElement('button');
+          btn.className = 'btn';
+          if (P.view === vid) btn.classList.add('active');
+          btn.setAttribute('data-v', vid);
+          btn.onclick = () => {
+            if (vid === 'reports') P.activeReportId = null;
+            setView(vid);
+          };
+          btn.title = viewDef.title;
+          if (vid === 'log') {
+            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label} <span id="log-badge" class="badge" style="display:none;margin-left:6px;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">0</span>`;
+          } else {
+            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label}`;
+          }
+          vsw.appendChild(btn);
+        }
+
+
+
+        // Mobile #mobile-nav
+        if (mobileNav) {
+          const mBtn = document.createElement('button');
+          mBtn.className = 'mobile-nav-item';
+          if (P.view === vid) mBtn.classList.add('active');
+          mBtn.setAttribute('data-v', vid);
+          mBtn.onclick = () => {
+            if (vid === 'reports') P.activeReportId = null;
+            setView(vid);
+          };
+          if (vid === 'log') {
+            mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${P.hideLabels ? '' : viewDef.label}</span><span id="log-badge-mobile" class="badge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:white;font-size:9px;padding:1px 4px;border-radius:10px;line-height:1">0</span>`;
+          } else {
+            mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${P.hideLabels ? '' : viewDef.label}</span>`;
+          }
+          mobileNav.appendChild(mBtn);
+        }
+      });
+
+      document.body.classList.toggle('hide-labels', !!P.hideLabels);
+
+      if (window.lucide) window.lucide.createIcons();
+
+      // Update log badge counts dynamically
+      const cnt = P.log.filter(l => l.ts && typeof l.ts === 'string' && l.ts.startsWith(todayStr())).length;
+      ['log-badge', 'log-badge-mobile', 'sb-log-badge'].forEach(id => {
+        const b = $id(id);
+        if (b) {
+          if (cnt > 0) { b.style.display = ''; b.textContent = cnt; }
+          else b.style.display = 'none';
+        }
+      });
     }
 
 
@@ -13120,6 +13314,9 @@
 
       // Ctrl+A / Cmd+A -> Alerts
       if (isMod && e.key === 'a') { e.preventDefault(); toggleAlerts(); }
+
+      // F1 -> Help
+      if (e.key === 'F1') { e.preventDefault(); openHelpPP(); }
 
       // Escape -> close everything
       if (e.key === 'Escape') {
@@ -14120,6 +14317,77 @@
     let _fileSaveTimer = null;
     // ══════ PERSISTENCE ══════
     const dbName = 'ProjectPulseDB', storeName = 'handles', backupStore = 'backups';
+
+    function validateProjectData(d) {
+      if (!d || typeof d !== 'object') {
+        throw new Error('Project data is not a valid object');
+      }
+      const arrays = ['tasks', 'defects', 'log', 'members', 'reports', 'raids', 'decisions', 'baselines', 'healthHistory', 'reportSnapshots', 'customFields', 'defCustomFields', 'stepTemplates', 'releases'];
+      arrays.forEach(k => {
+        if (!d[k] || !Array.isArray(d[k])) {
+          PP.warn(`[ProjectPulse] Missing or invalid array field "${k}", resetting to empty list.`);
+          d[k] = [];
+        }
+      });
+      if (!d.dropdowns || typeof d.dropdowns !== 'object') {
+        d.dropdowns = {};
+      }
+      const defaultDropdowns = {
+        status: ['Not Started', 'In Progress', 'On Hold', 'Under Review', 'Completed', 'Cancelled'],
+        priority: ['Critical', 'High', 'Medium', 'Low'],
+        category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Screen'],
+        module: ['Account Management (AM)', 'Portfolio Management (PM)', 'Market Data', 'Shared Services', 'Core Engine', 'Authentication', 'User Interface', 'API Gateway', 'Analytics Service', 'Payment Module', 'Database Migration', 'Infrastructure'],
+        moduleType: ['Server', 'GUI', 'Interface'],
+        role: ['Engineering Manager', 'Lead Architect', 'Lead Frontend', 'Lead Design', 'Jr Lead UX', 'Jr Lead Research', 'Developer', 'Designer', 'QA', 'PM', 'DevOps', 'Analyst'],
+        memberStatus: ['Active', 'Other Assignment', 'On Leave', 'Serving Notice Period', 'Departed'],
+        defectStatus: ['New', 'Assigned', 'Fixed', 'Retest', 'Closed', 'Rejected', 'Deferred'],
+        defectPriority: ['Critical', 'High', 'Medium', 'Low'],
+        defectSeverity: ['S1 - Blocker', 'S2 - High', 'S3 - Medium', 'S4 - Low'],
+        defectType: ['Functional Bug', 'UI/UX Issue', 'Performance', 'Security', 'Data Issue', 'Suggestion'],
+        complexity: ['Easy', 'Medium', 'Complex'],
+        raidType: ['Risk', 'Assumption', 'Issue', 'Dependency'],
+        raidImpact: ['High', 'Medium', 'Low'],
+        raidProbability: ['High', 'Medium', 'Low'],
+        raidSeverity: ['S1 - Critical', 'S2 - Major', 'S3 - Moderate', 'S4 - Minor'],
+        raidStatus: ['Identified', 'Active', 'Mitigated', 'Closed', 'Realized'],
+        decisionStatus: ['Pending Sign-off', 'Approved', 'Rejected', 'Appealed']
+      };
+      for (let k in defaultDropdowns) {
+        if (!d.dropdowns[k] || !Array.isArray(d.dropdowns[k])) {
+          d.dropdowns[k] = [...defaultDropdowns[k]];
+        }
+      }
+      d.tasks = d.tasks.filter(t => t && typeof t === 'object' && t.id);
+      d.tasks.forEach(t => {
+        if (!t.name) t.name = 'Unnamed Task';
+        if (!t.status) t.status = 'Not Started';
+        if (!t.priority) t.priority = 'Medium';
+        if (!t.complexity) t.complexity = 'Medium';
+        t.progress = parseInt(t.progress);
+        if (isNaN(t.progress) || t.progress < 0) t.progress = 0;
+        if (t.progress > 100) t.progress = 100;
+        if (!t.subtasks || !Array.isArray(t.subtasks)) t.subtasks = [];
+        if (!t.workflow || !Array.isArray(t.workflow)) t.workflow = [];
+        if (!t.dependsOn || !Array.isArray(t.dependsOn)) t.dependsOn = [];
+        if (!t.guiScreens || !Array.isArray(t.guiScreens)) t.guiScreens = [];
+      });
+      d.defects = d.defects.filter(df => df && typeof df === 'object' && df.id);
+      d.defects.forEach(df => {
+        if (!df.title) df.title = 'Untitled Defect';
+        if (!df.status) df.status = 'New';
+        if (!df.severity) df.severity = 'S3 - Medium';
+      });
+      d.raids = d.raids.filter(r => r && typeof r === 'object' && r.id);
+      d.decisions = d.decisions.filter(dec => dec && typeof dec === 'object' && dec.id);
+      d.members = d.members.filter(m => m && typeof m === 'object' && m.id);
+      d.members.forEach(m => {
+        if (!m.name) m.name = 'Unnamed Member';
+        if (!m.status) m.status = 'Active';
+        if (!m.plannedLeaves || !Array.isArray(m.plannedLeaves)) m.plannedLeaves = [];
+      });
+      return d;
+    }
+
     const PulsePersistence = {
       clearProjectState() {
         P.name = ''; P.desc = ''; P.tasks = []; P.log = []; P.members = []; P.reports = [];
@@ -14412,15 +14680,20 @@
               }, 60000); // 60s debounce for file mode (up from 10s to prevent constant freezing)
             }
           } catch (e) {
-            console.error('Save failed', e);
+            PP.error('Save failed', e);
             if (e.name === 'QuotaExceededError') notify('Local storage full!', 'err');
           }
         }, 300);
       },
       load() {
         try {
-          const d = JSON.parse(localStorage.getItem('pp-data'));
+          let d = JSON.parse(localStorage.getItem('pp-data'));
           if (d) {
+            try {
+              d = validateProjectData(d);
+            } catch (err) {
+              PP.error('[ProjectPulse] Data validation failed', err);
+            }
             Object.assign(P, d);
             const pv = localStorage.getItem('pp-view');
             if (pv) P.view = pv;
@@ -14497,7 +14770,7 @@
             // Ensure rich sample milestones exist in legacy loaded data for the sample project
             // Only upgrade truly legacy data (few tasks, no wizard-sourced defects)
             if (P.name === 'Investment Platform 2.0' && !P.tasks.some(t => t.name.includes('Market Data Socket Feeds Integrated')) && (!P.defects || P.defects.length <= 3) && P.tasks.length < 20) {
-              console.log('[ProjectPulse] Upgrading legacy sample data to include rich completed milestones.');
+              PP.log('[ProjectPulse] Upgrading legacy sample data to include rich completed milestones.');
               injectSampleData();
             }
 
@@ -14546,7 +14819,7 @@
 
             return true;
           }
-        } catch (e) { console.warn('ProjectPulse: load() failed, falling back to sample data', e); }
+        } catch (e) { PP.warn('ProjectPulse: load() failed, falling back to sample data', e); }
 
         // If no data, or data load failed, inject sample
         injectSampleData();
@@ -14584,7 +14857,7 @@
           const db = await getDB();
           const tx = db.transaction(storeName, 'readwrite');
           tx.objectStore(storeName).put(handle, id);
-        } catch (e) { console.error('Handle save failed', e); }
+        } catch (e) { PP.error('Handle save failed', e); }
       },
       async getHandle(id) {
         try {
@@ -14650,7 +14923,7 @@
             toDelete.forEach(b => delStore.delete(b.id));
           }
         } catch (e) {
-          console.error('Backup failed', e);
+          PP.error('Backup failed', e);
         }
       },
 
@@ -14686,7 +14959,7 @@
           }
           P.lastBackup = snapshot.ts;
           updateFsInd();
-        } catch (e) { console.warn('IDB File backup failed', e); }
+        } catch (e) { PP.warn('IDB File backup failed', e); }
 
         // 2. Save to "Backup" folder (Tier 3 - File Mode)
         if (P.fsDirHandle) {
@@ -14698,9 +14971,9 @@
             const wr = await bFile.createWritable();
             await wr.write(buf);
             await wr.close();
-            console.log('File-mode backup created:', bName);
+            PP.log('File-mode backup created:', bName);
           } catch (e) {
-            console.error('Directory backup failed', e);
+            PP.error('Directory backup failed', e);
             if (e.name === 'NotAllowedError') P._fsPermissionError = true;
           }
         }
@@ -14727,7 +15000,7 @@
           showConfirm(`Restore project to state from ${fmtDate(b.ts)} ${new Date(b.ts).toLocaleTimeString()}? Current unsaved changes will be lost.`, () => {
             P._isLoading = true;
             try {
-              Object.assign(P, b.data);
+              Object.assign(P, validateProjectData(b.data));
               syncDropdowns();
               render();
               save();
@@ -14783,7 +15056,7 @@
           enterApp();
           notify('Project reloaded: ' + name, 'ok');
         } catch (e) {
-          console.error(e);
+          PP.error(e);
           notify('Could not reload project. Please open file manually.', 'err');
         }
       },
@@ -14803,7 +15076,7 @@
               enterApp();
               notify('Project loaded from Excel (Sync disabled)', 'ok');
             } catch (err) {
-              console.error(err);
+              PP.error(err);
               notify('Could not open Excel file', 'err');
             }
           };
@@ -14890,7 +15163,7 @@
           createFileBackup(buf);
           updateFsInd();
         } catch (e) {
-          console.error('Save error', e);
+          PP.error('Save error', e);
           if (e.name === 'NotAllowedError') { P._fsPermissionError = true; updateFsInd(); }
           else if (e.name === 'InvalidStateError' || e.message.toLowerCase().includes('locked')) {
             notify('Spreadsheet file is locked. Please close it in your spreadsheet software and try again.', 'amber');
@@ -14912,7 +15185,7 @@
           await reconstructProjectFromBuffer(buffer);
           notify('Project loaded from file', 'ok');
         } catch (e) {
-          console.error(e);
+          PP.error(e);
           notify('Failed to load project from file', 'err');
         } finally {
           P._isLoading = false;
@@ -14977,10 +15250,10 @@
           await statusWr.write(statusMd);
           await statusWr.close();
 
-          console.log('Browser-based manual auto-update completed.');
+          PP.log('Browser-based manual auto-update completed.');
           localStorage.setItem('pp-last-manual-update', new Date().toISOString());
         } catch (e) {
-          console.error('Browser manual compilation failed:', e);
+          PP.error('Browser manual compilation failed:', e);
         }
       },
       updateFsInd() {
@@ -15119,7 +15392,7 @@
             notify('Permission still denied', 'err');
           }
         } catch (e) {
-          console.error('Reconnect error', e);
+          PP.error('Reconnect error', e);
           notify('Failed to re-connect: ' + e.message, 'err');
         } finally {
           updateFsInd();
@@ -21537,8 +21810,9 @@
 
     function renderAdminContent() {
       const cont = $id('admin-content');
+      let html = '';
       if (P._adminTab === 'general') {
-        cont.innerHTML = `
+        html = `
           <div class="admin-sec-head">General Settings</div>
           <div class="fg"><label class="flbl">Project Name</label><input class="finp" id="set-name" value="${esc(P.name)}"></div>
           <div class="fg"><label class="flbl">Description</label><textarea class="finp" id="set-desc" rows="3">${esc(P.desc)}</textarea></div>
@@ -21559,7 +21833,7 @@
           </div>
         `;
       } else if (P._adminTab === 'complexity') {
-        cont.innerHTML = `
+        html = `
           <div class="admin-sec-head">Task Complexity Multipliers</div>
           <p style="font-size:12px; color:var(--color-text-muted); margin-bottom:24px">Configure the effort multiplication factors for different task complexity levels. When a complexity level is assigned to a task, its base effort is multiplied by this factor.</p>
           <div class="fg"><label class="flbl">Easy Multiplier</label><input class="finp" type="number" step="0.1" min="0.1" id="set-factor-easy" value="${P.complexityFactors?.Easy ?? 0.5}"></div>
@@ -21567,7 +21841,7 @@
           <div class="fg"><label class="flbl">Complex Multiplier</label><input class="finp" type="number" step="0.1" min="0.1" id="set-factor-complex" value="${P.complexityFactors?.Complex ?? 1.5}"></div>
         `;
       } else if (P._adminTab === 'backups') {
-        cont.innerHTML = `
+        html = `
           <div class="admin-sec-head">Project Persistence & Data Recovery</div>
           
           <div style="background:var(--color-surface-2); border:1px solid var(--color-divider); border-radius:16px; padding:20px; margin-bottom:24px">
@@ -21600,7 +21874,32 @@
             <div class="shimmer" style="height:100px; border-radius:12px"></div>
           </div>
         `;
+      }
+
+      const selectHtml = `
+        <div class="admin-mobile-nav">
+          <label for="admin-tab-select" class="flbl">Settings Section</label>
+          <select id="admin-tab-select" onchange="if (this.value.startsWith('view:')) { closeModal('settings-modal'); setView(this.value.substring(5)); } else { setAdminTab(this.value); }" class="finp" style="margin-bottom:20px; font-weight:600">
+            <option value="general" ${P._adminTab === 'general' ? 'selected' : ''}>General Settings</option>
+            <option value="complexity" ${P._adminTab === 'complexity' ? 'selected' : ''}>Task Complexity Multipliers</option>
+            <option value="backups" ${P._adminTab === 'backups' ? 'selected' : ''}>Data Recovery / Backups</option>
+            <option value="view:fields">Advanced: Field Architect</option>
+            <option value="view:dropdowns">Advanced: Options Libraries</option>
+            <option value="view:steps">Advanced: Step Templates</option>
+          </select>
+        </div>
+      `;
+      cont.innerHTML = selectHtml + html;
+
+      if (P._adminTab === 'backups') {
         renderBackupList();
+      }
+      if (window.lucide && typeof lucide.createIcons === 'function') {
+        lucide.createIcons({
+          attrs: {
+            class: 'lucide'
+          }
+        });
       }
     }
 
@@ -21625,7 +21924,7 @@
               });
             }
           }
-        } catch (e) { console.warn('Could not read Backup folder', e); }
+        } catch (e) { PP.warn('Could not read Backup folder', e); }
       }
 
       const combined = [
@@ -21669,7 +21968,7 @@
         closeModal('settings-modal');
         render();
       } catch (e) {
-        console.error(e);
+        PP.error(e);
         notify('Failed to restore from file backup', 'err');
       }
     }
@@ -24682,7 +24981,7 @@
                   ${_blockedTasks.slice(0, 3).map(t => `
                     <div style="display:flex;align-items:center;gap:8px;font-size:11px;">
                       <span style="color:var(--color-text-faint);font-family:var(--mono);font-size:10px;flex-shrink:0;width:68px">${t.id}</span>
-                      <span style="color:var(--color-text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.name}</span>
+                      <span style="color:var(--color-text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</span>
                       <span style="font-size:10px;color:var(--red);font-weight:700;flex-shrink:0">${(t.dependsOn || []).length} dep${(t.dependsOn || []).length > 1 ? 's' : ''}</span>
                     </div>`).join('')}
                   ${_blockedTasks.length > 3 ? `<div style="font-size:10px;color:var(--color-text-faint);padding-top:2px">+ ${_blockedTasks.length - 3} more blocked items…</div>` : ''}
@@ -24707,7 +25006,7 @@
                         const daysLate = Math.ceil((new Date() - new Date(t.dueDate)) / 86400000);
                         return `<div style="display:flex;align-items:center;gap:8px;font-size:11px;">
                       <span style="color:var(--color-text-faint);font-family:var(--mono);font-size:10px;flex-shrink:0;width:68px">${t.id}</span>
-                      <span style="color:var(--color-text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.name}</span>
+                      <span style="color:var(--color-text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</span>
                       <span style="font-size:10px;color:var(--amber);font-weight:700;flex-shrink:0">${daysLate}d late</span>
                     </div>`;
                       }).join('')}
@@ -25113,7 +25412,7 @@
                         drawLineChart(cvs, burnupWeeks.map(w => w.l), [totalScopeTrend, completedScopeTrend], ['Total Scope', 'Completed'], ['var(--color-primary)', 'var(--green)']);
                       }
                     } catch (err) {
-                      console.error('Error drawing burnup chart:', err);
+                      PP.error('Error drawing burnup chart:', err);
                     }
                   });
 
@@ -27668,7 +27967,7 @@
 
           requestAnimationFrame(() => {
             dashDrawQueue.forEach(fn => fn());
-            console.log('renderDash:', performance.now() - startTime, 'ms');
+            PP.log('renderDash:', performance.now() - startTime, 'ms');
           });
         }
 
@@ -27982,47 +28281,53 @@
 
           const vsw = document.querySelector('.vsw');
           const mobileNav = $id('mobile-nav');
-          if (!vsw || !mobileNav) return;
-
-          vsw.innerHTML = '';
-          mobileNav.innerHTML = '';
+          const sbNav = $id('sb-nav');
+          if (vsw) vsw.innerHTML = '';
+          if (mobileNav) mobileNav.innerHTML = '';
+          if (sbNav) sbNav.innerHTML = '';
 
           P.settings.viewOrder.forEach(vid => {
             const viewDef = ALL_VIEWS.find(v => v.id === vid);
             if (!viewDef) return;
 
             // Desktop .vsw
-            const btn = document.createElement('button');
-            btn.className = 'btn';
-            if (P.view === vid) btn.classList.add('active');
-            btn.setAttribute('data-v', vid);
-            btn.onclick = () => {
-              if (vid === 'reports') P.activeReportId = null;
-              setView(vid);
-            };
-            btn.title = viewDef.title;
-            if (vid === 'log') {
-              btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label} <span id="log-badge" class="badge" style="display:none;margin-left:6px;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">0</span>`;
-            } else {
-              btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label}`;
+            if (vsw) {
+              const btn = document.createElement('button');
+              btn.className = 'btn';
+              if (P.view === vid) btn.classList.add('active');
+              btn.setAttribute('data-v', vid);
+              btn.onclick = () => {
+                if (vid === 'reports') P.activeReportId = null;
+                setView(vid);
+              };
+              btn.title = viewDef.title;
+              if (vid === 'log') {
+                btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label} <span id="log-badge" class="badge" style="display:none;margin-left:6px;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">0</span>`;
+              } else {
+                btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label}`;
+              }
+              vsw.appendChild(btn);
             }
-            vsw.appendChild(btn);
+
+
 
             // Mobile #mobile-nav
-            const mBtn = document.createElement('button');
-            mBtn.className = 'mobile-nav-item';
-            if (P.view === vid) mBtn.classList.add('active');
-            mBtn.setAttribute('data-v', vid);
-            mBtn.onclick = () => {
-              if (vid === 'reports') P.activeReportId = null;
-              setView(vid);
-            };
-            if (vid === 'log') {
-              mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${P.hideLabels ? '' : viewDef.label}</span><span id="log-badge-mobile" class="badge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:white;font-size:9px;padding:1px 4px;border-radius:10px;line-height:1">0</span>`;
-            } else {
-              mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${P.hideLabels ? '' : viewDef.label}</span>`;
+            if (mobileNav) {
+              const mBtn = document.createElement('button');
+              mBtn.className = 'mobile-nav-item';
+              if (P.view === vid) mBtn.classList.add('active');
+              mBtn.setAttribute('data-v', vid);
+              mBtn.onclick = () => {
+                if (vid === 'reports') P.activeReportId = null;
+                setView(vid);
+              };
+              if (vid === 'log') {
+                mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${P.hideLabels ? '' : viewDef.label}</span><span id="log-badge-mobile" class="badge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:white;font-size:9px;padding:1px 4px;border-radius:10px;line-height:1">0</span>`;
+              } else {
+                mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${P.hideLabels ? '' : viewDef.label}</span>`;
+              }
+              mobileNav.appendChild(mBtn);
             }
-            mobileNav.appendChild(mBtn);
           });
 
           document.body.classList.toggle('hide-labels', !!P.hideLabels);
@@ -28031,7 +28336,7 @@
 
           // Update log badge counts dynamically
           const cnt = P.log.filter(l => l.ts && typeof l.ts === 'string' && l.ts.startsWith(todayStr())).length;
-          ['log-badge', 'log-badge-mobile'].forEach(id => {
+          ['log-badge', 'log-badge-mobile', 'sb-log-badge'].forEach(id => {
             const b = $id(id);
             if (b) {
               if (cnt > 0) { b.style.display = ''; b.textContent = cnt; }
@@ -28085,7 +28390,7 @@
           const isTimeline = (v === 'timeline');
           const isScaffolder = (v === 'scaffolder');
 
-          document.querySelectorAll('.vsw .btn, .mobile-nav-item').forEach(b => b.classList.toggle('active', b.getAttribute('data-v') === v));
+          document.querySelectorAll('.vsw .btn, .mobile-nav-item, .sb-nav-item').forEach(b => b.classList.toggle('active', b.getAttribute('data-v') === v));
           newPanel.style.display = newPanel.classList.contains('scrollable') ? 'block' : 'flex';
 
           const VIEW_TEMPLATES = {
@@ -29462,6 +29767,16 @@
             window._resT = setTimeout(render, 250);
           }
         });
+
+        document.addEventListener('click', (e) => {
+          if (window.innerWidth <= 1024 && P.sbOpen) {
+            const sb = $id('sb');
+            const menuBtn = e.target.closest('button[onclick*="toggleSb"]');
+            if (sb && !sb.contains(e.target) && !menuBtn) {
+              toggleSb();
+            }
+          }
+        }, true);
 
         // ══════ DEFECTS TRACKER ══════
         function renderDefectsView() {
@@ -31138,6 +31453,8 @@
           document.querySelectorAll('.admin-sub-tab').forEach(b => {
             b.classList.toggle('active', b.getAttribute('onclick').includes(`'${tab}'`));
           });
+          const select = $id('admin-tab-select');
+          if (select) select.value = tab;
           document.querySelectorAll('.admin-sub-panel').forEach(p => { p.style.display = 'none'; });
           const activePanel = $id('admin-' + tab + '-tab');
           if (activePanel) activePanel.style.display = 'block';
@@ -31398,7 +31715,7 @@
                   fileList.push({ id: entry.name, name: entry.name, ts: file.lastModifiedDate || new Date(file.lastModified), type: 'file', handle: entry, size: file.size });
                 }
               }
-            } catch (e) { console.warn('Could not read Backup folder', e); }
+            } catch (e) { PP.warn('Could not read Backup folder', e); }
           }
           const combined = [...idbList.map(b => ({ ...b, source: 'IndexedDB' })), ...fileList.map(f => ({ ...f, source: 'Local Folder' }))].sort((a, b) => new Date(b.ts) - new Date(a.ts));
           if (!combined.length) { cont.innerHTML = `<div style="text-align:center; padding:40px; color:var(--color-text-faint); border:2px dashed var(--color-divider); border-radius:12px">No backups available yet.</div>`; return; }
@@ -31519,15 +31836,15 @@
               }
               await new Promise(r => setTimeout(r, 100));
 
-              console.log('[Excel Export] Starting...', { safeMode, viewLevel, projectName: P.name });
+              PP.log('[Excel Export] Starting...', { safeMode, viewLevel, projectName: P.name });
 
               console.time('Excel Generation');
               const wb = await generateProjectWorkbook(safeMode, viewLevel);
               console.timeEnd('Excel Generation');
 
-              console.log('[Excel Export] Workbook generated, writing buffer...');
+              PP.log('[Excel Export] Workbook generated, writing buffer...');
               const buf = await wb.xlsx.writeBuffer();
-              console.log('[Excel Export] Buffer ready, size:', buf.byteLength);
+              PP.log('[Excel Export] Buffer ready, size:', buf.byteLength);
 
               const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
               const url = URL.createObjectURL(blob);
@@ -31543,11 +31860,11 @@
 
               a.click();
               URL.revokeObjectURL(url);
-              console.log('[Excel Export] Download triggered.');
+              PP.log('[Excel Export] Download triggered.');
               hideAppLock();
               notify('Excel exported successfully', 'ok');
             } catch (e) {
-              console.error('Export Error:', e);
+              PP.error('Export Error:', e);
               hideAppLock();
               notify('Export failed: ' + e.message, 'err');
             }
@@ -34393,19 +34710,19 @@
               const donutImgBase64 = generateCanvasChart(500, 240, 'donut', statusChartData, { centerText: total + ' Tasks' });
               const donutImgId = wb.addImage({ base64: donutImgBase64, extension: 'png' });
               ds.addImage(donutImgId, { tl: { col: 1, row: 9, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating status donut chart', err); }
+            } catch (err) { PP.error('Error generating status donut chart', err); }
 
             try {
               const priDonutImgBase64 = generateCanvasChart(500, 240, 'donut', priChartData, { centerText: 'By Priority' });
               const priDonutImgId = wb.addImage({ base64: priDonutImgBase64, extension: 'png' });
               ds.addImage(priDonutImgId, { tl: { col: 7, row: 9, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating priority donut chart', err); }
+            } catch (err) { PP.error('Error generating priority donut chart', err); }
 
             try {
               const compImgBase64 = generateCanvasChart(500, 240, 'donut', complexityChartData, { centerText: 'Complexity' });
               const compImgId = wb.addImage({ base64: compImgBase64, extension: 'png' });
               ds.addImage(compImgId, { tl: { col: 13, row: 9, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating complexity chart', err); }
+            } catch (err) { PP.error('Error generating complexity chart', err); }
 
 
             // Row 2: Predictive Velocity, Burndown & Task Categories
@@ -34417,20 +34734,20 @@
               const barImgBase64 = generateCanvasChart(500, 240, 'bar', velocityData);
               const barImgId = wb.addImage({ base64: barImgBase64, extension: 'png' });
               ds.addImage(barImgId, { tl: { col: 1, row: 23, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating velocity bar chart', err); }
+            } catch (err) { PP.error('Error generating velocity bar chart', err); }
 
             try {
               const burndownData = { labels: bLabels.slice(0, 10), ideal: bIdeal.slice(0, 10).map(Math.round), actual: bActual.slice(0, 10).map(Math.round) };
               const lineImgBase64 = generateCanvasChart(500, 240, 'line', burndownData);
               const lineImgId = wb.addImage({ base64: lineImgBase64, extension: 'png' });
               ds.addImage(lineImgId, { tl: { col: 7, row: 23, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating burndown line chart', err); }
+            } catch (err) { PP.error('Error generating burndown line chart', err); }
 
             try {
               const catImgBase64 = generateCanvasChart(500, 240, 'donut', catChartData, { centerText: 'Category' });
               const catImgId = wb.addImage({ base64: catImgBase64, extension: 'png' });
               ds.addImage(catImgId, { tl: { col: 13, row: 23, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating category chart', err); }
+            } catch (err) { PP.error('Error generating category chart', err); }
 
 
             // Row 3: Module Progress, Developer Workload & RAID Type Overview
@@ -34441,19 +34758,19 @@
               const modBarImgBase64 = generateCanvasChart(500, 240, 'horizontalBar', { labels: modChartLabels, values: modChartValues });
               const modBarImgId = wb.addImage({ base64: modBarImgBase64, extension: 'png' });
               ds.addImage(modBarImgId, { tl: { col: 1, row: 37, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating module progress chart', err); }
+            } catch (err) { PP.error('Error generating module progress chart', err); }
 
             try {
               const teamBarImgBase64 = generateCanvasChart(500, 240, 'stackedHorizontalBar', teamWorkloadData);
               const teamBarImgId = wb.addImage({ base64: teamBarImgBase64, extension: 'png' });
               ds.addImage(teamBarImgId, { tl: { col: 7, row: 37, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating team workload chart', err); }
+            } catch (err) { PP.error('Error generating team workload chart', err); }
 
             try {
               const raidTypeImgBase64 = generateCanvasChart(500, 240, 'donut', raidTypeChartData, { centerText: 'RAID Types' });
               const raidTypeImgId = wb.addImage({ base64: raidTypeImgBase64, extension: 'png' });
               ds.addImage(raidTypeImgId, { tl: { col: 13, row: 37, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating RAID type chart', err); }
+            } catch (err) { PP.error('Error generating RAID type chart', err); }
 
 
             // Row 4: Cumulative Flow, Defect Modules & RAID Severity
@@ -34464,19 +34781,19 @@
               const cfdImgBase64 = generateCanvasChart(500, 240, 'stackedArea', cfdData);
               const cfdImgId = wb.addImage({ base64: cfdImgBase64, extension: 'png' });
               ds.addImage(cfdImgId, { tl: { col: 1, row: 51, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating CFD chart', err); }
+            } catch (err) { PP.error('Error generating CFD chart', err); }
 
             try {
               const defModImgBase64 = generateCanvasChart(500, 240, 'donut', defModData, { centerText: 'Defects' });
               const defModImgId = wb.addImage({ base64: defModImgBase64, extension: 'png' });
               ds.addImage(defModImgId, { tl: { col: 7, row: 51, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating defect module chart', err); }
+            } catch (err) { PP.error('Error generating defect module chart', err); }
 
             try {
               const raidSevImgBase64 = generateCanvasChart(500, 240, 'donut', raidSevChartData, { centerText: 'RAID Severity' });
               const raidSevImgId = wb.addImage({ base64: raidSevImgBase64, extension: 'png' });
               ds.addImage(raidSevImgId, { tl: { col: 13, row: 51, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating RAID severity chart', err); }
+            } catch (err) { PP.error('Error generating RAID severity chart', err); }
 
 
             // Row 5: Defects Diagnostics: Status, Severity & Types
@@ -34487,19 +34804,19 @@
               const defStatusImgBase64 = generateCanvasChart(500, 240, 'donut', defStatusChartData, { centerText: 'Defect Status' });
               const defStatusImgId = wb.addImage({ base64: defStatusImgBase64, extension: 'png' });
               ds.addImage(defStatusImgId, { tl: { col: 1, row: 65, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating defect status chart', err); }
+            } catch (err) { PP.error('Error generating defect status chart', err); }
 
             try {
               const defSevImgBase64 = generateCanvasChart(500, 240, 'donut', defSevChartData, { centerText: 'Defect Severity' });
               const defSevImgId = wb.addImage({ base64: defSevImgBase64, extension: 'png' });
               ds.addImage(defSevImgId, { tl: { col: 7, row: 65, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating defect severity chart', err); }
+            } catch (err) { PP.error('Error generating defect severity chart', err); }
 
             try {
               const defTypeImgBase64 = generateCanvasChart(500, 240, 'donut', defTypeChartData, { centerText: 'Defect Types' });
               const defTypeImgId = wb.addImage({ base64: defTypeImgBase64, extension: 'png' });
               ds.addImage(defTypeImgId, { tl: { col: 13, row: 65, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating defect type chart', err); }
+            } catch (err) { PP.error('Error generating defect type chart', err); }
 
 
             // Row 6: Decisions Status, Milestone Delivery & Defect Densities
@@ -34510,19 +34827,19 @@
               const decStatusImgBase64 = generateCanvasChart(500, 240, 'donut', decStatusChartData, { centerText: 'Decisions' });
               const decStatusImgId = wb.addImage({ base64: decStatusImgBase64, extension: 'png' });
               ds.addImage(decStatusImgId, { tl: { col: 1, row: 79, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating decision status chart', err); }
+            } catch (err) { PP.error('Error generating decision status chart', err); }
 
             try {
               const msImgBase64 = generateCanvasChart(500, 240, 'donut', msChartData, { centerText: 'Milestones' });
               const msImgId = wb.addImage({ base64: msImgBase64, extension: 'png' });
               ds.addImage(msImgId, { tl: { col: 7, row: 79, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating milestone chart', err); }
+            } catch (err) { PP.error('Error generating milestone chart', err); }
 
             try {
               const defModDensitiesImgBase64 = generateCanvasChart(500, 240, 'horizontalBar', { labels: defModDensitiesLabels, values: defModDensitiesValues });
               const defModDensitiesImgId = wb.addImage({ base64: defModDensitiesImgBase64, extension: 'png' });
               ds.addImage(defModDensitiesImgId, { tl: { col: 13, row: 79, colOff: 619125, rowOff: 381000 }, ext: { width: 500, height: 240 } });
-            } catch (err) { console.error('Error generating defect densities chart', err); }
+            } catch (err) { PP.error('Error generating defect densities chart', err); }
 
 
             let curRow = 94;
@@ -35717,7 +36034,7 @@
               showAppLock('Reconstructing Project State...', 'Parsing Smart Workbook sheets, validating schemas, and restoring application state. Please wait...', 'import');
               await new Promise(r => setTimeout(r, 100));
               const reader = new FileReader(); reader.onload = async (e) => { await reconstructProjectFromBuffer(e.target.result); }; reader.readAsArrayBuffer(file);
-            } catch (err) { console.error(err); hideAppLock(); notify('Import failed: ' + err.message, 'err'); }
+            } catch (err) { PP.error(err); hideAppLock(); notify('Import failed: ' + err.message, 'err'); }
           },
 
           // ══════ EXCEL PARSERS (SMART WORKBOOK) ══════
@@ -36033,7 +36350,7 @@
 
           collectImportIssues(rawData) {
             if (rawData.issues.length > 0) {
-              console.warn('[Excel Import Issues]', rawData.issues);
+              PP.warn('[Excel Import Issues]', rawData.issues);
               const list = $id('import-issues-list');
               if (list) {
                 list.innerHTML = rawData.issues.map(msg => `<div style="padding:10px 12px; background:rgba(var(--red-rgb), 0.05); border-left:3px solid var(--red); font-size:13px; color:var(--color-text); line-height:1.4;">${esc(msg)}</div>`).join('');
@@ -36063,8 +36380,9 @@
               const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buffer);
               const rawData = { wb, issues: [] }; applyBackwardCompatibilityMappings(wb, rawData);
               clearProjectState(); parseAppStateSheets(wb, rawData); parseConfigSheets(wb, rawData); parseCanonicalSheets(wb, rawData); parseRelationSheets(wb, rawData); parseHelperAwareCanonicalSheets(wb, rawData); normalizeImportedData(rawData); collectImportIssues(rawData); rebuildDerivedState(rawData);
+              validateProjectData(P);
               syncDropdowns(); save(); enterApp(); render(); hideAppLock(); notify('Project Restored Successfully!', 'ok');
-            } catch (err) { console.error(err); hideAppLock(); notify('Import failed: ' + err.message, 'err'); }
+            } catch (err) { PP.error(err); hideAppLock(); notify('Import failed: ' + err.message, 'err'); }
           },
 
           exportLogCSV() {
@@ -36156,8 +36474,8 @@
           const pEl = $id('top-pname');
           if (pEl) { pEl.textContent = P.name; pEl.title = P.name; }
 
-          // Mobile adaptation: start with sidebar closed
-          if (window.innerWidth < 768) {
+          // Mobile/Tablet adaptation: start with sidebar closed
+          if (window.innerWidth <= 1024) {
             P.sbOpen = false;
             $id('sb').classList.add('closed');
           }
@@ -36231,7 +36549,7 @@
                 }
               });
             }
-          } catch (e) { console.warn('ProjectPulse: loadCustomLayouts failed', e); }
+          } catch (e) { PP.warn('ProjectPulse: loadCustomLayouts failed', e); }
         }
         function resetProject() {
           showConfirm('Discard current project and start a new one? Any unsaved changes in the current session will be lost.', () => {
@@ -36815,7 +37133,7 @@
             P.reportLayout = rpt;
             localStorage.setItem('pp-report-layout', JSON.stringify(P.reportLayout));
           } catch (e) {
-            console.error('Sync dash pivot to report failed', e);
+            PP.error('Sync dash pivot to report failed', e);
           }
 
           save();
@@ -40231,7 +40549,7 @@
           const cC = node.querySelectorAll('canvas');
           for (let i = 0; i < oC.length; i++) {
             const img = document.createElement('img');
-            try { img.src = oC[i].toDataURL('image/png'); } catch (e) { console.warn('ProjectPulse: canvas toDataURL failed (tainted)', e); }
+            try { img.src = oC[i].toDataURL('image/png'); } catch (e) { PP.warn('ProjectPulse: canvas toDataURL failed (tainted)', e); }
             img.style.cssText = cC[i].style.cssText;
             img.style.width = '100%'; img.style.maxWidth = oC[i].getAttribute('width') + 'px';
             img.style.display = 'block';
@@ -40300,7 +40618,7 @@
             });
             return canvas;
           } catch (err) {
-            console.error('html2canvas error', err);
+            PP.error('html2canvas error', err);
             return null;
           } finally {
             // Restore controls visibility
@@ -40320,7 +40638,7 @@
             }
             return blob;
           } catch (e) {
-            console.error('Clipboard capture error', e);
+            PP.error('Clipboard capture error', e);
             if (!silent) notify('Failed to copy view image.', 'err');
             return null;
           }
@@ -40352,7 +40670,7 @@
           if (!win) return notify('Popup blocked by browser', 'err');
 
           let styles = '';
-          try { styles = Array.from(document.styleSheets).map(sheet => { try { return Array.from(sheet.cssRules).map(rule => rule.cssText).join('\n'); } catch (e) { return ''; } }).join('\n'); } catch (e) { console.warn('ProjectPulse: stylesheet extraction failed', e); }
+          try { styles = Array.from(document.styleSheets).map(sheet => { try { return Array.from(sheet.cssRules).map(rule => rule.cssText).join('\n'); } catch (e) { return ''; } }).join('\n'); } catch (e) { PP.warn('ProjectPulse: stylesheet extraction failed', e); }
 
           win.document.write(`
         <!DOCTYPE html>
@@ -40440,7 +40758,7 @@
                 }
               }
             } catch (e) {
-              if (e.name !== 'AbortError') console.error('Share error', e);
+              if (e.name !== 'AbortError') PP.error('Share error', e);
             }
 
             // Native Share Sheet failed/not supported: Fallback to direct Download
@@ -40461,7 +40779,7 @@
               notify('Report shared successfully!', 'ok');
               return;
             } catch (e) {
-              if (e.name !== 'AbortError') console.error('Share error', e);
+              if (e.name !== 'AbortError') PP.error('Share error', e);
             }
           }
 
@@ -40505,7 +40823,7 @@
                 }
               }
             } catch (e) {
-              if (e.name !== 'AbortError') console.error('Share error', e);
+              if (e.name !== 'AbortError') PP.error('Share error', e);
             }
 
             // Fallback for Excel: Auto-download file
@@ -40526,7 +40844,7 @@
               notify('Shared to Teams successfully!', 'ok');
               return;
             } catch (e) {
-              if (e.name !== 'AbortError') console.error('Share error', e);
+              if (e.name !== 'AbortError') PP.error('Share error', e);
             }
           }
 
@@ -40557,7 +40875,7 @@
               notify('Failed to generate image blob.', 'err');
             }
           } catch (err) {
-            console.error('Clipboard copy error', err);
+            PP.error('Clipboard copy error', err);
             notify('Copy blocked by browser permissions.', 'err');
           } finally {
             if (originalId) {
@@ -43382,7 +43700,7 @@
           s.src = './lib/exceljs.min.js';
           s.defer = true;
           s.onerror = function () {
-            console.warn('[ProjectPulse] Local ExcelJS not found. Loading from CDN...');
+            PP.warn('[ProjectPulse] Local ExcelJS not found. Loading from CDN...');
             var cdn = document.createElement('script');
             cdn.src = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
             cdn.defer = true;
