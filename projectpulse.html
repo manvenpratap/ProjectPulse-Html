@@ -13171,7 +13171,7 @@
         if (isWorkDay(cur)) count++;
         cur.setDate(cur.getDate() + 1);
       }
-      return convertDaysToEffort(Math.max(0.1, count));
+      return convertDaysToEffort(Math.max(1, count));
     };
 
     const recalcGUIScreen = PulseScheduler.recalcGUIScreen;
@@ -13712,6 +13712,56 @@
       overdue_tbl: 'Overdue Table',
       analytics: 'Advanced Analytics'
     };
+
+    const layoutToWidgetIdMap = {
+      'summary': 'dash-summary-cards',
+      'exec_capacity': 'dash-exec-capacity',
+      'health': 'dash-health-main',
+      'module_status_matrix': 'dash-msm-main',
+      'module_matrix': 'dash-msm-main',
+      'high_impact_entities': 'dash-high-impact-entities',
+      'feature_insights': 'dash-feat-main',
+      'release_timeline': 'dash-rel-time',
+      'burndown': 'dash-burndown',
+      'velocity': 'dash-velocity',
+      'cfd': 'dash-cfd',
+      'milestone-timeline': 'dash-milestones',
+      'module_health': 'dash-module-health',
+      'screen_status': 'dash-screen-status',
+      'workload': 'dash-workload',
+      'overdue': 'dash-overdue',
+      'activity': 'dash-updates',
+      'analytics': 'dash-analytics-summary'
+    };
+
+    function getSectionChildCardIds(secId) {
+      switch (secId) {
+        case 'summary': return ['dash-summary-cards'];
+        case 'mgmt_insights': return ['dash-mgmt-pacing', 'dash-mgmt-risks', 'dash-mgmt-workload', 'dash-mgmt-friction'];
+        case 'exec_reporting': return ['dash-exec-pacing', 'dash-exec-raid'];
+        case 'exec_capacity': return ['dash-exec-capacity'];
+        case 'health': return ['dash-health-main', 'dash-health-status', 'dash-health-priority'];
+        case 'module_status_matrix': case 'module_matrix': return ['dash-msm-main'];
+        case 'defect_intel': return ['dash-defect-sev', 'dash-defect-pri', 'dash-defect-type', 'dash-defect-mod', 'dash-defect-trend', 'dash-defect-rate', 'dash-defect-impact'];
+        case 'high_impact_entities': return ['dash-high-impact-entities'];
+        case 'feature_insights': return ['dash-feat-main', 'dash-feat-cx', 'dash-feat-sd', 'dash-feat-mat', 'dash-feat-risk', 'dash-feat-health'];
+        case 'release_timeline': return ['dash-rel-time'];
+        case 'burndown': return ['dash-burndown'];
+        case 'velocity': return ['dash-velocity'];
+        case 'cfd': return ['dash-cfd'];
+        case 'milestone-timeline': return ['dash-milestones'];
+        case 'module_health': return ['dash-module-health'];
+        case 'screen_status': return ['dash-screen-status'];
+        case 'workload': return ['dash-workload'];
+        case 'cat_hours': return ['dash-cat-dist', 'dash-util-hours', 'dash-cat-util'];
+        case 'overdue': return ['dash-overdue'];
+        case 'intelligence': return ['dash-eta', 'dash-aging', 'dash-btl', 'dash-capacity', 'dash-cprisk'];
+        case 'activity': return ['dash-updates'];
+        case 'analytics': return ['dash-analytics-summary'];
+        default: return [];
+      }
+    }
+
 
     // ── PROJECT PULSE STATE SYSTEM ──
     const PulseState = {
@@ -15984,6 +16034,20 @@ load() {
     window.confirmDeleteTask = confirmDeleteTask;
     window.PulseState = PulseState;
     window.PulseScheduler = PulseScheduler;
+
+    function getSubtaskEffectiveStart(st, parentTask) {
+      if (st && st.startDate) return st.startDate;
+      if (parentTask && parentTask.startDate) return parentTask.startDate;
+      if (window.P && window.P.tasks) {
+        const startDates = window.P.tasks.map(t => new Date(t.startDate)).filter(d => !isNaN(d.getTime()));
+        if (startDates.length) {
+          return new Date(Math.min(...startDates)).toISOString().split('T')[0];
+        }
+      }
+      return new Date().toISOString().split('T')[0];
+    }
+    window.getSubtaskEffectiveStart = getSubtaskEffectiveStart;
+
     PulseScheduler.recalcDatesAndStatus = function (task, skipLog = false) {
       const subs = task.subtasks || [];
 
@@ -16037,8 +16101,9 @@ load() {
 
       const totalActualEffort = subs.reduce((sum, s) => {
         if (s.type === 'screen') return sum + (s.actEffort || 0);
-        if (s.status === 'Completed' && s.actCompletionDate && s.startDate) {
-          s.actEffort = getBusinessDays(s.startDate, s.actCompletionDate);
+        if (s.status === 'Completed' && s.actCompletionDate) {
+          const effectiveStart = getSubtaskEffectiveStart(s, task);
+          s.actEffort = getBusinessDays(effectiveStart, s.actCompletionDate);
         } else if (s.status !== 'Completed') {
           s.actEffort = 0;
         }
@@ -16989,7 +17054,7 @@ load() {
       closeCtx();
       const m = $id('ctxmenu');
       const task = P.tasks.find(t => t.id === taskId);
-      const isServer = task && task.moduleType === 'Server';
+      const isWorkflow = task && task.moduleType !== 'GUI';
       const isGUI = task && task.moduleType === 'GUI';
       const currentStatus = task.status || 'Not Started';
       const transitions = VALID_TRANSITIONS[currentStatus] || [];
@@ -17004,7 +17069,7 @@ load() {
 
       let html = `
         <div class="ctxitem ctx-edit" onclick="openAddTask('${taskId}');closeCtx()"><i data-lucide="edit-2"></i>Edit Task</div>
-        ${isServer ? `<div class="ctxitem ctx-workflow" onclick="openServerWorkflowFlyout('${taskId}');closeCtx()"><i data-lucide="refresh-cw"></i>Update Workflow</div>` : ''}
+        ${isWorkflow ? `<div class="ctxitem ctx-workflow" onclick="openServerWorkflowFlyout('${taskId}');closeCtx()"><i data-lucide="refresh-cw"></i>Update Workflow</div>` : ''}
         ${isGUI ? `<div class="ctxitem ctx-workflow" onclick="addNewGUIScreen('${taskId}');closeCtx()"><i data-lucide="monitor"></i>Add Screen</div>` : ''}
         <div class="ctxitem ctx-template" onclick="openTemplateModal('${taskId}');closeCtx()"><i data-lucide="clipboard-list"></i>Add Sub-tasks</div>
         <div class="ctx-div"></div>
@@ -17189,7 +17254,15 @@ load() {
       if (!window._editingSubtask || window._editingSubtaskId !== stId) {
         window._editingTaskId = taskId;
         window._editingSubtaskId = stId;
-        window._editingSubtask = JSON.parse(JSON.stringify(st));
+        const cloned = JSON.parse(JSON.stringify(st));
+        if (cloned.workflow) {
+          cloned.workflow.forEach(step => {
+            if (step.actCompletionDate === '-' || step.actCompletionDate === '—' || step.actCompletionDate === 'null') {
+              step.actCompletionDate = '';
+            }
+          });
+        }
+        window._editingSubtask = cloned;
       }
       const stEdit = window._editingSubtask;
 
@@ -17210,7 +17283,8 @@ load() {
           step.done = val === 'Completed';
           step.progress = val === 'Completed' ? 100 : (val === 'In Progress' ? 50 : 0);
           if (step.done) {
-            if (!step.actCompletionDate) {
+            const hasNoDate = !step.actCompletionDate || step.actCompletionDate === '-' || step.actCompletionDate === '—' || step.actCompletionDate === 'null';
+            if (hasNoDate) {
               step.actCompletionDate = step.dueDate || new Date().toISOString().split('T')[0];
             }
           } else {
@@ -17255,7 +17329,8 @@ load() {
           step.done = done;
           step.progress = done ? 100 : 50;
           if (done) {
-            if (!step.actCompletionDate) {
+            const hasNoDate = !step.actCompletionDate || step.actCompletionDate === '-' || step.actCompletionDate === '—' || step.actCompletionDate === 'null';
+            if (hasNoDate) {
               step.actCompletionDate = step.dueDate || new Date().toISOString().split('T')[0];
             }
           } else {
@@ -18390,7 +18465,13 @@ load() {
 
       if (!window._editingServerTaskId || window._editingServerTaskId !== taskId) {
         window._editingServerTaskId = taskId;
-        window._editingServerSubtasks = JSON.parse(JSON.stringify(task.subtasks || []));
+        const cloned = JSON.parse(JSON.stringify(task.subtasks || []));
+        cloned.forEach(s => {
+          if (s.actCompletionDate === '-' || s.actCompletionDate === '—' || s.actCompletionDate === 'null') {
+            s.actCompletionDate = '';
+          }
+        });
+        window._editingServerSubtasks = cloned;
       }
 
       window.recalcServerWorkflowLocal = recalcServerWorkflowLocal;
@@ -18398,9 +18479,8 @@ load() {
         if (!window._editingServerSubtasks) return;
         const parentTask = P.tasks.find(t => t.id === window._editingServerTaskId);
         window._editingServerSubtasks.forEach(s => {
-          // Fall back to parent task startDate if the subtask has no own startDate
-          const effectiveStart = s.startDate || (parentTask && parentTask.startDate) || null;
-          if (s.status === 'Completed' && s.actCompletionDate && effectiveStart) {
+          if (s.status === 'Completed' && s.actCompletionDate) {
+            const effectiveStart = getSubtaskEffectiveStart(s, parentTask);
             s.actEffort = getBusinessDays(effectiveStart, s.actCompletionDate);
           } else if (s.status !== 'Completed') {
             s.actEffort = 0;
@@ -18421,12 +18501,12 @@ load() {
           st.progress = done ? 100 : 50;
           st.done = done;
           if (done) {
-            if (!st.actCompletionDate) {
+            const hasNoDate = !st.actCompletionDate || st.actCompletionDate === '-' || st.actCompletionDate === '—' || st.actCompletionDate === 'null';
+            if (hasNoDate) {
               st.actCompletionDate = st.dueDate || new Date().toISOString().split('T')[0];
             }
-            // Compute actEffort immediately — subtask may have no startDate, fall back to parent
             const parentTask = P.tasks.find(t => t.id === window._editingServerTaskId);
-            const effectiveStart = st.startDate || (parentTask && parentTask.startDate) || null;
+            const effectiveStart = getSubtaskEffectiveStart(st, parentTask);
             if (effectiveStart && st.actCompletionDate) {
               st.actEffort = getBusinessDays(effectiveStart, st.actCompletionDate);
             }
@@ -18448,12 +18528,12 @@ load() {
           st.done = val === 'Completed';
           st.progress = val === 'Completed' ? 100 : (val === 'In Progress' ? 50 : 0);
           if (st.done) {
-            if (!st.actCompletionDate) {
+            const hasNoDate = !st.actCompletionDate || st.actCompletionDate === '-' || st.actCompletionDate === '—' || st.actCompletionDate === 'null';
+            if (hasNoDate) {
               st.actCompletionDate = st.dueDate || new Date().toISOString().split('T')[0];
             }
-            // Compute actEffort immediately — subtask may have no startDate, fall back to parent
             const parentTask = P.tasks.find(t => t.id === window._editingServerTaskId);
-            const effectiveStart = st.startDate || (parentTask && parentTask.startDate) || null;
+            const effectiveStart = getSubtaskEffectiveStart(st, parentTask);
             if (effectiveStart && st.actCompletionDate) {
               st.actEffort = getBusinessDays(effectiveStart, st.actCompletionDate);
             }
@@ -18483,8 +18563,14 @@ load() {
         const st = window._editingServerSubtasks.find(s => s.id === stId);
         if (st) {
           st.actCompletionDate = val;
-          if (val && st.startDate) {
-            st.actEffort = getBusinessDays(st.startDate, val);
+          if (val) {
+            const parentTask = P.tasks.find(t => t.id === window._editingServerTaskId);
+            const effectiveStart = getSubtaskEffectiveStart(st, parentTask);
+            if (effectiveStart) {
+              st.actEffort = getBusinessDays(effectiveStart, val);
+            } else {
+              st.actEffort = 0;
+            }
           } else {
             st.actEffort = 0;
           }
@@ -18496,13 +18582,19 @@ load() {
       window.markAllServerSubtasksDoneLocal = markAllServerSubtasksDoneLocal;
       function markAllServerSubtasksDoneLocal(done) {
         if (!window._editingServerSubtasks) return;
+        const parentTask = P.tasks.find(t => t.id === window._editingServerTaskId);
         window._editingServerSubtasks.forEach(st => {
           st.status = done ? 'Completed' : 'In Progress';
           st.done = done;
           st.progress = done ? 100 : 50;
           if (done) {
-            if (!st.actCompletionDate) {
+            const hasNoDate = !st.actCompletionDate || st.actCompletionDate === '-' || st.actCompletionDate === '—' || st.actCompletionDate === 'null';
+            if (hasNoDate) {
               st.actCompletionDate = st.dueDate || new Date().toISOString().split('T')[0];
+            }
+            const effectiveStart = getSubtaskEffectiveStart(st, parentTask);
+            if (effectiveStart && st.actCompletionDate) {
+              st.actEffort = getBusinessDays(effectiveStart, st.actCompletionDate);
             }
           } else {
             st.actCompletionDate = '';
@@ -18525,7 +18617,7 @@ load() {
         syncTaskModal(task);
         save();
         render();
-        notify('Server workflow saved successfully', 'ok');
+        notify((task.moduleType || 'Module') + ' workflow saved successfully', 'ok');
 
         window.closeServerWorkflowFlyout();
       };
@@ -18556,7 +18648,7 @@ load() {
           </div>
           <div class="fly-body" style="padding:0">
              <div style="padding:16px; background:var(--color-surface-1); border-bottom:1px solid var(--color-divider); margin-bottom:16px">
-                <div style="font-size:12px; font-weight:600; margin-bottom:4px">Server Module Workflow</div>
+                <div style="font-size:12px; font-weight:600; margin-bottom:4px">${esc(task.moduleType || 'Module')} Workflow</div>
                 <div style="font-size:11px; color:var(--color-text-muted)">Manage status and effort for all module sub-tasks.</div>
              </div>
 
@@ -18564,7 +18656,7 @@ load() {
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
                    <label class="flbl" style="margin:0;text-transform:uppercase;font-size:10px;letter-spacing:0.05em">Sub-Tasks</label>
                    <span style="font-size:10px; color:var(--color-primary); font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:4px" onclick="window.markAllServerSubtasksDoneLocal(true)">
-                      <i data-lucide="check-square" style="width:12px; height:12px"></i> Mark All Completed
+                      <i data-lucide="check-square" style="width:12px; height:12px"></i> Mark All Done
                    </span>
                 </div>
                 <div id="flyout_server_subs_cont"></div>
@@ -18874,6 +18966,9 @@ load() {
         { id: 'capacity_shortfalls', t: 'Predictive Capacity Shortfalls', on: true },
         { id: 'burn_rate', t: 'Effort & Budget Burn-Rate Trajectory', on: true },
         { id: 'team_velocity', t: 'Team Velocity', on: true },
+        { id: 'team_performance_scorecard', t: 'Team Performance Scorecard', on: true },
+        { id: 'activity_timeline', t: '30-Day Activity Timeline', on: true },
+        { id: 'skills_coverage', t: 'Skills & Role Coverage', on: true },
         { id: 'team_directory', t: 'Team Directory', on: true },
         { id: 'org_chart', t: 'Organization Chart', on: true }
       ];
@@ -23748,6 +23843,9 @@ load() {
                       { id: 'capacity_shortfalls', t: 'Predictive Capacity Shortfalls', on: true },
                       { id: 'burn_rate', t: 'Effort & Budget Burn-Rate Trajectory', on: true },
                       { id: 'team_velocity', t: 'Team Velocity', on: true },
+                      { id: 'team_performance_scorecard', t: 'Team Performance Scorecard', on: true },
+                      { id: 'activity_timeline', t: '30-Day Activity Timeline', on: true },
+                      { id: 'skills_coverage', t: 'Skills & Role Coverage', on: true },
                       { id: 'team_directory', t: 'Team Directory', on: true },
                       { id: 'org_chart', t: 'Organization Chart', on: true }
                     ];
@@ -28103,7 +28201,15 @@ load() {
               if (sec.type === 'section') {
                 widgetWrapper.style.gridColumn = '1 / -1';
               } else {
-                const fallbackSpan = (P.widgetSpans && P.widgetSpans[sec.id]) || sec.span || 4;
+                let fallbackSpan = (P.widgetSpans && P.widgetSpans[sec.id]) || sec.span || 4;
+                const childIds = getSectionChildCardIds(sec.id);
+                if (childIds && childIds.length) {
+                  childIds.forEach(cid => {
+                    if (P.widgetSpans && P.widgetSpans[cid] && P.widgetSpans[cid] > fallbackSpan) {
+                      fallbackSpan = P.widgetSpans[cid];
+                    }
+                  });
+                }
                 widgetWrapper.style.gridColumn = 'span ' + fallbackSpan;
               }
             });
@@ -33956,7 +34062,10 @@ buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S) {
             let idxL = 0;
             const addLay = (v, lays) => (lays || []).forEach(l => {
               const wid = l.id || l.i || '';
-              const curSpan = (P.widgetSpans && P.widgetSpans[wid]) || l.span || l.w || (wid === 'summary' || wid === 'mgmt_insights' || wid === 'exec_reporting' || wid === 'exec_capacity' || wid === 'activities' || wid === 'achievements' || wid === 'risks' || wid === 'plans' || wid === 'team' || wid === 'util' || wid === 'burndown' || wid === 'velocity' || wid === 'cfd' || wid === 'milestone-timeline' || wid === 'module_health' || wid === 'screen_status' || wid === 'intelligence' || wid === 'activity' || wid === 'overdue_tbl' || wid === 'overdue' || wid === 'workload' || wid === 'cat_hours' || wid === 'module_status_matrix' || wid === 'release_timeline' || wid === 'defect_intel' || wid === 'feature_insights' || wid === 'high_impact_entities' || wid === 'kpi_summary' ? 4 : wid === 'health' ? 2 : 2);
+              const mappedWidgetId = (typeof layoutToWidgetIdMap !== 'undefined' && layoutToWidgetIdMap[wid]) || wid;
+              const default4s = ['summary', 'mgmt_insights', 'exec_reporting', 'exec_capacity', 'activities', 'achievements', 'risks', 'plans', 'team', 'util', 'burndown', 'velocity', 'cfd', 'milestone-timeline', 'module_health', 'screen_status', 'intelligence', 'activity', 'overdue_tbl', 'overdue', 'workload', 'cat_hours', 'module_status_matrix', 'release_timeline', 'defect_intel', 'feature_insights', 'high_impact_entities', 'kpi_summary', 'health', 'analytics', 'team_performance_scorecard', 'activity_timeline', 'skills_coverage'];
+              const isDefault4 = default4s.includes(wid) || default4s.includes(mappedWidgetId);
+              const curSpan = (P.widgetSpans && (P.widgetSpans[mappedWidgetId] || P.widgetSpans[wid])) || l.span || l.w || (isDefault4 ? 4 : 2);
               const row = wsLay.addRow({ view: v, id: wid, t: l.t || wid, x: l.x || 0, y: l.y || 0, w: curSpan, h: l.h || 1, on: l.on ? 'true' : 'false' }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
               COLORS.styleRow(row, idxL++);
             });
@@ -33975,12 +34084,24 @@ buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S) {
               { id: 'capacity_shortfalls', t: 'Predictive Capacity Shortfalls', on: true },
               { id: 'burn_rate', t: 'Effort & Budget Burn-Rate Trajectory', on: true },
               { id: 'team_velocity', t: 'Team Velocity', on: true },
+              { id: 'team_performance_scorecard', t: 'Team Performance Scorecard', on: true },
+              { id: 'activity_timeline', t: '30-Day Activity Timeline', on: true },
+              { id: 'skills_coverage', t: 'Skills & Role Coverage', on: true },
               { id: 'team_directory', t: 'Team Directory', on: true },
               { id: 'org_chart', t: 'Organization Chart', on: true }
             ];
             addLay('Dashboard', (Array.isArray(P.dashLayout) && P.dashLayout.length) ? P.dashLayout : defDashLay);
             addLay('Report', (Array.isArray(P.reportLayout) && P.reportLayout.length) ? P.reportLayout : defRptLay);
             addLay('Team', (Array.isArray(P.teamLayout) && P.teamLayout.length) ? P.teamLayout : defTeamLay);
+
+            // Export all raw P.widgetSpans entries under view 'WidgetSpans'
+            if (P.widgetSpans) {
+              Object.entries(P.widgetSpans).forEach(([widgetId, span]) => {
+                const row = wsLay.addRow({ view: 'WidgetSpans', id: widgetId, t: widgetId, x: 0, y: 0, w: span, h: 1, on: 'true' });
+                row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
+                COLORS.styleRow(row, idxL++);
+              });
+            }
 
             const wsFilt = wb.addWorksheet('State_Filters', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
             wsFilt.properties.tabColor = { argb: COLORS.slate };
@@ -36526,7 +36647,26 @@ parseAppStateSheets(wb, rawData) {
               P.reportLayout = layRaw.filter(r => r.view === 'Report').map(r => { const wid = r.id || r.widgetId || r.i; const cleanId = (wid || '').toLowerCase().trim(); const rawT = r.t || r.title || wid; return { id: wid, t: (rawT && rawT.toLowerCase() !== (wid || '').toLowerCase() && rawT.toLowerCase() !== cleanId) ? rawT : (WIDGET_TITLES[cleanId] || wid), on: (r.on === 'true' || r.on === true || r.on === '1' || r.on === 1 || r.on === undefined), span: r.w || 2, type: r.type || ((cleanId || '').startsWith('pv_') ? 'pivot' : (cleanId || '').startsWith('cw_') ? 'custom' : 'standard') }; });
               P.teamLayout = layRaw.filter(r => r.view === 'Team').map(r => { const wid = r.id || r.widgetId || r.i; const cleanId = (wid || '').toLowerCase().trim(); const rawT = r.t || r.title || wid; return { id: wid, t: rawT, on: (r.on === 'true' || r.on === true || r.on === '1' || r.on === 1 || r.on === undefined), span: r.w || 2, h: r.h || 1 }; });
               P.widgetSpans = P.widgetSpans || {};
-              layRaw.forEach(r => { const wid = r.id || r.widgetId || r.i; if (wid && r.w !== undefined) P.widgetSpans[wid] = parseInt(r.w) || 2; });
+              layRaw.forEach(r => {
+                const wid = r.id || r.widgetId || r.i;
+                if (wid && r.w !== undefined) {
+                  const spanVal = parseInt(r.w) || 2;
+                  P.widgetSpans[wid] = spanVal;
+
+                  // Bidirectional layout section to card ID mapping
+                  const mappedWidgetId = typeof layoutToWidgetIdMap !== 'undefined' ? layoutToWidgetIdMap[wid] : null;
+                  if (mappedWidgetId) {
+                    P.widgetSpans[mappedWidgetId] = spanVal;
+                  }
+                  if (typeof layoutToWidgetIdMap !== 'undefined') {
+                    for (const [layId, widId] of Object.entries(layoutToWidgetIdMap)) {
+                      if (widId === wid) {
+                        P.widgetSpans[layId] = spanVal;
+                      }
+                    }
+                  }
+                }
+              });
               localStorage.setItem('pp-widget-spans', JSON.stringify(P.widgetSpans));
               if (P.teamLayout && P.teamLayout.length) localStorage.setItem('pp-team-layout', JSON.stringify(P.teamLayout));
             }
@@ -36660,8 +36800,8 @@ parseAppStateSheets(wb, rawData) {
               const copy = { ...t }; delete copy['Derived Health']; delete copy['Blocking Issues']; delete copy['Workflow Hints']; delete copy['Suggested Due Date'];
               if (copy.cat && !copy.category) { copy.category = copy.cat; delete copy.cat; }
               copy.startDate = fmtD(t.startDate || t['Start Date']); copy.dueDate = fmtD(t.dueDate || t['Due Date']); copy.actCompletionDate = fmtD(t.actCompletionDate || t['Actual Completion Date']); copy.createdAt = fmtD(t.createdAt || t['Created At']); copy.updatedAt = fmtD(t.updatedAt || t['Updated At']);
-              copy.subtasks = rawSub.filter(s => s.parentId === t.id).map(s => { const sub = { ...s }; sub.startDate = fmtD(s.startDate || s['Start Date']); sub.dueDate = fmtD(s.dueDate || s['Due Date']); sub.workflow = relTables['Data_SubTaskWorkflows'].filter(sw => sw.subtaskId === s.id).map(sw => ({ name: sw.name, effort: sw.effort, done: !!sw.done })); return sub; });
-              copy.workflow = relTables['Data_TaskWorkflows'].filter(w => w.taskId === t.id).map(w => ({ name: w.name, effort: w.effort, done: !!w.done })); copy.dependsOn = relTables['Data_TaskDependencies'].filter(d => d.taskId === t.id).map(d => d.dependencyId); copy.guiScreens = relTables['Data_TaskGUIScreens'].filter(s => s.taskId === t.id).map(s => s.screen);
+              copy.subtasks = rawSub.filter(s => s.parentId === t.id).map(s => { const sub = { ...s }; sub.startDate = fmtD(s.startDate || s['Start Date']); sub.dueDate = fmtD(s.dueDate || s['Due Date']); sub.actCompletionDate = fmtD(s.actCompletionDate || s['Actual Completion Date']); sub.workflow = relTables['Data_SubTaskWorkflows'].filter(sw => sw.subtaskId === s.id).map(sw => ({ name: sw.name, effort: parseFloat(sw.effort) || 0, done: !!sw.done || sw.status === 'Completed', status: sw.status || (sw.done ? 'Completed' : 'Not Started'), progress: parseInt(sw.progress) || (sw.status === 'Completed' || sw.done ? 100 : 0), actCompletionDate: fmtD(sw.actCompletionDate || sw['Actual Completion Date']), actEffort: parseFloat(sw.actEffort) || 0 })); return sub; });
+              copy.workflow = relTables['Data_TaskWorkflows'].filter(w => w.taskId === t.id).map(w => ({ name: w.name, effort: parseFloat(w.effort) || 0, done: !!w.done || w.status === 'Completed', status: w.status || (w.done ? 'Completed' : 'Not Started'), progress: parseInt(w.progress) || (w.status === 'Completed' || w.done ? 100 : 0), actCompletionDate: fmtD(w.actCompletionDate || w['Actual Completion Date']), actEffort: parseFloat(w.actEffort) || 0 })); copy.dependsOn = relTables['Data_TaskDependencies'].filter(d => d.taskId === t.id).map(d => d.dependencyId); copy.guiScreens = relTables['Data_TaskGUIScreens'].filter(s => s.taskId === t.id).map(s => s.screen);
               return copy;
             });
           },
@@ -36678,6 +36818,22 @@ normalizeImportedData(rawData) {
                   s.progress = parseInt(s.progress); if (isNaN(s.progress) || s.progress < 0) s.progress = 0; if (s.progress > 100) s.progress = 100;
                   s.effort = parseFloat(s.effort); if (isNaN(s.effort) || s.effort <= 0) s.effort = 1;
                   s.actEffort = parseFloat(s.actEffort); if (isNaN(s.actEffort) || s.actEffort < 0) s.actEffort = 0;
+                  if (s.actCompletionDate === '-' || s.actCompletionDate === '—' || s.actCompletionDate === 'null') {
+                    s.actCompletionDate = '';
+                  }
+                  if (s.status === 'Completed' && !s.actCompletionDate) {
+                    s.actCompletionDate = s.dueDate || t.dueDate || new Date().toISOString().split('T')[0];
+                  }
+                  if (s.workflow) {
+                    s.workflow.forEach(step => {
+                      if (step.actCompletionDate === '-' || step.actCompletionDate === '—' || step.actCompletionDate === 'null') {
+                        step.actCompletionDate = '';
+                      }
+                      if (step.status === 'Completed' && !step.actCompletionDate) {
+                        step.actCompletionDate = step.dueDate || s.dueDate || t.dueDate || new Date().toISOString().split('T')[0];
+                      }
+                    });
+                  }
                 });
               }
 
@@ -41423,6 +41579,13 @@ function enterApp() {
           ];
 
           let teamLayout = (Array.isArray(P.teamLayout) && P.teamLayout.length) ? P.teamLayout : defTeamLayout;
+          if (teamLayout !== defTeamLayout) {
+            defTeamLayout.forEach(defW => {
+              if (!teamLayout.some(w => w.id === defW.id)) {
+                teamLayout.push(JSON.parse(JSON.stringify(defW)));
+              }
+            });
+          }
           const seen = new Set();
           teamLayout = teamLayout.filter(sec => {
             if (seen.has(sec.id)) return false;

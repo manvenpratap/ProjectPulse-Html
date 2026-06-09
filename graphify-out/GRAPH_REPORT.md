@@ -1,16 +1,16 @@
-# Graph Report - ProjectPulse  (2026-06-09)
+# Graph Report - ProjectPulse  (2026-06-10)
 
 ## Corpus Check
-- 80 files · ~1,718,641 words
+- 82 files · ~1,720,690 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2238 nodes · 3370 edges · 119 communities (102 shown, 17 thin omitted)
+- 2261 nodes · 3391 edges · 126 communities (110 shown, 16 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 11 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f974853e`
+- Built from commit: `eb32a7d8`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -18,8 +18,8 @@
 - [[_COMMUNITY_Community 0|Community 0]]
 - [[_COMMUNITY_Community 1|Community 1]]
 - [[_COMMUNITY_Community 2|Community 2]]
-- [[_COMMUNITY_Community 3|Community 3]]
 - [[_COMMUNITY_Community 4|Community 4]]
+- [[_COMMUNITY_Community 5|Community 5]]
 - [[_COMMUNITY_Community 6|Community 6]]
 - [[_COMMUNITY_Community 7|Community 7]]
 - [[_COMMUNITY_Community 8|Community 8]]
@@ -97,10 +97,10 @@
 - [[_COMMUNITY_Community 80|Community 80]]
 - [[_COMMUNITY_Community 81|Community 81]]
 - [[_COMMUNITY_Community 82|Community 82]]
+- [[_COMMUNITY_Community 83|Community 83]]
 - [[_COMMUNITY_Community 84|Community 84]]
 - [[_COMMUNITY_Community 85|Community 85]]
 - [[_COMMUNITY_Community 86|Community 86]]
-- [[_COMMUNITY_Community 87|Community 87]]
 - [[_COMMUNITY_Community 88|Community 88]]
 - [[_COMMUNITY_Community 89|Community 89]]
 - [[_COMMUNITY_Community 90|Community 90]]
@@ -119,10 +119,14 @@
 - [[_COMMUNITY_Community 103|Community 103]]
 - [[_COMMUNITY_Community 104|Community 104]]
 - [[_COMMUNITY_Community 105|Community 105]]
+- [[_COMMUNITY_Community 106|Community 106]]
 - [[_COMMUNITY_Community 107|Community 107]]
 - [[_COMMUNITY_Community 108|Community 108]]
-- [[_COMMUNITY_Community 109|Community 109]]
-- [[_COMMUNITY_Community 110|Community 110]]
+- [[_COMMUNITY_Community 111|Community 111]]
+- [[_COMMUNITY_Community 114|Community 114]]
+- [[_COMMUNITY_Community 115|Community 115]]
+- [[_COMMUNITY_Community 116|Community 116]]
+- [[_COMMUNITY_Community 117|Community 117]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `js` - 766 edges
@@ -148,7 +152,7 @@
 - `wA()` --calls--> `q`  [INFERRED]
   lib/html2canvas.min.js → lib/lucide.min.js
 
-## Communities (119 total, 17 thin omitted)
+## Communities (126 total, 16 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.0
@@ -156,71 +160,67 @@ Nodes (749): _, $0, $1, $2, $3, $4, $5, $6 (+741 more)
 
 ### Community 1 - "Community 1"
 Cohesion: 0.02
-Nodes (31): {Buffer:i}, {bufferToString:h}, {bufferToString:s}, {copyStyle:d}, _flush(), forEachInSheet(), format(), {fs:{exists:c}} (+23 more)
+Nodes (38): {Buffer:i}, {bufferToString:h}, {bufferToString:s}, {copyStyle:d}, de(), _flush(), forEachInSheet(), format() (+30 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.06
-Nodes (22): addRichText(), addRows(), addStyleModel(), close(), columns(), dimensions(), eachColumnKey(), eachSheet() (+14 more)
-
-### Community 3 - "Community 3"
-Cohesion: 0.05
-Nodes (11): advancePastLine(), alignment(), _applyStyle(), border(), font(), isEmptyRow(), isTokenComment(), numFmt() (+3 more)
+Nodes (56): captureNameChars(), captureTo(), closeTag(), fail(), getCode10(), getCode11(), getCodeNorm(), handleTextInRoot() (+48 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.07
-Nodes (49): captureNameChars(), closeTag(), fail(), getCode10(), getCode11(), getCodeNorm(), handleTextInRoot(), handleTextOutsideRoot() (+41 more)
-
-### Community 6 - "Community 6"
-Cohesion: 0.11
-Nodes (7): d, getAnchorRect(), getDefaultRect(), hasContent(), isInternalLink(), render(), renderFormula()
-
-### Community 7 - "Community 7"
 Cohesion: 0.04
 Nodes (24): COLORS, content, context, domMock, exportWb, filePath, fs, hdrStyle (+16 more)
 
-### Community 8 - "Community 8"
+### Community 5 - "Community 5"
 Cohesion: 0.04
 Nodes (44): attrMatch, cleanedFlyouts, cleanedModals, cleanedNotify2, clickListenerMatch, content, excelAliases, excelFuncs (+36 more)
 
-### Community 11 - "Community 11"
+### Community 8 - "Community 8"
+Cohesion: 0.13
+Nodes (3): number(), render(), renderFormula()
+
+### Community 9 - "Community 9"
+Cohesion: 0.15
+Nodes (17): _, b, createNewModel(), d, f, g, k, n (+9 more)
+
+### Community 10 - "Community 10"
 Cohesion: 0.06
 Nodes (30): 1. Codebase Architecture & File Map, 2. Global State Schema (`P` Object), 3. Entity Schemas, 4. Core Function Registry, 5. Storage & Persistence Tiers, 6. Authoritative Business Rules, 7. Change Log (Milestones), A. Core Data Arrays (+22 more)
 
-### Community 12 - "Community 12"
+### Community 11 - "Community 11"
 Cohesion: 0.07
 Nodes (11): content, context, domMock, fs, MockCell, MockColumn, MockRow, MockWorkbook (+3 more)
 
+### Community 12 - "Community 12"
+Cohesion: 0.15
+Nodes (5): addRichText(), close(), m, writeBuffer(), writeFile()
+
 ### Community 13 - "Community 13"
-Cohesion: 0.07
-Nodes (25): addCell(), addCellEx(), addEx(), deleteColumnKey(), findCell(), findCellEx(), findRowCell(), findSheet() (+17 more)
+Cohesion: 0.1
+Nodes (5): a, constructor(), end(), _init(), write()
 
 ### Community 14 - "Community 14"
-Cohesion: 0.18
-Nodes (27): add(), ae(), ce(), de(), E, Ee(), fe(), ge() (+19 more)
+Cohesion: 0.09
+Nodes (14): addRows(), addStyleModel(), columns(), dimensions(), eachColumnKey(), eachSheet(), forEach(), getSheetValues() (+6 more)
 
 ### Community 15 - "Community 15"
 Cohesion: 0.1
-Nodes (24): actualCellCount(), addColumn(), addRow(), _assign(), cacheState(), _copyStyle(), duplicateRow(), eachCell() (+16 more)
-
-### Community 16 - "Community 16"
-Cohesion: 0.09
-Nodes (6): j, map(), number(), parseOpen(), parseText(), reverseConversionUnit()
+Nodes (9): c, fill(), h, isExt(), on(), processAttribsNS(), readFile(), resolve() (+1 more)
 
 ### Community 17 - "Community 17"
 Cohesion: 0.22
-Nodes (14): _, b, f, g, k, n, pe(), s (+6 more)
+Nodes (25): add(), ae(), ce(), E, Ee(), fe(), ge(), he() (+17 more)
 
 ### Community 18 - "Community 18"
-Cohesion: 0.1
-Nodes (6): a, end(), _explore(), _init(), _pipe(), write()
-
-### Community 19 - "Community 19"
 Cohesion: 0.09
 Nodes (18): acorn, allScopes, BROWSER_GLOBALS, content, currentScope, declScope, fs, htmlPath (+10 more)
 
+### Community 19 - "Community 19"
+Cohesion: 0.09
+Nodes (4): j, normalizeModel(), parseClose(), parseText()
+
 ### Community 20 - "Community 20"
-Cohesion: 0.11
-Nodes (8): c, h, isExt(), on(), read(), readFile(), resolve(), u
+Cohesion: 0.1
+Nodes (19): deleteColumnKey(), findCell(), findCellEx(), findRowCell(), findSheet(), findSheetRow(), getCell(), getCellEx() (+11 more)
 
 ### Community 21 - "Community 21"
 Cohesion: 0.1
@@ -231,160 +231,160 @@ Cohesion: 0.1
 Nodes (18): content, { execSync }, fs, lines, methodsA, methodsB1, methodsB2, part1 (+10 more)
 
 ### Community 23 - "Community 23"
-Cohesion: 0.11
-Nodes (17): code:html (<!DOCTYPE html>), code:html (<link), code:html (<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></), code:sh ($ yarn add @phosphor-icons/web), code:js (import "@phosphor-icons/web/light";), code:html (<style>), code:html (<!DOCTYPE html>), Community Projects (+9 more)
+Cohesion: 0.16
+Nodes (15): actualCellCount(), commit(), _commitRow(), _copyStyle(), duplicateRow(), eachCell(), findRow(), getRow() (+7 more)
 
 ### Community 24 - "Community 24"
 Cohesion: 0.11
-Nodes (17): 1. Global State Schema & Lifecycle, 1. In-place Mutation of Legacy Globals, 2. Core Subsystem Map, 2. High Mixing of Business Logic and DOM Operations, 3. Identified Code Smells, Redundancies, and Coupling, 3. Redundant / Brittle Script Utilities (`fix_orphan.py` bug), 4. Refactoring Strategy, A. Scheduling Engine (`recalcDatesAndStatus` & `recalcGUIScreen`) (+9 more)
+Nodes (17): code:html (<!DOCTYPE html>), code:html (<link), code:html (<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></), code:sh ($ yarn add @phosphor-icons/web), code:js (import "@phosphor-icons/web/light";), code:html (<style>), code:html (<!DOCTYPE html>), Community Projects (+9 more)
 
 ### Community 25 - "Community 25"
-Cohesion: 0.12
-Nodes (16): CONFIG_MD_FILE, defaultTasksMatch, docsDir, dropdowns, evalStr, fs, HTML_FILE, htmlContent (+8 more)
+Cohesion: 0.11
+Nodes (17): 1. Global State Schema & Lifecycle, 1. In-place Mutation of Legacy Globals, 2. Core Subsystem Map, 2. High Mixing of Business Logic and DOM Operations, 3. Identified Code Smells, Redundancies, and Coupling, 3. Redundant / Brittle Script Utilities (`fix_orphan.py` bug), 4. Refactoring Strategy, A. Scheduling Engine (`recalcDatesAndStatus` & `recalcGUIScreen`) (+9 more)
 
 ### Community 26 - "Community 26"
 Cohesion: 0.12
-Nodes (13): button, cache, document, fs, functionStr, htmlContent, legacyEntries, legacyWrap (+5 more)
+Nodes (16): CONFIG_MD_FILE, defaultTasksMatch, docsDir, dropdowns, evalStr, fs, HTML_FILE, htmlContent (+8 more)
 
 ### Community 27 - "Community 27"
 Cohesion: 0.12
-Nodes (15): 12 Change Log Baseline, 📅 [2026-05-14] - Baseline Documentation Established, 📅 [2026-05-17] - Dashboard Rendering Optimization (O(1) Caching & Batched Drawing), 📅 [2026-05-17] - Defect Categories Widget `undefined` Chart Label Fix, 📅 [2026-05-17] - Defect Hotspots Entity Resolution Fix, 📅 [2026-05-17] - Defect Intelligence Widget `Unlinked` Module Mapping Resolution, 📅 [2026-05-17] - Dynamic Dashboard Mini-Map Integration, 📅 [2026-05-17] - Premium Theme Expansion (User Request #3) (+7 more)
+Nodes (13): button, cache, document, fs, functionStr, htmlContent, legacyEntries, legacyWrap (+5 more)
 
 ### Community 28 - "Community 28"
+Cohesion: 0.12
+Nodes (15): 12 Change Log Baseline, 📅 [2026-05-14] - Baseline Documentation Established, 📅 [2026-05-17] - Dashboard Rendering Optimization (O(1) Caching & Batched Drawing), 📅 [2026-05-17] - Defect Categories Widget `undefined` Chart Label Fix, 📅 [2026-05-17] - Defect Hotspots Entity Resolution Fix, 📅 [2026-05-17] - Defect Intelligence Widget `Unlinked` Module Mapping Resolution, 📅 [2026-05-17] - Dynamic Dashboard Mini-Map Integration, 📅 [2026-05-17] - Premium Theme Expansion (User Request #3) (+7 more)
+
+### Community 29 - "Community 29"
 Cohesion: 0.16
 Nodes (10): acorn, ast, content, declared, fs, grouped, Scope, traverse() (+2 more)
 
-### Community 29 - "Community 29"
-Cohesion: 0.14
-Nodes (12): aliases, content, excelFuncs, excelLines, excelText, { execSync }, fs, lines (+4 more)
-
 ### Community 30 - "Community 30"
-Cohesion: 0.14
-Nodes (12): attrMatch, cleanedFlyouts, content, flyoutsText, fs, initAppPart, keep_1, keep_2 (+4 more)
+Cohesion: 0.22
+Nodes (14): advancePastLine(), advancePastToken(), advanceTo(), advanceToToken(), checkForMalformedColumn(), gatherDataBetweenQuotes(), getStartToken(), isTokenCarriageReturn() (+6 more)
 
 ### Community 31 - "Community 31"
 Cohesion: 0.14
-Nodes (10): checkMode, { execSync }, fs, LAUNCH_AGENT_DIR, LOG_FILE, path, PLIST_FILE, PROJECT_ROOT (+2 more)
+Nodes (12): aliases, content, excelFuncs, excelLines, excelText, { execSync }, fs, lines (+4 more)
 
 ### Community 32 - "Community 32"
-Cohesion: 0.24
-Nodes (13): advancePastToken(), advanceTo(), advanceToToken(), checkForMalformedColumn(), gatherDataBetweenQuotes(), getStartToken(), isTokenCarriageReturn(), isTokenDelimiter() (+5 more)
+Cohesion: 0.14
+Nodes (12): attrMatch, cleanedFlyouts, content, flyoutsText, fs, initAppPart, keep_1, keep_2 (+4 more)
+
+### Community 33 - "Community 33"
+Cohesion: 0.14
+Nodes (10): checkMode, { execSync }, fs, LAUNCH_AGENT_DIR, LOG_FILE, path, PLIST_FILE, PROJECT_ROOT (+2 more)
 
 ### Community 34 - "Community 34"
+Cohesion: 0.19
+Nodes (5): getRanges(), map(), parseOpen(), read(), reverseConversionUnit()
+
+### Community 37 - "Community 37"
+Cohesion: 0.15
+Nodes (11): content, context, domMock, fs, rawDataMock, scriptContent, stCloned1, sub1 (+3 more)
+
+### Community 38 - "Community 38"
+Cohesion: 0.17
+Nodes (6): alignment(), _applyStyle(), border(), font(), numFmt(), protection()
+
+### Community 39 - "Community 39"
 Cohesion: 0.21
 Nodes (4): addStringBuf(), addText(), _grow(), toBuffer()
 
-### Community 35 - "Community 35"
+### Community 40 - "Community 40"
 Cohesion: 0.18
 Nodes (9): conflicts, content, context, days, domMock, fs, scriptContent, suggestions (+1 more)
 
-### Community 37 - "Community 37"
+### Community 41 - "Community 41"
+Cohesion: 0.24
+Nodes (11): addColumn(), addRow(), _assign(), cacheState(), headerRow(), ref(), removeColumns(), removeConditionalFormatting() (+3 more)
+
+### Community 42 - "Community 42"
 Cohesion: 0.2
 Nodes (9): acorn, content, curLoc, fs, loc, stack, tokens, top (+1 more)
 
-### Community 38 - "Community 38"
+### Community 43 - "Community 43"
+Cohesion: 0.2
+Nodes (8): content, context, domMock, fs, parentTask, scriptContent, st1, vm
+
+### Community 44 - "Community 44"
 Cohesion: 0.2
 Nodes (9): 1. The Weekly Heatmap Grid, 2. Interactive Tooltips, 3. The Left Navigation Sidebar & "How this view works", 4. The Right-Side Diagnostics Cockpit, 5. Conflict Resolution Heuristics, Heuristic A: Auto-Sequence, Heuristic B: Smart Reassignment, Heuristic C: Cascading Date Shifting (+1 more)
 
-### Community 39 - "Community 39"
+### Community 45 - "Community 45"
 Cohesion: 0.22
 Nodes (8): blockToEnd, content, endIndex, fs, lastBraceIndex, newFunctionContent, path, startIndex
 
-### Community 40 - "Community 40"
-Cohesion: 0.25
-Nodes (6): content, context, domMock, fs, scriptContent, vm
-
-### Community 41 - "Community 41"
-Cohesion: 0.25
-Nodes (7): acorn, content, fs, stack, startLoc, tokens, top
-
-### Community 42 - "Community 42"
-Cohesion: 0.25
-Nodes (6): content, convertedA, fs, lines, secALines, secAText
-
-### Community 43 - "Community 43"
-Cohesion: 0.25
-Nodes (7): acorn, ast, content, fs, functions, indexData, variableDeclarations
-
-### Community 44 - "Community 44"
-Cohesion: 0.25
-Nodes (7): acorn, ast, classes, content, fs, functions, variables
-
-### Community 45 - "Community 45"
-Cohesion: 0.25
-Nodes (8): captureToChar(), sCData(), sComment(), sDoctypeQuote(), sDTDComment(), sDTDPI(), sDTDQuoted(), sPIBody()
-
 ### Community 46 - "Community 46"
-Cohesion: 0.25
-Nodes (7): destroy(), find(), getBackgroundImageId(), getWorksheet(), name(), removeWorksheet(), removeWorksheetEx()
+Cohesion: 0.22
+Nodes (7): addCell(), addCellEx(), addEx(), getCellAt(), getMatrix(), remove(), removeEx()
 
 ### Community 47 - "Community 47"
 Cohesion: 0.25
-Nodes (8): ee(), He(), ie(), jA(), te(), Us(), ye(), _a
+Nodes (6): content, context, domMock, fs, scriptContent, vm
 
 ### Community 48 - "Community 48"
 Cohesion: 0.25
-Nodes (8): Ba(), cA(), dA(), iA(), ka(), MA(), Pa(), za()
+Nodes (7): acorn, content, fs, stack, startLoc, tokens, top
 
 ### Community 49 - "Community 49"
+Cohesion: 0.25
+Nodes (6): content, convertedA, fs, lines, secALines, secAText
+
+### Community 50 - "Community 50"
+Cohesion: 0.25
+Nodes (7): acorn, ast, content, fs, functions, indexData, variableDeclarations
+
+### Community 51 - "Community 51"
+Cohesion: 0.25
+Nodes (7): acorn, ast, classes, content, fs, functions, variables
+
+### Community 52 - "Community 52"
+Cohesion: 0.29
+Nodes (3): isEmptyRow(), isTokenComment(), truncateToCursor()
+
+### Community 53 - "Community 53"
+Cohesion: 0.25
+Nodes (7): destroy(), find(), getBackgroundImageId(), getWorksheet(), name(), removeWorksheet(), removeWorksheetEx()
+
+### Community 54 - "Community 54"
+Cohesion: 0.25
+Nodes (8): captureToChar(), sCData(), sComment(), sDoctypeQuote(), sDTDComment(), sDTDPI(), sDTDQuoted(), sPIBody()
+
+### Community 55 - "Community 55"
+Cohesion: 0.25
+Nodes (8): ee(), He(), ie(), jA(), te(), Us(), ye(), _a
+
+### Community 56 - "Community 56"
+Cohesion: 0.25
+Nodes (8): Ba(), cA(), dA(), iA(), ka(), MA(), Pa(), za()
+
+### Community 57 - "Community 57"
 Cohesion: 0.29
 Nodes (6): code, content, fs, index, lines, match
 
-### Community 50 - "Community 50"
+### Community 58 - "Community 58"
 Cohesion: 0.29
 Nodes (6): content, endIndex, fs, newLayoutContent, path, startIndex
 
-### Community 51 - "Community 51"
+### Community 59 - "Community 59"
 Cohesion: 0.29
 Nodes (6): content, endIndex, fs, newChartContent, path, startIndex
 
-### Community 52 - "Community 52"
-Cohesion: 0.33
-Nodes (6): commit(), _commitRow(), constructor(), setHeaders(), shouldMapRow(), store()
-
-### Community 53 - "Community 53"
+### Community 60 - "Community 60"
 Cohesion: 0.29
 Nodes (7): E(), H(), I(), p(), SUPPORT_WORD_BREAKING(), wA(), q
 
-### Community 54 - "Community 54"
+### Community 61 - "Community 61"
 Cohesion: 0.29
 Nodes (6): 1. Key Performance Indicators (KPIs), 2. Dynamic Health Gauge, 3. What-If Predictive Sandbox, code:block1 ([   84%   ]), Executive Overview Dashboard, Operation
 
-### Community 55 - "Community 55"
+### Community 62 - "Community 62"
 Cohesion: 0.33
 Nodes (5): acorn, content, fs, l, lines
 
-### Community 56 - "Community 56"
-Cohesion: 0.33
-Nodes (5): fs, index, match, persistenceFuncs, vMatch
-
-### Community 57 - "Community 57"
-Cohesion: 0.33
-Nodes (4): fs, http, list, target
-
-### Community 58 - "Community 58"
-Cohesion: 0.33
-Nodes (4): acorn, ast, content, fs
-
-### Community 59 - "Community 59"
-Cohesion: 0.33
-Nodes (5): found, fs, index, keywords, lower
-
-### Community 60 - "Community 60"
-Cohesion: 0.33
-Nodes (5): content, fs, nextFuncIdx, startIdx, targetBlock
-
-### Community 61 - "Community 61"
-Cohesion: 0.33
-Nodes (5): cleaned, content, fs, lines, openBraces
-
-### Community 62 - "Community 62"
-Cohesion: 0.33
-Nodes (5): content, fs, linesUpTo, stack, top
-
 ### Community 63 - "Community 63"
 Cohesion: 0.33
-Nodes (4): content, fs, path, targetFile
+Nodes (5): fs, index, match, persistenceFuncs, vMatch
 
 ### Community 64 - "Community 64"
 Cohesion: 0.33
@@ -392,144 +392,168 @@ Nodes (4): fs, http, list, target
 
 ### Community 65 - "Community 65"
 Cohesion: 0.33
-Nodes (4): fs, http, list, target
+Nodes (4): acorn, ast, content, fs
 
 ### Community 66 - "Community 66"
 Cohesion: 0.33
-Nodes (6): captureTo(), sDoctype(), sDTD(), setXMLVersion(), sXMLDeclName(), sXMLDeclValue()
+Nodes (5): found, fs, index, keywords, lower
+
+### Community 67 - "Community 67"
+Cohesion: 0.33
+Nodes (5): content, fs, nextFuncIdx, startIdx, targetBlock
 
 ### Community 68 - "Community 68"
 Cohesion: 0.33
-Nodes (5): 1. RAID Classifications, 2. Threat Exposure Calculations, 3. Mitigation Plans and Owners, Scoring Reference:, Unified RAID Register
+Nodes (5): cleaned, content, fs, lines, openBraces
 
 ### Community 69 - "Community 69"
 Cohesion: 0.33
-Nodes (5): Architecture Schematic, code:block1 ([LocalStorage/IndexedDB Backup Store]), Daily Automated Synchronization, Directory Navigation & Feature Guides, ProjectPulse User Manual — Master Index
+Nodes (5): content, fs, linesUpTo, stack, top
 
 ### Community 70 - "Community 70"
 Cohesion: 0.33
-Nodes (5): 1. Parent-Child Hierarchies, 2. Spreadsheet-Style Inline Editing, 3. Complexity & Estimation Scaling, code:block1 ([Deliverable 1: Core API Setup]), Hierarchical Delivery Matrix
+Nodes (4): content, fs, path, targetFile
 
 ### Community 71 - "Community 71"
-Cohesion: 0.4
-Nodes (4): content, fs, lines, results
+Cohesion: 0.33
+Nodes (4): fs, http, list, target
 
 ### Community 72 - "Community 72"
-Cohesion: 0.4
-Nodes (3): fs, index, sortedFuncs
+Cohesion: 0.33
+Nodes (4): fs, http, list, target
 
 ### Community 73 - "Community 73"
-Cohesion: 0.4
-Nodes (4): content, fs, lines, unmatchedOpen
+Cohesion: 0.33
+Nodes (5): 1. RAID Classifications, 2. Threat Exposure Calculations, 3. Mitigation Plans and Owners, Scoring Reference:, Unified RAID Register
 
 ### Community 74 - "Community 74"
-Cohesion: 0.4
-Nodes (4): content, fs, lines, secLines
+Cohesion: 0.33
+Nodes (5): Architecture Schematic, code:block1 ([LocalStorage/IndexedDB Backup Store]), Daily Automated Synchronization, Directory Navigation & Feature Guides, ProjectPulse User Manual — Master Index
 
 ### Community 75 - "Community 75"
-Cohesion: 0.4
-Nodes (4): content, excelLines, fs, lines
+Cohesion: 0.33
+Nodes (5): 1. Parent-Child Hierarchies, 2. Spreadsheet-Style Inline Editing, 3. Complexity & Estimation Scaling, code:block1 ([Deliverable 1: Core API Setup]), Hierarchical Delivery Matrix
 
 ### Community 76 - "Community 76"
 Cohesion: 0.4
-Nodes (4): fs, obj, readline, rl
+Nodes (4): content, fs, lines, results
 
 ### Community 77 - "Community 77"
 Cohesion: 0.4
-Nodes (4): bodyLines, content, fs, lines
+Nodes (3): fs, index, sortedFuncs
 
 ### Community 78 - "Community 78"
 Cohesion: 0.4
-Nodes (4): excelFuncs, fs, index, match
+Nodes (4): content, fs, lines, unmatchedOpen
 
 ### Community 79 - "Community 79"
 Cohesion: 0.4
-Nodes (4): fs, index, match, targets
+Nodes (4): content, fs, lines, secLines
 
 ### Community 80 - "Community 80"
 Cohesion: 0.4
-Nodes (3): content, fs, lines
+Nodes (4): content, excelLines, fs, lines
 
 ### Community 81 - "Community 81"
 Cohesion: 0.4
-Nodes (4): { execSync }, fs, index, uiFuncs
+Nodes (4): fs, obj, readline, rl
 
 ### Community 82 - "Community 82"
 Cohesion: 0.4
-Nodes (4): actualColumnCount(), actualRowCount(), columnCount(), eachRow()
+Nodes (4): bodyLines, content, fs, lines
+
+### Community 83 - "Community 83"
+Cohesion: 0.4
+Nodes (4): excelFuncs, fs, index, match
 
 ### Community 84 - "Community 84"
 Cohesion: 0.4
-Nodes (5): gr(), Lr(), pr(), SUPPORT_FOREIGNOBJECT_DRAWING(), nr
+Nodes (4): fs, index, match, targets
 
 ### Community 85 - "Community 85"
 Cohesion: 0.4
-Nodes (5): Be(), Cs(), es, is, ps
+Nodes (3): content, fs, lines
 
 ### Community 86 - "Community 86"
 Cohesion: 0.4
-Nodes (5): dA(), FA(), hA(), lA(), UA()
-
-### Community 87 - "Community 87"
-Cohesion: 0.4
-Nodes (4): 1. Metric Caching (`buildDashCache`), 2. Earned Value Management (EVM), 3. Burn-up & Burn-down Projections, Live Project Insights & Analytics
+Nodes (4): { execSync }, fs, index, uiFuncs
 
 ### Community 88 - "Community 88"
 Cohesion: 0.4
-Nodes (4): 1. Capacity Modeling, 2. Dynamic Workload Balancing, 3. Role Assignments, Team Capacity Hub & Role Management
+Nodes (4): actualColumnCount(), actualRowCount(), columnCount(), eachRow()
 
 ### Community 89 - "Community 89"
 Cohesion: 0.4
-Nodes (4): 1. Defect Severity Matrix, 2. Bug Lifecycle States, code:block1 ([New] ──► [Assigned] ──► [In Progress] ──► [Fixed] ──► [Veri), Defect Tracker & Bug Lifecycle
+Nodes (5): Be(), Cs(), es, is, ps
 
 ### Community 90 - "Community 90"
-Cohesion: 0.5
-Nodes (3): content, fs, lines
+Cohesion: 0.4
+Nodes (5): dA(), FA(), hA(), lA(), UA()
 
 ### Community 91 - "Community 91"
-Cohesion: 0.5
-Nodes (3): content, fs, lines
+Cohesion: 0.4
+Nodes (5): gr(), Lr(), pr(), SUPPORT_FOREIGNOBJECT_DRAWING(), nr
+
+### Community 92 - "Community 92"
+Cohesion: 0.4
+Nodes (4): 1. Metric Caching (`buildDashCache`), 2. Earned Value Management (EVM), 3. Burn-up & Burn-down Projections, Live Project Insights & Analytics
 
 ### Community 93 - "Community 93"
-Cohesion: 0.5
-Nodes (4): an(), fn(), Pt(), sn()
+Cohesion: 0.4
+Nodes (4): 1. Capacity Modeling, 2. Dynamic Workload Balancing, 3. Role Assignments, Team Capacity Hub & Role Management
 
 ### Community 94 - "Community 94"
-Cohesion: 0.5
-Nodes (4): fe(), KB(), oe(), xB()
+Cohesion: 0.4
+Nodes (4): 1. Defect Severity Matrix, 2. Bug Lifecycle States, code:block1 ([New] ──► [Assigned] ──► [In Progress] ──► [Fixed] ──► [Veri), Defect Tracker & Bug Lifecycle
 
 ### Community 95 - "Community 95"
 Cohesion: 0.5
-Nodes (4): gs(), ns(), rs(), ts()
+Nodes (3): content, fs, lines
 
 ### Community 96 - "Community 96"
 Cohesion: 0.5
-Nodes (3): 1. Executive Board Pack Generator, 2. Spreadsheet Export Settings (ExcelJS), Reports & Stakeholder Board Packs
+Nodes (3): content, fs, lines
 
 ### Community 97 - "Community 97"
 Cohesion: 0.5
+Nodes (4): fe(), KB(), oe(), xB()
+
+### Community 98 - "Community 98"
+Cohesion: 0.5
+Nodes (4): gs(), ns(), rs(), ts()
+
+### Community 99 - "Community 99"
+Cohesion: 0.5
+Nodes (4): an(), fn(), Pt(), sn()
+
+### Community 100 - "Community 100"
+Cohesion: 0.5
+Nodes (3): 1. Executive Board Pack Generator, 2. Spreadsheet Export Settings (ExcelJS), Reports & Stakeholder Board Packs
+
+### Community 101 - "Community 101"
+Cohesion: 0.5
 Nodes (3): 1. Automated Action Logging, 2. Session Rollback Capability, Audit Log & Activity Streams
 
-### Community 107 - "Community 107"
+### Community 114 - "Community 114"
 Cohesion: 0.67
 Nodes (3): cn(), on(), Qn()
 
 ## Knowledge Gaps
-- **1226 isolated node(s):** `fs`, `content`, `lines`, `index`, `match` (+1221 more)
+- **1245 isolated node(s):** `fs`, `content`, `lines`, `index`, `match` (+1240 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **17 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **16 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `js` connect `Community 0` to `Community 14`, `Community 47`, `Community 48`, `Community 110`, `Community 84`, `Community 53`, `Community 85`?**
-  _High betweenness centrality (0.358) - this node is a cross-community bridge._
-- **Why does `je` connect `Community 14` to `Community 0`?**
-  _High betweenness centrality (0.245) - this node is a cross-community bridge._
-- **Why does `ke()` connect `Community 14` to `Community 1`?**
-  _High betweenness centrality (0.243) - this node is a cross-community bridge._
+- **Why does `js` connect `Community 0` to `Community 17`, `Community 117`, `Community 55`, `Community 56`, `Community 89`, `Community 91`, `Community 60`?**
+  _High betweenness centrality (0.357) - this node is a cross-community bridge._
+- **Why does `ke()` connect `Community 17` to `Community 1`?**
+  _High betweenness centrality (0.241) - this node is a cross-community bridge._
+- **Why does `je` connect `Community 17` to `Community 0`?**
+  _High betweenness centrality (0.241) - this node is a cross-community bridge._
 - **What connects `fs`, `content`, `lines` to the rest of the system?**
-  _1226 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _1245 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
   _Cohesion score 0.0 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
