@@ -13796,7 +13796,7 @@
         theme: localStorage.getItem('pp-theme') || 'paper',
         colorMode: localStorage.getItem('pp-color-mode') || 'default',
         expanded: new Set(), fsHandle: null, fsDirHandle: null, fsDirName: '',
-        lastSynced: null, lastBackup: null, ganttZoom: 'week',
+        lastSynced: null, lastBackup: null, ganttZoom: 'week', lastImportedFile: null,
         _pendingComment: null, _editingTaskId: null, _editingMemberId: null, _editingReportId: null,
         _editingCfIdx: null, _editingDashWidgetIdx: null, _editingRptWidgetIdx: null,
         _editingFeatureId: null,
@@ -13931,8 +13931,8 @@
       applyWorkflowTemplate(task, screenName = null) {
         const stateP = PulseState.P;
         if (screenName) {
-          if (!task.category || task.category === 'Feature') {
-            task.category = (task.moduleType === 'GUI') ? 'GUI Module' : (task.moduleType === 'Server' ? 'Server Module' : 'Feature');
+          if (!task.category || task.category === 'Feature' || task.category === 'GUI Module') {
+            task.category = (task.moduleType === 'GUI') ? 'GUI Screen' : (task.moduleType === 'Server' ? 'Server Module' : 'Feature');
           }
           const tpl = (stateP.stepTemplates || []).find(tp => tp.category === 'GUI Screen');
           if (tpl) {
@@ -13999,9 +13999,17 @@
           if (data.progress < 100) data.progress = 100;
           if (!data.actCompletionDate) data.actCompletionDate = new Date().toISOString().split('T')[0];
         }
-        if (data.guiScreens && data.guiScreens.length > 0) data.category = 'GUI Screen';
-        if (data.moduleType === 'GUI') data.category = 'GUI Module';
-        else if (data.moduleType === 'Server') data.category = 'Server Module';
+        if (data.moduleType === 'GUI') {
+          if (data.guiScreens && data.guiScreens.length > 0) {
+            data.category = 'GUI Screen';
+          } else {
+            data.category = 'GUI Module';
+          }
+        } else if (data.moduleType === 'Server') {
+          data.category = 'Server Module';
+        } else if (data.guiScreens && data.guiScreens.length > 0) {
+          data.category = 'GUI Screen';
+        }
         const task = {
           id,
           createdAt: nowISO(),
@@ -14482,6 +14490,7 @@ clearProjectState() {
         P.fsDirName = '';
         P.sbOpen = true;
         P.view = 'tasks';
+        P.lastImportedFile = null;
       },
 
       injectSampleData() {
@@ -14733,6 +14742,7 @@ save() {
               teamLayout: P.teamLayout,
               activeReportId: P.activeReportId,
               _adminActiveTab: P._adminActiveTab,
+              lastImportedFile: P.lastImportedFile,
               filters: {
                 status: Array.from((P.filters || {}).status || []),
                 priority: Array.from((P.filters || {}).priority || []),
@@ -14794,6 +14804,7 @@ load() {
             if (d.teamLayout !== undefined) P.teamLayout = d.teamLayout;
             if (d.activeReportId !== undefined) P.activeReportId = d.activeReportId;
             if (d._adminActiveTab !== undefined) P._adminActiveTab = d._adminActiveTab;
+            if (d.lastImportedFile !== undefined) P.lastImportedFile = d.lastImportedFile;
             if (d.filters) {
               P.filters = {
                 status: new Set(d.filters.status || []),
@@ -15385,17 +15396,18 @@ load() {
           el.style.margin = id.includes('-sb') ? '0 0 16px 0' : '8px 0';
 
           if (!P.fsHandle) {
+            const isWorkbook = !!P.lastImportedFile;
             el.innerHTML = `
             <div style="${cardStyle(false)}">
               <div style="display: flex; align-items: center; justify-content: space-between;">
                 <div style="display: flex; align-items: center; gap: 6px;">
                   <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--color-success); box-shadow: 0 0 8px var(--color-success);"></div>
-                  <span style="font-size: 10px; font-weight: 800; letter-spacing: 0.05em; color: var(--color-text-muted); text-transform: uppercase;">Local Mode</span>
+                  <span style="font-size: 10px; font-weight: 800; letter-spacing: 0.05em; color: var(--color-text-muted); text-transform: uppercase;">${isWorkbook ? 'Workbook Mode' : 'Local Mode'}</span>
                 </div>
               </div>
               <div style="display: flex; align-items: center; gap: 8px;">
-                <i data-lucide="cloud"></i>
-                <span style="font-size: 12px; font-weight: 600; color: var(--color-text);">Cloud Sync Active</span>
+                <i data-lucide="${isWorkbook ? 'file-spreadsheet' : 'cloud'}"></i>
+                <span style="font-size: 12px; font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;">${isWorkbook ? P.lastImportedFile : 'Cloud Sync Active'}</span>
               </div>
               <div style="display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--color-text-muted);">
                 <i data-lucide="shield-check" style="font-size: 12px;"></i>
@@ -15403,6 +15415,7 @@ load() {
               </div>
             </div>
           `;
+            if (window.lucide) lucide.createIcons({ target: el });
             return;
           }
 
@@ -15967,8 +15980,23 @@ load() {
     window.syncTaskModal = syncTaskModal;
     window.submitComment = submitComment;
     window.confirmDeleteTask = confirmDeleteTask;
+    window.PulseState = PulseState;
+    window.PulseScheduler = PulseScheduler;
     PulseScheduler.recalcDatesAndStatus = function (task, skipLog = false) {
       const subs = task.subtasks || [];
+
+      // Keep task.guiScreens in sync with subtasks of type 'screen'
+      const screenSubs = subs.filter(s => s.type === 'screen').map(s => s.name);
+      if (screenSubs.length > 0) {
+        task.guiScreens = screenSubs;
+      } else {
+        task.guiScreens = [];
+      }
+
+      if (task.moduleType === 'GUI' && task.guiScreens && task.guiScreens.length > 0) {
+        task.category = 'GUI Screen';
+      }
+
       const factor = P.complexityFactors?.[task.complexity] ?? 1.0;
       if (!subs.length) {
         if (task.baseEstEffort === undefined) task.baseEstEffort = parseFloat(task.estEffort) || 0;
@@ -16901,6 +16929,7 @@ load() {
                 str.addEventListener('dblclick', () => openScreenFlyout(task.id, st.id));
               } else {
                 str.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); showSubtaskCtx(e, task.id, st.id); });
+                str.addEventListener('dblclick', () => openScreenFlyout(task.id, st.id));
               }
               tbody.appendChild(str);
 
@@ -17039,6 +17068,10 @@ load() {
       const st = task.subtasks.find(s => s.id === stId);
       if (!st) return;
 
+      const isScreen = st.type === 'screen';
+      const iconPrefix = isScreen ? '📺' : '📝';
+      const titlePrefix = isScreen ? 'Screen' : 'Sub-task';
+
       if (mode === 'view') {
         let flyout = $id('screen-flyout');
         if (!flyout) {
@@ -17049,13 +17082,13 @@ load() {
         }
         let html = `
           <div class="fly-header">
-             <div class="fly-title">📺 ${esc(st.name)} (View Mode)</div>
+             <div class="fly-title">${iconPrefix} ${esc(st.name)} (View Mode)</div>
              <div class="fly-close" onclick="$id('screen-flyout').classList.remove('open')">×</div>
           </div>
           <div class="fly-body" style="padding:16px;display:flex;flex-direction:column;gap:16px">
             <div style="display:flex;align-items:center;justify-content:space-between;background:var(--color-surface-2);padding:16px;border-radius:var(--radius-lg);border:1px solid var(--color-border)">
               <div>
-                <div style="font-size:11px;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Deliverable Status</div>
+                <div style="font-size:11px;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Status</div>
                 <span class="badge ${ST_CLS[st.status || 'Not Started'] || 'not-started'}" style="font-size:14px;padding:6px 12px">${esc(st.status || 'Not Started')}</span>
               </div>
               <div style="text-align:right">
@@ -17065,6 +17098,7 @@ load() {
             </div>
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;background:var(--color-surface-2);padding:16px;border-radius:var(--radius-lg);border:1px solid var(--color-border)">
+              ${isScreen ? `
               <div>
                 <div style="font-size:11px;color:var(--color-text-faint);margin-bottom:4px">Window Name</div>
                 <div style="font-size:13px;font-weight:600;color:var(--color-text)">${esc(st.windowName || st.name || 'N/A')}</div>
@@ -17073,6 +17107,16 @@ load() {
                 <div style="font-size:11px;color:var(--color-text-faint);margin-bottom:4px">New Window?</div>
                 <div style="font-size:13px;font-weight:600;color:var(--color-text)">${st.isNewWindow ? 'Yes' : 'No'}</div>
               </div>
+              ` : `
+              <div>
+                <div style="font-size:11px;color:var(--color-text-faint);margin-bottom:4px">Assignee</div>
+                <div style="font-size:13px;font-weight:600;color:var(--color-text)">${esc(st.assignee || 'Unassigned')}</div>
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--color-text-faint);margin-bottom:4px">Priority</div>
+                <div style="font-size:13px;font-weight:600;color:var(--color-text)">${esc(st.priority || 'Medium')}</div>
+              </div>
+              `}
               <div>
                 <div style="font-size:11px;color:var(--color-text-faint);margin-bottom:4px">Start Date</div>
                 <div style="font-size:13px;font-weight:600;color:var(--color-text)">${st.startDate || 'N/A'}</div>
@@ -17083,6 +17127,12 @@ load() {
               </div>
             </div>
 
+            <div>
+              <div style="font-size:11px;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Notes / Comments</div>
+              <div style="background:var(--color-surface-2);padding:12px;border-radius:var(--radius-md);border:1px solid var(--color-border);font-size:12px;color:var(--color-text);white-space:pre-wrap;min-height:60px">${esc(st.notes || 'No notes added yet.')}</div>
+            </div>
+
+            ${isScreen ? `
             <div>
               <div style="font-size:11px;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px">Workflow Steps (${(st.workflow || []).length})</div>
               <div style="display:flex;flex-direction:column;gap:8px">
@@ -17104,10 +17154,11 @@ load() {
         }).join('')}
               </div>
             </div>
+            ` : ''}
           </div>
           <div class="fly-footer" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--color-surface-2);border-top:1px solid var(--color-divider)">
             <button class="btn ghost" onclick="$id('screen-flyout').classList.remove('open')">Close</button>
-            ${!P.readonly ? `<button class="btn primary" onclick="openScreenFlyout('${taskId}','${stId}','edit')"><i data-lucide="edit" style="width:14px;height:14px;margin-right:6px"></i>Edit Screen</button>` : ''}
+            ${!P.readonly ? `<button class="btn primary" onclick="openScreenFlyout('${taskId}','${stId}','edit')"><i data-lucide="edit" style="width:14px;height:14px;margin-right:6px"></i>Edit ${titlePrefix}</button>` : ''}
           </div>
         `;
         flyout.innerHTML = html;
@@ -17142,7 +17193,7 @@ load() {
 
       window.recalcGUIScreenLocal = recalcGUIScreenLocal;
       function recalcGUIScreenLocal() {
-        if (window._editingSubtask) {
+        if (window._editingSubtask && window._editingSubtask.type === 'screen') {
           recalcGUIScreen(window._editingSubtask);
         }
       };
@@ -17225,7 +17276,7 @@ load() {
           recalcDatesAndStatus(task);
           save();
           render();
-          notify('Screen changes saved successfully', 'ok');
+          notify(`${titlePrefix} changes saved successfully`, 'ok');
         }
         window.closeScreenFlyout();
       };
@@ -17243,18 +17294,20 @@ load() {
 
       flyout.innerHTML = `
           <div class="fly-header">
-             <div class="fly-title">📺 ${esc(stEdit.name)}</div>
+             <div class="fly-title">${iconPrefix} ${esc(stEdit.name)}</div>
              <div class="fly-close" onclick="closeScreenFlyout()">×</div>
           </div>
           <div class="fly-body" style="padding:0; display:flex; flex-direction:column; gap:20px">
              <!-- basic config card -->
              <div style="background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:var(--radius-lg); padding:16px; display:flex; flex-direction:column; gap:12px">
-                <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-muted); margin-bottom:-4px">Screen Details</div>
+                <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--color-text-muted); margin-bottom:-4px">${titlePrefix} Details</div>
                 
+                ${isScreen ? `
                 <div class="fg" style="margin:0">
                    <label class="flbl">Window Name</label>
                    <input class="finp" value="${esc(stEdit.windowName || stEdit.name || '')}" oninput="window._editingSubtask.windowName = this.value" style="background:var(--color-surface)">
                 </div>
+                ` : ''}
                 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
                    <div class="fg" style="margin:0">
@@ -17273,6 +17326,7 @@ load() {
                 </div>
                 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+                   ${isScreen ? `
                    <div class="fg" style="margin:0">
                       <label class="flbl">Complexity</label>
                       <select class="finp" onchange="window._editingSubtask.complexity = this.value; window.recalcGUIScreenLocal(); window.openScreenFlyout('${taskId}','${stId}','edit');" style="background:var(--color-surface)">
@@ -17286,6 +17340,18 @@ load() {
                          <span class="sl"></span>
                       </label>
                    </div>
+                   ` : `
+                   <div class="fg" style="margin:0">
+                      <label class="flbl">Status</label>
+                      <select class="finp" onchange="window._editingSubtask.status = this.value; if(this.value === 'Completed'){ window._editingSubtask.done = true; if(!window._editingSubtask.actCompletionDate) window._editingSubtask.actCompletionDate = new Date().toISOString().split('T')[0]; } else { window._editingSubtask.done = false; }" style="background:var(--color-surface)">
+                         ${STATUSES.map(s => `<option value="${s}" ${stEdit.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+                      </select>
+                   </div>
+                   <div class="fg" style="margin:0">
+                      <label class="flbl">Effort (Days)</label>
+                      <input type="number" class="finp" value="${stEdit.effort || 1}" oninput="window._editingSubtask.effort = parseFloat(this.value) || 0" style="background:var(--color-surface)">
+                   </div>
+                   `}
                 </div>
                 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
@@ -17294,13 +17360,20 @@ load() {
                       <input type="text" class="finp" value="${stEdit.startDate ? fmtDate(stEdit.startDate) : ''}" placeholder="dd-mmm-yyyy" onchange="window._editingSubtask.startDate = parseDateDMY(this.value); window.recalcGUIScreenLocal(); window.openScreenFlyout('${taskId}','${stId}','edit');" style="background:var(--color-surface)">
                    </div>
                    <div class="fg" style="margin:0">
-                      <label class="flbl">Due Date (Auto)</label>
-                      <input type="text" class="finp" value="${stEdit.dueDate ? fmtDate(stEdit.dueDate) : ''}" readonly style="opacity:0.65; cursor:not-allowed; background:var(--color-surface-offset)">
+                      <label class="flbl">${isScreen ? 'Due Date (Auto)' : 'Due Date'}</label>
+                      <input type="text" class="finp" value="${stEdit.dueDate ? fmtDate(stEdit.dueDate) : ''}" placeholder="dd-mmm-yyyy" ${isScreen ? 'readonly style="opacity:0.65; cursor:not-allowed; background:var(--color-surface-offset)"' : `onchange="window._editingSubtask.dueDate = parseDateDMY(this.value); window.openScreenFlyout('${taskId}','${stId}','edit');" style="background:var(--color-surface)"`}>
                    </div>
+                </div>
+
+                <!-- Notes input field -->
+                <div class="fg" style="margin:0">
+                   <label class="flbl">Notes / Comments</label>
+                   <textarea class="finp" style="background:var(--color-surface); min-height:80px; font-family:inherit; resize:vertical; padding:8px 10px; font-size:12px; line-height:1.5" placeholder="Add details, notes, or implementation details..." oninput="window._editingSubtask.notes = this.value">${esc(stEdit.notes || '')}</textarea>
                 </div>
              </div>
              
              <!-- workflow section -->
+             ${isScreen ? `
              <div>
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding:0 4px">
                    <label class="flbl" style="margin:0; text-transform:uppercase; font-size:10px; letter-spacing:0.05em; font-weight:700">Workflow Steps</label>
@@ -17310,70 +17383,73 @@ load() {
                 </div>
                 <div id="flyout_steps_cont"></div>
              </div>
+             ` : ''}
           </div>
           <div class="fly-footer" style="padding:20px 0 0 0; border-top:1px solid var(--color-divider); display:flex; gap:12px; background:transparent">
-             <button class="btn primary" style="flex:1; height:44px; font-weight:700" onclick="window.saveScreenFlyoutData()">Save Screen Config</button>
+             <button class="btn primary" style="flex:1; height:44px; font-weight:700" onclick="window.saveScreenFlyoutData()">Save ${titlePrefix} Config</button>
              <button class="btn ghost outline" onclick="closeScreenFlyout()" style="height:44px">Cancel</button>
           </div>
         `;
 
-      const cont = flyout.querySelector('#flyout_steps_cont');
-      (stEdit.workflow || []).forEach((step, idx) => {
-        const div = document.createElement('div');
-        const isDone = step.status === 'Completed' || step.done;
-        const status = step.status || (step.done ? 'Completed' : 'Not Started');
-        const colors = {
-          'Not Started': '#64748b',
-          'In Progress': '#2563eb',
-          'Under Review': '#7e22ce',
-          'Completed': '#16a34a',
-          'On Hold': '#ea580c',
-          'Blocked': '#dc2626',
-          'Deferred': '#94a3b8'
-        };
-        const statusColor = colors[status] || '#64748b';
+      if (isScreen) {
+        const cont = flyout.querySelector('#flyout_steps_cont');
+        (stEdit.workflow || []).forEach((step, idx) => {
+          const div = document.createElement('div');
+          const isDone = step.status === 'Completed' || step.done;
+          const status = step.status || (step.done ? 'Completed' : 'Not Started');
+          const colors = {
+            'Not Started': '#64748b',
+            'In Progress': '#2563eb',
+            'Under Review': '#7e22ce',
+            'Completed': '#16a34a',
+            'On Hold': '#ea580c',
+            'Blocked': '#dc2626',
+            'Deferred': '#94a3b8'
+          };
+          const statusColor = colors[status] || '#64748b';
 
-        div.style = `display:flex; flex-direction:column; padding:14px; background:var(--color-surface); border:1px solid var(--color-border); border-left:4px solid ${statusColor}; border-radius:var(--radius-md); margin-bottom:12px; box-shadow:var(--shadow-sm); transition:all 0.2s ease`;
+          div.style = `display:flex; flex-direction:column; padding:14px; background:var(--color-surface); border:1px solid var(--color-border); border-left:4px solid ${statusColor}; border-radius:var(--radius-md); margin-bottom:12px; box-shadow:var(--shadow-sm); transition:all 0.2s ease`;
 
-        div.innerHTML = `
-             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-                <div style="display:flex; align-items:center; gap:10px;">
-                   <input type="checkbox" id="gui_step_cb_${idx}" ${isDone ? 'checked' : ''} style="width:15px; height:15px; accent-color:var(--color-primary); cursor:pointer;" onchange="window.updateGUIStepLocal(${idx},'status',this.checked?'Completed':'In Progress')">
-                   <div style="font-size:12px; font-weight:600; color:var(--color-text); ${isDone ? 'text-decoration:line-through; opacity:0.5' : ''}">${esc(step.name)}</div>
-                </div>
-                <div>
-                   <select id="gui_step_sel_${idx}" style="font-size:10px; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:4px; padding:2px 6px; color:var(--color-text); cursor:pointer; font-weight:600;" onchange="window.updateGUIStepLocal(${idx},'status',this.value)">
-                      ${STATUSES.map(s => `<option value="${s}" ${s === status ? 'selected' : ''}>${s}</option>`).join('')}
-                   </select>
-                </div>
-             </div>
-             <div style="height:1px; background:var(--color-divider); margin:0 -14px 10px -14px; opacity:0.4;"></div>
-             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap:12px; font-size:10px; color:var(--color-text-muted);">
-                <div style="display:flex; flex-direction:column; gap:4px;">
-                   <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Effort Plan</span>
-                   <div style="display:flex; align-items:center; gap:4px;">
-                      <input type="number" id="gui_step_eff_${idx}" value="${step.effort || 1}" style="width:44px; background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; text-align:center; font-weight:600;" onchange="window.updateGUIStepEffortLocal(${idx},this.value)">
-                      <span style="font-weight:500;">Days</span>
-                   </div>
-                </div>
-                <div style="display:flex; flex-direction:column; gap:4px;">
-                   <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Schedule</span>
-                   <div style="display:flex; align-items:center; gap:4px; font-weight:600; color:var(--color-text); margin-top:2px;">
-                      <i data-lucide="calendar" style="width:11px; height:11px; opacity:0.6;"></i>
-                      <span>${step.startDate ? fmtDate(step.startDate) : '?'} <span style="opacity:0.4;">→</span> ${step.dueDate ? fmtDate(step.dueDate) : '?'}</span>
-                   </div>
-                </div>
-                <div style="display:flex; flex-direction:column; gap:4px;">
-                   <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Actual Completion</span>
-                   <div style="display:flex; align-items:center; gap:6px;">
-                      <input type="text" id="gui_step_act_${idx}" value="${step.actCompletionDate ? fmtDate(step.actCompletionDate) : ''}" placeholder="dd-mmm-yyyy" style="background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; width:110px;" onchange="window.updateGUIStepCompletionDateLocal(${idx},parseDateDMY(this.value))">
-                      <span id="step_act_hours_${idx}" class="badge success" style="font-weight:700; font-size:8px; display:${step.actEffort ? 'inline-flex' : 'none'}; padding: 1px 4px; border-radius: 3px; white-space:nowrap">${step.actEffort || 0}d act</span>
-                   </div>
-                </div>
-             </div>
-        `;
-        cont.appendChild(div);
-      });
+          div.innerHTML = `
+               <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+                  <div style="display:flex; align-items:center; gap:10px;">
+                     <input type="checkbox" id="gui_step_cb_${idx}" ${isDone ? 'checked' : ''} style="width:15px; height:15px; accent-color:var(--color-primary); cursor:pointer;" onchange="window.updateGUIStepLocal(${idx},'status',this.checked?'Completed':'In Progress')">
+                     <div style="font-size:12px; font-weight:600; color:var(--color-text); ${isDone ? 'text-decoration:line-through; opacity:0.5' : ''}">${esc(step.name)}</div>
+                  </div>
+                  <div>
+                     <select id="gui_step_sel_${idx}" style="font-size:10px; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:4px; padding:2px 6px; color:var(--color-text); cursor:pointer; font-weight:600;" onchange="window.updateGUIStepLocal(${idx},'status',this.value)">
+                        ${STATUSES.map(s => `<option value="${s}" ${s === status ? 'selected' : ''}>${s}</option>`).join('')}
+                     </select>
+                  </div>
+               </div>
+               <div style="height:1px; background:var(--color-divider); margin:0 -14px 10px -14px; opacity:0.4;"></div>
+               <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap:12px; font-size:10px; color:var(--color-text-muted);">
+                  <div style="display:flex; flex-direction:column; gap:4px;">
+                     <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Effort Plan</span>
+                     <div style="display:flex; align-items:center; gap:4px;">
+                        <input type="number" id="gui_step_eff_${idx}" value="${step.effort || 1}" style="width:44px; background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; text-align:center; font-weight:600;" onchange="window.updateGUIStepEffortLocal(${idx},this.value)">
+                        <span style="font-weight:500;">Days</span>
+                     </div>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:4px;">
+                     <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Schedule</span>
+                     <div style="display:flex; align-items:center; gap:4px; font-weight:600; color:var(--color-text); margin-top:2px;">
+                        <i data-lucide="calendar" style="width:11px; height:11px; opacity:0.6;"></i>
+                        <span>${step.startDate ? fmtDate(step.startDate) : '?'} <span style="opacity:0.4;">→</span> ${step.dueDate ? fmtDate(step.dueDate) : '?'}</span>
+                     </div>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:4px;">
+                     <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Actual Completion</span>
+                     <div style="display:flex; align-items:center; gap:6px;">
+                        <input type="text" id="gui_step_act_${idx}" value="${step.actCompletionDate ? fmtDate(step.actCompletionDate) : ''}" placeholder="dd-mmm-yyyy" style="background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; width:110px;" onchange="window.updateGUIStepCompletionDateLocal(${idx},parseDateDMY(this.value))">
+                        <span id="step_act_hours_${idx}" class="badge success" style="font-weight:700; font-size:8px; display:${step.actEffort ? 'inline-flex' : 'none'}; padding: 1px 4px; border-radius: 3px; white-space:nowrap">${step.actEffort || 0}d act</span>
+                     </div>
+                  </div>
+               </div>
+          `;
+          cont.appendChild(div);
+        });
+      }
 
       flyout.classList.add('open');
       if (window.lucide) lucide.createIcons({ target: flyout });
@@ -17399,6 +17475,11 @@ load() {
 
       let html = `
         <div class="ctx-header">Sub-task: ${esc(st.name)}</div>
+        <div class="ctxitem ctx-workflow" onclick="openScreenFlyout('${taskId}','${stId}');closeCtx()">
+           <i data-lucide="edit-2"></i>
+           Edit Sub-task
+        </div>
+        <div class="ctx-div"></div>
       `;
 
       const statusIcons = {
@@ -36248,7 +36329,7 @@ buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S) {
             try {
               showAppLock('Reconstructing Project State...', 'Parsing Smart Workbook sheets, validating schemas, and restoring application state. Please wait...', 'import');
               await new Promise(r => setTimeout(r, 100));
-              const reader = new FileReader(); reader.onload = async (e) => { await reconstructProjectFromBuffer(e.target.result); }; reader.readAsArrayBuffer(file);
+              const reader = new FileReader(); reader.onload = async (e) => { await reconstructProjectFromBuffer(e.target.result, file.name); }; reader.readAsArrayBuffer(file);
             } catch (err) { PP.error(err); hideAppLock(); notify('Import failed: ' + err.message, 'err'); }
           },
 
@@ -36640,7 +36721,7 @@ rebuildDerivedState(rawData) {
             let maxDefectId = 0; P.defects.forEach(d => { const num = parseInt(String(d.id).replace(/\D/g, '')); if (!isNaN(num) && num > maxDefectId) maxDefectId = num; }); if (maxDefectId >= P.nextDefectId) P.nextDefectId = maxDefectId + 1;
           },
 
-          async reconstructProjectFromBuffer(buffer) {
+          async reconstructProjectFromBuffer(buffer, fileName = null) {
             if (typeof ExcelJS === 'undefined') {
               notify('Excel library not loaded.', 'err');
               return;
@@ -36653,7 +36734,9 @@ rebuildDerivedState(rawData) {
               notify('Reconstructing Project State...', 'ok');
               const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buffer);
               const rawData = { wb, issues: [] }; applyBackwardCompatibilityMappings(wb, rawData);
-              clearProjectState(); parseAppStateSheets(wb, rawData); parseConfigSheets(wb, rawData); parseCanonicalSheets(wb, rawData); parseRelationSheets(wb, rawData); parseHelperAwareCanonicalSheets(wb, rawData); normalizeImportedData(rawData); collectImportIssues(rawData); rebuildDerivedState(rawData);
+              clearProjectState();
+              if (fileName) P.lastImportedFile = fileName;
+              parseAppStateSheets(wb, rawData); parseConfigSheets(wb, rawData); parseCanonicalSheets(wb, rawData); parseRelationSheets(wb, rawData); parseHelperAwareCanonicalSheets(wb, rawData); normalizeImportedData(rawData); collectImportIssues(rawData); rebuildDerivedState(rawData);
               validateProjectData(P);
               syncDropdowns(); save(); enterApp(); render(); hideAppLock(); notify('Project Restored Successfully!', 'ok');
             } catch (err) { PP.error(err); hideAppLock(); notify('Import failed: ' + err.message, 'err'); }
