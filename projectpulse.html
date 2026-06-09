@@ -18396,9 +18396,12 @@ load() {
       window.recalcServerWorkflowLocal = recalcServerWorkflowLocal;
       function recalcServerWorkflowLocal() {
         if (!window._editingServerSubtasks) return;
+        const parentTask = P.tasks.find(t => t.id === window._editingServerTaskId);
         window._editingServerSubtasks.forEach(s => {
-          if (s.status === 'Completed' && s.actCompletionDate && s.startDate) {
-            s.actEffort = getBusinessDays(s.startDate, s.actCompletionDate);
+          // Fall back to parent task startDate if the subtask has no own startDate
+          const effectiveStart = s.startDate || (parentTask && parentTask.startDate) || null;
+          if (s.status === 'Completed' && s.actCompletionDate && effectiveStart) {
+            s.actEffort = getBusinessDays(effectiveStart, s.actCompletionDate);
           } else if (s.status !== 'Completed') {
             s.actEffort = 0;
           }
@@ -18421,6 +18424,12 @@ load() {
             if (!st.actCompletionDate) {
               st.actCompletionDate = st.dueDate || new Date().toISOString().split('T')[0];
             }
+            // Compute actEffort immediately — subtask may have no startDate, fall back to parent
+            const parentTask = P.tasks.find(t => t.id === window._editingServerTaskId);
+            const effectiveStart = st.startDate || (parentTask && parentTask.startDate) || null;
+            if (effectiveStart && st.actCompletionDate) {
+              st.actEffort = getBusinessDays(effectiveStart, st.actCompletionDate);
+            }
           } else {
             st.actCompletionDate = '';
             st.actEffort = 0;
@@ -18441,6 +18450,12 @@ load() {
           if (st.done) {
             if (!st.actCompletionDate) {
               st.actCompletionDate = st.dueDate || new Date().toISOString().split('T')[0];
+            }
+            // Compute actEffort immediately — subtask may have no startDate, fall back to parent
+            const parentTask = P.tasks.find(t => t.id === window._editingServerTaskId);
+            const effectiveStart = st.startDate || (parentTask && parentTask.startDate) || null;
+            if (effectiveStart && st.actCompletionDate) {
+              st.actEffort = getBusinessDays(effectiveStart, st.actCompletionDate);
             }
           } else {
             st.actCompletionDate = '';
