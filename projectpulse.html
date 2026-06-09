@@ -15184,8 +15184,7 @@ load() {
             if (!file) return;
             try {
               const buffer = await file.arrayBuffer();
-              await reconstructProjectFromBuffer(buffer);
-              enterApp();
+              await reconstructProjectFromBuffer(buffer, file.name);
               notify('Project loaded from Excel (Sync disabled)', 'ok');
             } catch (err) {
               PP.error(err);
@@ -15291,10 +15290,12 @@ load() {
         if (typeof ExcelJS === 'undefined') { notify('Excel library not loaded yet. Please try again.', 'amber'); return; }
         if (!P.fsHandle || P._isLoading) return;
         P._isLoading = true;
+        const handleName = P.fsHandle.name;
         try {
           const file = await P.fsHandle.getFile();
           const buffer = await file.arrayBuffer();
-          await reconstructProjectFromBuffer(buffer);
+          // Pass the filename so reconstructProjectFromBuffer can restore the handle after clearProjectState()
+          await reconstructProjectFromBuffer(buffer, handleName);
           notify('Project loaded from file', 'ok');
         } catch (e) {
           PP.error(e);
@@ -36735,11 +36736,20 @@ rebuildDerivedState(rawData) {
               notify('Reconstructing Project State...', 'ok');
               const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buffer);
               const rawData = { wb, issues: [] }; applyBackwardCompatibilityMappings(wb, rawData);
+              // Preserve file handle references before clearProjectState() wipes them
+              const _savedFsHandle = P.fsHandle;
+              const _savedFsDirHandle = P.fsDirHandle;
+              const _savedFsDirName = P.fsDirName;
               clearProjectState();
-              if (fileName) P.lastImportedFile = fileName;
+              // Restore file handle references
+              P.fsHandle = _savedFsHandle;
+              P.fsDirHandle = _savedFsDirHandle;
+              P.fsDirName = _savedFsDirName;
+              // Set workbook mode if no fsHandle (e.g. imported via <input>)
+              if (!P.fsHandle && fileName) P.lastImportedFile = fileName;
               parseAppStateSheets(wb, rawData); parseConfigSheets(wb, rawData); parseCanonicalSheets(wb, rawData); parseRelationSheets(wb, rawData); parseHelperAwareCanonicalSheets(wb, rawData); normalizeImportedData(rawData); collectImportIssues(rawData); rebuildDerivedState(rawData);
               validateProjectData(P);
-              syncDropdowns(); save(); enterApp(); render(); hideAppLock(); notify('Project Restored Successfully!', 'ok');
+              syncDropdowns(); save(); updateFsInd(); enterApp(); render(); hideAppLock(); notify('Project Restored Successfully!', 'ok');
             } catch (err) { PP.error(err); hideAppLock(); notify('Import failed: ' + err.message, 'err'); }
           },
 
