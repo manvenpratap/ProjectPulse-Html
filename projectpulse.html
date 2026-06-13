@@ -24188,27 +24188,28 @@ load() {
 
         // Render Active Conflicts list in the sidebar
         if (conflicts.length > 0) {
+          const displayConflicts = groupConflictsForDisplay(conflicts);
           const confSec = document.createElement('div');
           confSec.className = 'sb-sec';
           let confHtml = `<div class="sb-stit" style="display:flex; align-items:center; gap:6px; color:var(--red)"><i data-lucide="alert-triangle" style="width:12px; height:12px"></i> Active Conflicts</div>
             <div style="padding:0 12px 12px 12px; display:flex; flex-direction:column; gap:6px; max-height:160px; overflow-y:auto">`;
           
-          conflicts.forEach((c) => {
+          displayConflicts.forEach((c) => {
             let icon = 'alert-circle';
             let color = 'var(--red)';
             let title = 'Conflict';
-            if (c.type === 'dependency') {
+            if (c.type === 'dependency-violation') {
               icon = 'arrow-right-left';
               color = 'var(--amber)';
               title = 'Dependency Link';
             } else if (c.type === 'overdue') {
               icon = 'clock';
               color = 'var(--red)';
-              title = 'Overdue Task';
+              title = c.tasks ? `Overdue Tasks (${c.tasks.length})` : 'Overdue Task';
             } else if (c.type === 'over-allocation') {
               icon = 'users';
               color = 'var(--red)';
-              title = 'Over-allocated';
+              title = `Over-allocated: ${c.member.split(' ')[0]}`;
             }
             
             confHtml += `
@@ -31161,6 +31162,79 @@ function setView(v, preserveSearch = false) {
           return conflicts;
         }
 
+        function groupConflictsForDisplay(conflicts) {
+          const grouped = [];
+          const overAllocByMember = {};
+          const overdueTasks = [];
+          
+          conflicts.forEach(c => {
+            if (c.type === 'over-allocation') {
+              if (!overAllocByMember[c.member]) {
+                overAllocByMember[c.member] = {
+                  type: 'over-allocation',
+                  member: c.member,
+                  days: new Set(),
+                  maxLoad: 0,
+                  tasks: []
+                };
+              }
+              const entry = overAllocByMember[c.member];
+              entry.days.add(c.day);
+              if (c.load > entry.maxLoad) entry.maxLoad = c.load;
+              
+              // Merge tasks without duplicates
+              c.tasks.forEach(t => {
+                if (!entry.tasks.some(x => x.id === t.id)) {
+                  entry.tasks.push(t);
+                }
+              });
+            } else if (c.type === 'overdue') {
+              if (!overdueTasks.some(x => x.id === c.task.id)) {
+                overdueTasks.push(c.task);
+              }
+            } else if (c.type === 'dependency-violation') {
+              grouped.push({
+                ...c,
+                text: `${c.task.id} starts on ${formatDateStringFriendly(c.task.startDate)} before predecessor ${c.predecessor.id} ends on ${formatDateStringFriendly(c.predecessor.dueDate)}`
+              });
+            } else {
+              grouped.push(c);
+            }
+          });
+
+          // Add over-allocation group cards
+          for (const member in overAllocByMember) {
+            const entry = overAllocByMember[member];
+            const sortedDays = Array.from(entry.days).sort();
+            const dayNames = sortedDays.map(d => {
+              const date = new Date(d);
+              return isNaN(date.getTime()) ? d : date.toLocaleDateString('en-US', { weekday: 'short' });
+            });
+
+            grouped.push({
+              type: 'over-allocation',
+              member,
+              days: sortedDays,
+              dayNames,
+              maxLoad: entry.maxLoad,
+              tasks: entry.tasks,
+              text: `${member} is over-allocated on ${dayNames.join(', ')} (Max Load: ${Math.round(entry.maxLoad * 100)}%)`
+            });
+          }
+
+          // Add single overdue group card
+          if (overdueTasks.length > 0) {
+            grouped.push({
+              type: 'overdue',
+              tasks: overdueTasks,
+              text: `${overdueTasks.length} overdue task(s): ` + overdueTasks.map(t => `${t.id} (due ${formatDateStringFriendly(t.dueDate)})`).join(', ')
+            });
+          }
+
+          return grouped;
+        }
+        window.groupConflictsForDisplay = groupConflictsForDisplay;
+
         function autoSequenceAssignee(assignee) {
           const sandbox = P._schedulerSandboxTasks;
           if (!sandbox) return;
@@ -31584,6 +31658,7 @@ function setView(v, preserveSearch = false) {
           const offset = P._schedulerWeekOffset;
           const days = getWorkDaysForWeekOffset(offset);
           const conflicts = findScheduleConflicts(P._schedulerSandboxTasks, days);
+          const displayConflicts = groupConflictsForDisplay(conflicts);
           const suggestions = generateIntelligentSuggestions(P._schedulerSandboxTasks, days);
           const rightTab = P._schedulerActiveRightTab;
 
@@ -31599,7 +31674,7 @@ function setView(v, preserveSearch = false) {
                   <button class="btn secondary mini" onclick="changeSchedulerWeek(1)" style="padding:4px 8px"><i data-lucide="chevron-right" style="width:14px;height:14px"></i></button>
                 </div>
                 <div style="font-size:12px; font-weight:600; color:var(--color-text-muted); display:flex; gap:16px">
-                  <span>Active Conflicts: <b style="color:${conflicts.length ? 'var(--red)' : 'var(--green)'}">${conflicts.length}</b></span>
+                  <span>Active Conflicts: <b style="color:${displayConflicts.length ? 'var(--red)' : 'var(--green)'}">${displayConflicts.length}</b></span>
                   <span>Tasks Monitored: <b>${P._schedulerSandboxTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length}</b></span>
                 </div>
               </div>
@@ -31655,7 +31730,7 @@ function setView(v, preserveSearch = false) {
                   <!-- Tab Header Switcher -->
                   <div style="display:flex; background:var(--color-surface-2); padding:4px; border-radius:8px; border:1px solid var(--color-divider)">
                     <button onclick="setSchedulerRightTab('conflicts')" style="flex:1; padding:6px 12px; border:none; background:${rightTab === 'conflicts' ? 'var(--color-surface)' : 'transparent'}; border-radius:6px; color:${rightTab === 'conflicts' ? 'var(--color-text)' : 'var(--color-text-muted)'}; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px">
-                      <i data-lucide="activity" style="width:12px;height:12px;color:${rightTab === 'conflicts' ? 'var(--red)' : 'var(--color-text-muted)'}"></i> Diagnostics ${conflicts.length ? `<span style="background:var(--red); color:white; font-size:9px; font-weight:700; padding:1px 5px; border-radius:10px">${conflicts.length}</span>` : ''}
+                      <i data-lucide="activity" style="width:12px;height:12px;color:${rightTab === 'conflicts' ? 'var(--red)' : 'var(--color-text-muted)'}"></i> Diagnostics ${displayConflicts.length ? `<span style="background:var(--red); color:white; font-size:9px; font-weight:700; padding:1px 5px; border-radius:10px">${displayConflicts.length}</span>` : ''}
                     </button>
                     <button onclick="setSchedulerRightTab('copilot')" style="flex:1; padding:6px 12px; border:none; background:${rightTab === 'copilot' ? 'var(--color-surface)' : 'transparent'}; border-radius:6px; color:${rightTab === 'copilot' ? 'var(--color-text)' : 'var(--color-text-muted)'}; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px">
                       <i data-lucide="sparkles" style="width:12px;height:12px;color:${rightTab === 'copilot' ? 'var(--color-primary)' : 'var(--color-text-muted)'}"></i> Copilot
@@ -31667,13 +31742,13 @@ function setView(v, preserveSearch = false) {
 
                   <div style="display:flex; flex-direction:column; gap:12px; max-height: 500px; overflow-y:auto">
                     ${rightTab === 'conflicts' ? (
-                      conflicts.length === 0 ? `
+                      displayConflicts.length === 0 ? `
                         <div style="text-align:center; padding:40px 20px; color:var(--green)">
                           <i data-lucide="check-circle" style="width:36px; height:36px; margin:0 auto 12px auto; display:block"></i>
                           <div style="font-weight:700; font-size:14px">Zero Conflicts</div>
                           <div style="font-size:11px; color:var(--color-text-muted); margin-top:4px">No allocation or dependency overlaps.</div>
                         </div>
-                      ` : conflicts.map((c, idx) => renderConflictCard(c, idx, days)).join('')
+                      ` : displayConflicts.map((c, idx) => renderConflictCard(c, idx, days)).join('')
                     ) : rightTab === 'copilot' ? (
                       suggestions.length === 0 ? `
                         <div style="text-align:center; padding:40px 20px; color:var(--color-text-muted)">
@@ -31816,7 +31891,7 @@ function setView(v, preserveSearch = false) {
             title = `Over-allocation: ${esc(c.member)}`;
             color = 'var(--red)';
             icon = 'user-x';
-            desc = `Assigned to ${c.tasks.length} overlapping tasks on <b>${formatDateStringFriendly(c.day)}</b> (Load: <b>${Math.round(c.load * 100)}%</b>).`;
+            desc = `Assigned to ${c.tasks.length} overlapping tasks on <b>${c.dayNames.join(', ')}</b> (Max Load: <b>${Math.round(c.maxLoad * 100)}%</b>).`;
             actionHtml = `
               <button class="btn secondary mini" onclick="autoSequenceAssignee('${escMember}')" style="margin-top:8px; width:100%; font-size:11px">
                 <i data-lucide="zap" style="width:12px;height:12px;margin-right:4px"></i> Auto-Sequence ${esc(c.member.split(' ')[0])}
@@ -31848,18 +31923,24 @@ function setView(v, preserveSearch = false) {
               </button>
             `;
           } else if (c.type === 'overdue') {
-            title = `Overdue: ${c.task.id}`;
+            title = `Overdue Tasks (${c.tasks.length})`;
             color = 'var(--red)';
             icon = 'clock';
-            desc = `Task is incomplete but due date <b>${formatDateStringFriendly(c.task.dueDate)}</b> has passed.`;
+            desc = `The following tasks are incomplete but their due dates have passed. They need to be rescheduled:`;
             actionHtml = `
-              <button class="btn secondary mini" onclick="shiftSchedulerTaskTimeline('${c.task.id}', 5)" style="margin-top:8px; width:100%; font-size:11px">
-                <i data-lucide="calendar" style="width:12px;height:12px;margin-right:4px"></i> Shift due date by +5 days
-              </button>
+              <div style="margin-top:8px; display:flex; flex-direction:column; gap:4px">
+                ${c.tasks.map(t => `
+                  <div style="display:flex; justify-content:space-between; align-items:center; background:var(--color-surface-3); padding:4px 6px; border-radius:6px; font-size:10px">
+                    <span><b>${t.id}</b> <span style="color:var(--red); font-size:9px">(${formatDateStringFriendly(t.dueDate)})</span></span>
+                    <button onclick="shiftSchedulerTaskTimeline('${t.id}', 5)" class="btn secondary mini" style="padding:1px 4px;font-size:9px" title="Shift due +5d">+5d</button>
+                  </div>
+                `).join('')}
+              </div>
             `;
           }
 
-          const hoverAttr = c.day ? `onmouseover="highlightCell('${escMember}', '${c.day}')" onmouseout="clearCellHighlight('${escMember}', '${c.day}')"` : '';
+          const hoverDay = c.days && c.days.length ? c.days[0] : '';
+          const hoverAttr = hoverDay ? `onmouseover="highlightCell('${escMember}', '${hoverDay}')" onmouseout="clearCellHighlight('${escMember}', '${hoverDay}')"` : '';
 
           return `
             <div ${hoverAttr} style="background:var(--color-surface-2); border-left:4px solid ${color}; padding:12px; border-radius:8px; display:flex; flex-direction:column; gap:6px; border-top:1px solid var(--color-divider); border-bottom:1px solid var(--color-divider); border-right:1px solid var(--color-divider); transition:all 0.2s">
