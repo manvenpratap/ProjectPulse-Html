@@ -38,6 +38,7 @@ Here is the current taxonomical setup utilized in the Delivery Matrix, RAID Regi
     - Testing
     - Design
     - Server Module
+    - GUI Module
     - GUI Screen
 
 ### Module
@@ -181,4 +182,4 @@ Here is the current taxonomical setup utilized in the Delivery Matrix, RAID Regi
 
 ---
 
-*Last compiled on: Tue, 09 Jun 2026 18:30:05 GMT*
+*Last compiled on: Fri, 12 Jun 2026 18:34:12 GMT*

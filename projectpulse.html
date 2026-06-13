@@ -13777,7 +13777,7 @@
         dropdowns: {
           status: ['Not Started', 'In Progress', 'On Hold', 'Under Review', 'Completed', 'Cancelled'],
           priority: ['Critical', 'High', 'Medium', 'Low'],
-          category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Screen'],
+          category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Module', 'GUI Screen'],
           module: ['Account Management (AM)', 'Portfolio Management (PM)', 'Market Data', 'Shared Services', 'Core Engine', 'Authentication', 'User Interface', 'API Gateway', 'Analytics Service', 'Payment Module', 'Database Migration', 'Infrastructure'],
           moduleType: ['Server', 'GUI', 'Interface'],
           role: ['Engineering Manager', 'Lead Architect', 'Lead Frontend', 'Lead Design', 'Jr Lead UX', 'Jr Lead Research', 'Developer', 'Designer', 'QA', 'PM', 'DevOps', 'Analyst'],
@@ -13981,8 +13981,8 @@
       applyWorkflowTemplate(task, screenName = null) {
         const stateP = PulseState.P;
         if (screenName) {
-          if (!task.category || task.category === 'Feature' || task.category === 'GUI Module') {
-            task.category = (task.moduleType === 'GUI') ? 'GUI Screen' : (task.moduleType === 'Server' ? 'Server Module' : 'Feature');
+          if (!task.category || task.category === 'Feature') {
+            task.category = (task.moduleType === 'GUI') ? 'GUI Screen' : ((task.moduleType && task.moduleType !== 'GUI') ? 'Server Module' : 'Feature');
           }
           const tpl = (stateP.stepTemplates || []).find(tp => tp.category === 'GUI Screen');
           if (tpl) {
@@ -14049,16 +14049,16 @@
           if (data.progress < 100) data.progress = 100;
           if (!data.actCompletionDate) data.actCompletionDate = new Date().toISOString().split('T')[0];
         }
-        if (data.moduleType === 'GUI') {
-          if (data.guiScreens && data.guiScreens.length > 0) {
+        if (!data.category || data.category === 'Feature') {
+          if (data.moduleType === 'GUI' && data.guiScreens && data.guiScreens.length > 0) {
             data.category = 'GUI Screen';
-          } else {
+          } else if (data.moduleType === 'GUI') {
             data.category = 'GUI Module';
+          } else if (data.moduleType && data.moduleType !== 'GUI') {
+            data.category = 'Server Module';
+          } else if (data.guiScreens && data.guiScreens.length > 0) {
+            data.category = 'GUI Screen';
           }
-        } else if (data.moduleType === 'Server') {
-          data.category = 'Server Module';
-        } else if (data.guiScreens && data.guiScreens.length > 0) {
-          data.category = 'GUI Screen';
         }
         const task = {
           id,
@@ -14379,6 +14379,15 @@
         stateP.cfdWeeks = val;
         save();
         render();
+      },
+      updateDefectInflowWeeks(w) {
+        const stateP = PulseState.P;
+        let val = parseInt(w) || 7;
+        if (val < 4) val = 4;
+        if (val > 52) val = 52;
+        stateP.defectInflowWeeks = val;
+        save();
+        render();
       }
     };
 
@@ -14432,7 +14441,7 @@
       const defaultDropdowns = {
         status: ['Not Started', 'In Progress', 'On Hold', 'Under Review', 'Completed', 'Cancelled'],
         priority: ['Critical', 'High', 'Medium', 'Low'],
-        category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Screen'],
+        category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Module', 'GUI Screen'],
         module: ['Account Management (AM)', 'Portfolio Management (PM)', 'Market Data', 'Shared Services', 'Core Engine', 'Authentication', 'User Interface', 'API Gateway', 'Analytics Service', 'Payment Module', 'Database Migration', 'Infrastructure'],
         moduleType: ['Server', 'GUI', 'Interface'],
         role: ['Engineering Manager', 'Lead Architect', 'Lead Frontend', 'Lead Design', 'Jr Lead UX', 'Jr Lead Research', 'Developer', 'Designer', 'QA', 'PM', 'DevOps', 'Analyst'],
@@ -14494,7 +14503,7 @@ clearProjectState() {
         P.dropdowns = {
           status: ['Not Started', 'In Progress', 'On Hold', 'Under Review', 'Completed', 'Cancelled'],
           priority: ['Critical', 'High', 'Medium', 'Low'],
-          category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Screen'],
+          category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Module', 'GUI Screen'],
           module: ['Account Management (AM)', 'Portfolio Management (PM)', 'Market Data', 'Shared Services', 'Core Engine', 'Authentication', 'User Interface', 'API Gateway', 'Analytics Service', 'Payment Module', 'Database Migration', 'Infrastructure'],
           moduleType: ['Server', 'GUI', 'Interface'],
           role: ['Engineering Manager', 'Lead Architect', 'Lead Frontend', 'Lead Design', 'Jr Lead UX', 'Jr Lead Research', 'Developer', 'Designer', 'QA', 'PM', 'DevOps', 'Analyst'],
@@ -14534,6 +14543,7 @@ clearProjectState() {
         P.widgetSpans = {};
         P.velocityWeeks = 8;
         P.cfdWeeks = 8;
+        P.defectInflowWeeks = 7;
         P._adminActiveTab = '';
         P.fsHandle = null;
         P.fsDirHandle = null;
@@ -14548,20 +14558,27 @@ clearProjectState() {
         P.name = 'Investment Platform 2.0';
         P.desc = 'Modernizing core banking modules with unified Server and GUI hierarchical tracking.';
 
+        const now = new Date();
+        const ago = (days) => {
+          const d = new Date(now); d.setDate(d.getDate() - days);
+          return d.toISOString();
+        };
+        const agoDate = (days) => ago(days).split('T')[0];
+
         P.members = [
           { id: 'MEM-001', name: 'Alex Rivera', role: 'Engineering Manager', status: 'Active', birthday: '12 May', phone: '+1 555-0101' },
-          { id: 'MEM-002', name: 'Sarah Chen', role: 'Senior Architect', reportsTo: 'Alex Rivera', status: 'On Leave', birthday: '24 Aug', plannedLeaves: [{ from: '2026-05-15', to: '2026-05-25', reason: 'Vacation' }] },
+          { id: 'MEM-002', name: 'Sarah Chen', role: 'Senior Architect', reportsTo: 'Alex Rivera', status: 'On Leave', birthday: '24 Aug', plannedLeaves: [{ from: agoDate(-15), to: agoDate(-25), reason: 'Vacation' }] },
           { id: 'MEM-003', name: 'Jordan Smyth', role: 'Fullstack Dev', reportsTo: 'Sarah Chen', status: 'Other Assignment', birthday: '05 Jan' },
           { id: 'MEM-004', name: 'Elena Vance', role: 'UI/UX Designer', reportsTo: 'Alex Rivera', status: 'Serving Notice Period', birthday: '15 Oct' },
           { id: 'MEM-005', name: 'Marcus Wong', role: 'QA Lead', reportsTo: 'Alex Rivera', status: 'Departed', birthday: '30 Mar' },
-          { id: 'MEM-006', name: 'Tasha K', role: 'Backend Dev', reportsTo: 'Sarah Chen', status: 'Active', birthday: '12 Sep', plannedLeaves: [{ from: '2026-06-01', to: '2026-06-05', reason: 'Medical Leave' }] }
+          { id: 'MEM-006', name: 'Tasha K', role: 'Backend Dev', reportsTo: 'Sarah Chen', status: 'Active', birthday: '12 Sep', plannedLeaves: [{ from: agoDate(-2), to: agoDate(-6), reason: 'Medical Leave' }] }
         ];
 
         // Add dummy releases
         P.releases = [
-          { id: 'rel-1', name: 'v1.0.0', date: '2026-06-30', status: 'Active' },
-          { id: 'rel-2', name: 'v1.1.0', date: '2026-08-15', status: 'Planned' },
-          { id: 'rel-3', name: 'v2.0-Beta', date: '2026-11-01', status: 'Planned' }
+          { id: 'rel-1', name: 'v1.0.0', date: agoDate(-20), status: 'Active' },
+          { id: 'rel-2', name: 'v1.1.0', date: agoDate(-45), status: 'Planned' },
+          { id: 'rel-3', name: 'v2.0-Beta', date: agoDate(-90), status: 'Planned' }
         ];
 
         P.features = [
@@ -14573,17 +14590,10 @@ clearProjectState() {
         // Standardize Dropdowns for this sample
         P.dropdowns.module = ['Account Management (AM)', 'Portfolio Management (PM)', 'Market Data', 'Shared Services', 'Core Engine', 'Authentication', 'User Interface', 'API Gateway', 'Analytics Service', 'Payment Module', 'Database Migration', 'Infrastructure', 'Market Intelligence', 'Compliance'];
         P.dropdowns.moduleType = ['Server', 'GUI', 'Interface', 'Service'];
-        P.dropdowns.category = ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Screen', 'Backend', 'Frontend', 'Infrastructure', 'Integration', 'Security', 'Reporting'];
+        P.dropdowns.category = ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Module', 'GUI Screen', 'Backend', 'Frontend', 'Infrastructure', 'Integration', 'Security', 'Reporting'];
         P.dropdowns.role = ['Engineering Manager', 'Senior Architect', 'Fullstack Dev', 'UI/UX Designer', 'QA Lead', 'Backend Dev', 'Developer'];
 
         syncDropdowns(); // Ensure legacy globals are updated
-
-        const now = new Date();
-        const ago = (days) => {
-          const d = new Date(now); d.setDate(d.getDate() - days);
-          return d.toISOString();
-        };
-        const agoDate = (days) => ago(days).split('T')[0];
 
         const sampleTasks = [
           // Completed Tasks (for Velocity)
@@ -14667,7 +14677,7 @@ clearProjectState() {
           { name: '💎 Milestone: Database & Core Schemas Deployed', status: 'Completed', priority: 'Critical', assignee: 'Sarah Chen', progress: 100, module: 'Account Management (AM)', releaseVersion: 'v1.0.0', category: 'Server Module', complexity: 'Medium', startDate: agoDate(30), dueDate: agoDate(30), actCompletionDate: agoDate(30), baselineStartDate: agoDate(30), baselineDueDate: agoDate(30), forecastDueDate: agoDate(30), confidence: 'High', updatedAt: ago(30), estEffort: 0, actEffort: 1 },
           { name: '💎 Milestone: Core Security & Auth Gateway Live', status: 'Completed', priority: 'High', assignee: 'Alex Rivera', progress: 100, module: 'Authentication', releaseVersion: 'v1.0.0', category: 'Feature', complexity: 'Medium', startDate: agoDate(15), dueDate: agoDate(15), actCompletionDate: agoDate(15), baselineStartDate: agoDate(15), baselineDueDate: agoDate(15), forecastDueDate: agoDate(15), confidence: 'High', updatedAt: ago(15), estEffort: 0, actEffort: 1 },
           { name: '💎 Milestone: Market Data Socket Feeds Integrated', status: 'Completed', priority: 'High', assignee: 'Alex Rivera', progress: 100, module: 'Market Data', releaseVersion: 'v1.0.0', category: 'Feature', complexity: 'Medium', startDate: agoDate(5), dueDate: agoDate(5), actCompletionDate: agoDate(5), baselineStartDate: agoDate(5), baselineDueDate: agoDate(5), forecastDueDate: agoDate(5), confidence: 'High', updatedAt: ago(5), estEffort: 0, actEffort: 1 },
-          { name: '💎 Milestone: MVP Cash & Security Accounts GUI', status: 'In Progress', priority: 'High', assignee: 'Elena Vance', progress: 60, module: 'User Interface', releaseVersion: 'v2.0-Beta', category: 'GUI Screen', complexity: 'Medium', startDate: agoDate(-5), dueDate: agoDate(-5), baselineStartDate: agoDate(-5), baselineDueDate: agoDate(-5), forecastDueDate: agoDate(-5), confidence: 'High', updatedAt: ago(1) },
+          { name: '💎 Milestone: MVP Cash & Security Accounts GUI', status: 'In Progress', priority: 'High', assignee: 'Elena Vance', progress: 60, module: 'User Interface', releaseVersion: 'v2.0-Beta', category: 'GUI Module', complexity: 'Medium', startDate: agoDate(-5), dueDate: agoDate(-5), baselineStartDate: agoDate(-5), baselineDueDate: agoDate(-5), forecastDueDate: agoDate(-5), confidence: 'High', updatedAt: ago(1) },
           { name: '💎 Milestone: API Functional & Performance Sign-off', status: 'Under Review', priority: 'Critical', assignee: 'Marcus Wong', progress: 90, module: 'API Gateway', releaseVersion: 'v2.0-Beta', category: 'Feature', complexity: 'Medium', startDate: agoDate(-12), dueDate: agoDate(-12), baselineStartDate: agoDate(-12), baselineDueDate: agoDate(-10), forecastDueDate: agoDate(-12), confidence: 'Medium', slippageReason: 'Late API gateway timeout issues required additional performance tuning.', updatedAt: ago(2) },
           { name: '💎 Milestone: Analytics & Reporting Engine Beta', status: 'Not Started', priority: 'Medium', assignee: 'Jordan Smyth', progress: 0, module: 'Analytics Service', releaseVersion: 'v2.0-Beta', category: 'Feature', complexity: 'Medium', startDate: agoDate(-25), dueDate: agoDate(-25), baselineStartDate: agoDate(-25), baselineDueDate: agoDate(-25), forecastDueDate: agoDate(-25), confidence: 'High' },
           { name: '💎 Milestone: Full Production Release v2.0', status: 'Not Started', priority: 'Critical', assignee: 'Alex Rivera', progress: 0, module: 'Core Engine', releaseVersion: 'v2.0-Beta', category: 'Feature', complexity: 'Medium', startDate: agoDate(-40), dueDate: agoDate(-40), baselineStartDate: agoDate(-40), baselineDueDate: agoDate(-32), forecastDueDate: agoDate(-40), confidence: 'Low', slippageReason: 'Cascading delays in Portfolio Calculation Engine and API Gateway sign-off.' }
@@ -14790,6 +14800,7 @@ save() {
               sbOpen: P.sbOpen,
               velocityWeeks: P.velocityWeeks || 8,
               cfdWeeks: P.cfdWeeks || 8,
+              defectInflowWeeks: P.defectInflowWeeks || 7,
               teamLayout: P.teamLayout,
               activeReportId: P.activeReportId,
               _adminActiveTab: P._adminActiveTab,
@@ -14852,6 +14863,7 @@ load() {
             if (d.sbOpen !== undefined) P.sbOpen = d.sbOpen;
             if (d.velocityWeeks !== undefined) P.velocityWeeks = d.velocityWeeks;
             if (d.cfdWeeks !== undefined) P.cfdWeeks = d.cfdWeeks;
+            if (d.defectInflowWeeks !== undefined) P.defectInflowWeeks = d.defectInflowWeeks;
             if (d.teamLayout !== undefined) P.teamLayout = d.teamLayout;
             if (d.activeReportId !== undefined) P.activeReportId = d.activeReportId;
             if (d._adminActiveTab !== undefined) P._adminActiveTab = d._adminActiveTab;
@@ -14909,7 +14921,7 @@ load() {
             const defDrops = {
               status: ['Not Started', 'In Progress', 'On Hold', 'Under Review', 'Completed', 'Cancelled'],
               priority: ['Critical', 'High', 'Medium', 'Low'],
-              category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Screen'],
+              category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Module', 'GUI Screen'],
               module: ['Account Management (AM)', 'Portfolio Management (PM)', 'Market Data', 'Shared Services', 'Core Engine', 'Authentication', 'User Interface', 'API Gateway', 'Analytics Service', 'Payment Module', 'Database Migration', 'Infrastructure'],
               moduleType: ['Server', 'GUI', 'Interface'],
               version: ['v1.0.0', 'v1.1.0', 'v2.0-Beta', 'v2.0.0-Beta', 'v2.1.0', 'Next Major'],
@@ -15935,6 +15947,9 @@ load() {
     function updateCFDWeeks(w) {
       return PulseState.updateCFDWeeks(w);
     }
+    function updateDefectInflowWeeks(w) {
+      return PulseState.updateDefectInflowWeeks(w);
+    }
 
     // ══════ UI HELPERS ══════
     function showValidationErrors(errors) {
@@ -16028,6 +16043,7 @@ load() {
     window.deleteSubtask = deleteSubtask;
     window.updateVelocityWeeks = updateVelocityWeeks;
     window.updateCFDWeeks = updateCFDWeeks;
+    window.updateDefectInflowWeeks = updateDefectInflowWeeks;
     window.showValidationErrors = showValidationErrors;
     window.syncTaskModal = syncTaskModal;
     window.submitComment = submitComment;
@@ -16055,12 +16071,18 @@ load() {
       const screenSubs = subs.filter(s => s.type === 'screen').map(s => s.name);
       if (screenSubs.length > 0) {
         task.guiScreens = screenSubs;
-      } else {
+      } else if (subs.length > 0) {
         task.guiScreens = [];
       }
 
-      if (task.moduleType === 'GUI' && task.guiScreens && task.guiScreens.length > 0) {
-        task.category = 'GUI Screen';
+      if (task.moduleType === 'GUI') {
+        if (!task.category || task.category === 'Feature') {
+          if (task.guiScreens && task.guiScreens.length > 0) {
+            task.category = 'GUI Screen';
+          } else {
+            task.category = 'GUI Module';
+          }
+        }
       }
 
       const factor = P.complexityFactors?.[task.complexity] ?? 1.0;
@@ -16983,6 +17005,7 @@ load() {
                     std.addEventListener('dblclick', () => startSubtaskCellEdit(std, task.id, st.id, col));
                   }
                 }
+                else if (col.key === 'notes') { std.innerHTML = `<div class="td-inner" style="font-size:11.5px;color:var(--color-text-muted)">${esc(st.notes || '—')}</div>`; }
                 else { std.innerHTML = '<div class="td-inner"></div>'; }
 
                 if (col.edit && col.key !== 'isNewWindow' && col.key !== 'complexity') {
@@ -17054,8 +17077,8 @@ load() {
       closeCtx();
       const m = $id('ctxmenu');
       const task = P.tasks.find(t => t.id === taskId);
-      const isWorkflow = task && task.moduleType !== 'GUI';
-      const isGUI = task && task.moduleType === 'GUI';
+      const isGUI = task && (task.moduleType === 'GUI' || task.category === 'GUI Module' || task.category === 'GUI Screen');
+      const isWorkflow = task && !isGUI;
       const currentStatus = task.status || 'Not Started';
       const transitions = VALID_TRANSITIONS[currentStatus] || [];
       const statusIcons = {
@@ -20714,7 +20737,42 @@ load() {
           </div>
         `;
       } else if (preset === 'Steering Committee') {
-        const milestones = tasks.filter(t => t.name.includes('Milestone') || t.confidence);
+        const modMs = getModuleMilestones();
+        const allItems = [];
+        tasks.forEach(t => {
+          allItems.push(t);
+          if (t.subtasks) {
+            t.subtasks.forEach(st => {
+              allItems.push({
+                ...st,
+                module: t.module,
+                parentName: t.name,
+                assignee: st.assignee || t.assignee,
+                startDate: st.startDate || t.startDate,
+                dueDate: st.dueDate || t.dueDate,
+                baselineStartDate: st.baselineStartDate || t.baselineStartDate || t.startDate,
+                baselineDueDate: st.baselineDueDate || t.baselineDueDate || t.dueDate,
+                forecastDueDate: st.forecastDueDate || t.forecastDueDate || t.dueDate
+              });
+            });
+          }
+        });
+
+        const milestones = allItems.filter(t => {
+          const hasMilestoneKeyword = (t.name || '').toLowerCase().includes('milestone') || (t.name || '').includes('💎');
+          const isExplicitMilestone = hasMilestoneKeyword || modMs.has(t.id) || t.confidence;
+          return isExplicitMilestone;
+        }).sort((a, b) => {
+          const getCompTime = (m) => {
+            const dStr = m.status === 'Completed'
+              ? (m.actCompletionDate || m.forecastDueDate || m.dueDate || m.startDate)
+              : (m.forecastDueDate || m.dueDate || m.startDate);
+            if (!dStr) return 0;
+            const tVal = new Date(dStr).getTime();
+            return isNaN(tVal) ? 0 : tVal;
+          };
+          return getCompTime(a) - getCompTime(b);
+        });
         const s1s2Raids = raids.filter(r => r.severity.startsWith('S1') || r.severity.startsWith('S2'));
 
         html += `
@@ -20747,7 +20805,7 @@ load() {
                 <th style="padding:12px 16px">Milestone Name</th>
                 <th style="padding:12px 16px">Module</th>
                 <th style="padding:12px 16px">Base Due</th>
-                <th style="padding:12px 16px">Forecast Due</th>
+                <th style="padding:12px 16px">Forecast / Actual Due</th>
                 <th style="padding:12px 16px">Confidence</th>
                 <th style="padding:12px 16px">Status</th>
               </tr>
@@ -20756,7 +20814,9 @@ load() {
                   <td style="padding:14px 16px; font-weight:700">${esc(m.name)}</td>
                   <td style="padding:14px 16px"><span style="padding:2px 8px; background:var(--color-surface-3); border-radius:12px; font-size:11px">${esc(m.module || 'General')}</span></td>
                   <td style="padding:14px 16px">${fmtDate(m.baselineDueDate || m.dueDate)}</td>
-                  <td style="padding:14px 16px; font-weight:600; color:${m.forecastDueDate > m.baselineDueDate ? 'var(--red)' : 'var(--color-text)'}">${fmtDate(m.forecastDueDate || m.dueDate)}</td>
+                  <td style="padding:14px 16px; font-weight:600; color:${m.status === 'Completed' ? 'var(--green)' : (m.forecastDueDate > m.baselineDueDate ? 'var(--red)' : 'var(--color-text)')}">
+                    ${m.status === 'Completed' ? fmtDate(m.actCompletionDate || m.dueDate) : fmtDate(m.forecastDueDate || m.dueDate)}
+                  </td>
                   <td style="padding:14px 16px"><span style="padding:2px 8px; border-radius:12px; font-size:11px; font-weight:700; background:${m.confidence === 'High' ? 'rgba(34,197,94,0.1)' : m.confidence === 'Medium' ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)'}; color:${m.confidence === 'High' ? 'var(--green)' : m.confidence === 'Medium' ? 'var(--amber)' : 'var(--red)'}">${m.confidence || 'High'}</span></td>
                   <td style="padding:14px 16px"><span class="st-pill st-${m.status.replace(/\s+/g, '-').toLowerCase()}">${m.status}</span></td>
                 </tr>
@@ -22568,20 +22628,159 @@ load() {
     function renderMilestoneRoadmap(tasks, container) {
       if (!container) return;
       container.innerHTML = '';
+
+      // Extract unique modules
+      const allMods = Array.from(new Set(tasks.map(t => t.module || 'General'))).sort();
+      if (!P.settings) P.settings = {};
+      if (!P.settings.roadmapModulesSelected) {
+        P.settings.roadmapModulesSelected = [...allMods];
+      }
+      const selectedMods = P.settings.roadmapModulesSelected;
+
+      // Filter tasks to selected modules
+      const filteredTasks = tasks.filter(t => selectedMods.includes(t.module || 'General'));
+
+      // Create filter bar
+      const pillBar = document.createElement('div');
+      pillBar.style.cssText = 'display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:10px 16px; border-bottom:1px solid var(--color-divider); margin-bottom:16px;';
+
+      const mkPill = (label, active, onclick, color) => {
+        const p = document.createElement('button');
+        p.className = 'roadmap-pill' + (active ? ' roadmap-pill-on' : '');
+        p.style.cssText = `
+          display:inline-flex; align-items:center; gap:5px;
+          padding:4px 12px; border-radius:20px; font-size:11px; font-weight:600;
+          cursor:pointer; border:1.5px solid ${active ? color : 'var(--color-border)'};
+          background:${active ? color + '22' : 'transparent'};
+          color:${active ? color : 'var(--color-text-muted)'};
+          transition:all 0.18s cubic-bezier(.4,0,.2,1);
+          white-space:nowrap;
+        `;
+        if (color && active) p.style.boxShadow = `0 0 0 2px ${color}33`;
+        p.onclick = onclick;
+        p.onmouseover = () => { if (!p.classList.contains('roadmap-pill-on')) { p.style.borderColor = color; p.style.color = color; } };
+        p.onmouseout = () => { if (!p.classList.contains('roadmap-pill-on')) { p.style.borderColor = 'var(--color-border)'; p.style.color = 'var(--color-text-muted)'; } };
+        p.innerHTML = label;
+        return p;
+      };
+
+      const pillColors = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#f97316', '#84cc16', '#e11d48', '#a78bfa'];
+      const allSelected = allMods.length > 0 && allMods.every(m => selectedMods.includes(m));
+
+      const allPill = mkPill('All Modules', allSelected, () => {
+        P.settings.roadmapModulesSelected = allSelected ? [] : [...allMods];
+        renderDash();
+      }, 'var(--color-primary)');
+      pillBar.appendChild(allPill);
+
+      const sep = document.createElement('div');
+      sep.style.cssText = 'width:1px; height:18px; background:var(--color-divider); margin:0 2px; flex-shrink:0;';
+      pillBar.appendChild(sep);
+
+      allMods.forEach((m, mi) => {
+        const active = selectedMods.includes(m);
+        const color = pillColors[mi % pillColors.length];
+        const pill = mkPill(esc(m), active, (e) => {
+          e.stopPropagation();
+          if (selectedMods.includes(m)) {
+            P.settings.roadmapModulesSelected = selectedMods.filter(x => x !== m);
+          } else {
+            P.settings.roadmapModulesSelected = [...selectedMods, m];
+          }
+          renderDash();
+        }, color);
+        pillBar.appendChild(pill);
+      });
+
+      container.appendChild(pillBar);
+
+      // Sub-container for actual roadmap content (timelines, controls, etc.)
+      const contentWrap = document.createElement('div');
+      contentWrap.id = 'roadmap-content-wrap';
+      container.appendChild(contentWrap);
+
       const modMs = getModuleMilestones();
       const allItems = [];
-      tasks.forEach(t => {
-        allItems.push(t);
-        if (t.subtasks) t.subtasks.forEach(st => allItems.push({ ...st, module: t.module, parentName: t.name, assignee: st.assignee || t.assignee }));
+
+      // Helper to calculate actual/expected completion time
+      const getMilestoneCompletionTime = (m) => {
+        const dStr = m.status === 'Completed'
+          ? (m.actCompletionDate || m.forecastDueDate || m.dueDate || m.startDate)
+          : (m.forecastDueDate || m.dueDate || m.startDate);
+        if (!dStr) return 0;
+        const t = new Date(dStr).getTime();
+        return isNaN(t) ? 0 : t;
+      };
+
+      const getMilestoneCompletionDate = (m) => {
+        return m.status === 'Completed'
+          ? (m.actCompletionDate || m.forecastDueDate || m.dueDate || m.startDate)
+          : (m.forecastDueDate || m.dueDate || m.startDate);
+      };
+
+      const isMilestone = (item) => {
+        if (item.type === 'screen' || item.type === 'subtask') return false;
+        const hasMilestoneKeyword = (item.name || '').toLowerCase().includes('milestone') || (item.name || '').includes('💎');
+        return hasMilestoneKeyword || modMs.has(item.id) || item.confidence;
+      };
+
+      // 1. Gather all tasks, subtasks, and virtual screen items
+      filteredTasks.forEach(t => {
+        const isMs = isMilestone(t);
+        if (isMs) {
+          allItems.push(t);
+        }
+
+        const hasSubtasks = t.subtasks && t.subtasks.length > 0;
+        const hasScreens = t.guiScreens && t.guiScreens.length > 0;
+
+        if (!isMs && !hasSubtasks && !hasScreens) {
+          allItems.push(t);
+        } else {
+          if (hasSubtasks) {
+            t.subtasks.forEach(st => {
+              allItems.push({
+                ...st,
+                type: 'subtask',
+                module: t.module,
+                parentName: t.name,
+                assignee: st.assignee || t.assignee,
+                startDate: st.startDate || t.startDate,
+                dueDate: st.dueDate || t.dueDate,
+                baselineStartDate: st.baselineStartDate || t.baselineStartDate || t.startDate,
+                baselineDueDate: st.baselineDueDate || t.baselineDueDate || t.dueDate,
+                forecastDueDate: st.forecastDueDate || t.forecastDueDate || t.dueDate
+              });
+            });
+          }
+          if (hasScreens) {
+            t.guiScreens.forEach((scr, idx) => {
+              const scrName = typeof scr === 'string' ? scr : scr.name;
+              allItems.push({
+                id: `SCR-${t.id}-${idx}`,
+                name: `Screen: ${scrName}`,
+                status: t.status === 'Completed' ? 'Completed' : 'In Progress',
+                progress: t.status === 'Completed' ? 100 : 50,
+                type: 'screen',
+                module: t.module,
+                parentName: t.name,
+                assignee: t.assignee,
+                startDate: t.startDate,
+                dueDate: t.dueDate,
+                baselineStartDate: t.baselineStartDate || t.startDate,
+                baselineDueDate: t.baselineDueDate || t.dueDate,
+                forecastDueDate: t.forecastDueDate || t.dueDate
+              });
+            });
+          }
+        }
       });
-      const milestones = allItems.filter(t => {
-        const hasMilestoneKeyword = (t.name || '').toLowerCase().includes('milestone') || (t.name || '').includes('💎');
-        const isExplicitMilestone = hasMilestoneKeyword || modMs.has(t.id) || t.confidence;
-        return isExplicitMilestone;
-      }).sort((a, b) => new Date(a.dueDate || a.startDate) - new Date(b.dueDate || b.startDate));
+
+      const milestones = allItems.filter(isMilestone)
+        .sort((a, b) => getMilestoneCompletionTime(a) - getMilestoneCompletionTime(b));
 
       if (!milestones.length) {
-        addEmptyState(container, 'No milestones defined');
+        addEmptyState(contentWrap, 'No milestones defined for selected modules');
         return;
       }
 
@@ -22596,7 +22795,82 @@ load() {
         if (new Date(m.dueDate || m.startDate) < now) hasOverdue = true;
       });
 
-      // 1. Executive Summary Bar
+      // 3. Map culminating items to their milestones
+      // Group all items by module
+      const moduleMap = {};
+      allItems.forEach(item => {
+        const mod = item.module || 'General';
+        if (!moduleMap[mod]) moduleMap[mod] = [];
+        moduleMap[mod].push(item);
+      });
+
+      // Sort items within modules chronologically
+      for (const mod in moduleMap) {
+        moduleMap[mod].sort((a, b) => getMilestoneCompletionTime(a) - getMilestoneCompletionTime(b));
+      }
+
+      const culminatingMap = new Map();
+      milestones.forEach(m => culminatingMap.set(m.id, []));
+
+      for (const mod in moduleMap) {
+        const modItems = moduleMap[mod];
+        const modMilestones = modItems.filter(isMilestone);
+
+        modItems.forEach(item => {
+          if (!isMilestone(item)) {
+            const itemTime = getMilestoneCompletionTime(item);
+            const targetMilestone = modMilestones.find(m => getMilestoneCompletionTime(m) >= itemTime);
+            if (targetMilestone) {
+              culminatingMap.get(targetMilestone.id).push(item);
+            } else if (modMilestones.length > 0) {
+              culminatingMap.get(modMilestones[modMilestones.length - 1].id).push(item);
+            }
+          }
+        });
+      }
+
+      // View mode setting
+      const currentMode = P.settings?.roadmapViewMode || 'unified';
+
+      // Controls Control Bar (Unified vs. Module Swimlanes)
+      const ctrlBar = document.createElement('div');
+      ctrlBar.style = "display:flex; justify-content:space-between; align-items:center; gap:16px; margin:0 0 16px 0; flex-wrap:wrap";
+
+      const toggleWrap = document.createElement('div');
+      toggleWrap.style = "display:inline-flex; background:var(--color-surface-offset); padding:3px; border-radius:10px; border:1px solid var(--color-border); align-items:center; gap:4px; box-shadow:0 2px 8px rgba(0,0,0,0.02)";
+
+      const btnUnified = document.createElement('button');
+      btnUnified.innerText = 'Unified Chronology';
+      btnUnified.className = 'btn mini';
+      btnUnified.style = `padding:6px 14px; border-radius:8px; font-size:11px; font-weight:700; border:none; cursor:pointer; transition:all 0.2s ease; ${currentMode === 'unified' ? 'background:var(--color-primary); color:#fff; box-shadow:0 2px 6px rgba(99,102,241,0.2)' : 'background:transparent; color:var(--color-text-muted)'}`;
+      btnUnified.onclick = () => {
+        if (!P.settings) P.settings = {};
+        P.settings.roadmapViewMode = 'unified';
+        renderDash();
+      };
+
+      const btnSwimlane = document.createElement('button');
+      btnSwimlane.innerText = 'Module Tracks';
+      btnSwimlane.className = 'btn mini';
+      btnSwimlane.style = `padding:6px 14px; border-radius:8px; font-size:11px; font-weight:700; border:none; cursor:pointer; transition:all 0.2s ease; ${currentMode === 'swimlane' ? 'background:var(--color-primary); color:#fff; box-shadow:0 2px 6px rgba(99,102,241,0.2)' : 'background:transparent; color:var(--color-text-muted)'}`;
+      btnSwimlane.onclick = () => {
+        if (!P.settings) P.settings = {};
+        P.settings.roadmapViewMode = 'swimlane';
+        renderDash();
+      };
+
+      toggleWrap.appendChild(btnUnified);
+      toggleWrap.appendChild(btnSwimlane);
+      ctrlBar.appendChild(toggleWrap);
+
+      const statBadge = document.createElement('div');
+      statBadge.style = "font-size:12px; font-weight:600; color:var(--color-text-muted); display:flex; align-items:center; gap:8px";
+      statBadge.innerHTML = `<span>Active: <b>${milestones.length - completedCount}</b></span> • <span>Completed: <b>${completedCount}</b></span>`;
+      ctrlBar.appendChild(statBadge);
+
+      contentWrap.appendChild(ctrlBar);
+
+      // Executive Summary Bar
       const summaryBar = document.createElement('div');
       summaryBar.style = "display:flex; flex-wrap:wrap; gap:16px; padding:16px 20px; background:var(--color-surface-2); border-radius:16px; margin:0 0 24px 0; justify-content:space-between; align-items:center; border:1px solid var(--color-border-faint); box-shadow:0 4px 20px rgba(0,0,0,0.03)";
 
@@ -22632,115 +22906,399 @@ load() {
         }
         </div>
       `;
-      container.appendChild(summaryBar);
+      contentWrap.appendChild(summaryBar);
 
-      // 2. Interactive Roadmap Track Area
-      const roadmapWrap = document.createElement('div');
-      roadmapWrap.style = "position:relative; background:var(--color-surface); border:1px solid var(--color-border-faint); border-radius:16px; padding:20px; box-shadow:0 8px 30px rgba(0,0,0,0.04)";
+      // 4. Render View Mode (Unified vs. Swimlanes)
+      if (currentMode === 'unified') {
+        const roadmapWrap = document.createElement('div');
+        roadmapWrap.style = "position:relative; background:var(--color-surface); border:1px solid var(--color-border-faint); border-radius:16px; padding:20px; box-shadow:0 8px 30px rgba(0,0,0,0.04)";
 
-      const roadmap = document.createElement('div');
-      roadmap.className = 'ms-roadmap';
-      roadmap.style.padding = '70px 20px 40px 20px';
+        const roadmap = document.createElement('div');
+        roadmap.className = 'ms-roadmap';
+        roadmap.style.padding = '80px 20px 40px 20px';
 
-      const track = document.createElement('div');
-      track.className = 'ms-track';
-      track.style.top = '110px';
-      track.style.height = '4px';
-      track.style.borderRadius = '2px';
-      track.style.background = 'var(--color-surface-2)';
+        const track = document.createElement('div');
+        track.className = 'ms-track';
+        track.style.top = '110px';
+        track.style.height = '4px';
+        track.style.borderRadius = '2px';
+        track.style.background = 'var(--color-surface-2)';
 
-      const progress = document.createElement('div');
-      progress.className = 'ms-track-progress';
-      progress.style.width = `${progressPct}%`;
-      progress.style.height = '100%';
-      progress.style.borderRadius = '2px';
-      progress.style.background = 'linear-gradient(90deg, var(--color-primary), var(--color-primary-highlight))';
+        const progress = document.createElement('div');
+        progress.className = 'ms-track-progress';
+        progress.style.width = `${progressPct}%`;
+        progress.style.height = '100%';
+        progress.style.borderRadius = '2px';
+        progress.style.background = 'linear-gradient(90deg, var(--color-primary), var(--color-primary-highlight))';
 
-      track.appendChild(progress);
-      roadmap.appendChild(track);
+        track.appendChild(progress);
+        roadmap.appendChild(track);
 
-      // Detail Panel for active node inspection
-      const detailPanel = document.createElement('div');
-      detailPanel.style = "margin-top:20px; padding:16px 20px; background:var(--color-surface-2); border-radius:12px; border:1px solid var(--color-border-faint); display:none; animation:fadeIn 0.2s ease; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px";
+        const detailPanel = document.createElement('div');
+        detailPanel.style = "margin-top:20px; padding:16px 20px; background:var(--color-surface-2); border-radius:12px; border:1px solid var(--color-border-faint); display:none; animation:fadeIn 0.2s ease; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px";
 
-      milestones.forEach((m, idx) => {
-        const isNext = nextMilestone && m.id === nextMilestone.id;
-        const isCompleted = m.status === 'Completed';
-        const isInProgress = ['In Progress', 'Under Review'].includes(m.status);
+        milestones.forEach((m, idx) => {
+          const isNext = nextMilestone && m.id === nextMilestone.id;
+          const isCompleted = m.status === 'Completed';
+          const isInProgress = ['In Progress', 'Under Review'].includes(m.status);
 
-        const node = document.createElement('div');
-        node.className = 'ms-node' + (isCompleted ? ' completed reached' : (isInProgress ? ' reached' : ''));
-        node.style.cursor = 'pointer';
+          const node = document.createElement('div');
+          node.className = 'ms-node' + (isCompleted ? ' completed reached' : (isInProgress ? ' reached' : ''));
+          node.style.cursor = 'pointer';
 
-        let markerColor = isCompleted ? 'var(--green)' : isInProgress ? 'var(--color-primary)' : 'var(--color-border)';
-        let markerBg = isCompleted ? 'var(--green)' : 'var(--color-surface)';
-        let innerDotColor = isCompleted ? '#fff' : isInProgress ? 'var(--color-primary)' : 'var(--color-border)';
+          let markerColor = isCompleted ? 'var(--green)' : isInProgress ? 'var(--color-primary)' : 'var(--color-border)';
+          let markerBg = isCompleted ? 'var(--green)' : 'var(--color-surface)';
+          let innerDotColor = isCompleted ? '#fff' : isInProgress ? 'var(--color-primary)' : 'var(--color-border)';
+          let pulseStyle = isNext ? `box-shadow: 0 0 0 6px rgba(99,102,241,0.25); animation: msPulse 2s infinite` : '';
 
-        // Pulse effect for the next upcoming milestone
-        let pulseStyle = isNext ? `box-shadow: 0 0 0 6px rgba(99,102,241,0.25); animation: msPulse 2s infinite` : '';
+          const displayDate = getMilestoneCompletionDate(m);
+          const modBadge = m.module
+            ? `<span style="display:inline-block; font-size:8px; text-transform:uppercase; font-weight:800; background:var(--color-surface-offset); color:var(--color-text-muted); border:1px solid var(--color-border-faint); padding:1px 5px; border-radius:4px; margin-bottom:4px; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(m.module)}</span>`
+            : '';
 
-        node.innerHTML = `
-          <div class="ms-content" style="top:-55px">
-            <span class="ms-name" style="font-size:12px; font-weight:700; color:${isNext ? 'var(--color-primary)' : 'var(--color-text)'}">${esc(m.parentName || m.name)}</span>
-            <span class="ms-date" style="font-size:10px; font-weight:600; color:var(--color-text-muted); margin-top:4px">${fmtDate(m.dueDate || m.startDate)}</span>
-            <span style="display:inline-block; font-size:9px; font-weight:700; padding:2px 8px; border-radius:10px; margin-top:4px; background:${isCompleted ? 'rgba(34,197,94,0.1)' : isInProgress ? 'rgba(99,102,241,0.1)' : 'var(--color-surface-2)'}; color:${markerColor}">${m.status}</span>
-          </div>
-          <div class="ms-marker" style="margin-top:45px; border-color:${markerColor}; background:${markerBg}; ${pulseStyle}">
-            <div style="width:6px; height:6px; border-radius:50%; background:${innerDotColor}"></div>
-          </div>
-        `;
-
-        // Interactive Click / Hover to show rich details in detailPanel
-        node.addEventListener('mouseenter', () => {
-          roadmap.querySelectorAll('.ms-node').forEach(n => n.style.opacity = '0.6');
-          node.style.opacity = '1';
-
-          const daysDiff = Math.ceil((new Date(m.dueDate || m.startDate) - now) / (1000 * 60 * 60 * 24));
-          let timingStr = daysDiff < 0 ? `${Math.abs(daysDiff)} days overdue` : daysDiff === 0 ? `Due today` : `${daysDiff} days remaining`;
-          if (isCompleted) timingStr = 'Achieved successfully';
-
-          detailPanel.style.display = 'flex';
-          detailPanel.innerHTML = `
-            <div style="display:flex; align-items:center; gap:16px">
-              <div style="width:40px; height:40px; border-radius:10px; background:${isCompleted ? 'rgba(34,197,94,0.15)' : isInProgress ? 'rgba(99,102,241,0.15)' : 'var(--color-surface)'}; display:flex; align-items:center; justify-content:center; color:${markerColor}; font-size:18px; font-weight:bold">
-                <i data-lucide="${isCompleted ? 'check' : isNext ? 'flag' : 'clock'}" style="width:20px;height:20px"></i>
-              </div>
-              <div>
-                <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; font-weight:600; letter-spacing:0.5px">${m.module ? esc(m.module) : 'General Milestone'} ${m.parentName ? `• ${esc(m.name)}` : ''}</div>
-                <div style="font-size:16px; font-weight:800; color:var(--color-text); margin-top:2px">${esc(m.parentName || m.name)}</div>
-              </div>
+          node.innerHTML = `
+            <div class="ms-content" style="top:-65px">
+              ${modBadge}
+              <span class="ms-name" style="font-size:12px; font-weight:700; color:${isNext ? 'var(--color-primary)' : 'var(--color-text)'}" title="${esc(m.parentName || m.name)}">${esc(m.parentName || m.name)}</span>
+              <span class="ms-date" style="font-size:10px; font-weight:600; color:var(--color-text-muted); margin-top:2px">${fmtDate(displayDate)}</span>
+              <span style="display:inline-block; font-size:9px; font-weight:700; padding:1px 6px; border-radius:8px; margin-top:4px; background:${isCompleted ? 'rgba(34,197,94,0.1)' : isInProgress ? 'rgba(99,102,241,0.1)' : 'var(--color-surface-2)'}; color:${markerColor}">${m.status}</span>
             </div>
-            <div style="display:flex; align-items:center; gap:24px; flex-wrap:wrap">
-              <div>
-                <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Assignee</div>
-                <div style="font-size:13px; font-weight:700; color:var(--color-text); display:flex; align-items:center; gap:6px; margin-top:2px">
-                  <div style="width:16px; height:16px; border-radius:50%; background:var(--color-primary); color:#fff; font-size:9px; display:flex; align-items:center; justify-content:center; font-weight:bold">${(m.assignee || 'U')[0].toUpperCase()}</div>
-                  ${esc(m.assignee || 'Unassigned')}
-                </div>
-              </div>
-              <div>
-                <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Target Date</div>
-                <div style="font-size:13px; font-weight:700; color:var(--color-text); margin-top:2px">${fmtDate(m.dueDate || m.startDate)} <span style="font-size:11px; font-weight:600; color:var(--color-text-muted)">(${timingStr})</span></div>
-              </div>
-              <div>
-                <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Status</div>
-                <div style="font-size:13px; font-weight:700; color:${markerColor}; margin-top:2px">${m.status}</div>
-              </div>
+            <div class="ms-marker" style="margin-top:55px; border-color:${markerColor}; background:${markerBg}; ${pulseStyle}">
+              <div style="width:6px; height:6px; border-radius:50%; background:${innerDotColor}"></div>
             </div>
           `;
-          if (window.lucide) window.lucide.createIcons({ root: detailPanel });
+
+          node.addEventListener('mouseenter', () => {
+            roadmap.querySelectorAll('.ms-node').forEach(n => n.style.opacity = '0.6');
+            node.style.opacity = '1';
+
+            const daysDiff = Math.ceil((new Date(m.dueDate || m.startDate) - now) / (1000 * 60 * 60 * 24));
+            let timingStr = daysDiff < 0 ? `${Math.abs(daysDiff)} days overdue` : daysDiff === 0 ? `Due today` : `${daysDiff} days remaining`;
+            if (isCompleted) timingStr = 'Achieved successfully';
+
+            const culminatingList = culminatingMap.get(m.id) || [];
+            let culminatingHtml = '';
+            if (culminatingList.length > 0) {
+              culminatingHtml = `
+                <div style="width:100%; border-top:1px solid var(--color-divider); margin-top:12px; padding-top:12px">
+                  <div style="font-size:11px; color:var(--color-text-muted); font-weight:700; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px">Culminating Work (${culminatingList.length})</div>
+                  <div style="display:flex; gap:6px; flex-wrap:wrap; max-height:80px; overflow-y:auto; padding-right:4px">
+                    ${culminatingList.map(c => {
+                      const cIsCompleted = c.status === 'Completed';
+                      const cColor = cIsCompleted ? 'var(--green)' : 'var(--color-primary)';
+                      return `
+                        <span style="font-size:10px; padding:3px 8px; background:var(--color-surface-3); border-radius:6px; border:1px solid var(--color-border-faint); display:inline-flex; align-items:center; gap:6px" title="${esc(c.status)} (${c.progress || 0}%)">
+                          <span style="width:6px; height:6px; border-radius:50%; background:${cColor}; flex-shrink:0"></span>
+                          <i data-lucide="${c.type === 'screen' ? 'layout' : (c.type === 'subtask' ? 'check-square' : 'code')}" style="width:11px; height:11px; color:var(--color-text-muted)"></i>
+                          ${esc(c.name)}
+                        </span>
+                      `;
+                    }).join('')}
+                  </div>
+                </div>
+              `;
+            }
+
+            detailPanel.style.display = 'flex';
+            detailPanel.innerHTML = `
+              <div style="display:flex; align-items:center; gap:16px">
+                <div style="width:40px; height:40px; border-radius:10px; background:${isCompleted ? 'rgba(34,197,94,0.15)' : isInProgress ? 'rgba(99,102,241,0.15)' : 'var(--color-surface)'}; display:flex; align-items:center; justify-content:center; color:${markerColor}; font-size:18px; font-weight:bold">
+                  <i data-lucide="${isCompleted ? 'check' : isNext ? 'flag' : 'clock'}" style="width:20px;height:20px"></i>
+                </div>
+                <div>
+                  <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; font-weight:600; letter-spacing:0.5px">${m.module ? esc(m.module) : 'General Milestone'} ${m.parentName ? `• ${esc(m.name)}` : ''}</div>
+                  <div style="font-size:16px; font-weight:800; color:var(--color-text); margin-top:2px">${esc(m.parentName || m.name)}</div>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; gap:24px; flex-wrap:wrap">
+                <div>
+                  <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Assignee</div>
+                  <div style="font-size:13px; font-weight:700; color:var(--color-text); display:flex; align-items:center; gap:6px; margin-top:2px">
+                    <div style="width:16px; height:16px; border-radius:50%; background:var(--color-primary); color:#fff; font-size:9px; display:flex; align-items:center; justify-content:center; font-weight:bold">${(m.assignee || 'U')[0].toUpperCase()}</div>
+                    ${esc(m.assignee || 'Unassigned')}
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Target Date</div>
+                  <div style="font-size:13px; font-weight:700; color:var(--color-text); margin-top:2px">${fmtDate(m.dueDate || m.startDate)} <span style="font-size:11px; font-weight:600; color:var(--color-text-muted)">(${timingStr})</span></div>
+                </div>
+                <div>
+                  <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Actual/Expected</div>
+                  <div style="font-size:13px; font-weight:700; color:var(--color-text); margin-top:2px">${fmtDate(displayDate)}</div>
+                </div>
+                <div>
+                  <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Status</div>
+                  <div style="font-size:13px; font-weight:700; color:${markerColor}; margin-top:2px">${m.status}</div>
+                </div>
+              </div>
+              ${culminatingHtml}
+            `;
+            if (window.lucide) window.lucide.createIcons({ root: detailPanel });
+          });
+
+          node.addEventListener('mouseleave', () => {
+            roadmap.querySelectorAll('.ms-node').forEach(n => n.style.opacity = '1');
+          });
+
+          roadmap.appendChild(node);
         });
 
-        node.addEventListener('mouseleave', () => {
-          roadmap.querySelectorAll('.ms-node').forEach(n => n.style.opacity = '1');
+        roadmapWrap.appendChild(roadmap);
+        roadmapWrap.appendChild(detailPanel);
+        contentWrap.appendChild(roadmapWrap);
+      } else {
+        // Swimlanes view (Module Tracks)
+        const grouped = {};
+        milestones.forEach(m => {
+          const mod = m.module || 'General';
+          if (!grouped[mod]) grouped[mod] = [];
+          grouped[mod].push(m);
         });
 
-        roadmap.appendChild(node);
-      });
+        const sortedModules = Object.keys(grouped).sort((a, b) => {
+          if (a === 'General') return 1;
+          if (b === 'General') return -1;
+          const minA = Math.min(...grouped[a].map(getMilestoneCompletionTime));
+          const minB = Math.min(...grouped[b].map(getMilestoneCompletionTime));
+          return minA - minB;
+        });
 
-      roadmapWrap.appendChild(roadmap);
-      roadmapWrap.appendChild(detailPanel);
-      container.appendChild(roadmapWrap);
+        const swimlanesContainer = document.createElement('div');
+        swimlanesContainer.style = "display:flex; flex-direction:column; gap:24px; background:var(--color-surface); border:1px solid var(--color-border-faint); border-radius:16px; padding:24px; box-shadow:0 8px 30px rgba(0,0,0,0.04)";
+
+        const swimlaneDetailPanel = document.createElement('div');
+        swimlaneDetailPanel.style = "margin-top:20px; padding:16px 20px; background:var(--color-surface-2); border-radius:12px; border:1px solid var(--color-border-faint); display:none; animation:fadeIn 0.2s ease; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px";
+
+        sortedModules.forEach(mod => {
+          const modMilestones = grouped[mod];
+          const modAllItems = moduleMap[mod] || [];
+          const modCompleted = modAllItems.filter(m => m.status === 'Completed').length;
+          const modProgressPct = modAllItems.length ? (modCompleted / modAllItems.length) * 100 : 0;
+
+          const row = document.createElement('div');
+          row.style = "display:flex; align-items:stretch; border-bottom:1px solid var(--color-divider); padding-bottom:16px; min-height:180px; position:relative";
+          if (sortedModules[sortedModules.length - 1] === mod) {
+            row.style.borderBottom = 'none';
+            row.style.paddingBottom = '0';
+          }
+
+          const leftCol = document.createElement('div');
+          leftCol.style = "width:180px; min-width:180px; display:flex; flex-direction:column; justify-content:center; border-right:1px solid var(--color-divider); padding-right:20px; flex-shrink:0";
+          
+          const colors = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#f97316', '#84cc16'];
+          const modColor = colors[sortedModules.indexOf(mod) % colors.length];
+
+          leftCol.innerHTML = `
+            <div style="font-size:13px; font-weight:800; color:var(--color-text); line-height:1.3; margin-bottom:8px; display:flex; align-items:center; gap:8px">
+              <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${modColor}"></span>
+              ${esc(mod)}
+            </div>
+            <div style="font-size:11px; color:var(--color-text-muted); font-weight:600; margin-bottom:4px">
+              Progress: ${modCompleted}/${modAllItems.length} complete
+            </div>
+            <div style="width:100%; height:6px; background:var(--color-surface-3); border-radius:3px; overflow:hidden">
+              <div style="width:${modProgressPct}%; height:100%; background:${modColor}; border-radius:3px"></div>
+            </div>
+          `;
+          row.appendChild(leftCol);
+
+          const rightCol = document.createElement('div');
+          rightCol.className = 'ms-roadmap';
+          rightCol.style = "flex:1; padding:75px 0 20px 20px; overflow-x:auto; min-height:160px; background:transparent; border-radius:0; scrollbar-width:none; position:relative";
+
+          const subTrack = document.createElement('div');
+          subTrack.className = 'ms-track';
+          subTrack.style = `position:absolute; top:110px; left:20px; right:0; height:3px; background:var(--color-surface-3); border-radius:2px; z-index:1`;
+
+          const subProgress = document.createElement('div');
+          subProgress.style = `position:absolute; top:0; left:0; height:100%; width:${modProgressPct}%; background:${modColor}; border-radius:2px; transition:width 1s ease-in-out`;
+          subTrack.appendChild(subProgress);
+          rightCol.appendChild(subTrack);
+
+          // Combined timeline items: culminating subnodes followed by milestones
+          const trackItems = [];
+          modMilestones.forEach(m => {
+            const culminating = culminatingMap.get(m.id) || [];
+            culminating.forEach(c => {
+              trackItems.push({ ...c, isSubnode: true, parentMilestoneName: m.name, parentMilestoneId: m.id });
+            });
+            trackItems.push(m);
+          });
+
+          trackItems.forEach(item => {
+            const isCompleted = item.status === 'Completed';
+            const isInProgress = ['In Progress', 'Under Review'].includes(item.status);
+            
+            const node = document.createElement('div');
+            node.className = 'ms-node' + (isCompleted ? ' completed reached' : (isInProgress ? ' reached' : '')) + (item.isSubnode ? ' subnode' : '');
+            node.style.cursor = 'pointer';
+
+            let markerColor = isCompleted ? 'var(--green)' : (isInProgress ? modColor : 'var(--color-border)');
+            let markerBg = isCompleted ? 'var(--green)' : 'var(--color-surface)';
+            let innerDotColor = isCompleted ? '#fff' : (isInProgress ? modColor : 'var(--color-border)');
+
+            if (item.isSubnode) {
+              // Culminating subnode rendering
+              node.innerHTML = `
+                <div class="ms-marker" style="margin-top:57px; border-color:${markerColor}; background:${markerBg}" title="${esc(item.name)} (${item.status})">
+                  <div style="width:4px; height:4px; border-radius:50%; background:${innerDotColor}"></div>
+                </div>
+              `;
+
+              node.addEventListener('mouseenter', () => {
+                rightCol.querySelectorAll('.ms-node').forEach(n => n.style.opacity = '0.6');
+                node.style.opacity = '1';
+
+                swimlaneDetailPanel.style.display = 'flex';
+                swimlaneDetailPanel.innerHTML = `
+                  <div style="display:flex; align-items:center; gap:16px">
+                    <div style="width:40px; height:40px; border-radius:10px; background:${isCompleted ? 'rgba(34,197,94,0.15)' : modColor + '22'}; display:flex; align-items:center; justify-content:center; color:${markerColor}; font-size:18px; font-weight:bold">
+                      <i data-lucide="${item.type === 'screen' ? 'layout' : (item.type === 'subtask' ? 'check-square' : 'code')}" style="width:20px;height:20px"></i>
+                    </div>
+                    <div>
+                      <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; font-weight:600; letter-spacing:0.5px">Culminating ${item.type === 'screen' ? 'Screen' : (item.type === 'subtask' ? 'Sub-task' : 'Task')} • Mapped to ${esc(item.parentMilestoneName)}</div>
+                      <div style="font-size:16px; font-weight:800; color:var(--color-text); margin-top:2px">${esc(item.name)}</div>
+                    </div>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:24px; flex-wrap:wrap">
+                    <div>
+                      <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Assignee</div>
+                      <div style="font-size:13px; font-weight:700; color:var(--color-text); display:flex; align-items:center; gap:6px; margin-top:2px">
+                        <div style="width:16px; height:16px; border-radius:50%; background:${modColor}; color:#fff; font-size:9px; display:flex; align-items:center; justify-content:center; font-weight:bold">${(item.assignee || 'U')[0].toUpperCase()}</div>
+                        ${esc(item.assignee || 'Unassigned')}
+                      </div>
+                    </div>
+                    <div>
+                      <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Target Date</div>
+                      <div style="font-size:13px; font-weight:700; color:var(--color-text); margin-top:2px">${fmtDate(item.dueDate || item.startDate)}</div>
+                    </div>
+                    <div>
+                      <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Status</div>
+                      <div style="font-size:13px; font-weight:700; color:${markerColor}; margin-top:2px">${item.status} (${item.progress}%)</div>
+                    </div>
+                  </div>
+                `;
+                if (window.lucide) window.lucide.createIcons({ root: swimlaneDetailPanel });
+              });
+
+              node.addEventListener('mouseleave', () => {
+                rightCol.querySelectorAll('.ms-node').forEach(n => n.style.opacity = '1');
+              });
+            } else {
+              // Full Milestone node rendering
+              const isNext = nextMilestone && item.id === nextMilestone.id;
+              let pulseStyle = isNext ? `box-shadow: 0 0 0 6px ${modColor}33; animation: msPulse-${mod.replace(/[^a-zA-Z0-9]/g, '')} 2s infinite` : '';
+
+              const pulseName = `msPulse-${mod.replace(/[^a-zA-Z0-9]/g, '')}`;
+              if (!document.getElementById(`style-${pulseName}`)) {
+                const styleEl = document.createElement('style');
+                styleEl.id = `style-${pulseName}`;
+                styleEl.innerHTML = `
+                  @keyframes ${pulseName} {
+                    0% { box-shadow: 0 0 0 0 ${modColor}66; }
+                    70% { box-shadow: 0 0 0 10px ${modColor}00; }
+                    100% { box-shadow: 0 0 0 0 ${modColor}00; }
+                  }
+                `;
+                document.head.appendChild(styleEl);
+              }
+
+              const displayDate = getMilestoneCompletionDate(item);
+
+              node.innerHTML = `
+                <div class="ms-content" style="top:-60px">
+                  <span class="ms-name" style="font-size:12px; font-weight:700; color:${isNext ? modColor : 'var(--color-text)'}" title="${esc(item.parentName || item.name)}">${esc(item.parentName || item.name)}</span>
+                  <span class="ms-date" style="font-size:10px; font-weight:600; color:var(--color-text-muted); margin-top:2px">${fmtDate(displayDate)}</span>
+                  <span style="display:inline-block; font-size:9px; font-weight:700; padding:1px 6px; border-radius:8px; margin-top:4px; background:${isCompleted ? 'rgba(34,197,94,0.1)' : isInProgress ? modColor + '1a' : 'var(--color-surface-2)'}; color:${markerColor}">${item.status}</span>
+                </div>
+                <div class="ms-marker" style="margin-top:55px; border-color:${markerColor}; background:${markerBg}; ${pulseStyle}">
+                  <div style="width:6px; height:6px; border-radius:50%; background:${innerDotColor}"></div>
+                </div>
+              `;
+
+              node.addEventListener('mouseenter', () => {
+                rightCol.querySelectorAll('.ms-node').forEach(n => n.style.opacity = '0.6');
+                node.style.opacity = '1';
+
+                const daysDiff = Math.ceil((new Date(item.dueDate || item.startDate) - now) / (1000 * 60 * 60 * 24));
+                let timingStr = daysDiff < 0 ? `${Math.abs(daysDiff)} days overdue` : daysDiff === 0 ? `Due today` : `${daysDiff} days remaining`;
+                if (isCompleted) timingStr = 'Achieved successfully';
+
+                const culminatingList = culminatingMap.get(item.id) || [];
+                let culminatingHtml = '';
+                if (culminatingList.length > 0) {
+                  culminatingHtml = `
+                    <div style="width:100%; border-top:1px solid var(--color-divider); margin-top:12px; padding-top:12px">
+                      <div style="font-size:11px; color:var(--color-text-muted); font-weight:700; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px">Culminating Work (${culminatingList.length})</div>
+                      <div style="display:flex; gap:6px; flex-wrap:wrap; max-height:80px; overflow-y:auto; padding-right:4px">
+                        ${culminatingList.map(c => {
+                          const cIsCompleted = c.status === 'Completed';
+                          const cColor = cIsCompleted ? 'var(--green)' : modColor;
+                          return `
+                            <span style="font-size:10px; padding:3px 8px; background:var(--color-surface-3); border-radius:6px; border:1px solid var(--color-border-faint); display:inline-flex; align-items:center; gap:6px" title="${esc(c.status)} (${c.progress || 0}%)">
+                              <span style="width:6px; height:6px; border-radius:50%; background:${cColor}; flex-shrink:0"></span>
+                              <i data-lucide="${c.type === 'screen' ? 'layout' : (c.type === 'subtask' ? 'check-square' : 'code')}" style="width:11px; height:11px; color:var(--color-text-muted)"></i>
+                              ${esc(c.name)}
+                            </span>
+                          `;
+                        }).join('')}
+                      </div>
+                    </div>
+                  `;
+                }
+
+                swimlaneDetailPanel.style.display = 'flex';
+                swimlaneDetailPanel.innerHTML = `
+                  <div style="display:flex; align-items:center; gap:16px">
+                    <div style="width:40px; height:40px; border-radius:10px; background:${isCompleted ? 'rgba(34,197,94,0.15)' : isInProgress ? modColor + '22' : 'var(--color-surface)'}; display:flex; align-items:center; justify-content:center; color:${markerColor}; font-size:18px; font-weight:bold">
+                      <i data-lucide="${isCompleted ? 'check' : isNext ? 'flag' : 'clock'}" style="width:20px;height:20px"></i>
+                    </div>
+                    <div>
+                      <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; font-weight:600; letter-spacing:0.5px">${esc(mod)} ${item.parentName ? `• ${esc(item.name)}` : ''}</div>
+                      <div style="font-size:16px; font-weight:800; color:var(--color-text); margin-top:2px">${esc(item.parentName || item.name)}</div>
+                    </div>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:24px; flex-wrap:wrap">
+                    <div>
+                      <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Assignee</div>
+                      <div style="font-size:13px; font-weight:700; color:var(--color-text); display:flex; align-items:center; gap:6px; margin-top:2px">
+                        <div style="width:16px; height:16px; border-radius:50%; background:${modColor}; color:#fff; font-size:9px; display:flex; align-items:center; justify-content:center; font-weight:bold">${(item.assignee || 'U')[0].toUpperCase()}</div>
+                        ${esc(item.assignee || 'Unassigned')}
+                      </div>
+                    </div>
+                    <div>
+                      <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Target Date</div>
+                      <div style="font-size:13px; font-weight:700; color:var(--color-text); margin-top:2px">${fmtDate(item.dueDate || item.startDate)} <span style="font-size:11px; font-weight:600; color:var(--color-text-muted)">(${timingStr})</span></div>
+                    </div>
+                    <div>
+                      <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Actual/Expected</div>
+                      <div style="font-size:13px; font-weight:700; color:var(--color-text); margin-top:2px">${fmtDate(displayDate)}</div>
+                    </div>
+                    <div>
+                      <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Status</div>
+                      <div style="font-size:13px; font-weight:700; color:${markerColor}; margin-top:2px">${item.status}</div>
+                    </div>
+                  </div>
+                  ${culminatingHtml}
+                `;
+                if (window.lucide) window.lucide.createIcons({ root: swimlaneDetailPanel });
+              });
+
+              node.addEventListener('mouseleave', () => {
+                rightCol.querySelectorAll('.ms-node').forEach(n => n.style.opacity = '1');
+              });
+            }
+
+            rightCol.appendChild(node);
+          });
+
+          row.appendChild(rightCol);
+          swimlanesContainer.appendChild(row);
+        });
+
+        swimlanesContainer.appendChild(swimlaneDetailPanel);
+        contentWrap.appendChild(swimlanesContainer);
+      }
 
       // Ensure keyframes for pulse animation exist
       if (!document.getElementById('ms-keyframes')) {
@@ -22753,6 +23311,26 @@ load() {
             100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
           }
           .ms-node { transition: opacity 0.2s ease; }
+          .ms-node.subnode {
+            min-width: 50px;
+            flex: 0.4;
+          }
+          .ms-node.subnode .ms-marker {
+            width: 8px;
+            height: 8px;
+            margin-top: 57px;
+            border-width: 1.5px;
+          }
+          .ms-node.subnode .ms-marker::after {
+            display: none;
+          }
+          .ms-node.subnode .ms-content {
+            display: none;
+          }
+          .ms-node.subnode:hover .ms-marker {
+            transform: scale(1.4);
+            box-shadow: 0 0 8px rgba(99, 102, 241, 0.5);
+          }
         `;
         document.head.appendChild(style);
       }
@@ -26214,24 +26792,44 @@ load() {
 
                     const trendId = 'dash-defect-trend';
                     const trendSpan = (P.widgetSpans && P.widgetSpans[trendId]) || sec.span || 2;
-                    const trendCard = mkCC('Defect Inflow Trend', 'Last 7 weeks discovery rate', trendId, '', 'standard', "<b>Defect Inflow Velocity:</b> Tracks the volume of newly logged defects over the trailing 7 weeks. A rising trendline during late project phases indicates potential instability or inadequate earlier testing.", 'View Explanation', 'trending-up');
+                    let defectInflowWeeksCount = parseInt(P.defectInflowWeeks) || 7;
+                    if (defectInflowWeeksCount < 4) defectInflowWeeksCount = 4;
+                    if (defectInflowWeeksCount > 52) defectInflowWeeksCount = 52;
+                    const trendCard = mkCC('Defect Inflow Trend', `Last ${defectInflowWeeksCount} weeks discovery rate`, trendId, '', 'standard', `<b>Defect Inflow Velocity:</b> Tracks the volume of newly logged defects over the trailing ${defectInflowWeeksCount} weeks. A rising trendline during late project phases indicates potential instability or inadequate earlier testing.`, 'View Explanation', 'trending-up');
                     trendCard.style.gridColumn = `span ${trendSpan}`;
                     grid.appendChild(trendCard);
+
+                    const optDefectWeeks = [4, 7, 12, 16, 20, 24, 32, 40, 48, 52];
+                    if (!optDefectWeeks.includes(defectInflowWeeksCount)) {
+                      optDefectWeeks.push(defectInflowWeeksCount);
+                      optDefectWeeks.sort((a, b) => a - b);
+                    }
+                    let selectHtml = `<select onchange="updateDefectInflowWeeks(this.value)" style="border:none; background:transparent; color:var(--color-text-muted); font-size:11px; font-weight:700; cursor:pointer; outline:none; padding:2px 4px;">`;
+                    optDefectWeeks.forEach(w => {
+                      const isYear = w === 52 ? ' (1 Year)' : '';
+                      selectHtml += `<option value="${w}" ${defectInflowWeeksCount === w ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">${w} Weeks${isYear}</option>`;
+                    });
+                    selectHtml += `</select>`;
+                    const weeksToggle = document.createElement('div');
+                    weeksToggle.style = "display:inline-flex; background:var(--color-surface-offset); padding:2px 6px; border-radius:7px; border:1px solid var(--color-border); align-items:center; flex-shrink:0; height:fit-content; margin-left:auto;";
+                    weeksToggle.innerHTML = selectHtml;
+                    trendCard.querySelector('.ch').appendChild(weeksToggle);
+
                     const trendCvs = mkCvs(460, 160); trendCard.querySelector('.cb').appendChild(trendCvs);
                     dashDrawQueue.push(() => {
-                      const last7WeeksLabels = Array.from({ length: 7 }, (_, i) => {
-                        const d = new Date(); d.setDate(d.getDate() - (6 - i) * 7);
+                      const lastWeeksLabels = Array.from({ length: defectInflowWeeksCount }, (_, i) => {
+                        const d = new Date(); d.setDate(d.getDate() - (defectInflowWeeksCount - 1 - i) * 7);
                         return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                       });
-                      const trendData = last7WeeksLabels.map((_, i) => {
-                        const start = new Date(); start.setDate(start.getDate() - (7 - i) * 7);
-                        const end = new Date(); end.setDate(end.getDate() - (6 - i) * 7);
+                      const trendData = lastWeeksLabels.map((_, i) => {
+                        const start = new Date(); start.setDate(start.getDate() - (defectInflowWeeksCount - i) * 7);
+                        const end = new Date(); end.setDate(end.getDate() - (defectInflowWeeksCount - 1 - i) * 7);
                         return defs.filter(d => {
                           const dt = new Date(d.createdAt || d.ts || Date.now());
                           return dt > start && dt <= end;
                         }).length;
                       });
-                      drawLineChart(trendCvs, last7WeeksLabels, [trendData], ['Defects Logged'], ['var(--red)']);
+                      drawLineChart(trendCvs, lastWeeksLabels, [trendData], ['Defects Logged'], ['var(--red)']);
                     });
 
                     const rateId = 'dash-defect-rate';
@@ -27228,7 +27826,7 @@ load() {
                   const grid = addGrid(inner);
                   const mId = 'dash-milestones';
                   const mSpan = (P.widgetSpans && P.widgetSpans[mId]) || sec.span || 4;
-                  const mCard = mkCC('Milestone Roadmap', 'Interactive project markers', mId, '', 'standard', "Visual roadmap of project milestones.", 'View Explanation');
+                  const mCard = mkCC('Milestone Roadmap & Status', 'Interactive project markers', mId, '', 'standard', "Visual roadmap of project milestones.", 'View Explanation');
                   mCard.style.gridColumn = `span ${mSpan}`;
                   grid.appendChild(mCard);
                   const roadmapContainer = document.createElement('div');
@@ -34022,6 +34620,7 @@ buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S) {
               { key: 'Active Report ID', val: P.activeReportId || '' },
               { key: 'Velocity Weeks', val: P.velocityWeeks || 8 },
               { key: 'CFD Weeks', val: P.cfdWeeks || 8 },
+              { key: 'Defect Inflow Weeks', val: P.defectInflowWeeks || 7 },
               { key: 'Admin Active Tab', val: P._adminActiveTab || '' }
             ];
             projMeta.forEach((r, i) => {
@@ -36634,6 +37233,7 @@ parseAppStateSheets(wb, rawData) {
             P.activeReportId = parseInt(stateMap['Active Report ID']) || stateMap['Active Report ID'] || null;
             P.velocityWeeks = parseInt(stateMap['Velocity Weeks']) || 8;
             P.cfdWeeks = parseInt(stateMap['CFD Weeks']) || 8;
+            P.defectInflowWeeks = parseInt(stateMap['Defect Inflow Weeks']) || 7;
             P._adminActiveTab = stateMap['Admin Active Tab'] || '';
 
             setTheme(P.theme); setView(P.view, true);
@@ -39613,10 +40213,10 @@ function enterApp() {
                 { name: 'Architecture Sign-off', module: 'Infrastructure', moduleType: 'Server', category: 'Feature', assignee: 'Alice', status: 'Completed', priority: 'Critical', startDate: '2026-01-15', dueDate: '2026-01-15', progress: 100, complexity: 'Medium' },
                 { name: 'Core API Layer', module: 'API Gateway', moduleType: 'Server', category: 'Backend', releaseVersion: 'v1.0.0', assignee: 'Bob', status: 'Completed', priority: 'Critical', startDate: '2026-01-10', dueDate: '2026-01-15', progress: 100, dependsOn: ['TASK-001'], steps: ['Schema Design', 'API Endpoint Definition', 'Business Logic Implementation', 'Unit Testing', 'API Documentation'], complexity: 'Complex' },
                 { name: 'Auth Controller', module: 'Authentication', moduleType: 'Server', category: 'Backend', releaseVersion: 'v1.0.0', assignee: 'Bob', status: 'Completed', priority: 'High', startDate: '2026-02-10', dueDate: '2026-02-15', progress: 100, dependsOn: ['TASK-003'], subtasks: [{ name: 'Auth Controller', type: 'screen', status: 'Completed', progress: 100 }], complexity: 'Complex' },
-                { name: 'Identity Management GUI', module: 'Authentication', moduleType: 'GUI', category: 'Frontend', releaseVersion: 'v1.0.0', assignee: 'Alice', status: 'Completed', priority: 'High', startDate: '2026-02-15', dueDate: '2026-02-20', progress: 100, dependsOn: ['TASK-003'], guiScreens: ['Login Form', 'Signup Portal', 'MFA Verification'], complexity: 'Medium' },
-                { name: 'Dashboard Features', module: 'User Interface', moduleType: 'GUI', category: 'Frontend', releaseVersion: 'v1.1.0', assignee: 'Carol', status: 'In Progress', priority: 'High', startDate: '2026-03-01', dueDate: '2026-05-15', progress: 75, guiScreens: ['Home Feed', 'Activity Stream', 'User Profile'], complexity: 'Medium' },
+                { name: 'Identity Management GUI', module: 'Authentication', moduleType: 'GUI', category: 'GUI Module', releaseVersion: 'v1.0.0', assignee: 'Alice', status: 'Completed', priority: 'High', startDate: '2026-02-15', dueDate: '2026-02-20', progress: 100, dependsOn: ['TASK-003'], guiScreens: ['Login Form', 'Signup Portal', 'MFA Verification'], complexity: 'Medium' },
+                { name: 'Dashboard Features', module: 'User Interface', moduleType: 'GUI', category: 'GUI Module', releaseVersion: 'v1.1.0', assignee: 'Carol', status: 'In Progress', priority: 'High', startDate: '2026-03-01', dueDate: '2026-05-15', progress: 75, guiScreens: ['Home Feed', 'Activity Stream', 'User Profile'], complexity: 'Medium' },
                 { name: 'Data Engine Pro', module: 'Core Engine', moduleType: 'Server', category: 'Backend', releaseVersion: 'v1.1.0', assignee: 'Bob', status: 'In Progress', priority: 'Critical', startDate: '2026-03-15', dueDate: '2026-06-15', progress: 40, subtasks: [{ name: 'Data Engine', type: 'screen', status: 'In Progress', progress: 40 }], complexity: 'Complex' },
-                { name: 'Analytics Suite', module: 'Analytics Service', moduleType: 'GUI', category: 'Frontend', releaseVersion: 'v1.1.0', assignee: 'Carol', status: 'Under Review', priority: 'Medium', startDate: '2026-04-10', dueDate: '2026-05-10', progress: 90, guiScreens: ['BI Viewer', 'Export Utility'], complexity: 'Medium' },
+                { name: 'Analytics Suite', module: 'Analytics Service', moduleType: 'GUI', category: 'GUI Module', releaseVersion: 'v1.1.0', assignee: 'Carol', status: 'Under Review', priority: 'Medium', startDate: '2026-04-10', dueDate: '2026-05-10', progress: 90, guiScreens: ['BI Viewer', 'Export Utility'], complexity: 'Medium' },
                 { name: 'DB Migration Tool', module: 'Database Migration', moduleType: 'Server', category: 'DevOps', releaseVersion: 'v2.0.0-Beta', assignee: 'Bob', status: 'On Hold', priority: 'High', startDate: '2026-05-01', dueDate: '2026-05-15', progress: 10, dependsOn: ['TASK-006'], notes: 'Awaiting schema approval', complexity: 'Easy' },
                 { name: 'Edge Nodes', module: 'Infrastructure', moduleType: 'Server', category: 'Infrastructure', releaseVersion: 'Next Major', assignee: 'David', status: 'Not Started', priority: 'Low', startDate: '2026-07-01', dueDate: '2027-02-28', progress: 0, complexity: 'Easy' },
               ],
@@ -39645,7 +40245,7 @@ function enterApp() {
               ],
               team: [{ n: 'Rahul', r: 'Lead' }, { n: 'Sneha', r: 'Developer' }, { n: 'Vikram', r: 'Developer' }, { n: 'Meera', r: 'Designer' }],
               tasks: [
-                { name: 'Concept Prototype', module: 'User Interface', moduleType: 'GUI', category: 'Feature', assignee: 'Meera', status: 'Completed', priority: 'High', startDate: '2026-02-01', dueDate: '2026-02-01', progress: 100, complexity: 'Easy' },
+                { name: 'Concept Prototype', module: 'User Interface', moduleType: 'GUI', category: 'GUI Module', assignee: 'Meera', status: 'Completed', priority: 'High', startDate: '2026-02-01', dueDate: '2026-02-01', progress: 100, complexity: 'Easy' },
                 {
                   name: 'Offline Sync Logic',
                   module: 'Core Engine',
@@ -39666,8 +40266,8 @@ function enterApp() {
                   ]
                 },
                 { name: 'Push Notifications', module: 'Infrastructure', moduleType: 'Interface', category: 'Infrastructure', assignee: 'Vikram', status: 'In Progress', priority: 'High', startDate: '2026-03-01', dueDate: '2026-03-15', progress: 70, dependsOn: ['TASK-002'], estEffort: 3, complexity: 'Medium' },
-                { name: 'Onboarding Flow', module: 'User Interface', moduleType: 'GUI', category: 'Frontend', assignee: 'Meera', status: 'Completed', priority: 'High', startDate: '2026-02-15', dueDate: '2026-02-20', progress: 100, dependsOn: ['TASK-001'], guiScreens: ['Splash Screen', 'Login', 'Tutorial'], complexity: 'Medium' },
-                { name: 'Settings Module', module: 'User Interface', moduleType: 'GUI', category: 'Frontend', assignee: 'Meera', status: 'In Progress', priority: 'Medium', startDate: '2026-04-10', dueDate: '2026-05-15', progress: 30, dependsOn: ['TASK-004'], guiScreens: ['Profile Settings', 'Notification Config'], complexity: 'Easy' },
+                { name: 'Onboarding Flow', module: 'User Interface', moduleType: 'GUI', category: 'GUI Module', assignee: 'Meera', status: 'Completed', priority: 'High', startDate: '2026-02-15', dueDate: '2026-02-20', progress: 100, dependsOn: ['TASK-001'], guiScreens: ['Splash Screen', 'Login', 'Tutorial'], complexity: 'Medium' },
+                { name: 'Settings Module', module: 'User Interface', moduleType: 'GUI', category: 'GUI Module', assignee: 'Meera', status: 'In Progress', priority: 'Medium', startDate: '2026-04-10', dueDate: '2026-05-15', progress: 30, dependsOn: ['TASK-004'], guiScreens: ['Profile Settings', 'Notification Config'], complexity: 'Easy' },
                 { name: 'Memory Diagnostics', module: 'Core Engine', moduleType: 'Server', category: 'Testing', assignee: 'Vikram', status: 'In Progress', priority: 'Critical', startDate: '2026-04-20', dueDate: '2026-05-22', progress: 50, dependsOn: ['TASK-002'], estEffort: 2, complexity: 'Complex' },
               ]
             },
@@ -39726,11 +40326,11 @@ function enterApp() {
                 { name: 'SRV: Overdue Maintenance', category: 'Backend', module: 'Core Engine', moduleType: 'Server', assignee: 'Tasha K', status: 'In Progress', priority: 'High', progress: 20, startDate: '2026-04-01', dueDate: '2026-04-15', dependsOn: ['TASK-006'], estEffort: 5, complexity: 'Medium', notes: 'PAST DUE - Critical attention' },
 
                 // Trading UI (Frontend)
-                { name: 'GUI: Trading Dashboard', category: 'Frontend', module: 'Trading UI', moduleType: 'GUI', releaseVersion: 'v2.0.0-Beta', assignee: 'Jordan Smyth', status: 'In Progress', priority: 'High', progress: 85, startDate: '2026-03-05', dueDate: '2026-05-22', dependsOn: ['TASK-006', 'TASK-007'], estEffort: 12, complexity: 'Medium', guiScreens: ['Order Entry', 'Position View', 'Execution History', 'Portfolio Overview', 'Trade Confirmation'] },
-                { name: 'GUI: Asset Allocation Chart', category: 'Frontend', module: 'Trading UI', moduleType: 'GUI', releaseVersion: 'v2.0.0-Beta', assignee: 'Elena Vance', status: 'Completed', priority: 'Medium', progress: 100, startDate: '2026-04-15', dueDate: '2026-04-25', actCompletionDate: '2026-04-25', estEffort: 5, actEffort: 5, complexity: 'Medium', guiScreens: ['Sunburst Chart', 'Legend Details'] },
-                { name: 'GUI: Future UI Component', category: 'Frontend', module: 'Trading UI', moduleType: 'GUI', releaseVersion: 'v2.1.0', assignee: 'Marcus Wong', status: 'Not Started', priority: 'Low', progress: 0, startDate: '2026-06-15', dueDate: '2026-07-01', dependsOn: ['TASK-007'], estEffort: 3, complexity: 'Easy' },
+                { name: 'GUI: Trading Dashboard', category: 'GUI Module', module: 'Trading UI', moduleType: 'GUI', releaseVersion: 'v2.0.0-Beta', assignee: 'Jordan Smyth', status: 'In Progress', priority: 'High', progress: 85, startDate: '2026-03-05', dueDate: '2026-05-22', dependsOn: ['TASK-006', 'TASK-007'], estEffort: 12, complexity: 'Medium', guiScreens: ['Order Entry', 'Position View', 'Execution History', 'Portfolio Overview', 'Trade Confirmation'] },
+                { name: 'GUI: Asset Allocation Chart', category: 'GUI Module', module: 'Trading UI', moduleType: 'GUI', releaseVersion: 'v2.0.0-Beta', assignee: 'Elena Vance', status: 'Completed', priority: 'Medium', progress: 100, startDate: '2026-04-15', dueDate: '2026-04-25', actCompletionDate: '2026-04-25', estEffort: 5, actEffort: 5, complexity: 'Medium', guiScreens: ['Sunburst Chart', 'Legend Details'] },
+                { name: 'GUI: Future UI Component', category: 'GUI Module', module: 'Trading UI', moduleType: 'GUI', releaseVersion: 'v2.1.0', assignee: 'Marcus Wong', status: 'Not Started', priority: 'Low', progress: 0, startDate: '2026-06-15', dueDate: '2026-07-01', dependsOn: ['TASK-007'], estEffort: 3, complexity: 'Easy' },
                 {
-                  name: 'GUI: Resource Loading Demo', category: 'Frontend', module: 'Trading UI', moduleType: 'GUI', releaseVersion: 'v2.1.0', assignee: 'Marcus Wong', status: 'Not Started', priority: 'High', progress: 0, startDate: '2026-06-01', dueDate: '2026-11-15', estEffort: 10, complexity: 'Medium',
+                  name: 'GUI: Resource Loading Demo', category: 'GUI Module', module: 'Trading UI', moduleType: 'GUI', releaseVersion: 'v2.1.0', assignee: 'Marcus Wong', status: 'Not Started', priority: 'High', progress: 0, startDate: '2026-06-01', dueDate: '2026-11-15', estEffort: 10, complexity: 'Medium',
                   subtasks: [
                     { id: 'ST-990', name: 'Sequential Screen 1', assignee: 'Sarah Chen', effort: 3, status: 'Not Started' },
                     { id: 'ST-991', name: 'Sequential Screen 2', assignee: 'Sarah Chen', effort: 4, status: 'Not Started' },
@@ -39738,7 +40338,7 @@ function enterApp() {
                     { id: 'ST-993', name: 'Parallel Screen 2', assignee: 'Elena Vance', effort: 2, status: 'Not Started' }
                   ]
                 },
-                { name: 'GUI: User Profile Management', category: 'Frontend', module: 'Trading UI', moduleType: 'GUI', releaseVersion: 'v2.1.0', assignee: 'Alex Rivera', status: 'Not Started', priority: 'Low', progress: 0, startDate: '2026-11-15', dueDate: '2027-01-05', estEffort: 4, complexity: 'Easy', guiScreens: ['Profile Edit', 'MFA Settings', 'Settings Panel'] },
+                { name: 'GUI: User Profile Management', category: 'GUI Module', module: 'Trading UI', moduleType: 'GUI', releaseVersion: 'v2.1.0', assignee: 'Alex Rivera', status: 'Not Started', priority: 'Low', progress: 0, startDate: '2026-11-15', dueDate: '2027-01-05', estEffort: 4, complexity: 'Easy', guiScreens: ['Profile Edit', 'MFA Settings', 'Settings Panel'] },
 
                 // Compliance, Security & Reporting
                 { name: 'API: AML/KYC Integration', category: 'Integration', module: 'Compliance', moduleType: 'Interface', releaseVersion: 'v2.0.0-Beta', assignee: 'Vikram S', status: 'In Progress', priority: 'Critical', progress: 40, startDate: '2026-03-15', dueDate: '2026-05-28', estEffort: 7, complexity: 'Complex', notes: 'Wait for vendor keys', subtasks: [{ name: 'AML Integration', type: 'screen', status: 'In Progress', progress: 40 }] },
@@ -39815,26 +40415,70 @@ function enterApp() {
           samples.web.dropdowns = {
             module: ['Authentication', 'User Interface', 'Core Engine', 'API Gateway', 'Analytics Service', 'Database Migration', 'Infrastructure'],
             moduleType: ['Server', 'GUI', 'Interface'],
-            category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Screen', 'Backend', 'Frontend', 'Infrastructure', 'Integration', 'Security', 'Reporting'],
+            category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Module', 'GUI Screen', 'Backend', 'Frontend', 'Infrastructure', 'Integration', 'Security', 'Reporting'],
             role: ['Lead Designer', 'Senior Developer', 'Frontend Developer', 'QA Specialist', 'Product Manager'],
             version: ['v1.0.0', 'v1.1.0', 'v2.0.0-Beta', 'Next Major']
           };
           samples.mobile.dropdowns = {
             module: ['Core Engine', 'Infrastructure', 'User Interface', 'Security'],
             moduleType: ['Server', 'GUI', 'Interface', 'Mobile'],
-            category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Screen', 'Backend', 'Frontend', 'Infrastructure', 'Integration', 'Security', 'Reporting'],
+            category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Module', 'GUI Screen', 'Backend', 'Frontend', 'Infrastructure', 'Integration', 'Security', 'Reporting'],
             role: ['Lead', 'Developer', 'Designer'],
             version: ['v1.0', 'v2.0', 'Beta']
           };
           samples.hierarchical.dropdowns = {
             module: ['Shared Services', 'Core Engine', 'Compliance', 'Infrastructure', 'Trading UI', 'Market Data', 'Reporting'],
             moduleType: ['Server', 'GUI', 'Interface'],
-            category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Screen', 'Backend', 'Frontend', 'Infrastructure', 'Integration', 'Security', 'Reporting'],
+            category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Module', 'GUI Screen', 'Backend', 'Frontend', 'Infrastructure', 'Integration', 'Security', 'Reporting'],
             role: ['Engineering Manager', 'Lead Architect', 'Lead Frontend', 'Lead Design', 'Jr Lead Backend', 'Jr Lead Infra', 'Jr Lead UI', 'Jr Lead Core', 'Jr Lead UX', 'Jr Lead Research', 'Developer'],
             version: ['v2.0.0-Beta', 'v2.1.0', 'Next Major']
           };
 
-          const s = samples[type]; if (!s) return;
+          const sRaw = samples[type]; if (!sRaw) return;
+
+          const refDate = new Date('2026-05-01T00:00:00Z');
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          function shiftDate(str) {
+            if (typeof str !== 'string') return str;
+            const match = str.match(/^(\d{4})-(\d{2})-(\d{2})(T\d{2}:\d{2}:\d{2}(\.\d+)?Z)?$/);
+            if (!match) return str;
+            const y = parseInt(match[1]);
+            const m = parseInt(match[2]) - 1;
+            const d = parseInt(match[3]);
+            const itemDate = new Date(Date.UTC(y, m, d));
+            const diffTime = itemDate.getTime() - refDate.getTime();
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+            
+            const targetDate = new Date(today);
+            targetDate.setDate(targetDate.getDate() + diffDays);
+            
+            const pad = num => String(num).padStart(2, '0');
+            const targetYMD = `${targetDate.getFullYear()}-${pad(targetDate.getMonth() + 1)}-${pad(targetDate.getDate())}`;
+            if (match[4]) {
+              return targetYMD + match[4];
+            }
+            return targetYMD;
+          }
+
+          function deepShiftDates(obj) {
+            if (!obj || typeof obj !== 'object') return obj;
+            if (Array.isArray(obj)) {
+              return obj.map(item => deepShiftDates(item));
+            }
+            const res = {};
+            for (let k in obj) {
+              if (typeof obj[k] === 'string') {
+                res[k] = shiftDate(obj[k]);
+              } else {
+                res[k] = deepShiftDates(obj[k]);
+              }
+            }
+            return res;
+          }
+
+          const s = deepShiftDates(sRaw);
           clearProjectState();
 
           // Load sample-specific architecture
@@ -39896,7 +40540,7 @@ function enterApp() {
           });
 
           // Seed log history to populate Velocity, CFD and Aging
-          const now = new Date('2026-05-01');
+          const now = new Date();
 
           // Backdate the "Created" logs that were added by createTask()
           P.log.forEach(l => {
