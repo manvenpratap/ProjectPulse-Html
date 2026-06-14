@@ -1,16 +1,16 @@
 # Graph Report - ProjectPulse  (2026-06-14)
 
 ## Corpus Check
-- 25 files · ~405,083 words
+- 25 files · ~413,370 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 299 nodes · 472 edges · 23 communities (22 shown, 1 thin omitted)
+- 300 nodes · 473 edges · 23 communities (22 shown, 1 thin omitted)
 - Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 28 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `2868400e`
+- Built from commit: `a2b1cd3c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -119,19 +119,19 @@ Nodes (6): 1. What is a Baseline?, 2. Capturing a Baseline Snapshot, 3. Variance
 
 ### Community 13 - "Team & Capacity & Role"
 Cohesion: 0.33
-Nodes (5): 1. RAID Classifications, 2. Threat Exposure Calculations, 3. Mitigation Plans and Owners, Scoring Reference:, Unified RAID Register
+Nodes (4): capture_screenshots.py Launches ProjectPulse in a headless Chromium browser, see, Set localStorage state, navigate to view, wait and screenshot., Set localStorage state, navigate to view, wait and screenshot., seed_and_screenshot()
 
 ### Community 14 - "Defects & Defect & Bug"
 Cohesion: 0.33
-Nodes (5): Architecture Schematic, code:block1 ([LocalStorage/IndexedDB Backup Store]), Daily Automated Synchronization, Directory Navigation & Feature Guides, ProjectPulse User Manual — Master Index
+Nodes (5): 1. RAID Classifications, 2. Threat Exposure Calculations, 3. Mitigation Plans and Owners, Scoring Reference:, Unified RAID Register
 
 ### Community 15 - "Reports & Board & Md"
 Cohesion: 0.33
-Nodes (5): 1. Parent-Child Hierarchies, 2. Spreadsheet-Style Inline Editing, 3. Complexity & Estimation Scaling, code:block1 ([Deliverable 1: Core API Setup]), Hierarchical Delivery Matrix
+Nodes (5): Architecture Schematic, code:block1 ([LocalStorage/IndexedDB Backup Store]), Daily Automated Synchronization, Directory Navigation & Feature Guides, ProjectPulse User Manual — Master Index
 
 ### Community 16 - "Activity & Md & Audit"
-Cohesion: 0.4
-Nodes (3): capture_screenshots.py Launches ProjectPulse in a headless Chromium browser, see, Set localStorage state, navigate to view, wait and screenshot., seed_and_screenshot()
+Cohesion: 0.33
+Nodes (5): 1. Parent-Child Hierarchies, 2. Spreadsheet-Style Inline Editing, 3. Complexity & Estimation Scaling, code:block1 ([Deliverable 1: Core API Setup]), Hierarchical Delivery Matrix
 
 ### Community 17 - "Project & Status & Md"
 Cohesion: 0.4
@@ -154,7 +154,7 @@ Cohesion: 0.5
 Nodes (3): 1. Automated Action Logging, 2. Session Rollback Capability, Audit Log & Activity Streams
 
 ## Knowledge Gaps
-- **137 isolated node(s):** `build_pcd.py ============ Builds the ProjectPulse Product Capabilities Document`, `build_fsd.py ============ Builds the ProjectPulse Functional Specification Docum`, `fs`, `path`, `PROJECT_ROOT` (+132 more)
+- **138 isolated node(s):** `build_pcd.py ============ Builds the ProjectPulse Product Capabilities Document`, `build_fsd.py ============ Builds the ProjectPulse Functional Specification Docum`, `fs`, `path`, `PROJECT_ROOT` (+133 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **1 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -172,6 +172,6 @@ _Questions this graph is uniquely positioned to answer:_
 - **Are the 3 inferred relationships involving `build_umi()` (e.g. with `main()` and `new_document()`) actually correct?**
   _`build_umi()` has 3 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `build_pcd.py ============ Builds the ProjectPulse Product Capabilities Document`, `build_fsd.py ============ Builds the ProjectPulse Functional Specification Docum`, `fs` to the rest of the system?**
-  _137 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _138 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Readme & State & Block` be split into smaller, more focused modules?**
   _Cohesion score 0.06 - nodes in this community are weakly interconnected._

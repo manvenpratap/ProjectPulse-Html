@@ -198,7 +198,8 @@ DEMO_STATE = {
 }
 
 VIEWS = [
-    ("dash",      "01_overview_dashboard"),
+    ("overview",  "01_overview_dashboard"),
+    ("dash",      "01b_insights_analytics"),
     ("tasks",     "02_delivery_matrix"),
     ("timeline",  "03_gantt_timeline"),
     ("scheduler", "04_weekly_scheduler"),

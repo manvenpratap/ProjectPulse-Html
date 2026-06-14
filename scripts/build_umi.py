@@ -186,6 +186,8 @@ def ch_insights(doc):
     make_body(doc,
         "The Insights module gives you deep visibility into project performance through "
         "EVM metrics, velocity trends, burn-up projections, and activity patterns.",space_after=8)
+    add_screenshot(doc,"01b_insights_analytics",
+        "Figure 3.1 — The Project Insights Dashboard showing EVM parameters, Burn-Up projection, and Weekly Velocity tracking.")
 
     make_heading(doc,"3.1  Reading EVM Metrics",level=2,color=CLR_ACCENT)
     make_body(doc,
