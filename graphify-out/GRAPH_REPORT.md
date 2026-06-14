@@ -1,16 +1,16 @@
 # Graph Report - ProjectPulse  (2026-06-14)
 
 ## Corpus Check
-- 27 files · ~607,824 words
+- 27 files · ~569,704 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 305 nodes · 476 edges · 25 communities (23 shown, 2 thin omitted)
+- 306 nodes · 480 edges · 25 communities (23 shown, 2 thin omitted)
 - Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 28 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `045887bf`
+- Built from commit: `35c96718`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -53,58 +53,58 @@
 10. `add_screenshot()` - 14 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `build_pcd()` --calls--> `new_document()`  [INFERRED]
-  scripts/build_pcd.py → scripts/docx_helpers.py
-- `build_pcd()` --calls--> `add_footer()`  [INFERRED]
-  scripts/build_pcd.py → scripts/docx_helpers.py
-- `main()` --calls--> `build_fsd()`  [INFERRED]
-  scripts/build_all.py → scripts/build_fsd.py
-- `build_umi()` --calls--> `new_document()`  [INFERRED]
-  scripts/build_umi.py → scripts/docx_helpers.py
-- `build_umi()` --calls--> `add_footer()`  [INFERRED]
-  scripts/build_umi.py → scripts/docx_helpers.py
+- `main()` --calls--> `build_pcd()`  [INFERRED]
+  scripts/build_all.py → scripts/build_pcd.py
+- `build_fsd()` --calls--> `new_document()`  [INFERRED]
+  scripts/build_fsd.py → scripts/docx_helpers.py
+- `build_fsd()` --calls--> `add_footer()`  [INFERRED]
+  scripts/build_fsd.py → scripts/docx_helpers.py
+- `build_fsd()` --calls--> `add_document_control()`  [INFERRED]
+  scripts/build_fsd.py → scripts/docx_helpers.py
+- `build_fsd()` --calls--> `add_section_divider()`  [INFERRED]
+  scripts/build_fsd.py → scripts/docx_helpers.py
 
 ## Communities (25 total, 2 thin omitted)
 
 ### Community 0 - "Configuration & Reference & Status"
-Cohesion: 0.1
-Nodes (38): build_fsd(), fsd_appendices(), fsd_audit(), fsd_baselines(), fsd_config(), fsd_defects(), fsd_delivery(), fsd_gantt() (+30 more)
-
-### Community 1 - "Readme & State & Block"
 Cohesion: 0.25
 Nodes (33): add_callout(), add_data_table(), add_horizontal_rule(), add_page_break(), add_screenshot(), build_cover(), build_docx(), build_toc() (+25 more)
 
-### Community 2 - "Architecture & Audit & State"
+### Community 1 - "Readme & State & Block"
 Cohesion: 0.06
 Nodes (30): 1. Codebase Architecture & File Map, 2. Global State Schema (`P` Object), 3. Entity Schemas, 4. Core Function Registry, 5. Storage & Persistence Tiers, 6. Authoritative Business Rules, 7. Change Log (Milestones), A. Core Data Arrays (+22 more)
 
+### Community 2 - "Architecture & Audit & State"
+Cohesion: 0.12
+Nodes (25): build_pcd(), ch_appendix(), ch_capabilities(), ch_capability_matrix(), ch_differentiators(), ch_exec_summary(), ch_gallery(), ch_product_overview() (+17 more)
+
 ### Community 3 - "Manual & State & Md"
+Cohesion: 0.19
+Nodes (24): build_fsd(), fsd_appendices(), fsd_audit(), fsd_baselines(), fsd_config(), fsd_defects(), fsd_delivery(), fsd_gantt() (+16 more)
+
+### Community 4 - "Changelog & 2026 & 05"
 Cohesion: 0.1
 Nodes (20): Active Dropdown Options, Category, Complexity, Configuration Reference, Decision Status, Defect Priority, Defect Severity, Defect Status (+12 more)
 
-### Community 4 - "Changelog & 2026 & 05"
+### Community 5 - "Schedule & Manual & Check"
+Cohesion: 0.17
+Nodes (18): main(), build_all.py ============ Master build orchestrator for the ProjectPulse three-d, build_umi(), ch_audit(), ch_config(), ch_defects(), ch_delivery(), ch_gantt() (+10 more)
+
+### Community 6 - "Readme & Typescript & Entity"
 Cohesion: 0.11
 Nodes (17): 1. Global State Schema & Lifecycle, 1. In-place Mutation of Legacy Globals, 2. Core Subsystem Map, 2. High Mixing of Business Logic and DOM Operations, 3. Identified Code Smells, Redundancies, and Coupling, 3. Redundant / Brittle Script Utilities (`fix_orphan.py` bug), 4. Refactoring Strategy, A. Scheduling Engine (`recalcDatesAndStatus` & `recalcGUIScreen`) (+9 more)
 
-### Community 5 - "Schedule & Manual & Check"
+### Community 7 - "Scheduler & The & Heuristic"
 Cohesion: 0.12
 Nodes (16): CONFIG_MD_FILE, defaultTasksMatch, docsDir, dropdowns, evalStr, fs, HTML_FILE, htmlContent (+8 more)
 
-### Community 6 - "Readme & Typescript & Entity"
-Cohesion: 0.22
-Nodes (16): build_umi(), ch_audit(), ch_config(), ch_defects(), ch_delivery(), ch_gantt(), ch_getting_started(), ch_insights() (+8 more)
-
-### Community 7 - "Scheduler & The & Heuristic"
+### Community 8 - "Overview & Md & Executive"
 Cohesion: 0.12
 Nodes (15): 12 Change Log Baseline, 📅 [2026-05-14] - Baseline Documentation Established, 📅 [2026-05-17] - Dashboard Rendering Optimization (O(1) Caching & Batched Drawing), 📅 [2026-05-17] - Defect Categories Widget `undefined` Chart Label Fix, 📅 [2026-05-17] - Defect Hotspots Entity Resolution Fix, 📅 [2026-05-17] - Defect Intelligence Widget `Unlinked` Module Mapping Resolution, 📅 [2026-05-17] - Dynamic Dashboard Mini-Map Integration, 📅 [2026-05-17] - Premium Theme Expansion (User Request #3) (+7 more)
 
-### Community 8 - "Overview & Md & Executive"
+### Community 9 - "Risks & Raid & Md"
 Cohesion: 0.14
 Nodes (10): checkMode, { execSync }, fs, LAUNCH_AGENT_DIR, LOG_FILE, path, PLIST_FILE, PROJECT_ROOT (+2 more)
-
-### Community 9 - "Risks & Raid & Md"
-Cohesion: 0.24
-Nodes (11): main(), build_all.py ============ Master build orchestrator for the ProjectPulse three-d, build_pcd(), ch_appendix(), ch_capabilities(), ch_capability_matrix(), ch_differentiators(), ch_exec_summary() (+3 more)
 
 ### Community 10 - "Readme & Md & Project"
 Cohesion: 0.2
@@ -162,11 +162,11 @@ Nodes (3): 1. Automated Action Logging, 2. Session Rollback Capability, Audit Lo
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `build_fsd()` connect `Configuration & Reference & Status` to `Risks & Raid & Md`?**
+- **Why does `build_fsd()` connect `Manual & State & Md` to `Architecture & Audit & State`, `Schedule & Manual & Check`?**
   _High betweenness centrality (0.023) - this node is a cross-community bridge._
-- **Why does `build_umi()` connect `Readme & Typescript & Entity` to `Configuration & Reference & Status`, `Risks & Raid & Md`?**
+- **Why does `build_umi()` connect `Schedule & Manual & Check` to `Architecture & Audit & State`?**
   _High betweenness centrality (0.021) - this node is a cross-community bridge._
-- **Why does `build_pcd()` connect `Risks & Raid & Md` to `Configuration & Reference & Status`?**
+- **Why does `build_pcd()` connect `Architecture & Audit & State` to `Schedule & Manual & Check`?**
   _High betweenness centrality (0.013) - this node is a cross-community bridge._
 - **Are the 5 inferred relationships involving `build_fsd()` (e.g. with `new_document()` and `add_footer()`) actually correct?**
   _`build_fsd()` has 5 INFERRED edges - model-reasoned connections that need verification._
@@ -174,5 +174,5 @@ _Questions this graph is uniquely positioned to answer:_
   _`build_umi()` has 3 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `capture_widgets.py ================== Captures element-specific cropped screensh`, `build_pcd.py ============ Builds the ProjectPulse Product Capabilities Document`, `build_fsd.py ============ Builds the ProjectPulse Functional Specification Docum` to the rest of the system?**
   _139 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `Configuration & Reference & Status` be split into smaller, more focused modules?**
-  _Cohesion score 0.1 - nodes in this community are weakly interconnected._
+- **Should `Readme & State & Block` be split into smaller, more focused modules?**
+  _Cohesion score 0.06 - nodes in this community are weakly interconnected._
