@@ -11059,6 +11059,9 @@
               <div id="admin-backups-tab" class="admin-sub-panel" style="display:none">
                 <div id="backups-container" style="width:100%"></div>
               </div>
+              <div id="admin-baselines-tab" class="admin-sub-panel" style="display:none">
+                <div id="baselines-container" style="width:100%"></div>
+              </div>
               <div id="admin-view_order-tab" class="admin-sub-panel" style="display:none">
                 <div id="view_order-container" style="width:100%"></div>
               </div>
@@ -16316,13 +16319,25 @@ load() {
       return PulseState.updateDefectInflowWeeks(w);
     }
     function createBaselineSnapshot(name, desc) {
-      return PulseState.createBaselineSnapshot(name, desc);
+      const res = PulseState.createBaselineSnapshot(name, desc);
+      if (res && P._adminActiveTab === 'baselines' && typeof renderSettingsBaselines === 'function') {
+        renderSettingsBaselines();
+      }
+      return res;
     }
     function deleteBaselineSnapshot(baselineId) {
-      return PulseState.deleteBaselineSnapshot(baselineId);
+      const res = PulseState.deleteBaselineSnapshot(baselineId);
+      if (res && P._adminActiveTab === 'baselines' && typeof renderSettingsBaselines === 'function') {
+        renderSettingsBaselines();
+      }
+      return res;
     }
     function restoreBaselineSnapshot(baselineId) {
-      return PulseState.restoreBaselineSnapshot(baselineId);
+      const res = PulseState.restoreBaselineSnapshot(baselineId);
+      if (res && P._adminActiveTab === 'baselines' && typeof renderSettingsBaselines === 'function') {
+        renderSettingsBaselines();
+      }
+      return res;
     }
 
     // ══════ UI HELPERS ══════
@@ -24575,6 +24590,20 @@ load() {
             <div style="margin-bottom:8px"><i data-lucide="layers"></i> <b>Step Templates:</b> Standardize repetitive workflows into reusable step checklists.</div>
             <div style="margin-bottom:8px">⚡ <b>Auto-Calculation:</b> Aggregate effort durations are computed automatically.</div>
           `;
+        } else if (tab === 'baselines') {
+          const snapshotCount = (P.baselines || []).reduce((acc, b) => {
+            if (!acc.includes(b.id)) acc.push(b.id);
+            return acc;
+          }, []).length;
+          sbStats.innerHTML = `
+            <div class="sb-stat"><span>Snapshots</span><span class="val">${snapshotCount}</span></div>
+            <div class="sb-stat"><span>Captured</span><span class="val">${(P.baselines || []).length} tasks</span></div>
+            <div class="sb-stat"><span>Status</span><span class="val" style="color:var(--color-primary)">ACTIVE</span></div>
+          `;
+          qhContent = `
+            <div style="margin-bottom:8px"><i data-lucide="history"></i> <b>Schedule Baselines:</b> Track baseline vs actual/forecast date performance.</div>
+            <div style="margin-bottom:8px">📸 <b>Snapshots:</b> Take full project backups before key milestone commitments.</div>
+          `;
         } else if (tab === 'log') {
           sbStats.innerHTML = `
             <div class="sb-stat"><span>Activity</span><span class="val">${(P.log || []).length}</span></div>
@@ -24588,12 +24617,13 @@ load() {
         }
 
         // Build the Admin Navigation Menu in the sidebar
-        const setupSteps = ['general', 'complexity', 'backups', 'releases', 'steps', 'dropdowns', 'fields', 'blueprint', 'screens'];
+        const setupSteps = ['general', 'complexity', 'backups', 'baselines', 'releases', 'steps', 'dropdowns', 'fields', 'blueprint', 'screens'];
         const currentStepIdx = setupSteps.indexOf(tab);
         const stepMeta = [
           { id: 'general', label: 'General Settings', desc: 'Project configuration', icon: 'settings' },
           { id: 'complexity', label: 'Task Complexity', desc: 'Effort multipliers', icon: 'sliders' },
           { id: 'backups', label: 'Data Recovery', desc: 'Backups & Persistence', icon: 'database' },
+          { id: 'baselines', label: 'Schedule Baselines', desc: 'Schedules & snapshot history', icon: 'history' },
           { id: 'releases', label: 'Releases Roadmap', desc: 'Delivery milestones & schedule', icon: 'flag' },
           { id: 'steps', label: 'Step Templates', desc: 'Standardize task workflows', icon: 'layers' },
           { id: 'dropdowns', label: 'Option Libraries', desc: 'Configure global dropdown lists', icon: 'list-checks' },
