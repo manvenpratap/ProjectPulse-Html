@@ -70,7 +70,7 @@ def ch_overview(doc):
     make_heading(doc,"Chapter 2 — Executive Overview Dashboard",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
-        "The Overview Dashboard is your project's health command centre. "
+        "The Overview Dashboard is your project's health health command centre. "
         "It gives you an instant read on how your project is performing across "
         "four critical dimensions: schedule, risk, quality, and delivery confidence.",space_after=8)
     add_screenshot(doc,"01_overview_dashboard",
@@ -111,6 +111,72 @@ def ch_overview(doc):
     add_callout(doc,
         "The Sandbox never modifies your live schedule unless you click 'Commit Changes'. "
         "Discarding has no effect on your actual project data.",style="tip")
+
+    make_heading(doc,"2.4  Interactive Dashboard Widgets Reference Guide",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "ProjectPulse is built around an interactive, highly-customisable widget ecosystem. "
+        "Each widget acts as an information radiator, providing transparency on specific metrics.",space_after=8)
+
+    # Widget Catalog
+    make_heading(doc,"2.4.1  Schedule Pacing & Milestones Widget",level=3,color=CLR_NAVY)
+    make_body(doc,
+        "• Purpose: Shows upcoming delivery demands and recently achieved milestones.\n"
+        "• How to Read: Displays upcoming tasks due in 7, 14, and 30 days as badge counters. "
+        "Red badges indicate immediate pressure, amber shows moderate volume, and green indicates a light schedule. "
+        "A checklist below lists completed milestone tasks marked with green check circles.\n"
+        "• Actionable Insight: If the 7-day badge is Red, ensure the assignee list is fully staffed and no team member has planned leaves.",space_after=6)
+
+    make_heading(doc,"2.4.2  High-Priority RAID Risks Widget",level=3,color=CLR_NAVY)
+    make_body(doc,
+        "• Purpose: Surface the most critical threats to project execution.\n"
+        "• How to Read: Lists the top three active risks from the RAID register sorted by highest exposure score. "
+        "Each risk shows its ID, title, impact level, and designated owner.\n"
+        "• Actionable Insight: Assign owners immediately to any risk flagged with High impact to ensure mitigation activities are underway.",space_after=6)
+
+    make_heading(doc,"2.4.3  Strategic Module Status Matrix Widget",level=3,color=CLR_NAVY)
+    make_body(doc,
+        "• Purpose: Summarise software engineering progress across architectural modules.\n"
+        "• How to Read: A grid displaying modules (e.g., Core Engine, API Gateway) on rows and statuses on columns. "
+        "Numbers inside cells show the count of tasks, with a horizontal progress bar indicating completion percentage. "
+        "Hovering over elements reveals release mappings.\n"
+        "• Actionable Insight: Check for modules with 0% progress when close to their target release versions to prevent release slippage.",space_after=6)
+
+    make_heading(doc,"2.4.4  Team Capacity Allocation Widget",level=3,color=CLR_NAVY)
+    make_body(doc,
+        "• Purpose: Visualise the distribution of effort across roles and disciplines.\n"
+        "• How to Read: Features a progress grid representing total planned hours allocated to each role (e.g., Lead Architect, QA, PM). "
+        "Shows percentage bars indicating resource utilisation ratios.\n"
+        "• Actionable Insight: A high QA utilization combined with low Developer progress implies QA resources are idle, suggesting tasks need sequencing adjustments.",space_after=6)
+
+    make_heading(doc,"2.4.5  High Impact Entities & Overdue Attention Widget",level=3,color=CLR_NAVY)
+    make_body(doc,
+        "• Purpose: Identify tasks blocking downstream work or lagging past their deadlines.\n"
+        "• How to Read: Lists critical path items with high follower counts, and overdue items. "
+        "Red badges indicate tasks past their due date, while warning icons highlight blockers with multiple dependents.\n"
+        "• Actionable Insight: Allocate senior developers to resolve overdue blocking tasks immediately to prevent compounding delays.",space_after=6)
+
+    make_heading(doc,"2.4.6  Defect Intelligence Bento Grid Widget",level=3,color=CLR_NAVY)
+    make_body(doc,
+        "• Purpose: Track product quality metrics and defect density.\n"
+        "• How to Read: A collection of indicators presenting defects grouped by S1-S4 Severity (e.g. Blocker, High), "
+        "priority distribution, and resolution rate (Closed vs. Open). Displays defect counts linked per code module.\n"
+        "• Actionable Insight: An S1 Blocker count above zero triggers a high-severity red alert. QA testing should pause on that module until resolved.",space_after=6)
+
+    make_heading(doc,"2.4.7  Predictive Intelligence Widget",level=3,color=CLR_NAVY)
+    make_body(doc,
+        "• Purpose: Machine learning-driven forecast of final delivery timelines.\n"
+        "• How to Read: Displays an estimated completion date and a risk factor score. "
+        "Accounts for historically logged actual effort versus baseline schedules to project delays.\n"
+        "• Actionable Insight: If the predictive completion date drifts past the project deadline, trigger a re-scoping exercise or utilize the Sandbox to model capacity shifts.",space_after=6)
+
+    make_heading(doc,"2.4.8  Advanced Analytics: Burn-up & Velocity Widgets",level=3,color=CLR_NAVY)
+    make_body(doc,
+        "• Purpose: Monitor long-term pacing and team output.\n"
+        "• How to Read: The Burn-up chart plots scope lines alongside completed hours. "
+        "The Weekly Velocity widget shows a bar chart of effort completed week-over-week. "
+        "The Cumulative Flow diagram highlights task volume by state over time.\n"
+        "• Actionable Insight: Flat weekly velocity indicates operational bottlenecks or unlogged work, requiring status reviews.",space_after=6)
+
     add_page_break(doc)
 
 
