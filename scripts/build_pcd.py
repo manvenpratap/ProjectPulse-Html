@@ -104,6 +104,15 @@ def ch_product_overview(doc):
         ],
         col_widths=[2.2, 4.2],
     )
+
+    make_heading(doc, "1.3  System Architecture Design & Data Flow Lifecycle", level=2, color=CLR_ACCENT)
+    make_body(doc,
+        "ProjectPulse is built on a decentralized philosophy. Since the entire application runs "
+        "client-side, data flows directly between the user interface, a fast local memory cache, "
+        "and browser localStorage. The diagram below illustrates how data is modified in memory, "
+        "automatically synchronized to browser storage, and exported to external Excel/JSON files on demand.",
+        space_after=8)
+    add_screenshot(doc, "diagrams/system_architecture", "Figure 1.1 — ProjectPulse Client-Side SPA System Architecture & Data Flow")
     add_page_break(doc)
 
 
@@ -221,6 +230,8 @@ def ch_capabilities(doc):
         make_body(doc, desc, space_after=8)
         if ss:
             add_screenshot(doc, ss, cap)
+        if num == "2.9":
+            add_screenshot(doc, "diagrams/report_workflow", "Figure 2.9b — Report Compilation and Board Pack Export Pipeline Flow")
         doc.add_paragraph()
 
     add_page_break(doc)

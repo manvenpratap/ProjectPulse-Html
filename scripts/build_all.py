@@ -27,6 +27,13 @@ def main():
     print(f"  Started: {datetime.datetime.now().strftime('%d %B %Y, %H:%M:%S')}")
     print("="*65)
 
+    # Automatically generate/refresh diagrams
+    try:
+        from generate_diagrams import main as run_diag
+        run_diag()
+    except Exception as ex:
+        print(f"  [WARNING] Failed to generate diagrams: {ex}")
+
     if build_pcd_flag:
         try:
             t0 = time.time()

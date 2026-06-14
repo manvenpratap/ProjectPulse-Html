@@ -127,6 +127,13 @@ def part1_architecture(doc):
     make_numbered(doc,"updateNavBadges() — updates notification badges on the navigation bar.")
     make_numbered(doc,"updateHealthPulse() — refreshes the top-bar health pulse indicator.")
     doc.add_paragraph()
+
+    make_heading(doc,"2.6  Architecture Flow & Persistence Lifecycle",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below illustrates the Client-Side SPA System Architecture & Data Flow, "
+        "including the UI render pipeline, memory caching layers, localStorage debounced auto-saves, "
+        "and File System imports/exports.",space_after=8)
+    add_screenshot(doc, "diagrams/system_architecture", "Figure 2.1 — ProjectPulse Client-Side SPA System Architecture & Data Flow")
     add_page_break(doc)
 
 
@@ -474,6 +481,12 @@ def fsd_overview(doc):
     add_callout(doc,
         "Always capture a Schedule Baseline (see Section 16) before clicking Commit. "
         "A Commit operation is irreversible without a baseline to restore from.",style="caution")
+
+    make_heading(doc,"6.6  What-If Sandbox Simulation Workflow",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below outlines the Sandbox simulation workflow, showing how to activate, model, "
+        "and either commit or discard changes without impacting your live schedule.",space_after=8)
+    add_screenshot(doc, "diagrams/sandbox_workflow", "Figure 6.2 — Sandbox Simulation Workflow and State Reversion")
     add_page_break(doc)
 
 
@@ -508,6 +521,13 @@ def fsd_insights(doc):
         ],
         col_widths=[1.8,0.5,2.2,1.0,1.9],
     )
+
+    make_heading(doc,"7.1.1  EVM Metrics Curves & Performance Bands",level=3,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below displays the standard EVM metrics curves — comparing Planned Value (PV), "
+        "Earned Value (EV), and Actual Cost (AC) over time. It details the visual performance index "
+        "bands for schedule and cost performance, highlighting variances.",space_after=8)
+    add_screenshot(doc, "diagrams/evm_calculation", "Figure 7.1 — EVM Metrics Comparison Curves & Performance Bands")
 
     make_heading(doc,"7.2  Burn-Up Chart Rendering",level=2,color=CLR_ACCENT)
     make_body(doc,
@@ -596,6 +616,12 @@ def fsd_delivery(doc):
         ["Cancelled",    "Not Started",    "No guard (re-activate)","Log Status Changed entry."],
     ])
 
+    make_heading(doc,"8.3.1  Task Lifecycle State Machine Transition Diagram",level=3,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below outlines the valid status transitions within the ProjectPulse Task Lifecycle, "
+        "including transition guards, blocked/hold state paths, and re-activation triggers.",space_after=8)
+    add_screenshot(doc, "diagrams/task_lifecycle", "Figure 8.2 — Task State Machine & Transition Paths")
+
     make_heading(doc,"8.4  Complexity Scoring Model",level=2,color=CLR_ACCENT)
     make_formula(doc,
         "complexityPoints(task) = task.estEffort * P.complexityFactors[task.complexity]")
@@ -667,6 +693,13 @@ def fsd_gantt(doc):
     make_body(doc,"Bezier path formula:",space_after=4)
     make_code(doc,
         "d = `M ${x1} ${y1}  C ${x1+40} ${y1}  ${x2-40} ${y2}  ${x2} ${y2}`")
+
+    make_heading(doc,"9.2.1  Gantt Dependency Flow & Date Cascade Cascade",level=3,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below displays the Gantt Bezier dependency linking mechanism, showing "
+        "predecessor-to-successor date cascades, visual highlighting of violated dates, "
+        "and downstream rescheduling propagation.",space_after=8)
+    add_screenshot(doc, "diagrams/gantt_dependencies", "Figure 9.2 — Gantt Dependency Linkage and Cascading Reschedule Flow")
 
     make_heading(doc,"9.3  Drag-to-Reschedule",level=2,color=CLR_ACCENT)
     make_body(doc,
@@ -760,6 +793,13 @@ def fsd_scheduler(doc):
         "All Copilot resolutions are applied to P.sandboxTasks only. "
         "The Diagnostics panel shows the proposed changes in full before the user clicks Commit.",style="rule")
 
+    make_heading(doc,"10.5.1  Scheduler Conflict Auto-Resolution Workflow",level=3,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below outlines the auto-resolution loop executed by the Scheduler's Copilot, "
+        "illustrating how capacity conflicts are diagnosed and resolved using the auto-sequence, "
+        "smart reassignment, and cascading shift heuristics.",space_after=8)
+    add_screenshot(doc, "diagrams/scheduler_workflow", "Figure 10.2 — Copilot Auto-Resolution Decision Path & Heuristics Loop")
+
     make_heading(doc,"10.6  Sandbox Lifecycle — State Machine",level=2,color=CLR_ACCENT)
     add_transition_table(doc,[
         ["INACTIVE","ACTIVE (CLEAN)", "User enables Sandbox toggle", "Deep-clone P.tasks into P.sandboxTasks."],
@@ -828,6 +868,12 @@ def fsd_raid(doc):
         ["Mitigated", "Active",    "Mitigation proved ineffective",         "Clear closedDate. Reassign owner. Log re-activation."],
         ["Identified","Closed",    "Item found invalid upon triage",        "Set closedDate. Log closure."],
     ])
+
+    make_heading(doc,"11.3.1  RAID Threat Evaluation & Mitigation Workflow",level=3,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below outlines the complete RAID governance lifecycle, illustrating risk discovery, "
+        "5x5 scoring assessment, owner assignment, mitigation monitoring, and resolution closure.",space_after=8)
+    add_screenshot(doc, "diagrams/raid_lifecycle", "Figure 11.2 — RAID Threat Assessment & Resolution Process")
 
     make_heading(doc,"11.4  Dashboard Health Integration",level=2,color=CLR_ACCENT)
     make_formula(doc,
@@ -928,6 +974,12 @@ def fsd_defects(doc):
         ["Assigned", "Deferred",  "Fix postponed to future release",            "Log Status Changed with release target."],
     ])
 
+    make_heading(doc,"13.2.1  Defect Lifecycle & Retest Verification Pipeline",level=3,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below outlines the full state machine of the Defect lifecycle, illustrating triage, "
+        "rejection, dev assignment, fixing, testing/retesting loops, and closure verification.",space_after=8)
+    add_screenshot(doc, "diagrams/defect_lifecycle", "Figure 13.2 — Defect Lifecycle & Retesting Decision Paths")
+
     make_heading(doc,"13.3  S1 Blocker Escalation Workflow",level=2,color=CLR_ACCENT)
     make_numbered(doc,"S1 Blocker logged: Red alert banner immediately appears on Overview Dashboard.")
     make_numbered(doc,"24-hour SLA countdown timer starts from defect creation timestamp.")
@@ -955,6 +1007,13 @@ def fsd_reports(doc):
     make_numbered(doc,"Top 5 RAID Items: RAID items ranked by exposureScore descending, with owner and mitigation summary.")
     make_numbered(doc,"Team Velocity: 4-week rolling average from P.cache.velocityHistory.")
     doc.add_paragraph()
+
+    make_heading(doc,"14.1.1  Report Compilation & Board Pack Compilation Workflow",level=3,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below displays the Report Compilation and Board Pack Export Pipeline Flow, "
+        "detailing how data is gathered from various cache modules, formatted, and exported to PDF/Word "
+        "or Excel sheets.",space_after=8)
+    add_screenshot(doc, "diagrams/report_workflow", "Figure 14.2 — Report and Board Pack Generation Pipeline")
 
     make_heading(doc,"14.2  Excel Workbook Architecture — 8 Sheets",level=2,color=CLR_ACCENT)
     add_data_table(doc,
@@ -1079,6 +1138,13 @@ def fsd_baselines(doc):
         "A restore operation overwrites all current planned dates. "
         "Always capture a 'Current State' snapshot before restoring a historical baseline, "
         "so you can return to the pre-restore position if needed.",style="caution")
+
+    make_heading(doc,"16.4.1  Schedule Baseline Management & Restoration Loop",level=3,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below outlines the schedule baseline capture, variance tracking, and restoration loops. "
+        "It visualizes how current planned dates compare to baseline snapshots and how they can be reverted "
+        "safely.",space_after=8)
+    add_screenshot(doc, "diagrams/baseline_workflow", "Figure 16.1 — Baseline Snapshot Capture and Restoration Workflow")
     add_page_break(doc)
 
 

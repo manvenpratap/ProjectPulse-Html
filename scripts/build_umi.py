@@ -63,6 +63,13 @@ def ch_getting_started(doc):
     add_callout(doc,
         "Never close the browser tab while the 'Saving...' indicator is active. "
         "Wait for it to disappear before closing to ensure your last changes are saved.",style="caution")
+
+    make_heading(doc,"1.4  System Architecture & Data Flow",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "ProjectPulse is built as a single-page application (SPA) running entirely client-side. "
+        "The diagram below explains how data flows between the user interface, in-memory cache, "
+        "local browser storage, and external file exports.",space_after=8)
+    add_screenshot(doc, "diagrams/system_architecture", "Figure 1.2 — ProjectPulse Client-Side SPA System Architecture & Data Flow")
     add_page_break(doc)
 
 
@@ -111,6 +118,12 @@ def ch_overview(doc):
     add_callout(doc,
         "The Sandbox never modifies your live schedule unless you click 'Commit Changes'. "
         "Discarding has no effect on your actual project data.",style="tip")
+
+    make_heading(doc,"2.3.1  What-If Sandbox Simulation Workflow",level=3,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below outlines the Sandbox simulation workflow, showing how to activate, model, "
+        "and either commit or discard changes without impacting your live schedule.",space_after=8)
+    add_screenshot(doc, "diagrams/sandbox_workflow", "Figure 2.2 — Sandbox Simulation Workflow and State Reversion")
 
     make_heading(doc,"2.4  Interactive Dashboard Widgets Reference Guide",level=2,color=CLR_ACCENT)
     make_body(doc,
@@ -201,6 +214,13 @@ def ch_insights(doc):
         "EVM metrics are most meaningful after 2+ weeks of task completions. "
         "On new projects, give the analytics a week to calibrate.",style="note")
 
+    make_heading(doc,"3.1.1  EVM Calculation and Performance Index Bands",level=3,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below displays the standard EVM metrics curves — comparing Planned Value (PV), "
+        "Earned Value (EV), and Actual Cost (AC) over time. It details the visual performance index "
+        "bands for schedule and cost performance, highlighting variances.",space_after=8)
+    add_screenshot(doc, "diagrams/evm_calculation", "Figure 3.2 — EVM Metrics Comparison Curves & Performance Bands")
+
     make_heading(doc,"3.2  Reading the Burn-Up Chart",level=2,color=CLR_ACCENT)
     make_body(doc,
         "The burn-up chart shows your project's progress trajectory:",space_after=4)
@@ -256,6 +276,12 @@ def ch_delivery(doc):
     make_numbered(doc,"The status pill updates immediately and the change is recorded in the Audit Log.")
     doc.add_paragraph()
 
+    make_heading(doc,"4.3.1  Task Lifecycle State Transition Diagram",level=3,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below outlines the valid status transitions within the ProjectPulse Task Lifecycle, "
+        "including transition guards, blocked/hold state paths, and re-activation triggers.",space_after=8)
+    add_screenshot(doc, "diagrams/task_lifecycle", "Figure 4.3 — Task State Machine & Transition Paths")
+
     make_heading(doc,"4.4  Filtering Tasks",level=2,color=CLR_ACCENT)
     make_numbered(doc,"Click the Filter icon in the top-right toolbar to open the filter panel.")
     make_numbered(doc,"Select one or more values in any filter category (Status, Assignee, Module, Priority, etc.).")
@@ -304,6 +330,13 @@ def ch_gantt(doc):
     make_bullet(doc,"Blue arrow: The predecessor task is in progress. Dependency is active.")
     make_bullet(doc,"Red arrow: VIOLATION — the successor task starts before the predecessor finishes. Needs attention.")
     doc.add_paragraph()
+
+    make_heading(doc,"5.2.1  Gantt Dependency Flow & Date Cascade Cascade",level=3,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below displays the Gantt Bezier dependency linking mechanism, showing "
+        "predecessor-to-successor date cascades, visual highlighting of violated dates, "
+        "and downstream rescheduling propagation.",space_after=8)
+    add_screenshot(doc, "diagrams/gantt_dependencies", "Figure 5.2 — Gantt Dependency Linkage and Cascading Reschedule Flow")
 
     make_heading(doc,"5.3  Rescheduling Tasks by Drag",level=2,color=CLR_ACCENT)
     make_numbered(doc,"Click and hold on a task bar.")
@@ -364,6 +397,13 @@ def ch_scheduler(doc):
         "The Copilot is designed to make smart, conservative choices. "
         "It will never reassign a task to a member with a different role, "
         "and it always preserves task durations when shifting dates.",style="rule")
+
+    make_heading(doc,"6.3.1  Scheduler Conflict Auto-Resolution Workflow",level=3,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below outlines the auto-resolution loop executed by the Scheduler's Copilot, "
+        "illustrating how capacity conflicts are diagnosed and resolved using the auto-sequence, "
+        "smart reassignment, and cascading shift heuristics.",space_after=8)
+    add_screenshot(doc, "diagrams/scheduler_workflow", "Figure 6.2 — Copilot Auto-Resolution Decision Path & Heuristics Loop")
     add_page_break(doc)
 
 
@@ -411,6 +451,12 @@ def ch_raid(doc):
     make_bullet(doc,"Mitigated: Mitigation actions completed. Monitoring for recurrence over 2 weeks.")
     make_bullet(doc,"Realized (Risks only): The risk event occurred. Item should be converted to an Issue.")
     make_bullet(doc,"Closed: Item fully resolved. Archived for reporting purposes.")
+
+    make_heading(doc,"7.3.1  RAID Threat Evaluation & Mitigation Workflow",level=3,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below outlines the complete RAID governance lifecycle, illustrating risk discovery, "
+        "5x5 scoring assessment, owner assignment, mitigation monitoring, and resolution closure.",space_after=8)
+    add_screenshot(doc, "diagrams/raid_lifecycle", "Figure 7.3 — RAID Threat Assessment & Resolution Process")
     add_page_break(doc)
 
 
@@ -484,6 +530,12 @@ def ch_defects(doc):
     make_bullet(doc,"Retest -> Closed: QA confirms the fix is correct. Defect removed from Health Index.")
     make_bullet(doc,"Retest -> Assigned (re-open): QA finds the fix incomplete. Developer is reassigned.")
     make_bullet(doc,"Any -> Rejected: Defect is by design or cannot be reproduced. Requires a rejection reason.")
+
+    make_heading(doc,"9.2.1  Defect Lifecycle & Retest Verification Pipeline",level=3,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below outlines the full state machine of the Defect lifecycle, illustrating triage, "
+        "rejection, dev assignment, fixing, testing/retesting loops, and closure verification.",space_after=8)
+    add_screenshot(doc, "diagrams/defect_lifecycle", "Figure 9.3 — Defect Lifecycle & Retesting Decision Paths")
     add_page_break(doc)
 
 
@@ -504,6 +556,13 @@ def ch_reports(doc):
     make_numbered(doc,"Review the Board Pack contents: Project Summary, Health Trend, Critical Path, Top Risks, and Team Velocity.")
     make_numbered(doc,"Click 'Print' to send to a printer or 'Save as PDF' to generate a PDF file.")
     doc.add_paragraph()
+
+    make_heading(doc,"10.1.1  Report Compilation & Board Pack Compilation Workflow",level=3,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below displays the Report Compilation and Board Pack Export Pipeline Flow, "
+        "detailing how data is gathered from various cache modules, formatted, and exported to PDF/Word "
+        "or Excel sheets.",space_after=8)
+    add_screenshot(doc, "diagrams/report_workflow", "Figure 10.2 — Report and Board Pack Generation Pipeline")
 
     make_heading(doc,"10.2  Exporting to Excel",level=2,color=CLR_ACCENT)
     make_numbered(doc,"Click 'Export to Excel' in the Reports module.")
@@ -597,6 +656,13 @@ def ch_config(doc):
     add_callout(doc,
         "Best practice: Capture a baseline at project kickoff and again at each major phase gate or re-scope. "
         "This gives you a clear record of schedule evolution over the project lifetime.",style="tip")
+
+    make_heading(doc,"12.4.1  Schedule Baseline Management & Restoration Loop",level=3,color=CLR_ACCENT)
+    make_body(doc,
+        "The diagram below outlines the schedule baseline capture, variance tracking, and restoration loops. "
+        "It visualizes how current planned dates compare to baseline snapshots and how they can be reverted "
+        "safely.",space_after=8)
+    add_screenshot(doc, "diagrams/baseline_workflow", "Figure 12.2 — Baseline Snapshot Capture and Restoration Workflow")
     add_page_break(doc)
 
 
