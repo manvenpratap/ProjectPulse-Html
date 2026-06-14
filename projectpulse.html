@@ -14459,6 +14459,110 @@
         stateP.defectInflowWeeks = val;
         save();
         render();
+      },
+
+      createBaselineSnapshot(name, desc) {
+        const stateP = PulseState.P;
+        if (stateP.readonly) { notify('Action disabled in View-Only mode', 'amber'); return; }
+        if (!name || !name.trim()) { notify('Baseline name is required', 'err'); return; }
+
+        const getDaysDiff = (d1, d2) => {
+          if (!d1 || !d2) return 0;
+          const t1 = new Date(d1).getTime();
+          const t2 = new Date(d2).getTime();
+          if (isNaN(t1) || isNaN(t2)) return 0;
+          return Math.round((t1 - t2) / 864e5);
+        };
+
+        stateP.nextBaselineId = stateP.nextBaselineId || 1;
+        const bslnId = 'BSLN-' + String(stateP.nextBaselineId++).padStart(3, '0');
+        const snapDate = todayStr();
+
+        stateP.tasks.forEach(t => {
+          t.baselineStartDate = t.startDate || todayStr();
+          t.baselineDueDate = t.dueDate || todayStr();
+          t.baselineEffort = parseFloat(t.estEffort) || 0;
+
+          const b = {
+            id: bslnId,
+            name: name.trim(),
+            desc: (desc || '').trim(),
+            taskId: t.id,
+            taskName: t.name,
+            baselineStartDate: t.baselineStartDate,
+            baselineDueDate: t.baselineDueDate,
+            baselineEffort: t.baselineEffort,
+            actStartDate: (t.status !== 'Not Started') ? (t.startDate || todayStr()) : '',
+            actDueDate: t.actCompletionDate || '',
+            actEffort: parseFloat(t.actEffort) || 0,
+            varianceDays: getDaysDiff(t.actCompletionDate || t.dueDate || todayStr(), t.baselineDueDate),
+            slippageReason: t.slippageReason || '',
+            snapshotDate: snapDate
+          };
+          stateP.baselines.push(b);
+        });
+
+        PulseState.addLog('System', '', `Captured baseline snapshot "${name}" (${bslnId})`);
+        save();
+        render();
+        notify(`Baseline snapshot "${name}" captured successfully.`, 'success');
+      },
+
+      deleteBaselineSnapshot(baselineId) {
+        const stateP = PulseState.P;
+        if (stateP.readonly) { notify('Action disabled in View-Only mode', 'amber'); return; }
+        
+        const countBefore = stateP.baselines.length;
+        stateP.baselines = stateP.baselines.filter(b => b.id !== baselineId);
+        
+        if (stateP.baselines.length === countBefore) {
+          notify(`Baseline snapshot ${baselineId} not found`, 'amber');
+          return;
+        }
+
+        PulseState.addLog('System', '', `Deleted baseline snapshot ${baselineId}`);
+        save();
+        render();
+        notify(`Baseline snapshot ${baselineId} deleted`, 'success');
+      },
+
+      restoreBaselineSnapshot(baselineId) {
+        const stateP = PulseState.P;
+        if (stateP.readonly) { notify('Action disabled in View-Only mode', 'amber'); return; }
+
+        const snapRows = stateP.baselines.filter(b => b.id === baselineId);
+        if (!snapRows.length) {
+          notify(`Baseline snapshot ${baselineId} not found`, 'amber');
+          return;
+        }
+
+        const snapName = snapRows[0].name;
+
+        const snapMap = {};
+        snapRows.forEach(b => {
+          snapMap[b.taskId] = b;
+        });
+
+        let restoredCount = 0;
+        stateP.tasks.forEach(t => {
+          const b = snapMap[t.id];
+          if (b) {
+            t.startDate = b.baselineStartDate || t.startDate;
+            t.dueDate = b.baselineDueDate || t.dueDate;
+            t.estEffort = b.baselineEffort !== undefined ? b.baselineEffort : t.estEffort;
+            t.baselineStartDate = b.baselineStartDate || t.baselineStartDate;
+            t.baselineDueDate = b.baselineDueDate || t.baselineDueDate;
+            t.baselineEffort = b.baselineEffort !== undefined ? b.baselineEffort : t.baselineEffort;
+            restoredCount++;
+          }
+        });
+
+        stateP.tasks.forEach(t => recalcDatesAndStatus(t));
+
+        PulseState.addLog('System', '', `Restored baseline snapshot "${snapName}" (${baselineId})`);
+        save();
+        render();
+        notify(`Restored ${restoredCount} tasks from snapshot "${snapName}"`, 'success');
       }
     };
 
@@ -15033,6 +15137,7 @@ load() {
             }
 
             // Migrate legacy "Hours" fields to generic "Effort" keys
+            let migratedBaselines = false;
             if (P.tasks && Array.isArray(P.tasks)) {
               P.tasks.forEach(t => {
                 if (!t.complexity) t.complexity = 'Medium';
@@ -15041,6 +15146,20 @@ load() {
                 if (t.actHours !== undefined && t.actEffort === undefined) { t.actEffort = t.actHours; delete t.actHours; }
                 if (t.baselineHours !== undefined && t.baselineEffort === undefined) { t.baselineEffort = t.baselineHours; delete t.baselineHours; }
                 if (t.baseEstHours !== undefined && t.baseEstEffort === undefined) { t.baseEstEffort = t.baseEstHours; delete t.baseEstHours; }
+
+                // Automatically migrate/initialize task-level baseline fields from planned fields
+                if (t.baselineStartDate === undefined || t.baselineStartDate === null || t.baselineStartDate === '') {
+                  t.baselineStartDate = t.startDate || todayStr();
+                  migratedBaselines = true;
+                }
+                if (t.baselineDueDate === undefined || t.baselineDueDate === null || t.baselineDueDate === '') {
+                  t.baselineDueDate = t.dueDate || todayStr();
+                  migratedBaselines = true;
+                }
+                if (t.baselineEffort === undefined || t.baselineEffort === null || t.baselineEffort === '' || isNaN(parseFloat(t.baselineEffort))) {
+                  t.baselineEffort = parseFloat(t.estEffort) || 0;
+                  migratedBaselines = true;
+                }
               });
             }
 
@@ -15058,6 +15177,12 @@ load() {
             if (!P.settings.effortUnit) P.settings.effortUnit = 'days';
             if (!P.settings.hoursPerDay) P.settings.hoursPerDay = 8;
             if (!P.settings.daysPerWeek) P.settings.daysPerWeek = 5;
+
+            // Save automatically if baseline properties were migrated/initialized
+            if (migratedBaselines) {
+              PP.log('[ProjectPulse] Legacy baseline fields migrated for active tasks.');
+              setTimeout(() => save(), 100);
+            }
 
             // Update effort column labels based on current unit setting
             syncEffortColumnLabels();
@@ -16023,6 +16148,15 @@ load() {
     }
     function updateDefectInflowWeeks(w) {
       return PulseState.updateDefectInflowWeeks(w);
+    }
+    function createBaselineSnapshot(name, desc) {
+      return PulseState.createBaselineSnapshot(name, desc);
+    }
+    function deleteBaselineSnapshot(baselineId) {
+      return PulseState.deleteBaselineSnapshot(baselineId);
+    }
+    function restoreBaselineSnapshot(baselineId) {
+      return PulseState.restoreBaselineSnapshot(baselineId);
     }
 
     // ══════ UI HELPERS ══════
@@ -22255,6 +22389,7 @@ load() {
             <div class="admin-nav-item ${P._adminTab === 'general' ? 'active' : ''}" onclick="setAdminTab('general')"><i data-lucide="settings"></i> General</div>
             <div class="admin-nav-item ${P._adminTab === 'complexity' ? 'active' : ''}" onclick="setAdminTab('complexity')"><i data-lucide="sliders"></i> Task Complexity</div>
             <div class="admin-nav-item ${P._adminTab === 'backups' ? 'active' : ''}" onclick="setAdminTab('backups')"><i data-lucide="database"></i> Data Recovery</div>
+            <div class="admin-nav-item ${P._adminTab === 'baselines' ? 'active' : ''}" onclick="setAdminTab('baselines')"><i data-lucide="history"></i> Schedule Baselines</div>
             <div style="font-size:11px; font-weight:800; text-transform:uppercase; color:var(--color-text-muted); margin: 24px 16px 8px 16px; letter-spacing:0.05em">Advanced Builders</div>
             <div class="admin-nav-item" onclick="closeModal('settings-modal'); setView('fields')"><i data-lucide="layout-template"></i> Field Architect</div>
             <div class="admin-nav-item" onclick="closeModal('settings-modal'); setView('dropdowns')"><i data-lucide="list"></i> Options Libraries</div>
@@ -22337,6 +22472,59 @@ load() {
             <div class="shimmer" style="height:100px; border-radius:12px"></div>
           </div>
         `;
+      } else if (P._adminTab === 'baselines') {
+        const groups = {};
+        (P.baselines || []).forEach(b => {
+          if (!groups[b.id]) {
+            groups[b.id] = {
+              id: b.id,
+              name: b.name,
+              desc: b.desc,
+              snapshotDate: b.snapshotDate,
+              taskCount: 0
+            };
+          }
+          groups[b.id].taskCount++;
+        });
+        const snapshotList = Object.values(groups).sort((a, b) => b.id.localeCompare(a.id));
+
+        const listHtml = snapshotList.length ? snapshotList.map(s => `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:16px; border:1px solid var(--color-divider); border-radius:12px; margin-bottom:12px; background:var(--color-surface)">
+            <div>
+              <div style="font-weight:700; font-size:14px; color:var(--color-text)">${esc(s.name)} <span style="font-size:10px; font-weight:600; background:var(--color-surface-2); padding:2px 6px; border-radius:4px; margin-left:6px; color:var(--color-text-muted)">${esc(s.id)}</span></div>
+              <div style="font-size:12px; color:var(--color-text-muted); margin-top:4px">${esc(s.desc || 'No description')}</div>
+              <div style="font-size:11px; color:var(--color-text-faint); margin-top:6px">Captured on ${s.snapshotDate} · ${s.taskCount} tasks tracked</div>
+            </div>
+            <div style="display:flex; gap:8px">
+              <button class="btn ghost mini" style="color:var(--color-primary); font-weight:700" onclick="if(confirm('Restore snapshot ${esc(s.id)}? This will overwrite your current planned dates and active baseline fields.')) { restoreBaselineSnapshot('${esc(s.id)}'); }">Restore</button>
+              <button class="btn ghost mini" style="color:var(--red); font-weight:700" onclick="if(confirm('Delete snapshot ${esc(s.id)}? This cannot be undone.')) { deleteBaselineSnapshot('${esc(s.id)}'); }">Delete</button>
+            </div>
+          </div>
+        `).join('') : `
+          <div style="padding:32px; text-align:center; background:var(--color-surface-2); border-radius:12px; border:1px dashed var(--color-divider); color:var(--color-text-muted); font-size:12px">
+            No schedule baselines captured yet. Click above to create one.
+          </div>
+        `;
+
+        html = `
+          <div class="admin-sec-head">Schedule Baselines & Snapshots</div>
+          <p style="font-size:12px; color:var(--color-text-muted); margin-bottom:24px">
+            Capture project-wide snapshots of your current planned schedules to establish a baseline. 
+            This enables variance analysis, tracking slippages, and rollbacks.
+          </p>
+
+          <div style="background:var(--color-surface-2); border:1px solid var(--color-divider); border-radius:16px; padding:20px; margin-bottom:24px">
+            <div style="font-weight:700; font-size:15px; color:var(--color-text); margin-bottom:16px">Capture New Schedule Baseline</div>
+            <div class="fg"><label class="flbl">Baseline Name</label><input class="finp" id="new-baseline-name" value="Baseline - ${todayStr()}" placeholder="e.g. Initial Plan"></div>
+            <div class="fg"><label class="flbl">Description / Scope Notes</label><textarea class="finp" id="new-baseline-desc" rows="2" placeholder="Describe the milestones or project phase captured by this baseline..."></textarea></div>
+            <button class="btn primary" onclick="createBaselineSnapshot($id('new-baseline-name').value, $id('new-baseline-desc').value)">
+              <i data-lucide="camera" style="width:16px; height:16px; margin-right:6px"></i> Capture Snapshot
+            </button>
+          </div>
+
+          <div style="font-weight:800; font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px">Snapshot History</div>
+          <div id="baseline-history-list">${listHtml}</div>
+        `;
       }
 
       const selectHtml = `
@@ -22346,6 +22534,7 @@ load() {
             <option value="general" ${P._adminTab === 'general' ? 'selected' : ''}>General Settings</option>
             <option value="complexity" ${P._adminTab === 'complexity' ? 'selected' : ''}>Task Complexity Multipliers</option>
             <option value="backups" ${P._adminTab === 'backups' ? 'selected' : ''}>Data Recovery / Backups</option>
+            <option value="baselines" ${P._adminTab === 'baselines' ? 'selected' : ''}>Schedule Baselines</option>
             <option value="view:fields">Advanced: Field Architect</option>
             <option value="view:dropdowns">Advanced: Options Libraries</option>
             <option value="view:steps">Advanced: Step Templates</option>

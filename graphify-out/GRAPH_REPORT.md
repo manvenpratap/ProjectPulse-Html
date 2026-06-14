@@ -1,16 +1,16 @@
 # Graph Report - ProjectPulse  (2026-06-14)
 
 ## Corpus Check
-- 17 files · ~212,874 words
+- 18 files · ~214,056 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 178 nodes · 161 edges · 18 communities (17 shown, 1 thin omitted)
+- 185 nodes · 167 edges · 19 communities (18 shown, 1 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `c4793ea8`
+- Built from commit: `4b1ae459`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -33,6 +33,7 @@
 - [[_COMMUNITY_Reports & Board & Md|Reports & Board & Md]]
 - [[_COMMUNITY_Activity & Md & Audit|Activity & Md & Audit]]
 - [[_COMMUNITY_Project & Status & Md|Project & Status & Md]]
+- [[_COMMUNITY_Community 18|Community 18]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `Active Dropdown Options` - 19 edges
@@ -40,16 +41,16 @@
 3. `ProjectPulse — High-Density AI Context Pack` - 8 edges
 4. `Intelligent Weekly Scheduler & Conflict Resolver` - 6 edges
 5. `3. Entity Schemas` - 6 edges
-6. `Architecture Audit & Refactoring Strategy — ProjectPulse` - 5 edges
-7. `2. Core Subsystem Map` - 5 edges
-8. `2. Global State Schema (`P` Object)` - 5 edges
-9. `4. Core Function Registry` - 5 edges
-10. `Unified RAID Register` - 4 edges
+6. `Schedule Baselines & Snapshot History` - 5 edges
+7. `Architecture Audit & Refactoring Strategy — ProjectPulse` - 5 edges
+8. `2. Core Subsystem Map` - 5 edges
+9. `2. Global State Schema (`P` Object)` - 5 edges
+10. `4. Core Function Registry` - 5 edges
 
 ## Surprising Connections (you probably didn't know these)
 - None detected - all connections are within the same source files.
 
-## Communities (18 total, 1 thin omitted)
+## Communities (19 total, 1 thin omitted)
 
 ### Community 0 - "Configuration & Reference & Status"
 Cohesion: 0.1
@@ -88,39 +89,43 @@ Cohesion: 0.29
 Nodes (6): 1. Key Performance Indicators (KPIs), 2. Dynamic Health Gauge, 3. What-If Predictive Sandbox, code:block1 ([   84%   ]), Executive Overview Dashboard, Operation
 
 ### Community 9 - "Risks & Raid & Md"
-Cohesion: 0.33
-Nodes (5): 1. RAID Classifications, 2. Threat Exposure Calculations, 3. Mitigation Plans and Owners, Scoring Reference:, Unified RAID Register
+Cohesion: 0.29
+Nodes (6): 1. What is a Baseline?, 2. Capturing a Baseline Snapshot, 3. Variance and Slippage Analysis, 4. Restoring and Deleting Snapshots, Schedule Baselines & Snapshot History, What happens when you capture a snapshot?
 
 ### Community 10 - "Readme & Md & Project"
 Cohesion: 0.33
-Nodes (5): Architecture Schematic, code:block1 ([LocalStorage/IndexedDB Backup Store]), Daily Automated Synchronization, Directory Navigation & Feature Guides, ProjectPulse User Manual — Master Index
+Nodes (5): 1. RAID Classifications, 2. Threat Exposure Calculations, 3. Mitigation Plans and Owners, Scoring Reference:, Unified RAID Register
 
 ### Community 11 - "Delivery & Md & Hierarchical"
 Cohesion: 0.33
-Nodes (5): 1. Parent-Child Hierarchies, 2. Spreadsheet-Style Inline Editing, 3. Complexity & Estimation Scaling, code:block1 ([Deliverable 1: Core API Setup]), Hierarchical Delivery Matrix
+Nodes (5): Architecture Schematic, code:block1 ([LocalStorage/IndexedDB Backup Store]), Daily Automated Synchronization, Directory Navigation & Feature Guides, ProjectPulse User Manual — Master Index
 
 ### Community 12 - "Insights & Burn & Md"
-Cohesion: 0.4
-Nodes (4): 1. Metric Caching (`buildDashCache`), 2. Earned Value Management (EVM), 3. Burn-up & Burn-down Projections, Live Project Insights & Analytics
+Cohesion: 0.33
+Nodes (5): 1. Parent-Child Hierarchies, 2. Spreadsheet-Style Inline Editing, 3. Complexity & Estimation Scaling, code:block1 ([Deliverable 1: Core API Setup]), Hierarchical Delivery Matrix
 
 ### Community 13 - "Team & Capacity & Role"
 Cohesion: 0.4
-Nodes (4): 1. Capacity Modeling, 2. Dynamic Workload Balancing, 3. Role Assignments, Team Capacity Hub & Role Management
+Nodes (4): 1. Metric Caching (`buildDashCache`), 2. Earned Value Management (EVM), 3. Burn-up & Burn-down Projections, Live Project Insights & Analytics
 
 ### Community 14 - "Defects & Defect & Bug"
 Cohesion: 0.4
-Nodes (4): 1. Defect Severity Matrix, 2. Bug Lifecycle States, code:block1 ([New] ──► [Assigned] ──► [In Progress] ──► [Fixed] ──► [Veri), Defect Tracker & Bug Lifecycle
+Nodes (4): 1. Capacity Modeling, 2. Dynamic Workload Balancing, 3. Role Assignments, Team Capacity Hub & Role Management
 
 ### Community 15 - "Reports & Board & Md"
+Cohesion: 0.4
+Nodes (4): 1. Defect Severity Matrix, 2. Bug Lifecycle States, code:block1 ([New] ──► [Assigned] ──► [In Progress] ──► [Fixed] ──► [Veri), Defect Tracker & Bug Lifecycle
+
+### Community 16 - "Activity & Md & Audit"
 Cohesion: 0.5
 Nodes (3): 1. Executive Board Pack Generator, 2. Spreadsheet Export Settings (ExcelJS), Reports & Stakeholder Board Packs
 
-### Community 16 - "Activity & Md & Audit"
+### Community 17 - "Project & Status & Md"
 Cohesion: 0.5
 Nodes (3): 1. Automated Action Logging, 2. Session Rollback Capability, Audit Log & Activity Streams
 
 ## Knowledge Gaps
-- **120 isolated node(s):** `fs`, `path`, `PROJECT_ROOT`, `HTML_FILE`, `STATUS_MD_FILE` (+115 more)
+- **124 isolated node(s):** `fs`, `path`, `PROJECT_ROOT`, `HTML_FILE`, `STATUS_MD_FILE` (+119 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **1 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -128,11 +133,11 @@ Nodes (3): 1. Automated Action Logging, 2. Session Rollback Capability, Audit Lo
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `ProjectPulse — High-Density AI Context Pack` connect `Readme & State & Block` to `Readme & Typescript & Entity`?**
-  _High betweenness centrality (0.023) - this node is a cross-community bridge._
+  _High betweenness centrality (0.021) - this node is a cross-community bridge._
 - **Why does `3. Entity Schemas` connect `Readme & Typescript & Entity` to `Readme & State & Block`?**
-  _High betweenness centrality (0.015) - this node is a cross-community bridge._
+  _High betweenness centrality (0.014) - this node is a cross-community bridge._
 - **What connects `fs`, `path`, `PROJECT_ROOT` to the rest of the system?**
-  _120 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _124 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Configuration & Reference & Status` be split into smaller, more focused modules?**
   _Cohesion score 0.1 - nodes in this community are weakly interconnected._
 - **Should `Readme & State & Block` be split into smaller, more focused modules?**
