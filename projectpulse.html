@@ -33146,6 +33146,7 @@ function setView(v, preserveSearch = false) {
           else if (tab === 'general' && typeof renderSettingsGeneral === 'function') renderSettingsGeneral();
           else if (tab === 'complexity' && typeof renderSettingsComplexity === 'function') renderSettingsComplexity();
           else if (tab === 'backups' && typeof renderSettingsBackups === 'function') renderSettingsBackups();
+          else if (tab === 'baselines' && typeof renderSettingsBaselines === 'function') renderSettingsBaselines();
           else if (tab === 'view_order' && typeof renderSettingsViewOrder === 'function') renderSettingsViewOrder();
           if (typeof renderSidebar === 'function') renderSidebar();
           if (typeof syncGlobalActions === 'function') syncGlobalActions();
@@ -33331,12 +33332,12 @@ function setView(v, preserveSearch = false) {
                   <div style="font-size:16px; font-weight:800; color:var(--color-text); display:flex; align-items:center; gap:8px">
                     <span>✓ Step 3 Complete</span>
                   </div>
-                  <div style="font-size:13px; color:var(--color-text-muted); margin-top:4px">Backups are configured. Ready to define releases and roadmap.</div>
+                  <div style="font-size:13px; color:var(--color-text-muted); margin-top:4px">Backups are configured. Ready to set up schedule baselines.</div>
                 </div>
               </div>
               <div style="display:flex; gap:12px">
                 <button class="btn outline" onclick="setAdminActiveTab('complexity')" style="height:40px; padding:0 20px; display:flex; align-items:center; gap:8px"><i data-lucide="arrow-left" style="width:16px;height:16px"></i> Back</button>
-                <button class="btn primary" onclick="setAdminActiveTab('releases')" style="height:40px; padding:0 24px; font-weight:700; display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                <button class="btn primary" onclick="setAdminActiveTab('baselines')" style="height:40px; padding:0 24px; font-weight:700; display:flex; align-items:center; gap:8px; flex-shrink:0;">
                   Next Step <i data-lucide="arrow-right" style="width:16px;height:16px"></i>
                 </button>
               </div>
@@ -33344,6 +33345,89 @@ function setView(v, preserveSearch = false) {
           </div>
         `;
           if (typeof renderBackupListInline === 'function') renderBackupListInline();
+          if (window.lucide) lucide.createIcons(icont);
+        };
+
+        window.renderSettingsBaselines = renderSettingsBaselines;
+        function renderSettingsBaselines() {
+          const icont = $id('baselines-container');
+          if (!icont) return;
+          $id('v-title').innerHTML = `<i data-lucide="history" style="margin-right:10px"></i> Schedule Baselines`;
+          
+          const groups = {};
+          (P.baselines || []).forEach(b => {
+            if (!groups[b.id]) {
+              groups[b.id] = {
+                id: b.id,
+                name: b.name,
+                desc: b.desc,
+                snapshotDate: b.snapshotDate,
+                taskCount: 0
+              };
+            }
+            groups[b.id].taskCount++;
+          });
+          const snapshotList = Object.values(groups).sort((a, b) => b.id.localeCompare(a.id));
+
+          const listHtml = snapshotList.length ? snapshotList.map(s => `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:16px; border:1px solid var(--color-divider); border-radius:12px; margin-bottom:12px; background:var(--color-surface)">
+              <div>
+                <div style="font-weight:700; font-size:14px; color:var(--color-text)">${esc(s.name)} <span style="font-size:10px; font-weight:600; background:var(--color-surface-2); padding:2px 6px; border-radius:4px; margin-left:6px; color:var(--color-text-muted)">${esc(s.id)}</span></div>
+                <div style="font-size:12px; color:var(--color-text-muted); margin-top:4px">${esc(s.desc || 'No description')}</div>
+                <div style="font-size:11px; color:var(--color-text-faint); margin-top:6px">Captured on ${s.snapshotDate} · ${s.taskCount} tasks tracked</div>
+              </div>
+              <div style="display:flex; gap:8px">
+                <button class="btn ghost mini" style="color:var(--color-primary); font-weight:700" onclick="if(confirm('Restore snapshot ${esc(s.id)}? This will overwrite your current planned dates and active baseline fields.')) { restoreBaselineSnapshot('${esc(s.id)}'); }">Restore</button>
+                <button class="btn ghost mini" style="color:var(--red); font-weight:700" onclick="if(confirm('Delete snapshot ${esc(s.id)}? This cannot be undone.')) { deleteBaselineSnapshot('${esc(s.id)}'); }">Delete</button>
+              </div>
+            </div>
+          `).join('') : `
+            <div style="padding:32px; text-align:center; background:var(--color-surface-2); border-radius:12px; border:1px dashed var(--color-divider); color:var(--color-text-muted); font-size:12px">
+              No schedule baselines captured yet. Click above to create one.
+            </div>
+          `;
+
+          icont.innerHTML = `
+        <div style="width: 100%; padding: 24px; box-sizing: border-box;">
+            <div class="admin-sec-head" style="font-size:18px; font-weight:700; margin-bottom:16px">Schedule Baselines & Snapshots</div>
+            <p style="font-size:12px; color:var(--color-text-muted); margin-bottom:24px">
+              Capture project-wide snapshots of your current planned schedules to establish a baseline. 
+              This enables variance analysis, tracking slippages, and rollbacks.
+            </p>
+
+            <div style="background:var(--color-surface-2); border:1px solid var(--color-divider); border-radius:16px; padding:20px; margin-bottom:24px">
+              <div style="font-weight:700; font-size:15px; color:var(--color-text); margin-bottom:16px">Capture New Schedule Baseline</div>
+              <div class="fg"><label class="flbl">Baseline Name</label><input class="finp" id="new-baseline-name" value="Baseline - ${todayStr()}" placeholder="e.g. Initial Plan"></div>
+              <div class="fg"><label class="flbl">Description / Scope Notes</label><textarea class="finp" id="new-baseline-desc" rows="2" placeholder="Describe the milestones or project phase captured by this baseline..."></textarea></div>
+              <button class="btn primary" onclick="createBaselineSnapshot($id('new-baseline-name').value, $id('new-baseline-desc').value)">
+                <i data-lucide="camera" style="width:16px; height:16px; margin-right:6px"></i> Capture Snapshot
+              </button>
+            </div>
+
+            <div style="font-weight:800; font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px">Snapshot History</div>
+            <div id="baseline-history-list">${listHtml}</div>
+            
+            <div style="display:flex; gap:12px; margin-top:40px; padding:24px; background:linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.08), rgba(var(--color-primary-rgb), 0.03)); border:2px solid var(--color-primary); border-radius:16px; align-items:center; justify-content:space-between; box-shadow:0 4px 12px rgba(0,0,0,0.08)">
+              <div style="display:flex; align-items:center; gap:16px; flex:1">
+                <div style="width:48px; height:48px; border-radius:50%; background:var(--color-primary); display:flex; align-items:center; justify-content:center; flex-shrink:0">
+                  <i data-lucide="check-circle" style="width:24px; height:24px; color:white"></i>
+                </div>
+                <div>
+                  <div style="font-size:16px; font-weight:800; color:var(--color-text); display:flex; align-items:center; gap:8px">
+                    <span>✓ Step 4 Complete</span>
+                  </div>
+                  <div style="font-size:13px; color:var(--color-text-muted); margin-top:4px">Schedule baselines configured. Next, configure Releases Roadmap.</div>
+                </div>
+              </div>
+              <div style="display:flex; gap:12px">
+                <button class="btn outline" onclick="setAdminActiveTab('backups')" style="height:40px; padding:0 20px; display:flex; align-items:center; gap:8px"><i data-lucide="arrow-left" style="width:16px;height:16px"></i> Back</button>
+                <button class="btn primary" onclick="setAdminActiveTab('releases')" style="height:40px; padding:0 24px; font-weight:700; display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                  Next Step <i data-lucide="arrow-right" style="width:16px;height:16px"></i>
+                </button>
+              </div>
+            </div>
+        </div>
+          `;
           if (window.lucide) lucide.createIcons(icont);
         };
         window.saveInlineSettings = saveInlineSettings;
