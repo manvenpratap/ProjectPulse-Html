@@ -1,16 +1,16 @@
 # Graph Report - ProjectPulse  (2026-06-14)
 
 ## Corpus Check
-- 25 files · ~413,370 words
+- 26 files · ~544,183 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 300 nodes · 473 edges · 23 communities (22 shown, 1 thin omitted)
+- 303 nodes · 475 edges · 24 communities (22 shown, 2 thin omitted)
 - Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 28 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a2b1cd3c`
+- Built from commit: `ad9c0dfc`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -38,6 +38,7 @@
 - [[_COMMUNITY_Community 20|Community 20]]
 - [[_COMMUNITY_Community 21|Community 21]]
 - [[_COMMUNITY_Community 22|Community 22]]
+- [[_COMMUNITY_Community 23|Community 23]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `build_fsd()` - 25 edges
@@ -63,7 +64,7 @@
 - `build_fsd()` --calls--> `add_section_divider()`  [INFERRED]
   scripts/build_fsd.py → scripts/docx_helpers.py
 
-## Communities (23 total, 1 thin omitted)
+## Communities (24 total, 2 thin omitted)
 
 ### Community 0 - "Configuration & Reference & Status"
 Cohesion: 0.25
@@ -154,24 +155,24 @@ Cohesion: 0.5
 Nodes (3): 1. Automated Action Logging, 2. Session Rollback Capability, Audit Log & Activity Streams
 
 ## Knowledge Gaps
-- **138 isolated node(s):** `build_pcd.py ============ Builds the ProjectPulse Product Capabilities Document`, `build_fsd.py ============ Builds the ProjectPulse Functional Specification Docum`, `fs`, `path`, `PROJECT_ROOT` (+133 more)
+- **139 isolated node(s):** `capture_widgets.py ================== Captures element-specific cropped screensh`, `build_pcd.py ============ Builds the ProjectPulse Product Capabilities Document`, `build_fsd.py ============ Builds the ProjectPulse Functional Specification Docum`, `fs`, `path` (+134 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **1 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **2 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `build_fsd()` connect `Manual & State & Md` to `Architecture & Audit & State`, `Schedule & Manual & Check`?**
-  _High betweenness centrality (0.024) - this node is a cross-community bridge._
+  _High betweenness centrality (0.023) - this node is a cross-community bridge._
 - **Why does `build_umi()` connect `Schedule & Manual & Check` to `Architecture & Audit & State`?**
-  _High betweenness centrality (0.022) - this node is a cross-community bridge._
+  _High betweenness centrality (0.021) - this node is a cross-community bridge._
 - **Why does `build_pcd()` connect `Architecture & Audit & State` to `Schedule & Manual & Check`?**
   _High betweenness centrality (0.013) - this node is a cross-community bridge._
 - **Are the 5 inferred relationships involving `build_fsd()` (e.g. with `new_document()` and `add_footer()`) actually correct?**
   _`build_fsd()` has 5 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 3 inferred relationships involving `build_umi()` (e.g. with `main()` and `new_document()`) actually correct?**
   _`build_umi()` has 3 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `build_pcd.py ============ Builds the ProjectPulse Product Capabilities Document`, `build_fsd.py ============ Builds the ProjectPulse Functional Specification Docum`, `fs` to the rest of the system?**
-  _138 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `capture_widgets.py ================== Captures element-specific cropped screensh`, `build_pcd.py ============ Builds the ProjectPulse Product Capabilities Document`, `build_fsd.py ============ Builds the ProjectPulse Functional Specification Docum` to the rest of the system?**
+  _139 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Readme & State & Block` be split into smaller, more focused modules?**
   _Cohesion score 0.06 - nodes in this community are weakly interconnected._

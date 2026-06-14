@@ -708,6 +708,7 @@ def ch_widgets_glossary(doc):
         "• Interpretation: The radial gauge arc transitions from Green (80-100: healthy) to Amber (50-79: warning) to Red (0-49: critical). "
         "It evaluates delivery confidence, Schedule Performance Index (SPI), and active RAID issues.\n"
         "• How to Use: Leadership uses this widget at startup to determine if a project requires recovery planning.",space_after=4)
+    add_screenshot(doc, "widgets/summary", "Illustration 14.1: Executive Summary (summary) Widget Component View")
 
     # 2. health
     make_heading(doc,"14.2.2  Project Health & Quality (health)",level=3,color=CLR_NAVY)
@@ -716,6 +717,7 @@ def ch_widgets_glossary(doc):
         "• Interpretation: Displays status splits (Not Started, In Progress, QA, Completed) in a stacked bar chart. "
         "A separate donut chart maps tasks by priority (Critical, High, Medium, Low).\n"
         "• How to Use: Project managers use this to check task distributions and ensure there isn't a bottleneck in the QA state.",space_after=4)
+    add_screenshot(doc, "widgets/health", "Illustration 14.2: Project Health & Quality (health) Widget Component View")
 
     # 3. mgmt_insights
     make_heading(doc,"14.2.3  Management Insights (mgmt_insights)",level=3,color=CLR_NAVY)
@@ -723,6 +725,7 @@ def ch_widgets_glossary(doc):
         "• Description: A compound widget surfacing schedule pacing, high-priority risks, workload thresholds, and developer friction.\n"
         "• Interpretation: Flags tasks due within immediate (7d), mid-term (14d), and long-term (30d) horizons. Highlight cells turn red when overdue volume accumulates.\n"
         "• How to Use: Scrum masters check this daily to align task workloads with sprint capacity.",space_after=4)
+    add_screenshot(doc, "widgets/mgmt_insights", "Illustration 14.3: Management Insights (mgmt_insights) Widget Component View")
 
     # 4. exec_reporting
     make_heading(doc,"14.2.4  Executive Reporting (exec_reporting)",level=3,color=CLR_NAVY)
@@ -730,6 +733,7 @@ def ch_widgets_glossary(doc):
         "• Description: High-density card presentation summarizing milestone achievements, critical path milestones, and RAID exposure levels.\n"
         "• Interpretation: Formatted with large text metrics and badge indicators, omitting technical logs for presentation cleanliness.\n"
         "• How to Use: Use this view to capture quick status screenshots for monthly steering committee slides.",space_after=4)
+    add_screenshot(doc, "widgets/exec_reporting", "Illustration 14.4: Executive Reporting (exec_reporting) Widget Component View")
 
     # 5. exec_capacity
     make_heading(doc,"14.2.5  Team Capacity Allocation (exec_capacity)",level=3,color=CLR_NAVY)
@@ -737,6 +741,7 @@ def ch_widgets_glossary(doc):
         "• Description: Discloses planned working hours mapped against role capabilities.\n"
         "• Interpretation: Shows grid items per role (e.g. Lead Frontend) with a horizontal bar highlighting planned effort vs capacity.\n"
         "• How to Use: Use this to detect capacity shortfalls. If QA capacity is exceeded, adjust incoming feature scopes.",space_after=4)
+    add_screenshot(doc, "widgets/exec_capacity", "Illustration 14.5: Team Capacity Allocation (exec_capacity) Widget Component View")
 
     # 6. module_matrix
     make_heading(doc,"14.2.6  Strategic Module Status Matrix (module_matrix)",level=3,color=CLR_NAVY)
@@ -744,6 +749,7 @@ def ch_widgets_glossary(doc):
         "• Description: Grid mapping code modules against development statuses.\n"
         "• Interpretation: Intersecting cells contain task counts. Features a progress bar reflecting completed vs total tasks per module.\n"
         "• How to Use: Evaluates module maturity. Ensure gateway or authentication modules are completed before starting GUI components.",space_after=4)
+    add_screenshot(doc, "widgets/module_matrix", "Illustration 14.6: Strategic Module Status Matrix (module_matrix) Widget Component View")
 
     # 7. module_health
     make_heading(doc,"14.2.7  Module & Release Health (module_health)",level=3,color=CLR_NAVY)
@@ -751,6 +757,7 @@ def ch_widgets_glossary(doc):
         "• Description: Quality index chart correlating active defects against code modules.\n"
         "• Interpretation: Assigns a health grade (A to F) to modules based on S1-S4 defect densities.\n"
         "• How to Use: Engineering managers check this to schedule technical debt refactoring sprints on modules with D/F grades.",space_after=4)
+    add_screenshot(doc, "widgets/module_health", "Illustration 14.7: Module & Release Health (module_health) Widget Component View")
 
     # 8. feature_insights
     make_heading(doc,"14.2.8  Feature Intelligence (feature_insights)",level=3,color=CLR_NAVY)
@@ -758,6 +765,7 @@ def ch_widgets_glossary(doc):
         "• Description: Bento grid showing delivery progress of functional user features.\n"
         "• Interpretation: Shows completion percentages, feature complexity scores, and associated risks.\n"
         "• How to Use: Product Owners use this to report feature release readiness to marketing stakeholders.",space_after=4)
+    add_screenshot(doc, "widgets/feature_insights", "Illustration 14.8: Feature Intelligence (feature_insights) Widget Component View")
 
     # 9. screen_status
     make_heading(doc,"14.2.9  Screen Status Details (screen_status)",level=3,color=CLR_NAVY)
@@ -765,6 +773,7 @@ def ch_widgets_glossary(doc):
         "• Description: Detailed tracker logging progress of frontend UI screens.\n"
         "• Interpretation: Grid lists screen names, linked module, and current design/development states.\n"
         "• How to Use: UI/UX designers check this to coordinate screen sign-offs with developers.",space_after=4)
+    add_screenshot(doc, "widgets/screen_status", "Illustration 14.9: Screen Status Details (screen_status) Widget Component View")
 
     # 10. release_timeline
     make_heading(doc,"14.2.10  Release Timeline (release_timeline)",level=3,color=CLR_NAVY)
@@ -772,6 +781,7 @@ def ch_widgets_glossary(doc):
         "• Description: Visual roadmap showing target dates and completion status of version releases.\n"
         "• Interpretation: Chronological timeline bar showing milestones (e.g. v1.0.0, v1.1.0) and status badges (Released, In Progress).\n"
         "• How to Use: Release managers use this to coordinate deployment windows and release notes.",space_after=4)
+    add_screenshot(doc, "widgets/release_timeline", "Illustration 14.10: Release Timeline (release_timeline) Widget Component View")
 
     # 11. milestone_timeline
     make_heading(doc,"14.2.11  Milestone Timeline (milestone_timeline)",level=3,color=CLR_NAVY)
@@ -779,6 +789,7 @@ def ch_widgets_glossary(doc):
         "• Description: List tracking critical milestone deliverables.\n"
         "• Interpretation: Maps target dates against milestone completions. Completed milestones show green indicators.\n"
         "• How to Use: Program coordinators review this weekly to verify key phase gate completions.",space_after=4)
+    add_screenshot(doc, "widgets/milestone_timeline", "Illustration 14.11: Milestone Timeline (milestone_timeline) Widget Component View")
 
     # 12. burndown
     make_heading(doc,"14.2.12  Burndown Chart (burndown)",level=3,color=CLR_NAVY)
@@ -786,6 +797,7 @@ def ch_widgets_glossary(doc):
         "• Description: SVG chart plotting total scope baseline against actual task completions.\n"
         "• Interpretation: X-axis represents weeks; Y-axis shows effort hours. The projection line forecast final dates.\n"
         "• How to Use: PMs use the burn-down projection to detect early signs of schedule slippage.",space_after=4)
+    add_screenshot(doc, "widgets/burndown", "Illustration 14.12: Burndown Chart (burndown) Widget Component View")
 
     # 13. velocity
     make_heading(doc,"14.2.13  Weekly Velocity (velocity)",level=3,color=CLR_NAVY)
@@ -793,6 +805,7 @@ def ch_widgets_glossary(doc):
         "• Description: Bar chart tracking effort completed week-over-week.\n"
         "• Interpretation: Each bar represents a week's total completed effort. Steady height shows stable throughput.\n"
         "• How to Use: PMs use average velocity to estimate capacity for future planning cycles.",space_after=4)
+    add_screenshot(doc, "widgets/velocity", "Illustration 14.13: Weekly Velocity (velocity) Widget Component View")
 
     # 14. cfd
     make_heading(doc,"14.2.14  Cumulative Flow Diagram (cfd)",level=3,color=CLR_NAVY)
@@ -800,6 +813,7 @@ def ch_widgets_glossary(doc):
         "• Description: Area chart showing work items in various states over time.\n"
         "• Interpretation: Band widths show task counts in Not Started, In Progress, QA, and Completed. Bulging bands indicate bottlenecks.\n"
         "• How to Use: Identifies bottleneck areas. A widening 'QA' band implies a testing resource bottleneck.",space_after=4)
+    add_screenshot(doc, "widgets/cfd", "Illustration 14.14: Cumulative Flow Diagram (cfd) Widget Component View")
 
     # 15. overdue
     make_heading(doc,"14.2.15  Overdue Attention (overdue)",level=3,color=CLR_NAVY)
@@ -807,6 +821,7 @@ def ch_widgets_glossary(doc):
         "• Description: List of tasks that have missed their due dates.\n"
         "• Interpretation: Displays task ID, name, assignee, and days overdue in red highlight.\n"
         "• How to Use: Team leads review this in stand-ups to assign help to delayed items.",space_after=4)
+    add_screenshot(doc, "widgets/overdue", "Illustration 14.15: Overdue Attention (overdue) Widget Component View")
 
     # 16. high_impact_entities
     make_heading(doc,"14.2.16  High Impact Entities (high_impact_entities)",level=3,color=CLR_NAVY)
@@ -814,6 +829,7 @@ def ch_widgets_glossary(doc):
         "• Description: Surfaced list of critical tasks that block the largest volume of downstream tasks.\n"
         "• Interpretation: Ranked by follower count. Items at the top are critical path nodes.\n"
         "• How to Use: Developers prioritize these tasks to unblock downstream dependent work items.",space_after=4)
+    add_screenshot(doc, "widgets/high_impact_entities", "Illustration 14.16: High Impact Entities (high_impact_entities) Widget Component View")
 
     # 17. workload
     make_heading(doc,"14.2.17  Team Workload (workload)",level=3,color=CLR_NAVY)
@@ -821,6 +837,7 @@ def ch_widgets_glossary(doc):
         "• Description: Mapped chart showing workload hours assigned per team member.\n"
         "• Interpretation: Mapped against standard capacity limits (e.g. 40h). Highlights overallocated members.\n"
         "• How to Use: Balance assignments in scheduler to prevent burnout.",space_after=4)
+    add_screenshot(doc, "widgets/workload", "Illustration 14.17: Team Workload (workload) Widget Component View")
 
     # 18. cat_hours
     make_heading(doc,"14.2.18  Category & Effort (cat_hours)",level=3,color=CLR_NAVY)
@@ -828,6 +845,7 @@ def ch_widgets_glossary(doc):
         "• Description: Donut chart showing effort hours distributed across task categories.\n"
         "• Interpretation: Segments show percentages spent on Feature, Bug, DevOps, Design, etc.\n"
         "• How to Use: Product Owners ensure focus aligns with goals, e.g., keeping bug effort below 20%.",space_after=4)
+    add_screenshot(doc, "widgets/cat_hours", "Illustration 14.18: Category & Effort (cat_hours) Widget Component View")
 
     # 19. defect_intel
     make_heading(doc,"14.2.19  Defect Intelligence (defect_intel)",level=3,color=CLR_NAVY)
@@ -835,6 +853,7 @@ def ch_widgets_glossary(doc):
         "• Description: High density bento statistics card focusing on defect status and density metrics.\n"
         "• Interpretation: Features counts of active S1-S4 bugs and resolution rates.\n"
         "• How to Use: QA leads check this before release to ensure no S1 blocker defects are open.",space_after=4)
+    add_screenshot(doc, "widgets/defect_intel", "Illustration 14.19: Defect Intelligence (defect_intel) Widget Component View")
 
     # 20. intelligence
     make_heading(doc,"14.2.20  Predictive Intelligence (intelligence)",level=3,color=CLR_NAVY)
@@ -842,6 +861,7 @@ def ch_widgets_glossary(doc):
         "• Description: Forecast analytics widget displaying projected completion dates.\n"
         "• Interpretation: Evaluates actual effort velocities against baselines to predict delays.\n"
         "• How to Use: PMs use predictions for re-scoping before timelines are compromised.",space_after=4)
+    add_screenshot(doc, "widgets/intelligence", "Illustration 14.20: Predictive Intelligence (intelligence) Widget Component View")
 
     # 21. analytics
     make_heading(doc,"14.2.21  Advanced Analytics (analytics)",level=3,color=CLR_NAVY)
@@ -849,6 +869,7 @@ def ch_widgets_glossary(doc):
         "• Description: high-density table presenting Earned Value Management (EVM) values.\n"
         "• Interpretation: Tracks Earned Value (EV), Planned Value (PV), Schedule Variance (SV), and Schedule Performance Index (SPI).\n"
         "• How to Use: Finance and program managers review this for status reports.",space_after=4)
+    add_screenshot(doc, "widgets/analytics", "Illustration 14.21: Advanced Analytics (analytics) Widget Component View")
 
     # 22. activity
     make_heading(doc,"14.2.22  Recent Activity (activity)",level=3,color=CLR_NAVY)
@@ -856,6 +877,7 @@ def ch_widgets_glossary(doc):
         "• Description: Chronological audit trail showing system events.\n"
         "• Interpretation: Lists action events with timestamps and author details.\n"
         "• How to Use: Track accountability and audit changes in the workspace.",space_after=4)
+    add_screenshot(doc, "widgets/activity", "Illustration 14.22: Recent Activity (activity) Widget Component View")
 
     # 23. kpi_summary
     make_heading(doc,"14.2.23  Executive Metrics (kpi_summary) [Report Only]",level=3,color=CLR_NAVY)
@@ -863,6 +885,7 @@ def ch_widgets_glossary(doc):
         "• Description: Report card presenting key health indexes and delivery ratios.\n"
         "• Interpretation: Displays delivery confidence, SPI index, and RAID count in a structured print block.\n"
         "• How to Use: Pre-formatted block for steering committee reports.",space_after=4)
+    add_screenshot(doc, "widgets/kpi_summary", "Illustration 14.23: Executive Metrics (kpi_summary) Widget Component View")
 
     # 24. activities
     make_heading(doc,"14.2.24  Key Activities (activities) [Report Only]",level=3,color=CLR_NAVY)
@@ -870,6 +893,7 @@ def ch_widgets_glossary(doc):
         "• Description: Text-editable widget to log key activities.\n"
         "• Interpretation: Users type text summary bullet points directly into the PDF preview panel.\n"
         "• How to Use: PMs write comments to explain anomalies.",space_after=4)
+    add_screenshot(doc, "widgets/activities", "Illustration 14.24: Key Activities (activities) Widget Component View")
 
     # 25. achievements
     make_heading(doc,"14.2.25  Achievements (achievements) [Report Only]",level=3,color=CLR_NAVY)
@@ -877,6 +901,7 @@ def ch_widgets_glossary(doc):
         "• Description: Showcase widget to highlight successes.\n"
         "• Interpretation: Editable text list formatted for callouts.\n"
         "• How to Use: Highlight milestones met in the reporting period.",space_after=4)
+    add_screenshot(doc, "widgets/achievements", "Illustration 14.25: Achievements (achievements) Widget Component View")
 
     # 26. risks
     make_heading(doc,"14.2.26  Risks & Issues (risks) [Report Only]",level=3,color=CLR_NAVY)
@@ -884,6 +909,7 @@ def ch_widgets_glossary(doc):
         "• Description: Detailed RAID table for stakeholder reports.\n"
         "• Interpretation: Lists top active risks, mitigation plans, and owners.\n"
         "• How to Use: Simplifies presenting risk registers to stakeholders.",space_after=4)
+    add_screenshot(doc, "widgets/risks", "Illustration 14.26: Risks & Issues (risks) Widget Component View")
 
     # 27. plans
     make_heading(doc,"14.2.27  Upcoming Plans (plans) [Report Only]",level=3,color=CLR_NAVY)
@@ -891,6 +917,7 @@ def ch_widgets_glossary(doc):
         "• Description: Text-editable section for upcoming plans.\n"
         "• Interpretation: Formatted text block for future objectives.\n"
         "• How to Use: Outline plans for the next reporting period.",space_after=4)
+    add_screenshot(doc, "widgets/plans", "Illustration 14.27: Upcoming Plans (plans) Widget Component View")
 
     # 28. team
     make_heading(doc,"14.2.28  Team Workload Table (team) [Report Only]",level=3,color=CLR_NAVY)
@@ -898,6 +925,7 @@ def ch_widgets_glossary(doc):
         "• Description: Capacity overview table for reports.\n"
         "• Interpretation: Lists team member names, roles, and allocated hours.\n"
         "• How to Use: Verify workloads in stakeholder reports.",space_after=4)
+    add_screenshot(doc, "widgets/team", "Illustration 14.28: Team Workload Table (team) Widget Component View")
 
     # 29. util
     make_heading(doc,"14.2.29  Resource Utilization Summary (util) [Report Only]",level=3,color=CLR_NAVY)
@@ -905,6 +933,7 @@ def ch_widgets_glossary(doc):
         "• Description: High-level utilization stats.\n"
         "• Interpretation: Displays utilization percentages per role.\n"
         "• How to Use: Report resource efficiency to stakeholders.",space_after=4)
+    add_screenshot(doc, "widgets/util", "Illustration 14.29: Resource Utilization Summary (util) Widget Component View")
 
     # 30. overdue_tbl
     make_heading(doc,"14.2.30  Overdue Table Detail (overdue_tbl) [Report Only]",level=3,color=CLR_NAVY)
@@ -912,6 +941,7 @@ def ch_widgets_glossary(doc):
         "• Description: Table of overdue tasks for reports.\n"
         "• Interpretation: Lists task name, assignee, and delay details.\n"
         "• How to Use: Highlight delayed tasks in stakeholder updates.",space_after=4)
+    add_screenshot(doc, "widgets/overdue_tbl", "Illustration 14.30: Overdue Table Detail (overdue_tbl) Widget Component View")
 
     add_page_break(doc)
 
