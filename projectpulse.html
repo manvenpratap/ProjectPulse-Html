@@ -12543,19 +12543,31 @@
         if (!active.length) return 100;
 
         const totalActive = active.length;
-        const overdue = active.filter(t => {
-          if (!t.dueDate) return false;
-          const dd = PulseDashboard.daysDiff(t.dueDate);
-          return dd !== null && dd < 0;
-        }).length;
-        const blocked = active.filter(t => PulseDashboard.isBlocked(t, taskByIdMap)).length;
-        const onHold = active.filter(t => String(t.status || '').toLowerCase() === 'on hold').length;
+        let overduePenalty = 0;
+        let blockedPenalty = 0;
+        let onHoldPenalty = 0;
+
+        active.forEach(t => {
+          const progressWeight = 1 - (parseInt(t.progress, 10) || 0) / 100;
+          if (t.dueDate) {
+            const dd = PulseDashboard.daysDiff(t.dueDate);
+            if (dd !== null && dd < 0) {
+              overduePenalty += progressWeight;
+            }
+          }
+          if (PulseDashboard.isBlocked(t, taskByIdMap)) {
+            blockedPenalty += progressWeight;
+          }
+          if (String(t.status || '').toLowerCase() === 'on hold') {
+            onHoldPenalty += progressWeight;
+          }
+        });
 
         let score = 100;
         // Penalties are weighted against active tasks
-        if (overdue > 0) score -= (overdue / totalActive) * 50;
-        if (blocked > 0) score -= (blocked / totalActive) * 30;
-        if (onHold > 0) score -= (onHold / totalActive) * 20;
+        score -= (overduePenalty / totalActive) * 50;
+        score -= (blockedPenalty / totalActive) * 30;
+        score -= (onHoldPenalty / totalActive) * 20;
 
         return Math.max(0, Math.min(100, Math.round(score)));
       },
@@ -12568,12 +12580,64 @@
         dt.setHours(0, 0, 0, 0);
         return Math.floor((dt - now) / 864e5);
       },
+      getTaskProgressAt(t, date, taskLogs) {
+        if (!t) return null;
+        const createdDate = t.createdAt ? new Date(t.createdAt) : new Date(t.startDate || Date.now());
+        if (createdDate > date) return null;
+
+        const logsBeforeDate = (taskLogs || []).filter(l => {
+          const lDate = l.ts ? new Date(l.ts) : null;
+          return lDate && lDate <= date;
+        });
+
+        // 1. Look for progress updates
+        const progLogs = logsBeforeDate.filter(l => l.field === 'progress');
+        if (progLogs.length > 0) {
+          const lastProg = parseInt(progLogs[progLogs.length - 1].newVal, 10);
+          if (!isNaN(lastProg)) return lastProg;
+        }
+
+        // 2. Look for status changes
+        const statusLogs = logsBeforeDate.filter(l => l.field === 'status' || l.action === 'Status Changed');
+        if (statusLogs.length > 0) {
+          const lastStatus = statusLogs[statusLogs.length - 1].newVal || statusLogs[statusLogs.length - 1].action;
+          if (lastStatus === 'Completed') return 100;
+          if (lastStatus === 'In Progress' || lastStatus === 'Under Review') return 50;
+          if (lastStatus === 'Not Started') return 0;
+        }
+
+        // 3. Fallback to interpolation if start/due dates are known
+        const start = new Date(t.startDate);
+        const due = new Date(t.dueDate || t.startDate);
+        if (!isNaN(start.getTime()) && !isNaN(due.getTime())) {
+          if (date < start) return 0;
+          if (date >= due) {
+            return t.status === 'Completed' ? 100 : Math.min(99, parseInt(t.progress, 10) || 0);
+          }
+          const totalDur = due - start;
+          const elapsed = date - start;
+          const interpolated = totalDur > 0 ? Math.round((elapsed / totalDur) * 100) : 0;
+          return Math.min(interpolated, parseInt(t.progress, 10) || 0);
+        }
+
+        // 4. Ultimate fallback based on current status
+        if (t.status === 'Completed') {
+          const compDate = new Date(t.actCompletionDate || t.dueDate || t.updatedAt || Date.now());
+          if (compDate <= date) return 100;
+          return 50;
+        }
+        if (t.status === 'In Progress' || t.status === 'Under Review') {
+          return Math.min(parseInt(t.progress, 10) || 50, 50);
+        }
+        return 0;
+      },
       buildDashCache: null
     };
 
     const isBlocked = PulseDashboard.isBlocked;
     const getHealthScore = PulseDashboard.getHealthScore;
     const daysDiff = PulseDashboard.daysDiff;
+    const getTaskProgressAt = PulseDashboard.getTaskProgressAt;
 
     // ══════ UI UTILITIES, FLYOUTS, MODALS & NOTIFICATIONS ══════
     const PulseUI = {
@@ -14371,6 +14435,13 @@
         save();
         render();
       },
+      updateVelocityMode(m) {
+        const stateP = PulseState.P;
+        if (!stateP.settings) stateP.settings = {};
+        stateP.settings.velocityMode = m;
+        save();
+        render();
+      },
       updateCFDWeeks(w) {
         const stateP = PulseState.P;
         let val = parseInt(w) || 8;
@@ -15944,6 +16015,9 @@ load() {
     function updateVelocityWeeks(w) {
       return PulseState.updateVelocityWeeks(w);
     }
+    function updateVelocityMode(m) {
+      return PulseState.updateVelocityMode(m);
+    }
     function updateCFDWeeks(w) {
       return PulseState.updateCFDWeeks(w);
     }
@@ -16042,6 +16116,7 @@ load() {
     window.updateSubtask = updateSubtask;
     window.deleteSubtask = deleteSubtask;
     window.updateVelocityWeeks = updateVelocityWeeks;
+    window.updateVelocityMode = updateVelocityMode;
     window.updateCFDWeeks = updateCFDWeeks;
     window.updateDefectInflowWeeks = updateDefectInflowWeeks;
     window.showValidationErrors = showValidationErrors;
@@ -19533,6 +19608,12 @@ load() {
             optWeeks.push(weeksCount);
             optWeeks.sort((a, b) => a - b);
           }
+          const modeVal = (P.settings && P.settings.velocityMode) || 'weighted';
+          let modeSelectHtml = `<select onchange="updateVelocityMode(this.value)" style="border:none; background:transparent; color:var(--color-text-muted); font-size:11px; font-weight:700; cursor:pointer; outline:none; padding:2px 4px; margin-right:8px; border-right:1px solid var(--color-border);">
+            <option value="weighted" ${modeVal === 'weighted' ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">Subtask-Weighted</option>
+            <option value="binary" ${modeVal === 'binary' ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">Binary Completed</option>
+          </select>`;
+
           let selectHtml = `<select onchange="updateVelocityWeeks(this.value)" style="border:none; background:transparent; color:var(--color-text-muted); font-size:11px; font-weight:700; cursor:pointer; outline:none; padding:2px 4px;">`;
           optWeeks.forEach(w => {
             const isYear = w === 52 ? ' (1 Year)' : '';
@@ -19542,7 +19623,7 @@ load() {
           selectHtml += `</select>`;
           const weeksToggle = document.createElement('div');
           weeksToggle.style = "display:inline-flex; background:var(--color-surface-offset); padding:2px 6px; border-radius:7px; border:1px solid var(--color-border); align-items:center; flex-shrink:0; height:fit-content; margin-left:auto;";
-          weeksToggle.innerHTML = selectHtml;
+          weeksToggle.innerHTML = modeSelectHtml + selectHtml;
           velCard.querySelector('.ch').appendChild(weeksToggle);
 
           const velCvs = mkCvs(1000, 200);
@@ -19558,16 +19639,37 @@ load() {
           setTimeout(() => {
             const lastWeeks = [];
             for (let i = weeksCount - 1; i >= 0; i--) {
-              const d = new Date(); d.setDate(d.getDate() - i * 7);
-              lastWeeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) });
+              const d = new Date();
+              d.setDate(d.getDate() - i * 7);
+              d.setHours(23, 59, 59, 999);
+              lastWeeks.push({
+                w: getWeekNumber(d),
+                y: d.getFullYear(),
+                l: 'W' + getWeekNumber(d),
+                date: new Date(d)
+              });
             }
 
+            const isWeighted = ((P.settings && P.settings.velocityMode) || 'weighted') === 'weighted';
             const velocity = lastWeeks.map(w => {
-              return P.tasks.filter(t => {
-                if (t.status !== 'Completed' || !t.dueDate) return false;
-                const d = new Date(t.dueDate);
-                return getWeekNumber(d) === w.w && d.getFullYear() === w.y;
-              }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+              if (isWeighted) {
+                const startLimit = new Date(w.date.getTime() - 7 * 24 * 60 * 60 * 1000);
+                const endLimit = w.date;
+                return P.tasks.reduce((s, t) => {
+                  const effort = parseFloat(t.estEffort) || 0;
+                  if (effort <= 0) return s;
+                  const pStart = getTaskProgressAt(t, startLimit, P.log || []);
+                  const pEnd = getTaskProgressAt(t, endLimit, P.log || []);
+                  const gained = Math.max(0, (pEnd !== null ? pEnd : 0) - (pStart !== null ? pStart : 0));
+                  return s + effort * (gained / 100);
+                }, 0);
+              } else {
+                return P.tasks.filter(t => {
+                  if (t.status !== 'Completed' || !t.dueDate) return false;
+                  const d = new Date(t.dueDate);
+                  return getWeekNumber(d) === w.w && d.getFullYear() === w.y;
+                }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+              }
             });
 
             const rolling = velocity.map((v, i) => {
@@ -22669,7 +22771,8 @@ load() {
 
       const allPill = mkPill('All Modules', allSelected, () => {
         P.settings.roadmapModulesSelected = allSelected ? [] : [...allMods];
-        renderDash();
+        save();
+        renderMilestoneRoadmap(tasks, container);
       }, 'var(--color-primary)');
       pillBar.appendChild(allPill);
 
@@ -22683,11 +22786,12 @@ load() {
         const pill = mkPill(esc(m), active, (e) => {
           e.stopPropagation();
           if (selectedMods.includes(m)) {
-            P.settings.roadmapModulesSelected = selectedMods.filter(x => x !== m);
+            P.settings.roadmapModulesSelected = P.settings.roadmapModulesSelected.filter(x => x !== m);
           } else {
-            P.settings.roadmapModulesSelected = [...selectedMods, m];
+            P.settings.roadmapModulesSelected = [...P.settings.roadmapModulesSelected, m];
           }
-          renderDash();
+          save();
+          renderMilestoneRoadmap(tasks, container);
         }, color);
         pillBar.appendChild(pill);
       });
@@ -23352,7 +23456,11 @@ load() {
       const membersData = teamNames.map(n => {
         const member = P.members.find(m => m.name === n) || { role: 'Team Member' };
         const activeTasks = tasks.filter(t => t.assignee === n && t.status !== 'Completed');
-        const days = activeTasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+        const days = activeTasks.reduce((s, t) => {
+          const effort = parseFloat(t.estEffort) || 0;
+          const prog = parseFloat(t.progress) || 0;
+          return s + effort * (1 - prog / 100);
+        }, 0);
         const actualPct = (days / 5) * 100;
 
         // Calculate mock 4-week timeline based on task deadlines or random distro
@@ -23399,18 +23507,22 @@ load() {
 
           let taskHtml = '';
           if (tasks.length) {
-            taskHtml = tasks.map(t => `
+            taskHtml = tasks.map(t => {
+              const effort = parseFloat(t.estEffort) || 0;
+              const prog = parseFloat(t.progress) || 0;
+              const rem = effort * (1 - prog / 100);
+              return `
               <div class="ru-task-item">
                 <i data-lucide="check-square" class="ru-task-icon" style="width:14px;height:14px"></i>
                 <div class="ru-task-details">
-                  <div class="ru-task-title" title="${esc(t.title)}">${esc(t.title)}</div>
+                  <div class="ru-task-title" title="${esc(t.title || t.name)}">${esc(t.title || t.name)}</div>
                   <div class="ru-task-meta">
-                    <span>${t.status}</span>
-                    <span>${t.estEffort || 0} days</span>
+                    <span>${t.status} (${Math.round(prog)}%)</span>
+                    <span>${rem.toFixed(1)}d of ${effort}d left</span>
                   </div>
                 </div>
               </div>
-            `).join('');
+            `;}).join('');
           } else {
             taskHtml = `<div style="font-size:11px;color:var(--color-text-faint);padding:8px 0;">No active tasks</div>`;
           }
@@ -24515,6 +24627,8 @@ load() {
       const cache = {
         total: tasks.length,
         done: 0,
+        weightedDone: 0,
+        weightedPct: 0,
         inProg: 0,
         onHold: 0,
         blocked: 0,
@@ -24541,9 +24655,11 @@ load() {
         }
       }
 
+      let wDone = 0;
       for (let i = 0; i < tasks.length; i++) {
         const t = tasks[i];
         cache.taskById[t.id] = t;
+        wDone += (parseInt(t.progress, 10) || 0) / 100;
 
         const status = t.status || 'Not Started';
         const priority = t.priority || 'Medium';
@@ -24615,6 +24731,9 @@ load() {
           }
         }
       }
+
+      cache.weightedDone = wDone;
+      cache.weightedPct = cache.total ? Math.round((wDone / cache.total) * 100) : 0;
 
       return cache;
     };
@@ -25592,6 +25711,10 @@ load() {
           const onHold = dashCache.onHold;
           const blocked = dashCache.blocked;
           const activeCount = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
+          const remainingWeighted = tasks.reduce((s, t) => {
+            if (t.status === 'Completed' || t.status === 'Cancelled') return s;
+            return s + (1 - (parseInt(t.progress, 10) || 0) / 100);
+          }, 0);
           const openDefects = P.defects ? P.defects.filter(d => d.status !== 'Resolved' && d.status !== 'Closed').length : 0;
           const healthScore = getHealthScore(tasks, dashCache.taskById);
           const healthColor = overdueTasks.length > 3 || completionPct < 20 ? 'var(--red)' : overdueTasks.length > 0 || completionPct < 50 ? 'var(--amber)' : 'var(--green)';
@@ -25673,7 +25796,10 @@ load() {
                       </svg>
                       <div class="sc-hdr"><i data-lucide="activity"></i> Active Scope</div>
                       <div class="sc-val" data-count="${activeCount}">0</div>
-                      <div class="sc-ftr">Tasks currently in flight</div>
+                      <div class="sc-ftr" style="display:flex; flex-direction:column; gap:4px; font-size:11px; margin-top:2px;">
+                        <div>Tasks currently in flight</div>
+                        <div style="color:var(--color-text-muted)">Remaining: <b>${remainingWeighted.toFixed(1)}</b> eq. tasks</div>
+                      </div>
                     </div>
 
                     <!-- 3. Completed -->
@@ -25684,7 +25810,13 @@ load() {
                       </svg>
                       <div class="sc-hdr"><i data-lucide="check-circle-2"></i> Completed</div>
                       <div class="sc-val" data-count="${done}">0</div>
-                      <div class="sc-ftr"><span class="badge green" style="font-weight:700;">${completionPct}%</span> delivered rate</div>
+                      <div class="sc-ftr" style="display:flex; flex-direction:column; gap:4px; font-size:11px; margin-top:2px;">
+                        <div style="display:flex; align-items:center; gap:6px;">
+                          <span class="badge green" style="font-weight:700;" title="Binary completion rate">${completionPct}% Bin</span>
+                          <span class="badge blue" style="font-weight:700;" title="Subtask-weighted completion rate">${dashCache.weightedPct}% Wtd</span>
+                        </div>
+                        <div style="color:var(--color-text-muted)">Weighted: <b>${dashCache.weightedDone.toFixed(1)}</b> eq. tasks</div>
+                      </div>
                     </div>
 
                     <!-- 4. Overdue -->
@@ -26167,11 +26299,13 @@ load() {
                     burnupWeeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d), date: d });
                   }
                   const totalScopeTrend = burnupWeeks.map(w => tasks.filter(t => new Date(t.createdAt || 0) <= w.date).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
-                  const completedScopeTrend = burnupWeeks.map(w => tasks.filter(t => {
-                    if (t.status !== 'Completed') return false;
-                    const compDateStr = t.actCompletionDate || t.updatedAt;
-                    return compDateStr && new Date(compDateStr) <= w.date;
-                  }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
+                  const completedScopeTrend = burnupWeeks.map(w => tasks.reduce((s, t) => {
+                    if (new Date(t.createdAt || 0) > w.date) return s;
+                    const effort = parseFloat(t.estEffort) || 0;
+                    if (effort <= 0) return s;
+                    const progressVal = getTaskProgressAt(t, w.date, P.log || []);
+                    return s + effort * (progressVal / 100);
+                  }, 0));
 
                   // Card 1: Pacing & Burnup Forecast
                   const pacingId = 'dash-exec-pacing';
@@ -27670,6 +27804,13 @@ load() {
                     optWeeks.push(weeksCount);
                     optWeeks.sort((a, b) => a - b);
                   }
+
+                  const modeVal = (P.settings && P.settings.velocityMode) || 'weighted';
+                  let modeSelectHtml = `<select onchange="updateVelocityMode(this.value)" style="border:none; background:transparent; color:var(--color-text-muted); font-size:11px; font-weight:700; cursor:pointer; outline:none; padding:2px 4px; margin-right:8px; border-right:1px solid var(--color-border);">
+                    <option value="weighted" ${modeVal === 'weighted' ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">Subtask-Weighted</option>
+                    <option value="binary" ${modeVal === 'binary' ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">Binary Completed</option>
+                  </select>`;
+
                   let selectHtml = `<select onchange="updateVelocityWeeks(this.value)" style="border:none; background:transparent; color:var(--color-text-muted); font-size:11px; font-weight:700; cursor:pointer; outline:none; padding:2px 4px;">`;
                   optWeeks.forEach(w => {
                     const isYear = w === 52 ? ' (1 Year)' : '';
@@ -27679,7 +27820,7 @@ load() {
                   selectHtml += `</select>`;
                   const weeksToggle = document.createElement('div');
                   weeksToggle.style = "display:inline-flex; background:var(--color-surface-offset); padding:2px 6px; border-radius:7px; border:1px solid var(--color-border); align-items:center; flex-shrink:0; height:fit-content; margin-left:auto;";
-                  weeksToggle.innerHTML = selectHtml;
+                  weeksToggle.innerHTML = modeSelectHtml + selectHtml;
                   vCard.querySelector('.ch').appendChild(weeksToggle);
 
                   const vCvs = mkCvs(700, 320); vCard.querySelector('.cb').appendChild(vCvs);
@@ -27688,8 +27829,40 @@ load() {
                   vLeg.innerHTML = `<div class="cli"><div class="cdot" style="background:var(--color-primary)"></div>Weekly Velocity</div><div class="cli"><div style="width:12px;border-top:2px dashed var(--amber);margin-right:6px"></div>3-Week Rolling Avg</div>`;
                   vCard.appendChild(vLeg);
 
-                  const lastWeeks = []; for (let i = weeksCount - 1; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); lastWeeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) }); }
-                  const velocity = lastWeeks.map(w => tasks.filter(t => { if (t.status !== 'Completed' || !t.dueDate) return false; const d = new Date(t.dueDate); return getWeekNumber(d) === w.w && d.getFullYear() === w.y; }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
+                  const lastWeeks = [];
+                  for (let i = weeksCount - 1; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(d.getDate() - i * 7);
+                    d.setHours(23, 59, 59, 999);
+                    lastWeeks.push({
+                      w: getWeekNumber(d),
+                      y: d.getFullYear(),
+                      l: 'W' + getWeekNumber(d),
+                      date: new Date(d)
+                    });
+                  }
+
+                  const isWeighted = ((P.settings && P.settings.velocityMode) || 'weighted') === 'weighted';
+                  const velocity = lastWeeks.map(w => {
+                    if (isWeighted) {
+                      const startLimit = new Date(w.date.getTime() - 7 * 24 * 60 * 60 * 1000);
+                      const endLimit = w.date;
+                      return tasks.reduce((s, t) => {
+                        const effort = parseFloat(t.estEffort) || 0;
+                        if (effort <= 0) return s;
+                        const pStart = getTaskProgressAt(t, startLimit, P.log || []);
+                        const pEnd = getTaskProgressAt(t, endLimit, P.log || []);
+                        const gained = Math.max(0, (pEnd !== null ? pEnd : 0) - (pStart !== null ? pStart : 0));
+                        return s + effort * (gained / 100);
+                      }, 0);
+                    } else {
+                      return tasks.filter(t => {
+                        if (t.status !== 'Completed' || !t.dueDate) return false;
+                        const d = new Date(t.dueDate);
+                        return getWeekNumber(d) === w.w && d.getFullYear() === w.y;
+                      }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+                    }
+                  });
                   const rolling = velocity.map((v, i) => (i < 2) ? v : (velocity[i] + velocity[i - 1] + velocity[i - 2]) / 3);
                   const maxVal = Math.max(...velocity, ...rolling, 10);
 
