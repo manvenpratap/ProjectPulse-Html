@@ -21037,10 +21037,7 @@ load() {
       renderSidebar();
     }
 
-    function buildBoardPackContent(preset) {
-      const cont = $id('board-pack-preview');
-      if (!cont) return;
-
+    function getBoardPackHtml(preset) {
       const tasks = P.tasks || [];
       const raids = P.raids || [];
       const decisions = P.decisions || [];
@@ -21369,8 +21366,13 @@ load() {
           </div>
         `;
       }
+      return html;
+    }
 
-      cont.innerHTML = html;
+    function buildBoardPackContent(preset) {
+      const cont = $id('board-pack-preview');
+      if (!cont) return;
+      cont.innerHTML = getBoardPackHtml(preset);
       if (window.lucide) lucide.createIcons(cont);
     }
 
@@ -21384,12 +21386,14 @@ load() {
         periodEnd: new Date().toISOString().split('T')[0],
         frequency: 'weekly',
         summary: `Automated Board Pack generated for ${preset} briefing.`,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        boardPackPreset: preset,
+        boardPackHtml: getBoardPackHtml(preset)
       };
       P.reports.push(r);
       save();
       renderSnapshotsList();
-      notify('Board Pack saved to snapshots', 'ok');
+      notify('Board Pack saved to reports', 'ok');
       viewReport(rId);
     }
     function openNewReport() {
@@ -21529,7 +21533,13 @@ load() {
         { key: 'plans', label: 'Upcoming Plans', icon: '📌', content: r.plans }
       ].filter(s => s.content && s.content.trim());
 
-      if (sections.length) {
+      if (r.boardPackHtml || r.boardPackPreset) {
+        const boardPackCard = document.createElement('div');
+        boardPackCard.style.cssText = 'background:var(--color-surface-2);border:1px solid var(--color-divider);border-radius:16px;padding:32px;margin-bottom:24px;grid-column:1 / -1;width:100%;box-sizing:border-box';
+        boardPackCard.innerHTML = r.boardPackHtml || getBoardPackHtml(r.boardPackPreset);
+        inner.appendChild(boardPackCard);
+        if (window.lucide) lucide.createIcons(boardPackCard);
+      } else if (sections.length) {
         const headerCard = document.createElement('div');
         headerCard.style.cssText = 'background:var(--color-surface-2);border:1px solid var(--color-divider);border-radius:16px;padding:24px;margin-bottom:24px;grid-column:1 / -1;width:100%;box-sizing:border-box';
 
