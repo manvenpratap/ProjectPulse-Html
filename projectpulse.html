@@ -42818,9 +42818,11 @@ function enterApp() {
          *   1. navigator.share() with a PNG file (works on mobile/Edge/Chrome — opens OS share sheet
          *      where the user can pick Mail, Teams, WhatsApp, etc.)
          *   2. navigator.share() without a file (text-only share sheet, e.g. Safari desktop)
-         *   3. mailto: URI fallback — opens the default email client with a pre-filled draft.
+         *   3. mailto: URI — copies the PNG to clipboard, opens the default email client with a
+         *      pre-filled draft, and instructs the user to paste (Ctrl+V / Cmd+V) the image.
          *
-         * For Excel views (tasks / defects), the Excel file is attached at step 1.
+         * For Excel views (tasks / defects), the Excel file is downloaded and the draft prompts
+         * the user to attach it. (mailto: cannot carry binary attachments.)
          */
         async function shareView(containerId) {
           const el = document.getElementById(containerId);
@@ -42849,9 +42851,16 @@ function enterApp() {
             } catch (e) {
               if (e.name !== 'AbortError') PP.error('Share error', e);
             }
-            // Fallback: download the file
-            notify('File sharing not supported in this browser. Downloading the Excel report…', 'info');
+            // Fallback: download the Excel file, then open a mailto: draft
+            notify('Downloading Excel report… attach it to the email draft that will open.', 'info');
             exportProjectExcel(false, true);
+            // Small delay so the download starts before the mailto: fires
+            await new Promise(r => setTimeout(r, 600));
+            const mailBody = encodeURIComponent(
+              'Hi,\n\nPlease find the latest ProjectPulse ' + P.view + ' report for "' + (P.name || 'Project') + '" attached to this email.\n\n-- Sent from ProjectPulse'
+            );
+            window.location.href = 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + mailBody;
+            notify('Email draft opened — attach the downloaded Excel file and send.', 'ok');
             return;
           }
 
@@ -42883,12 +42892,27 @@ function enterApp() {
             }
           }
 
-          // 3. mailto: fallback — opens the default email client with a pre-filled draft
-          const body = encodeURIComponent(
+          // 3. mailto: fallback — copy PNG to clipboard, open draft, prompt user to paste
+          const mailSubjectEnc = encodeURIComponent(subject);
+          const mailBodyEnc = encodeURIComponent(
             'Hi,\n\nPlease find the latest ProjectPulse report for "' + (P.name || 'Project') + '" below.\n\n' +
-            'View in browser: ' + window.location.href + '\n\n-- Sent from ProjectPulse'
+            '[ Paste the report image here — use Ctrl+V / Cmd+V ]\n\n-- Sent from ProjectPulse'
           );
-          window.location.href = 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + body;
+
+          if (blob) {
+            try {
+              await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+              window.location.href = 'mailto:?subject=' + mailSubjectEnc + '&body=' + mailBodyEnc;
+              notify('Report image copied — your email client will open. Paste (Ctrl+V / Cmd+V) the image into the email body.', 'ok');
+              return;
+            } catch (clipErr) {
+              // Clipboard write failed (permissions denied etc.) — still open the draft
+              PP.error('Clipboard copy failed', clipErr);
+            }
+          }
+
+          // Last resort: open mailto: draft without image
+          window.location.href = 'mailto:?subject=' + mailSubjectEnc + '&body=' + mailBodyEnc;
           notify('Opening your email client with a pre-filled draft…', 'ok');
         }
 
