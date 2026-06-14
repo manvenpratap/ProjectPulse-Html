@@ -264,6 +264,15 @@ def main():
         page.goto(file_url, wait_until="networkidle", timeout=30000)
         page.wait_for_timeout(2000)
 
+        # Capture landing page
+        try:
+            out_path = os.path.join(OUT_DIR, "15_landing_page.png")
+            page.screenshot(path=out_path)
+            screenshots["15_landing_page"] = out_path
+            print("  ✓  15_landing_page.png")
+        except Exception as ex:
+            print(f"  ✗  15_landing_page — {ex}")
+
         # Seed data once
         state_json = json.dumps(DEMO_STATE)
         page.evaluate(f"() => {{ localStorage.setItem('pp-data', JSON.stringify({state_json})); }}")
@@ -297,6 +306,60 @@ def main():
                 print(f"  ✓  {fname}.png")
             except Exception as ex:
                 print(f"  ✗  {fname} — {ex}")
+
+        print("\nCapturing interactive flyouts…\n")
+
+        # 11. Task Flyout
+        try:
+            page.evaluate("() => { try { setView('tasks'); openFlyout('TASK-003', 'edit'); } catch(e) { P.view='tasks'; openFlyout('TASK-003', 'edit'); } }")
+            page.wait_for_timeout(1500)
+            out_path = os.path.join(OUT_DIR, "11_add_task_flyout.png")
+            page.screenshot(path=out_path)
+            screenshots["11_add_task_flyout"] = out_path
+            print("  ✓  11_add_task_flyout.png")
+            # Close task flyout
+            page.evaluate("() => { try { closeAddTask(); } catch(e) {} }")
+        except Exception as ex:
+            print(f"  ✗  11_add_task_flyout — {ex}")
+
+        # 12. Defect Flyout
+        try:
+            page.evaluate("() => { try { setView('defects'); openDefectModal('DEF-001'); } catch(e) { P.view='defects'; openDefectModal('DEF-001'); } }")
+            page.wait_for_timeout(1500)
+            out_path = os.path.join(OUT_DIR, "12_add_defect_flyout.png")
+            page.screenshot(path=out_path)
+            screenshots["12_add_defect_flyout"] = out_path
+            print("  ✓  12_add_defect_flyout.png")
+            # Close defect flyout
+            page.evaluate("() => { try { closeDefectFlyout(); } catch(e) {} }")
+        except Exception as ex:
+            print(f"  ✗  12_add_defect_flyout — {ex}")
+
+        # 13. RAID Flyout
+        try:
+            page.evaluate("() => { try { setView('raid'); openRaidModal('RAID-001'); } catch(e) { P.view='raid'; openRaidModal('RAID-001'); } }")
+            page.wait_for_timeout(1500)
+            out_path = os.path.join(OUT_DIR, "13_add_raid_flyout.png")
+            page.screenshot(path=out_path)
+            screenshots["13_add_raid_flyout"] = out_path
+            print("  ✓  13_add_raid_flyout.png")
+            # Close RAID flyout
+            page.evaluate("() => { try { closeRaidFlyout(); } catch(e) {} }")
+        except Exception as ex:
+            print(f"  ✗  13_add_raid_flyout — {ex}")
+
+        # 14. Member Flyout
+        try:
+            page.evaluate("() => { try { setView('team'); openAddMember('MEM-001'); } catch(e) { P.view='team'; openAddMember('MEM-001'); } }")
+            page.wait_for_timeout(1500)
+            out_path = os.path.join(OUT_DIR, "14_add_member_flyout.png")
+            page.screenshot(path=out_path)
+            screenshots["14_add_member_flyout"] = out_path
+            print("  ✓  14_add_member_flyout.png")
+            # Close member flyout by removing class "on" or clicking close
+            page.evaluate("() => { try { $id('member-flyout').classList.remove('on'); } catch(e) {} }")
+        except Exception as ex:
+            print(f"  ✗  14_add_member_flyout — {ex}")
 
         context.close()
         browser.close()

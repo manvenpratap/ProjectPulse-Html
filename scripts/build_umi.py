@@ -24,13 +24,15 @@ def ch_getting_started(doc):
     make_body(doc,"ProjectPulse requires no installation. Follow these steps:",space_after=4)
     make_numbered(doc,"Locate the projectpulse.html file on your computer or shared drive.")
     make_numbered(doc,"Double-click the file to open it in your default web browser.")
-    make_numbered(doc,"ProjectPulse loads with a pre-populated sample project so you can explore immediately.")
+    make_numbered(doc,"ProjectPulse loads with a welcome landing page. Click 'Enter' or 'Open App' to enter the main dashboard.")
     make_numbered(doc,"To start a fresh project: click Settings (gear icon) -> General -> 'Reset Project'. Enter your project name and click Save.")
+    add_screenshot(doc,"15_landing_page",
+        "Figure 1.1 — The Welcome/Landing page of ProjectPulse before entering the main workspace.")
     doc.add_paragraph()
     add_callout(doc,
         "For the best experience, use Google Chrome or Microsoft Edge version 110 or later. "
         "Firefox and Safari are also fully supported.",style="tip")
-
+    
     make_heading(doc,"1.2  The Navigation Bar",level=2,color=CLR_ACCENT)
     make_body(doc,
         "The left-side navigation bar is your primary way to move between modules. "
@@ -162,11 +164,11 @@ def ch_delivery(doc):
 
     make_heading(doc,"4.1  Creating Your First Task",level=2,color=CLR_ACCENT)
     make_numbered(doc,"Click the '+ Add Task' button in the top-right of the Delivery Matrix.")
-    make_numbered(doc,"A new row appears at the bottom of the task list with default values.")
-    make_numbered(doc,"Click any field in the row to start editing it inline.")
-    make_numbered(doc,"Enter the task name, then press Tab to move to the next field.")
-    make_numbered(doc,"Set the Status (defaults to 'Not Started'), Assignee, Priority, Start Date, and Due Date.")
-    make_numbered(doc,"Press Enter on the last field or click anywhere else to save the row.")
+    make_numbered(doc,"Alternatively, open the Task Flyout detailed panel by clicking the task detail/edit button.")
+    make_numbered(doc,"A comprehensive form appears with fields for name, assignee, status, priority, complexity, dates, and dependencies.")
+    make_numbered(doc,"Fill in the details and click 'Save Task'.")
+    add_screenshot(doc,"11_add_task_flyout",
+        "Figure 4.2 — The interactive Task Details flyout panel showing comprehensive fields and subtask lists.")
     doc.add_paragraph()
 
     make_heading(doc,"4.2  Adding Subtasks",level=2,color=CLR_ACCENT)
@@ -310,12 +312,15 @@ def ch_raid(doc):
     make_heading(doc,"7.1  Logging a New RAID Item",level=2,color=CLR_ACCENT)
     make_numbered(doc,"Navigate to the RAID Register module.")
     make_numbered(doc,"Click '+ Add Item'.")
+    make_numbered(doc,"The RAID logging flyout panel appears, allowing comprehensive details to be set.")
     make_numbered(doc,"Select the Type: Risk / Assumption / Issue / Dependency.")
     make_numbered(doc,"Enter a clear, specific title (e.g., 'Key backend developer may leave before Phase 2 completion').")
     make_numbered(doc,"Fill in Description, Impact, Probability (for Risks), and Severity.")
     make_numbered(doc,"Assign an Owner from the team member list.")
     make_numbered(doc,"Enter a Mitigation Strategy and a Target Closure Date.")
     make_numbered(doc,"Click Save. The Exposure Score is calculated automatically.")
+    add_screenshot(doc,"13_add_raid_flyout",
+        "Figure 7.2 — Logging/Editing a RAID item with mitigation strategy, owner select, and auto-exposure calculation.")
     doc.add_paragraph()
 
     make_heading(doc,"7.2  Understanding the Exposure Score",level=2,color=CLR_ACCENT)
@@ -355,6 +360,8 @@ def ch_team(doc):
     make_numbered(doc,"Enter the member's full name, role (e.g., Backend Developer, QA Engineer), and current status (Active).")
     make_numbered(doc,"Set their Weekly Hour Cap (default: 40 hours) and Utilisation Rate (1.0 = full time, 0.5 = part time).")
     make_numbered(doc,"Click Save. The member now appears in all assignee dropdowns and the Scheduler heatmap.")
+    add_screenshot(doc,"14_add_member_flyout",
+        "Figure 8.2 — Add/Edit Team Member form showing capacity hour caps, utilization rates, and planned leaves scheduler.")
     doc.add_paragraph()
 
     make_heading(doc,"8.2  Recording Planned Leave",level=2,color=CLR_ACCENT)
@@ -394,6 +401,8 @@ def ch_defects(doc):
     make_numbered(doc,"Link to a Task: select the task or subtask the defect was found in.")
     make_numbered(doc,"Enter detailed Reproduction Steps so the developer can replicate the bug.")
     make_numbered(doc,"Click Save.")
+    add_screenshot(doc,"12_add_defect_flyout",
+        "Figure 9.2 — Log Defect form linking the bug to a parent task, specifying severity, and listing reproduction steps.")
     doc.add_paragraph()
     add_callout(doc,
         "S1 Blocker defects trigger an immediate red alert banner on the Overview Dashboard "
