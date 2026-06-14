@@ -1564,12 +1564,8 @@
       content: '📄';
     }
 
-    [data-theme="play"] .dd-item[onclick*="triggerGlobalExport('teams')"]::before {
-      content: '💬';
-    }
-
-    [data-theme="play"] .dd-item[onclick*="triggerGlobalExport('email')"]::before {
-      content: '✉️';
+    [data-theme="play"] .dd-item[onclick*="triggerGlobalExport('share')"]::before {
+      content: '📤';
     }
 
     [data-theme="play"] .dd-item[onclick*="triggerGlobalExport('excel')"]::before {
@@ -1810,11 +1806,7 @@
       color: #ef4444 !important;
     }
 
-    [data-theme="prism"] .dd-item[onclick*="triggerGlobalExport('teams')"] [data-lucide] {
-      color: #3b82f6 !important;
-    }
-
-    [data-theme="prism"] .dd-item[onclick*="triggerGlobalExport('email')"] [data-lucide] {
+    [data-theme="prism"] .dd-item[onclick*="triggerGlobalExport('share')"] [data-lucide] {
       color: #f59e0b !important;
     }
 
@@ -10948,11 +10940,8 @@
                   <button class="dd-item" onclick="triggerGlobalExport('pdf')">
                     <i data-lucide="file-text"></i> Print as PDF
                   </button>
-                  <button class="dd-item" onclick="triggerGlobalExport('teams')">
-                    <i data-lucide="users"></i> Share to Teams
-                  </button>
-                  <button class="dd-item" onclick="triggerGlobalExport('email')">
-                    <i data-lucide="mail"></i> Email / Outlook
+                  <button class="dd-item" onclick="triggerGlobalExport('share')">
+                    <i data-lucide="send"></i> Share via Email
                   </button>
                   <div class="dd-sep" id="export-excel-sep"></div>
                   <button class="dd-item" id="export-excel-btn" onclick="triggerGlobalExport('excel')">
@@ -29670,8 +29659,7 @@ load() {
             if (P.view === 'log') exportLogCSV();
             else exportProjectExcel(false, true);
           }
-          if (type === 'teams') shareToTeams(contId);
-          if (type === 'email') exportEmail(contId);
+          if (type === 'share') shareView(contId);
         }
 
         function syncGlobalActions() {
@@ -42823,23 +42811,28 @@ function enterApp() {
           return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         }
 
-        async function exportEmail(containerId) {
+        /**
+         * shareView — unified share action.
+         *
+         * Priority order:
+         *   1. navigator.share() with a PNG file (works on mobile/Edge/Chrome — opens OS share sheet
+         *      where the user can pick Mail, Teams, WhatsApp, etc.)
+         *   2. navigator.share() without a file (text-only share sheet, e.g. Safari desktop)
+         *   3. mailto: URI fallback — opens the default email client with a pre-filled draft.
+         *
+         * For Excel views (tasks / defects), the Excel file is attached at step 1.
+         */
+        async function shareView(containerId) {
           const el = document.getElementById(containerId);
           if (!el) return notify('Container not found', 'err');
 
           const isExcelView = (P.view === 'tasks' || P.view === 'defects');
-          const sub = prompt(isExcelView ? 'Email subject (with Excel attachment):' : 'Email subject:', 'ProjectPulse Report - ' + new Date().toLocaleDateString());
-          if (sub === null) return;
+          const subject = prompt('Email subject:', 'ProjectPulse Report — ' + new Date().toLocaleDateString());
+          if (subject === null) return;
 
-          let reportText = "";
-          if (containerId === 'rpt-inner' || containerId === 'dash-inner') {
-            const title = el.querySelector('.dash-title')?.textContent || el.querySelector('.sc-lbl')?.textContent || "";
-            const subH = el.querySelector('.dash-subtitle')?.textContent || "";
-            reportText = `${title}\n${subH}\n\n`;
-          }
+          notify(isExcelView ? 'Generating Excel report…' : 'Preparing share…', 'info');
 
-          notify(isExcelView ? 'Generating Excel report...' : 'Preparing report email...', 'info');
-
+          // ── Excel views: try native share with file attachment ─────────────
           if (isExcelView) {
             try {
               const blob = await getExcelFileBlob();
@@ -42847,117 +42840,56 @@ function enterApp() {
                 const projectClean = (P.name || 'Project').replace(/[\\\/*?:"<>|\s]/g, '');
                 const ts = new Date().toISOString().replace(/[-:T]/g, '').split('.')[0];
                 const file = new File([blob], `ProjectPulse_${projectClean}_${P.view}_${ts}.xlsx`, { type: blob.type });
-
                 if (navigator.canShare({ files: [file] })) {
-                  await navigator.share({
-                    title: sub,
-                    text: reportText + `Attached is the ProjectPulse ${P.view} Excel export.`,
-                    files: [file]
-                  });
-                  notify('Excel report shared successfully!', 'ok');
+                  await navigator.share({ title: subject, text: 'Attached is the ProjectPulse ' + P.view + ' report.', files: [file] });
+                  notify('Report shared successfully!', 'ok');
                   return;
                 }
               }
             } catch (e) {
               if (e.name !== 'AbortError') PP.error('Share error', e);
             }
-
-            // Native Share Sheet failed/not supported: Fallback to direct Download
-            notify('Direct file sharing sheet is restricted. Exporting Excel report to your device...', 'info');
+            // Fallback: download the file
+            notify('File sharing not supported in this browser. Downloading the Excel report…', 'info');
             exportProjectExcel(false, true);
             return;
           }
 
+          // ── Visual views: capture PNG then attempt native share ────────────
           const blob = await copyAllShares(containerId, true);
-          if (blob && navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], 'report.png', { type: 'image/png' })] })) {
+
+          // 1. Share sheet with PNG file
+          if (blob && navigator.share && navigator.canShare) {
             try {
               const file = new File([blob], 'report.png', { type: 'image/png' });
-              await navigator.share({
-                title: sub,
-                text: reportText + 'Attached is the ProjectPulse status report.',
-                files: [file]
-              });
-              notify('Report shared successfully!', 'ok');
-              return;
-            } catch (e) {
-              if (e.name !== 'AbortError') PP.error('Share error', e);
-            }
-          }
-
-          // Fallback: Copy to clipboard and instruct user to paste in Outlook
-          if (blob) {
-            try {
-              await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-              notify('Report image copied. Paste (Ctrl+V) directly inside your Outlook app compose screen.', 'ok');
-            } catch (err) {
-              notify('Failed to copy report view.', 'err');
-            }
-          }
-        }
-
-        async function shareToTeams(containerId) {
-          const el = document.getElementById(containerId);
-          if (!el) return notify('Container not found', 'err');
-
-          const isExcelView = (P.view === 'tasks' || P.view === 'defects');
-          const sub = prompt(isExcelView ? 'Teams message (with Excel attachment):' : 'Teams message text:', 'Check out this ProjectPulse Report');
-          if (sub === null) return;
-
-          notify(isExcelView ? 'Generating Excel report...' : 'Preparing Teams share...', 'info');
-
-          if (isExcelView) {
-            try {
-              const blob = await getExcelFileBlob();
-              if (blob && navigator.share && navigator.canShare) {
-                const projectClean = (P.name || 'Project').replace(/[\\\/*?:"<>|\s]/g, '');
-                const ts = new Date().toISOString().replace(/[-:T]/g, '').split('.')[0];
-                const file = new File([blob], `ProjectPulse_${projectClean}_${P.view}_${ts}.xlsx`, { type: blob.type });
-
-                if (navigator.canShare({ files: [file] })) {
-                  await navigator.share({
-                    title: 'ProjectPulse Excel Share',
-                    text: sub,
-                    files: [file]
-                  });
-                  notify('Excel report shared to Teams successfully!', 'ok');
-                  return;
-                }
+              if (navigator.canShare({ files: [file] })) {
+                await navigator.share({ title: subject, text: 'ProjectPulse status report.', files: [file] });
+                notify('Report shared successfully!', 'ok');
+                return;
               }
             } catch (e) {
               if (e.name !== 'AbortError') PP.error('Share error', e);
             }
-
-            // Fallback for Excel: Auto-download file
-            notify('Direct file sharing sheet is restricted. Exporting Excel report to your device...', 'info');
-            exportProjectExcel(false, true);
-            return;
           }
 
-          const blob = await copyAllShares(containerId, true);
-          if (blob && navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], 'report.png', { type: 'image/png' })] })) {
+          // 2. Text-only share sheet (no file)
+          if (navigator.share) {
             try {
-              const file = new File([blob], 'report.png', { type: 'image/png' });
-              await navigator.share({
-                title: 'ProjectPulse Share',
-                text: sub,
-                files: [file]
-              });
-              notify('Shared to Teams successfully!', 'ok');
+              await navigator.share({ title: subject, text: 'ProjectPulse status report: ' + window.location.href });
+              notify('Link shared!', 'ok');
               return;
             } catch (e) {
               if (e.name !== 'AbortError') PP.error('Share error', e);
             }
           }
 
-          // Fallback: Copy to clipboard and instruct user to paste in Teams
-          if (blob) {
-            try {
-              await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-              notify('Report image copied. Paste (Ctrl+V) directly inside your Teams app chat window.', 'ok');
-            } catch (err) {
-              notify('Failed to copy report view.', 'err');
-            }
-          }
+          // 3. mailto: fallback — opens the default email client with a pre-filled draft
+          const body = encodeURIComponent(
+            'Hi,\n\nPlease find the latest ProjectPulse report for "' + (P.name || 'Project') + '" below.\n\n' +
+            'View in browser: ' + window.location.href + '\n\n-- Sent from ProjectPulse'
+          );
+          window.location.href = 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + body;
+          notify('Opening your email client with a pre-filled draft…', 'ok');
         }
 
         async function copyWidgetAsImage(el) {
