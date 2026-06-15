@@ -36,25 +36,38 @@ CLR_GOLD    = RGBColor(0xD4, 0xAF, 0x37)
 
 # ── Document Setup ─────────────────────────────────────────────────────────
 
-def new_document(top=1.0, bottom=1.0, left=1.1, right=1.1):
+def new_document(top=1.0, bottom=1.0, left=1.25, right=1.25):
     doc = Document()
     section = doc.sections[0]
     section.top_margin    = Inches(top)
     section.bottom_margin = Inches(bottom)
     section.left_margin   = Inches(left)
     section.right_margin  = Inches(right)
+    
+    # Configure default normal style
     style = doc.styles["Normal"]
     style.font.name = "Segoe UI"
-    style.font.size = Pt(10)
+    style.font.size = Pt(10.5)
     style.font.color.rgb = CLR_TEXT
-    style.paragraph_format.line_spacing = 1.15
-    style.paragraph_format.space_after = Pt(4)
-    for level, size in [(1,18),(2,13.5),(3,11.5)]:
+    style.paragraph_format.line_spacing = 1.25
+    style.paragraph_format.space_after = Pt(8)
+    
+    # Configure Heading 1, 2, 3 styles globally
+    heading_configs = [
+        (1, 22, 24, 8),
+        (2, 15, 16, 6),
+        (3, 12, 12, 4)
+    ]
+    for level, size, before, after in heading_configs:
         h = doc.styles[f"Heading {level}"]
         h.font.name = "Segoe UI"
         h.font.size = Pt(size)
         h.font.color.rgb = CLR_NAVY
         h.font.bold = True
+        h.paragraph_format.space_before = Pt(before)
+        h.paragraph_format.space_after = Pt(after)
+        h.paragraph_format.keep_with_next = True
+        
     return doc
 
 # ── Cell / Table Helpers ───────────────────────────────────────────────────
@@ -70,6 +83,59 @@ def set_cell_bg(cell, hex_color):
     shd.set(qn("w:color"), "auto")
     shd.set(qn("w:fill"),  hex_color)
     tcPr.append(shd)
+
+
+def set_cell_margins(cell, top=120, bottom=120, left=180, right=180):
+    """Sets inner margins (padding) of a table cell in twentieths of a point (dxa)."""
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+    existing_tcMar = tcPr.find(qn("w:tcMar"))
+    if existing_tcMar is not None:
+        tcPr.remove(existing_tcMar)
+    tcMar = OxmlElement("w:tcMar")
+    for side, val in [("top", top), ("bottom", bottom), ("left", left), ("right", right)]:
+        node = OxmlElement(f"w:{side}")
+        node.set(qn("w:w"), str(val))
+        node.set(qn("w:type"), "dxa")
+        tcMar.append(node)
+    tcPr.append(tcMar)
+
+
+def set_cell_borders(cell, color=None, sz=None, top="none", bottom="none", left="none", right="none", 
+                     top_color="D1D5DB", bottom_color="D1D5DB", left_color="D1D5DB", right_color="D1D5DB",
+                     top_sz="4", bottom_sz="4", left_sz="4", right_sz="4"):
+    """
+    Sets individual cell borders. Supports backwards compatibility for full borders
+    when 'color' positional/keyword argument is passed.
+    """
+    if color is not None:
+        top = bottom = left = right = "single"
+        top_color = bottom_color = left_color = right_color = color
+        if sz is not None:
+            top_sz = bottom_sz = left_sz = right_sz = sz
+
+    tcPr = cell._tc.get_or_add_tcPr()
+    existing_borders = tcPr.find(qn("w:tcBorders"))
+    if existing_borders is not None:
+        tcPr.remove(existing_borders)
+    tcBorders = OxmlElement("w:tcBorders")
+    
+    borders = [
+        ("top", top, top_color, top_sz),
+        ("bottom", bottom, bottom_color, bottom_sz),
+        ("left", left, left_color, left_sz),
+        ("right", right, right_color, right_sz)
+    ]
+    for edge, val, col, size in borders:
+        tag = OxmlElement(f"w:{edge}")
+        if val == "none" or val is None:
+            tag.set(qn("w:val"), "none")
+        else:
+            tag.set(qn("w:val"), val)
+            tag.set(qn("w:sz"), str(size))
+            tag.set(qn("w:color"), col)
+        tcBorders.append(tag)
+    tcPr.append(tcBorders)
 
 
 def add_horizontal_rule(doc, color="D1D5DB"):
@@ -88,13 +154,33 @@ def add_horizontal_rule(doc, color="D1D5DB"):
     return p
 
 
+def add_thick_rule(doc, color="00C2A8", sz="24"):
+    p   = doc.add_paragraph()
+    pPr = p._p.get_or_add_pPr()
+    pBdr = OxmlElement("w:pBdr")
+    bot  = OxmlElement("w:bottom")
+    bot.set(qn("w:val"),   "single")
+    bot.set(qn("w:sz"),    str(sz))
+    bot.set(qn("w:space"), "1")
+    bot.set(qn("w:color"), color)
+    pBdr.append(bot)
+    pPr.append(pBdr)
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after  = Pt(8)
+    return p
+
+
 def add_page_break(doc):
     doc.add_page_break()
 
 # ── Typography ─────────────────────────────────────────────────────────────
 
-def make_heading(doc, text, level=1, color=None, space_before=18, space_after=6):
+def make_heading(doc, text, level=1, color=None, space_before=None, space_after=None):
     h   = doc.add_heading(text, level=level)
+    if space_before is None:
+        space_before = 24 if level == 1 else (16 if level == 2 else 12)
+    if space_after is None:
+        space_after = 8 if level == 1 else (6 if level == 2 else 4)
     h.paragraph_format.space_before = Pt(space_before)
     h.paragraph_format.space_after  = Pt(space_after)
     h.paragraph_format.keep_with_next = True
@@ -177,105 +263,101 @@ def add_callout(doc, text, style="note"):
         "constraint":  ("CONSTRAINT",   "1B5E20", "E8F5E9", "2E7D32"),
         "integration": ("INTEGRATION",  "01579B", "E1F5FE", "0277BD"),
     }
+    icons = {
+        "note":        "ℹ️ ",
+        "tip":         "💡 ",
+        "warning":     "⚠️ ",
+        "caution":     "🛑 ",
+        "rule":        "📋 ",
+        "constraint":  "🔒 ",
+        "integration": "🔌 ",
+    }
     label, label_col, bg_col, border_col = configs.get(style, configs["note"])
+    icon_prefix = icons.get(style, "ℹ️ ")
 
     tbl  = doc.add_table(rows=1, cols=1)
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
-    tbl.style     = "Table Grid"
+    tbl.style     = "Normal Table"
+    
     cell = tbl.cell(0, 0)
     set_cell_bg(cell, bg_col)
-
-    tc   = cell._tc
-    tcPr = tc.get_or_add_tcPr()
-    existing_borders = tcPr.find(qn("w:tcBorders"))
-    if existing_borders is not None:
-        tcPr.remove(existing_borders)
-    tcBorders = OxmlElement("w:tcBorders")
-    for edge, col, sz in [("left",border_col,24),("top","none",0),
-                           ("right","none",0),("bottom","none",0)]:
-        tag = OxmlElement(f"w:{edge}")
-        if col == "none":
-            tag.set(qn("w:val"), "none")
-        else:
-            tag.set(qn("w:val"),   "single")
-            tag.set(qn("w:sz"),    str(sz))
-            tag.set(qn("w:color"), col)
-        tcBorders.append(tag)
-    tcPr.append(tcBorders)
+    set_cell_margins(cell, top=120, bottom=120, left=180, right=180)
+    set_cell_borders(cell, left="single", left_color=border_col, left_sz="28")
 
     p = cell.paragraphs[0]
-    p.paragraph_format.space_before = Pt(6)
+    p.paragraph_format.space_before = Pt(2)
     p.paragraph_format.space_after  = Pt(2)
-    p.paragraph_format.left_indent  = Inches(0.1)
-    lbl = p.add_run(f"[{label}]  ")
+    p.paragraph_format.line_spacing = 1.15
+    lbl = p.add_run(f"{icon_prefix}{label}  ")
     lbl.bold = True
-    lbl.font.size = Pt(9)
+    lbl.font.size = Pt(9.5)
     lbl.font.name = "Segoe UI"
     lbl.font.color.rgb = RGBColor.from_string(label_col)
 
     p2 = cell.add_paragraph()
     p2.paragraph_format.space_before = Pt(2)
-    p2.paragraph_format.space_after  = Pt(6)
-    p2.paragraph_format.left_indent  = Inches(0.1)
+    p2.paragraph_format.space_after  = Pt(2)
+    p2.paragraph_format.line_spacing = 1.15
     body = p2.add_run(text)
-    body.font.size = Pt(10)
+    body.font.size = Pt(9.5)
     body.font.name = "Segoe UI"
-    doc.add_paragraph()
+    body.font.color.rgb = CLR_TEXT
+    
+    doc.add_paragraph().paragraph_format.space_after = Pt(4)
     return tbl
 
 # ── Data Tables ────────────────────────────────────────────────────────────
 
-def set_cell_borders(cell, color="D1D5DB", sz="4"):
-    tcPr = cell._tc.get_or_add_tcPr()
-    existing_borders = tcPr.find(qn("w:tcBorders"))
-    if existing_borders is not None:
-        tcPr.remove(existing_borders)
-    tcBorders = OxmlElement("w:tcBorders")
-    for edge in ["top", "left", "bottom", "right"]:
-        tag = OxmlElement(f"w:{edge}")
-        tag.set(qn("w:val"),   "single")
-        tag.set(qn("w:sz"),    str(sz))
-        tag.set(qn("w:color"), color)
-        tcBorders.append(tag)
-    tcPr.append(tcBorders)
-
-
 def add_data_table(doc, headers, rows, col_widths=None,
                    header_bg="0D1B2A", header_fg="FFFFFF"):
     tbl = doc.add_table(rows=1+len(rows), cols=len(headers))
-    tbl.style     = "Table Grid"
+    tbl.style     = "Normal Table"
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+    
     hdr_cells = tbl.rows[0].cells
     for i, h in enumerate(headers):
         hdr_cells[i].text = h
         set_cell_bg(hdr_cells[i], header_bg)
-        set_cell_borders(hdr_cells[i], color="0D1B2A", sz="4")
+        set_cell_margins(hdr_cells[i], top=120, bottom=120, left=180, right=180)
+        # Bold teal bottom border under header, none on others
+        set_cell_borders(hdr_cells[i], bottom="single", bottom_color="00C2A8", bottom_sz="12")
+        
         p   = hdr_cells[i].paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        p.paragraph_format.space_before = Pt(2)
+        p.paragraph_format.space_after  = Pt(2)
         run = p.runs[0]
         run.bold = True
         run.font.size = Pt(9.5)
         run.font.name = "Segoe UI"
         run.font.color.rgb = RGBColor.from_string(header_fg)
+        
     for r_idx, row in enumerate(rows):
         cells = tbl.rows[r_idx+1].cells
         bg    = "F8FAFC" if r_idx % 2 == 0 else "FFFFFF"
         for c_idx, val in enumerate(row):
             cells[c_idx].text = str(val)
             set_cell_bg(cells[c_idx], bg)
-            set_cell_borders(cells[c_idx], color="E2E8F0", sz="4")
+            set_cell_margins(cells[c_idx], top=100, bottom=100, left=150, right=150)
+            # Subtle horizontal dividers between rows, no vertical borders
+            set_cell_borders(cells[c_idx], bottom="single", bottom_color="E2E8F0", bottom_sz="4")
+            
             p = cells[c_idx].paragraphs[0]
-            p.paragraph_format.space_before = Pt(3)
-            p.paragraph_format.space_after  = Pt(3)
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            p.paragraph_format.space_before = Pt(2)
+            p.paragraph_format.space_after  = Pt(2)
             if p.runs:
                 for run in p.runs:
                     run.font.size = Pt(9.5)
                     run.font.name = "Segoe UI"
+                    run.font.color.rgb = CLR_TEXT
+                    
     if col_widths:
         for i, w in enumerate(col_widths):
             for row in tbl.rows:
                 row.cells[i].width = Inches(w)
-    doc.add_paragraph().paragraph_format.space_after = Pt(6)
+                
+    doc.add_paragraph().paragraph_format.space_after = Pt(8)
     return tbl
 
 
@@ -347,45 +429,72 @@ def add_screenshot(doc, filename, caption, width_inches=6.3):
 
 def build_cover(doc, product_name, subtitle, doc_type, version,
                 audience, confidentiality):
-    doc.add_paragraph("\n\n\n")
+    doc.add_paragraph("\n\n")
+    
+    # Accent top border line
+    add_thick_rule(doc, color="00C2A8", sz="36") # 4.5pt solid Teal bar
+    
+    # Left-aligned product name
     title_p = doc.add_paragraph()
-    title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    title_p.paragraph_format.space_before = Pt(18)
+    title_p.paragraph_format.space_after = Pt(4)
     run = title_p.add_run(product_name)
-    run.bold = True; run.font.size = Pt(44); run.font.color.rgb = CLR_NAVY
+    run.bold = True
+    run.font.size = Pt(38)
+    run.font.color.rgb = CLR_NAVY
     run.font.name = "Segoe UI"
 
+    # Left-aligned subtitle
     sub_p = doc.add_paragraph()
-    sub_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    sub_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    sub_p.paragraph_format.space_before = Pt(4)
+    sub_p.paragraph_format.space_after = Pt(28)
     run = sub_p.add_run(subtitle)
-    run.font.size = Pt(20); run.font.color.rgb = CLR_TEAL
+    run.font.size = Pt(16)
+    run.font.color.rgb = CLR_TEAL
     run.font.name = "Segoe UI"
 
     doc.add_paragraph("\n")
-    hr = doc.add_paragraph()
-    hr.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = hr.add_run(u"\u2500"*60)
-    run.font.color.rgb = CLR_TEAL; run.font.size = Pt(12)
-    run.font.name = "Segoe UI"
-    doc.add_paragraph("\n")
 
-    meta = [("Document Type",doc_type),("Version",version),
-            ("Audience",audience),
-            ("Date",datetime.date.today().strftime("%d %B %Y")),
-            ("Confidentiality",confidentiality)]
-    tbl = doc.add_table(rows=len(meta), cols=2)
-    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
-    for i,(label,value) in enumerate(meta):
-        c0,c1 = tbl.rows[i].cells
-        set_cell_bg(c0,"0D1B2A"); set_cell_bg(c1,"F4F7FA")
-        c0.width = Inches(2.0); c1.width = Inches(3.5)
-        p0 = c0.paragraphs[0]; p0.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        r0 = p0.add_run(label)
-        r0.bold=True; r0.font.size=Pt(9.5); r0.font.color.rgb=CLR_WHITE
-        r0.font.name = "Segoe UI"
-        p1 = c1.paragraphs[0]
-        r1 = p1.add_run(value)
-        r1.font.size=Pt(9.5); r1.font.color.rgb=CLR_TEXT
-        r1.font.name = "Segoe UI"
+    # Metadata Card block (single table cell with a thick left teal border and soft background)
+    meta = [
+        ("Document Type",   doc_type),
+        ("Version",         version),
+        ("Audience",        audience),
+        ("Date",            datetime.date.today().strftime("%d %B %Y")),
+        ("Confidentiality", confidentiality)
+    ]
+    
+    tbl = doc.add_table(rows=1, cols=1)
+    tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
+    tbl.style = "Normal Table"
+    
+    cell = tbl.cell(0, 0)
+    set_cell_bg(cell, "F4F7FA")
+    set_cell_margins(cell, top=180, bottom=180, left=240, right=240)
+    set_cell_borders(cell, left="single", left_color="00C2A8", left_sz="24") # 3pt left Teal border
+    
+    for idx, (label, value) in enumerate(meta):
+        if idx == 0:
+            p_meta = cell.paragraphs[0]
+        else:
+            p_meta = cell.add_paragraph()
+        p_meta.paragraph_format.space_before = Pt(2)
+        p_meta.paragraph_format.space_after = Pt(2)
+        p_meta.paragraph_format.line_spacing = 1.15
+        
+        lbl_run = p_meta.add_run(f"{label}:  ")
+        lbl_run.bold = True
+        lbl_run.font.size = Pt(10)
+        lbl_run.font.name = "Segoe UI"
+        lbl_run.font.color.rgb = CLR_NAVY
+        
+        val_run = p_meta.add_run(value)
+        val_run.font.size = Pt(10)
+        val_run.font.name = "Segoe UI"
+        val_run.font.color.rgb = CLR_TEXT
+        
     add_page_break(doc)
 
 # ── Table of Contents ──────────────────────────────────────────────────────
@@ -393,23 +502,53 @@ def build_cover(doc, product_name, subtitle, doc_type, version,
 def build_toc(doc, chapters, title="Table of Contents"):
     make_heading(doc, title, level=1, color=CLR_NAVY)
     add_horizontal_rule(doc, "00C2A8")
+    
+    doc.add_paragraph().paragraph_format.space_after = Pt(6)
+    
     tbl = doc.add_table(rows=len(chapters), cols=3)
     tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
-    for i,(num,title_text,pg) in enumerate(chapters):
-        c0,c1,c2 = tbl.rows[i].cells
-        c0.width=Inches(0.5); c1.width=Inches(5.3); c2.width=Inches(0.6)
-        bg = "F4F7FA" if i%2==0 else "FFFFFF"
-        for cell in (c0,c1,c2): set_cell_bg(cell,bg)
-        r0 = c0.paragraphs[0].add_run(num)
-        r0.bold=True; r0.font.size=Pt(10); r0.font.color.rgb=CLR_TEAL
+    tbl.style = "Normal Table"
+    
+    for i, (num, title_text, pg) in enumerate(chapters):
+        c0, c1, c2 = tbl.rows[i].cells
+        c0.width = Inches(0.6)
+        c1.width = Inches(5.0)
+        c2.width = Inches(0.6)
+        
+        bg = "F8FAFC" if i % 2 == 0 else "FFFFFF"
+        for cell in (c0, c1, c2):
+            set_cell_bg(cell, bg)
+            set_cell_margins(cell, top=80, bottom=80, left=120, right=120)
+            set_cell_borders(cell) # entirely borderless
+            
+        p0 = c0.paragraphs[0]
+        p0.paragraph_format.space_before = Pt(2)
+        p0.paragraph_format.space_after = Pt(2)
+        r0 = p0.add_run(num)
+        r0.bold = True
+        r0.font.size = Pt(9.5)
+        r0.font.color.rgb = CLR_TEAL
         r0.font.name = "Segoe UI"
-        r1 = c1.paragraphs[0].add_run(title_text)
-        r1.font.size=Pt(10.5)
+        
+        p1 = c1.paragraphs[0]
+        p1.paragraph_format.space_before = Pt(2)
+        p1.paragraph_format.space_after = Pt(2)
+        r1 = p1.add_run(title_text)
+        r1.font.size = Pt(9.5)
         r1.font.name = "Segoe UI"
-        p2 = c2.paragraphs[0]; p2.alignment=WD_ALIGN_PARAGRAPH.RIGHT
+        r1.font.color.rgb = CLR_TEXT
+        
+        p2 = c2.paragraphs[0]
+        p2.paragraph_format.space_before = Pt(2)
+        p2.paragraph_format.space_after = Pt(2)
+        p2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         r2 = p2.add_run(pg)
-        r2.font.size=Pt(10); r2.font.color.rgb=CLR_MUTED
+        r2.bold = True
+        r2.font.size = Pt(9.5)
+        r2.font.color.rgb = CLR_NAVY
         r2.font.name = "Segoe UI"
+        
+    doc.add_paragraph().paragraph_format.space_after = Pt(12)
     add_page_break(doc)
 
 # ── Section Divider ────────────────────────────────────────────────────────
@@ -417,31 +556,44 @@ def build_toc(doc, chapters, title="Table of Contents"):
 def add_section_divider(doc, part_label, part_title, description=""):
     add_page_break(doc)
     doc.add_paragraph("\n\n\n\n")
+    
+    # Left-aligned part label
     lbl_p = doc.add_paragraph()
-    lbl_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = lbl_p.add_run(part_label)
-    run.font.size=Pt(13); run.font.color.rgb=CLR_TEAL; run.font.bold=True
+    lbl_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    lbl_p.paragraph_format.space_before = Pt(12)
+    lbl_p.paragraph_format.space_after = Pt(4)
+    run = lbl_p.add_run(part_label.upper())
+    run.font.size = Pt(12)
+    run.font.color.rgb = CLR_TEAL
+    run.font.bold = True
     run.font.name = "Segoe UI"
 
+    # Left-aligned large part title
     t_p = doc.add_paragraph()
-    t_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    t_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    t_p.paragraph_format.space_before = Pt(4)
+    t_p.paragraph_format.space_after = Pt(12)
     run = t_p.add_run(part_title)
-    run.font.size=Pt(32); run.font.color.rgb=CLR_NAVY; run.font.bold=True
+    run.font.size = Pt(28)
+    run.font.color.rgb = CLR_NAVY
+    run.font.bold = True
     run.font.name = "Segoe UI"
 
-    hr = doc.add_paragraph()
-    hr.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = hr.add_run(u"\u2500"*40)
-    run.font.color.rgb=CLR_TEAL; run.font.size=Pt(14)
-    run.font.name = "Segoe UI"
+    # Thick rule separator
+    add_thick_rule(doc, color="00C2A8", sz="18") # 2.25pt
 
     if description:
         doc.add_paragraph("\n")
         d_p = doc.add_paragraph()
-        d_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        d_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        d_p.paragraph_format.space_before = Pt(6)
+        d_p.paragraph_format.space_after = Pt(12)
         run = d_p.add_run(description)
-        run.font.size=Pt(12); run.font.color.rgb=CLR_MUTED; run.font.italic=True
+        run.font.size = Pt(11)
+        run.font.color.rgb = CLR_MUTED
+        run.font.italic = True
         run.font.name = "Segoe UI"
+        
     add_page_break(doc)
 
 # ── Document Control (FSD) ─────────────────────────────────────────────────

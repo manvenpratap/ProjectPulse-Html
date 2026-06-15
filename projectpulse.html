@@ -24597,7 +24597,9 @@ load() {
           <div style="margin-bottom:8px"><i data-lucide="bar-chart-2"></i> <b>Dynamic Layouts:</b> Use the 'Customize' button to add or reorder widgets. Double-click any widget to resize.</div>
           <div style="margin-bottom:8px">📥 <b>Export Suite:</b> Right-click any chart to 'Copy as Image' for high-fidelity PPT inclusion.</div>
           <div style="margin-bottom:8px"><i data-lucide="lightbulb"></i> <b>Contextual Insights:</b> Hover over data points in charts for granular metrics and labels.</div>
+          <div style="margin-bottom:8px"><i data-lucide="trending-down"></i> <b>Burn-Down Chart:</b> Shows Actual Burndown (red), Burn-Up (green), Ideal path (amber dashed), and a Projection Cone after Today — hover to see all four metrics for any week.</div>
         `;
+
       } else if (v === 'features') {
         const totalF = P.features.length;
         const linkedF = P.features.filter(f => f.screens && f.screens.length).length;
@@ -28297,63 +28299,252 @@ load() {
                   const bdId = 'dash-burndown';
                   const bdSpan = (P.widgetSpans && P.widgetSpans[bdId]) || sec.span || 4;
                   const uLabel = P.settings.effortUnit === 'hrs' ? 'Hours' : P.settings.effortUnit === 'months' ? 'Months' : 'Days';
-                  const bdCard = mkCC('📉 Burndown Chart', 'Ideal vs Actual Remaining Effort (' + uLabel + ')', bdId, '', 'standard', "<b>Trajectory Analysis:</b> Visualizes whether the team is on pace to meet the project deadline. The 'Ideal' path (Amber) represents the theoretical burn rate needed for on-time delivery.", 'View Explanation');
+                  const bdCard = mkCC('📉 Burn-Down & Burn-Up Projection', 'Actual Burndown · Burn-Up · Ideal · Projection Cone (' + uLabel + ')', bdId, '', 'standard', "<b>Trajectory Analysis:</b> The Actual Burndown (red) shows remaining effort (including sub-task progress). The Burn-Up (green) shows completed work. The Projection Cone shows the range of possible outcomes after Today. The dashed Ideal path (amber) shows the on-time target.", 'View Explanation');
                   bdCard.style.gridColumn = `span ${bdSpan}`;
                   grid.appendChild(bdCard);
-                  const bdCvs = mkCvs(700, 320); bdCard.querySelector('.cb').appendChild(bdCvs);
+
+                  // ── Module multi-select filter bar ──
+                  const allModules = [...new Set(tasks.map(t => t.module).filter(Boolean))].sort();
+                  bdCard._bdModFilter = bdCard._bdModFilter || new Set(); // persist across re-renders
+
+                  const filterBar = document.createElement('div');
+                  filterBar.className = 'bd-filter-bar';
+                  filterBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px 8px;align-items:center;';
+
+                  const filterLabel = document.createElement('span');
+                  filterLabel.style.cssText = 'font-size:10px;font-weight:700;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.5px;margin-right:2px;';
+                  filterLabel.textContent = 'Module:';
+                  filterBar.appendChild(filterLabel);
+
+                  function renderFilterChips() {
+                    // Remove old chips (keep label)
+                    while (filterBar.children.length > 1) filterBar.removeChild(filterBar.lastChild);
+
+                    const makeChip = (label, isAll) => {
+                      const chip = document.createElement('button');
+                      const active = isAll ? bdCard._bdModFilter.size === 0 : bdCard._bdModFilter.has(label);
+                      chip.style.cssText = `font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;cursor:pointer;border:1.5px solid;transition:all 0.15s;white-space:nowrap;` +
+                        (active
+                          ? `background:var(--color-primary);color:#fff;border-color:var(--color-primary);`
+                          : `background:var(--color-surface-2);color:var(--color-text-muted);border-color:var(--color-border);`);
+                      chip.textContent = label;
+                      chip.onclick = () => {
+                        if (isAll) {
+                          bdCard._bdModFilter.clear();
+                        } else {
+                          if (bdCard._bdModFilter.has(label)) bdCard._bdModFilter.delete(label);
+                          else bdCard._bdModFilter.add(label);
+                        }
+                        renderFilterChips();
+                        rebuildBurndown();
+                      };
+                      return chip;
+                    };
+
+                    filterBar.appendChild(makeChip('All', true));
+                    allModules.forEach(m => filterBar.appendChild(makeChip(m, false)));
+                  }
+                  renderFilterChips();
+                  bdCard.querySelector('.cb').appendChild(filterBar);
+
+                  // ── Legend ──
                   const bdLeg = document.createElement('div');
                   bdLeg.className = 'cleg';
-                  bdLeg.innerHTML = `<div class="cli"><div class="cdot" style="background:var(--amber)"></div>Ideal Path</div><div class="cli"><div class="cdot" style="background:var(--color-primary)"></div>Actual Effort</div>`;
+                  bdLeg.innerHTML = `
+                    <div class="cli"><div class="cdot" style="background:#e55a4e"></div>Actual Burndown</div>
+                    <div class="cli" style="opacity:0.85"><div style="width:16px;height:0;border-top:2px dashed #b45309;margin-right:6px"></div>Ideal Burndown</div>
+                    <div class="cli"><div class="cdot" style="background:#22c55e"></div>Burn-Up</div>
+                    <div class="cli"><div style="width:14px;height:10px;border-radius:3px;background:rgba(239,68,68,0.25);margin-right:6px"></div>Projection Cone</div>
+                  `;
                   bdCard.appendChild(bdLeg);
 
-                  const startDates = tasks.map(t => new Date(t.startDate)).filter(d => !isNaN(d.getTime()));
-                  const endDates = tasks.map(t => new Date(t.dueDate)).filter(d => !isNaN(d.getTime()));
-                  const start = startDates.length ? new Date(Math.min(...startDates)) : new Date(Math.min(...tasks.map(t => new Date(t.createdAt || Date.now()))));
-                  const end = endDates.length ? new Date(Math.max(...endDates)) : new Date(start.getTime() + 30 * 864e5);
-                  const weeks = Math.max(2, Math.ceil((end - start) / (7 * 864e5)) + 1);
-                  const labels = Array.from({ length: weeks }, (_, i) => 'W' + (i + 1));
-                  const totalEffort = tasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
-                  const ideal = labels.map((_, i) => Math.max(0, totalEffort - (totalEffort / (weeks - 1)) * i));
-                  const actual = labels.map((_, i) => { const weekEnd = new Date(start.getTime() + (i + 1) * 7 * 864e5); return tasks.filter(t => t.status !== 'Completed' || new Date(t.updatedAt || t.dueDate) > weekEnd).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0); });
+                  // ── Canvas ──
+                  const bdCvs = mkCvs(700, 360); bdCard.querySelector('.cb').appendChild(bdCvs);
 
-                  const currentActual = tasks.filter(t => t.status !== 'Completed').reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
-                  const nowTime = Date.now();
-                  let currentWeekIdx = Math.floor((nowTime - start.getTime()) / (7 * 864e5));
-                  if (currentWeekIdx < 0) currentWeekIdx = 0;
-                  if (currentWeekIdx >= weeks) currentWeekIdx = weeks - 1;
-                  const currentIdeal = ideal[currentWeekIdx] || 0;
-                  const delta = Math.abs(currentActual - currentIdeal).toFixed(1);
-                  const isGood = currentActual <= currentIdeal;
-
+                  // ── Summary bar placeholder (will be filled by rebuildBurndown) ──
                   const summaryBar = document.createElement('div');
                   summaryBar.className = 'enhanced-scard';
-                  summaryBar.style = "display:flex; flex-wrap:wrap; gap:16px; padding:16px 20px; margin:0 0 20px 0; justify-content:space-between; align-items:center;";
-                  summaryBar.innerHTML = `
-                  <div style="display:flex; gap:36px; flex-wrap:wrap">
-                    <div>
-                      <div style="font-size:11px; color:var(--color-text-faint); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:700">Total Scope</div>
-                      <div style="font-size:24px; font-weight:900; font-family:var(--font-mono); color:var(--color-text); line-height:1">${totalEffort.toFixed(1)}<span style="font-size:14px;color:var(--color-text-muted);font-weight:600;margin-left:2px">d</span></div>
-                    </div>
-                    <div>
-                      <div style="font-size:11px; color:var(--color-text-faint); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:700">Completed</div>
-                      <div style="font-size:24px; font-weight:900; font-family:var(--font-mono); color:var(--color-text); line-height:1">${(totalEffort - currentActual).toFixed(1)}<span style="font-size:14px;color:var(--color-text-muted);font-weight:600;margin-left:2px">d</span></div>
-                    </div>
-                    <div>
-                      <div style="font-size:11px; color:var(--color-text-faint); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:700">Remaining</div>
-                      <div style="font-size:24px; font-weight:900; font-family:var(--font-mono); color:var(--color-text); line-height:1">${currentActual.toFixed(1)}<span style="font-size:14px;color:var(--color-text-muted);font-weight:600;margin-left:2px">d</span></div>
-                    </div>
-                  </div>
-                  <div>
-                    ${isGood
-                      ? `<span style="background:rgba(34,197,94,0.15); color:#16a34a; padding:8px 16px; border-radius:20px; font-weight:800; font-size:12px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 12px rgba(34,197,94,0.15)"><span style="position:relative;width:8px;height:8px;border-radius:50%;background:#16a34a"><span style="position:absolute;top:0;left:0;right:0;bottom:0;border-radius:50%;background:#16a34a;animation:ai-dot-bounce 2s infinite"></span></span> On Track</span>`
-                      : `<span style="background:rgba(245,158,11,0.15); color:#d97706; padding:8px 16px; border-radius:20px; font-weight:800; font-size:12px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 12px rgba(245,158,11,0.15)"><span style="position:relative;width:8px;height:8px;border-radius:50%;background:#d97706"><span style="position:absolute;top:0;left:0;right:0;bottom:0;border-radius:50%;background:#d97706;animation:ai-dot-bounce 2s infinite"></span></span> +${delta}d Behind Ideal</span>`
-                    }
-                  </div>
-                `;
+                  summaryBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:16px;padding:16px 20px;margin:0 0 8px 0;justify-content:space-between;align-items:center;';
                   const cb = bdCard.querySelector('.cb');
                   cb.insertBefore(summaryBar, bdCvs);
 
-                  dashDrawQueue.push(() => drawLineChart(bdCvs, labels, [ideal, actual], ['Ideal', 'Actual'], ['var(--amber)', 'var(--color-primary)']));
+                  // ── Core rebuild function (called on filter change too) ──
+                  function rebuildBurndown() {
+                    // Filter tasks by selected modules
+                    const filteredTasks = bdCard._bdModFilter.size === 0
+                      ? tasks
+                      : tasks.filter(t => bdCard._bdModFilter.has(t.module));
+
+                    // ── Expand tasks into atomic effort units for sub-task-aware calculation ──
+                    // Each unit: { effort, isCompleted, completedAt (Date|null), taskStartDate (Date), taskDueDate (Date) }
+                    const effortUnits = [];
+
+                    filteredTasks.forEach(t => {
+                      const taskEffort = parseFloat(t.estEffort) || 0;
+                      if (taskEffort <= 0) return;
+                      const subs = t.subtasks || [];
+                      const taskStart = new Date(t.startDate || t.createdAt || Date.now());
+                      const taskDue   = new Date(t.dueDate || t.startDate || Date.now());
+
+                      if (!subs.length) {
+                        // No subtasks — treat task as a single unit (binary completed)
+                        effortUnits.push({
+                          effort: taskEffort,
+                          isCompleted: t.status === 'Completed',
+                          completedAt: t.status === 'Completed' ? new Date(t.updatedAt || t.dueDate || t.actCompletionDate || Date.now()) : null,
+                          taskStart, taskDue
+                        });
+                      } else {
+                        // Decompose into subtask units
+                        // Total subtask effort (for proportional weight)
+                        const stTotalRaw = subs.reduce((s, st) => s + (parseFloat(st.effort) || 1), 0);
+                        subs.forEach(st => {
+                          const stEffortRaw = parseFloat(st.effort) || 1;
+                          const stEffortShare = (stEffortRaw / stTotalRaw) * taskEffort;
+                          const isScreen = st.type === 'screen';
+                          const stProgress = parseInt(st.progress) || 0;
+                          const stDone = st.status === 'Completed' || !!st.done || stProgress === 100;
+                          const stCompDate = stDone
+                            ? new Date(st.actCompletionDate || st.updatedAt || st.dueDate || t.updatedAt || t.dueDate || Date.now())
+                            : null;
+                          if (isScreen && stProgress > 0 && stProgress < 100) {
+                            // Partial: completed fraction + remaining fraction
+                            effortUnits.push({
+                              effort: stEffortShare * (stProgress / 100),
+                              isCompleted: true,
+                              completedAt: new Date(st.updatedAt || t.updatedAt || Date.now()),
+                              taskStart, taskDue
+                            });
+                            effortUnits.push({
+                              effort: stEffortShare * (1 - stProgress / 100),
+                              isCompleted: false,
+                              completedAt: null,
+                              taskStart, taskDue
+                            });
+                          } else {
+                            effortUnits.push({
+                              effort: stEffortShare,
+                              isCompleted: stDone,
+                              completedAt: stCompDate,
+                              taskStart, taskDue
+                            });
+                          }
+                        });
+                      }
+                    });
+
+                    // ── Build time axis from the expanded units ──
+                    const allStarts = effortUnits.map(u => u.taskStart).filter(d => !isNaN(d.getTime()));
+                    const allEnds   = effortUnits.map(u => u.taskDue).filter(d => !isNaN(d.getTime()));
+                    const projStart = allStarts.length ? new Date(Math.min(...allStarts)) : new Date();
+                    const projEnd   = allEnds.length   ? new Date(Math.max(...allEnds))   : new Date(projStart.getTime() + 30 * 864e5);
+                    const weeks = Math.max(2, Math.ceil((projEnd - projStart) / (7 * 864e5)) + 1);
+                    const labels = Array.from({ length: weeks }, (_, i) => 'W' + (i + 1));
+
+                    const totalEffort = effortUnits.reduce((s, u) => s + u.effort, 0);
+
+                    // Ideal burndown: linear totalEffort → 0
+                    const ideal = labels.map((_, i) => Math.max(0, totalEffort - (totalEffort / Math.max(weeks - 1, 1)) * i));
+
+                    // Actual remaining per week (effort of non-completed + effort of completed but not yet by that week-end)
+                    const actual = labels.map((_, i) => {
+                      const weekEnd = new Date(projStart.getTime() + (i + 1) * 7 * 864e5);
+                      return effortUnits
+                        .filter(u => !u.isCompleted || (u.completedAt && u.completedAt > weekEnd))
+                        .reduce((s, u) => s + u.effort, 0);
+                    });
+
+                    // Burn-Up: completed effort per week
+                    const burnUp = labels.map((_, i) => {
+                      const weekEnd = new Date(projStart.getTime() + (i + 1) * 7 * 864e5);
+                      return effortUnits
+                        .filter(u => u.isCompleted && u.completedAt && u.completedAt <= weekEnd)
+                        .reduce((s, u) => s + u.effort, 0);
+                    });
+
+                    const nowTime = Date.now();
+                    let currentWeekIdx = Math.floor((nowTime - projStart.getTime()) / (7 * 864e5));
+                    if (currentWeekIdx < 0) currentWeekIdx = 0;
+                    if (currentWeekIdx >= weeks) currentWeekIdx = weeks - 1;
+
+                    const currentActual = effortUnits.filter(u => !u.isCompleted).reduce((s, u) => s + u.effort, 0);
+                    const currentIdeal  = ideal[currentWeekIdx] || 0;
+                    const delta = Math.abs(currentActual - currentIdeal).toFixed(1);
+                    const isGood = currentActual <= currentIdeal;
+
+                    // Velocity-based projection cone
+                    const recentBurnRates = [];
+                    for (let i = Math.max(1, currentWeekIdx - 1); i <= currentWeekIdx; i++) {
+                      if (actual[i] !== undefined && actual[i - 1] !== undefined) {
+                        recentBurnRates.push(Math.max(0, actual[i - 1] - actual[i]));
+                      }
+                    }
+                    const avgBurnRate = recentBurnRates.length
+                      ? recentBurnRates.reduce((a, b) => a + b, 0) / recentBurnRates.length
+                      : (totalEffort / Math.max(weeks - 1, 1));
+                    const optimisticRate  = avgBurnRate * 1.35;
+                    const pessimisticRate = avgBurnRate * 0.65;
+
+                    const projMostLikely = [], projOptimistic = [], projPessimistic = [];
+                    for (let i = 0; i < weeks; i++) {
+                      if (i <= currentWeekIdx) {
+                        projMostLikely.push(null); projOptimistic.push(null); projPessimistic.push(null);
+                      } else {
+                        const w = i - currentWeekIdx;
+                        projMostLikely.push(Math.max(0, currentActual - avgBurnRate * w));
+                        projOptimistic.push(Math.max(0, currentActual - optimisticRate * w));
+                        projPessimistic.push(Math.max(0, currentActual - pessimisticRate * w));
+                      }
+                    }
+
+                    const estFinishWeek   = projMostLikely.findIndex(v => v !== null && v <= 0);
+                    const weeksRemaining  = estFinishWeek >= 0 ? (estFinishWeek - currentWeekIdx) : null;
+                    const completedEffort = totalEffort - currentActual;
+                    const completePct     = totalEffort > 0 ? Math.round((completedEffort / totalEffort) * 100) : 0;
+                    const uSuffix         = uLabel.toLowerCase().charAt(0);
+                    const scopeLabel      = bdCard._bdModFilter.size > 0 ? `${[...bdCard._bdModFilter].join(', ')} · ` : '';
+
+                    // ── Re-render summary bar ──
+                    summaryBar.innerHTML = `
+                    <div style="display:flex; gap:28px; flex-wrap:wrap">
+                      <div>
+                        <div style="font-size:10px; color:var(--color-text-faint); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:700">Total Scope</div>
+                        <div style="font-size:20px; font-weight:900; font-family:var(--font-mono); color:var(--color-text); line-height:1">${totalEffort.toFixed(1)}<span style="font-size:12px;color:var(--color-text-muted);font-weight:600;margin-left:2px">${uSuffix}</span></div>
+                        ${scopeLabel ? `<div style="font-size:9px;color:var(--color-text-faint);margin-top:2px">${scopeLabel}</div>` : ''}
+                      </div>
+                      <div>
+                        <div style="font-size:10px; color:var(--color-text-faint); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:700">Completed</div>
+                        <div style="font-size:20px; font-weight:900; font-family:var(--font-mono); color:#22c55e; line-height:1">${completedEffort.toFixed(1)}<span style="font-size:12px;color:var(--color-text-muted);font-weight:600;margin-left:2px">${uSuffix}</span></div>
+                        <div style="font-size:9px;color:var(--color-text-faint);margin-top:2px">incl. partial sub-tasks</div>
+      </div>
+                      <div>
+                        <div style="font-size:10px; color:var(--color-text-faint); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:700">Remaining</div>
+                        <div style="font-size:20px; font-weight:900; font-family:var(--font-mono); color:#e55a4e; line-height:1">${currentActual.toFixed(1)}<span style="font-size:12px;color:var(--color-text-muted);font-weight:600;margin-left:2px">${uSuffix}</span></div>
+                      </div>
+                      <div>
+                        <div style="font-size:10px; color:var(--color-text-faint); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:700">Progress</div>
+                        <div style="font-size:20px; font-weight:900; font-family:var(--font-mono); color:var(--color-text); line-height:1">${completePct}%</div>
+                      </div>
+                      ${weeksRemaining !== null ? `<div>
+                        <div style="font-size:10px; color:var(--color-text-faint); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:700">Est. Finish</div>
+                        <div style="font-size:20px; font-weight:900; font-family:var(--font-mono); color:var(--color-text); line-height:1">${weeksRemaining}w<span style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-left:4px">left</span></div>
+                      </div>` : ''}
+                    </div>
+                    <div>
+                      ${isGood
+                        ? `<span style="background:rgba(34,197,94,0.15); color:#16a34a; padding:8px 16px; border-radius:20px; font-weight:800; font-size:12px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 12px rgba(34,197,94,0.15)"><span style="position:relative;width:8px;height:8px;border-radius:50%;background:#16a34a"><span style="position:absolute;top:0;left:0;right:0;bottom:0;border-radius:50%;background:#16a34a;animation:ai-dot-bounce 2s infinite"></span></span> On Track</span>`
+                        : `<span style="background:rgba(245,158,11,0.15); color:#d97706; padding:8px 16px; border-radius:20px; font-weight:800; font-size:12px; display:flex; align-items:center; gap:8px; box-shadow:0 2px 12px rgba(245,158,11,0.15)"><span style="position:relative;width:8px;height:8px;border-radius:50%;background:#d97706"><span style="position:absolute;top:0;left:0;right:0;bottom:0;border-radius:50%;background:#d97706;animation:ai-dot-bounce 2s infinite"></span></span> +${delta}d Behind Ideal</span>`
+                      }
+                    </div>
+                  `;
+
+                    // ── Draw chart ──
+                    drawBurndownChart(bdCvs, labels, ideal, actual, burnUp, projMostLikely, projOptimistic, projPessimistic, currentWeekIdx, uLabel);
+                  }
+
+                  // Initial render
+                  dashDrawQueue.push(() => rebuildBurndown());
+
                 } else if (sec.id === 'velocity') {
                   addST(inner, 'Team Velocity');
                   const grid = addGrid(inner);
@@ -42204,6 +42395,388 @@ function enterApp() {
           }
 
           render();
+        }
+
+        // ── Enhanced Burn-Down & Burn-Up Projection Chart ──────────────────────
+        function drawBurndownChart(cvs, labels, ideal, actual, burnUp, projMostLikely, projOptimistic, projPessimistic, todayIdx, uLabel) {
+          cvs._bdData = { labels, ideal, actual, burnUp, projMostLikely, projOptimistic, projPessimistic, todayIdx, uLabel };
+          if (cvs._hoverIdx === undefined) cvs._hoverIdx = null;
+
+          function addOpacity(colorStr, alpha) {
+            const c = (window.resolveColor ? window.resolveColor(colorStr) : null) || colorStr;
+            if (c && c.startsWith('rgba')) return c.replace(/[^,]+(?=\))/, alpha);
+            if (c && c.startsWith('rgb')) return c.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
+            if (c && c.startsWith('#')) {
+              let hex = c.replace('#', '');
+              if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
+              const r = parseInt(hex.substring(0, 2), 16), g = parseInt(hex.substring(2, 4), 16), b = parseInt(hex.substring(4, 6), 16);
+              return `rgba(${r},${g},${b},${alpha})`;
+            }
+            return `rgba(120,120,120,${alpha})`;
+          }
+
+          function renderBD() {
+            const { labels, ideal, actual, burnUp, projMostLikely, projOptimistic, projPessimistic, todayIdx, uLabel } = cvs._bdData;
+            const { ctx, W, H } = gCtx(cvs);
+            if (W <= 0 || H <= 0) return;
+
+            const pL = 52, pR = 52, pT = 28, pB = 44;
+            const aW = W - pL - pR, aH = H - pT - pB;
+
+            const maxV = Math.max(...ideal, ...actual, ...burnUp.filter(v => v != null), 1);
+            const N = labels.length;
+
+            function xOf(i)  { return pL + i * (aW / Math.max(N - 1, 1)); }
+            function yOfR(v) { return pT + aH * (1 - v / maxV); }
+            function yOfC(v) { return pT + aH * (1 - v / maxV); }
+
+            const cs = getComputedStyle(document.documentElement);
+            const gridCol   = cs.getPropertyValue('--color-border').trim() || '#d0d0d0';
+            const mutedText = cs.getPropertyValue('--color-text-muted').trim() || '#888';
+            const textCol   = cs.getPropertyValue('--color-text').trim() || '#222';
+            const surfCol   = cs.getPropertyValue('--color-surface').trim() || '#fff';
+
+            // ── How many dots/labels to actually render ──
+            const maxLabels = Math.max(1, Math.floor(aW / 28));
+            const dotStep   = Math.max(1, Math.ceil(N / maxLabels));
+            const maxValLabels = Math.max(1, Math.floor(aW / 42));
+            const valStep = Math.max(1, Math.ceil(N / maxValLabels));
+
+            // ── Background clear ──
+            ctx.clearRect(0, 0, W, H);
+
+            // ── Horizontal Grid Lines ──
+            ctx.save();
+            ctx.strokeStyle = gridCol; ctx.lineWidth = 1; ctx.globalAlpha = 0.35; ctx.setLineDash([3, 4]);
+            [0, 0.25, 0.5, 0.75, 1].forEach(p => {
+              const y = pT + aH * (1 - p);
+              ctx.beginPath(); ctx.moveTo(pL, y); ctx.lineTo(pL + aW, y); ctx.stroke();
+            });
+            ctx.restore();
+
+            // ── Left Y-axis labels (Remaining) ──
+            ctx.save();
+            ctx.fillStyle = '#e55a4e'; ctx.font = `bold 9px ${window.monoFont || 'monospace'}`; ctx.textAlign = 'right';
+            [0, 0.25, 0.5, 0.75, 1].forEach(p => {
+              const y = pT + aH * (1 - p);
+              ctx.fillText(Math.round(maxV * p), pL - 6, y + 3);
+            });
+            ctx.fillStyle = '#e55a4e'; ctx.font = `bold 8px ${window.bodyFont || 'sans-serif'}`;
+            ctx.save(); ctx.translate(12, pT + aH / 2); ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = 'center'; ctx.fillText('Remaining (' + uLabel + ')', 0, 0);
+            ctx.restore();
+            ctx.restore();
+
+            // ── Right Y-axis labels (Completed) ──
+            ctx.save();
+            ctx.fillStyle = '#22c55e'; ctx.font = `bold 9px ${window.monoFont || 'monospace'}`; ctx.textAlign = 'left';
+            [0, 0.25, 0.5, 0.75, 1].forEach(p => {
+              const y = pT + aH * (1 - p);
+              ctx.fillText(Math.round(maxV * p), pL + aW + 6, y + 3);
+            });
+            ctx.save(); ctx.translate(W - 10, pT + aH / 2); ctx.rotate(Math.PI / 2);
+            ctx.textAlign = 'center'; ctx.fillStyle = '#22c55e';
+            ctx.font = `bold 8px ${window.bodyFont || 'sans-serif'}`;
+            ctx.fillText('Completed (' + uLabel + ')', 0, 0);
+            ctx.restore();
+            ctx.restore();
+
+            // ── X-axis labels (week ticks) ──
+            ctx.save();
+            ctx.fillStyle = mutedText; ctx.font = `9px ${window.bodyFont || 'sans-serif'}`; ctx.textAlign = 'center';
+            const xStep = Math.max(1, Math.ceil(N / 8));
+            const xLabelSet = new Set();
+            for (let i = 0; i < N; i += xStep) xLabelSet.add(i);
+            xLabelSet.add(0);
+            xLabelSet.add(N - 1);
+            if (todayIdx >= 0 && todayIdx < N) xLabelSet.add(todayIdx);
+            [...xLabelSet].sort((a, b) => a - b).forEach(i => {
+              ctx.fillText(labels[i], xOf(i), pT + aH + 16);
+            });
+            ctx.fillStyle = mutedText; ctx.font = `8px ${window.bodyFont || 'sans-serif'}`;
+            ctx.fillText('Time (Weeks)', pL + aW / 2, pT + aH + 30);
+            ctx.restore();
+
+            // ── TODAY vertical dotted line + pill label inside chart ──
+            if (todayIdx >= 0 && todayIdx < N) {
+              const tx = xOf(todayIdx);
+              ctx.save();
+              ctx.strokeStyle = '#374151'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.globalAlpha = 0.75;
+              ctx.beginPath(); ctx.moveTo(tx, pT + 20); ctx.lineTo(tx, pT + aH); ctx.stroke();
+              ctx.restore();
+              // Pill label inside top of chart
+              ctx.save();
+              ctx.font = `bold 9px ${window.bodyFont || 'sans-serif'}`;
+              const todayLabel = 'Today';
+              const tw = ctx.measureText(todayLabel).width + 12;
+              const th = 16;
+              let pillX = tx - tw / 2;
+              if (pillX < pL) pillX = pL;
+              if (pillX + tw > pL + aW) pillX = pL + aW - tw;
+              const pillY = pT + 2;
+              ctx.fillStyle = '#374151'; ctx.globalAlpha = 0.85;
+              ctx.beginPath();
+              if (ctx.roundRect) ctx.roundRect(pillX, pillY, tw, th, 4); else ctx.rect(pillX, pillY, tw, th);
+              ctx.fill();
+              ctx.globalAlpha = 1; ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+              ctx.fillText(todayLabel, pillX + tw / 2, pillY + 11);
+              ctx.restore();
+            }
+
+            // ── Deadline vertical line (last week) ──
+            {
+              const dx = xOf(N - 1);
+              ctx.save();
+              ctx.strokeStyle = '#7c3aed'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]); ctx.globalAlpha = 0.55;
+              ctx.beginPath(); ctx.moveTo(dx, pT); ctx.lineTo(dx, pT + aH); ctx.stroke();
+              ctx.restore();
+              ctx.save();
+              ctx.fillStyle = '#7c3aed'; ctx.font = `bold 9px ${window.bodyFont || 'sans-serif'}`;
+              ctx.textAlign = 'right';
+              ctx.fillText('Deadline', dx - 4, pT + 14);
+              ctx.restore();
+            }
+
+            // ── Projection Cone (after todayIdx) ──
+            // Pessimistic cone (red)
+            {
+              const conePoints = [];
+              for (let i = todayIdx; i < N; i++) {
+                if (projPessimistic[i] !== null) conePoints.push([i, projPessimistic[i]]);
+              }
+              if (conePoints.length > 1) {
+                ctx.save();
+                ctx.beginPath();
+                // top edge: optimistic
+                ctx.moveTo(xOf(todayIdx), yOfR(actual[todayIdx]));
+                for (let i = todayIdx + 1; i < N; i++) {
+                  if (projOptimistic[i] !== null) ctx.lineTo(xOf(i), yOfR(projOptimistic[i]));
+                }
+                // bottom edge: pessimistic (reversed)
+                for (let i = N - 1; i >= todayIdx; i--) {
+                  if (projPessimistic[i] !== null) ctx.lineTo(xOf(i), yOfR(projPessimistic[i]));
+                  else if (i === todayIdx) ctx.lineTo(xOf(todayIdx), yOfR(actual[todayIdx]));
+                }
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(239,68,68,0.15)';
+                ctx.fill();
+                ctx.restore();
+
+                // Optimistic boundary line
+                ctx.save();
+                ctx.strokeStyle = 'rgba(239,68,68,0.35)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                let first = true;
+                for (let i = todayIdx; i < N; i++) {
+                  if (projOptimistic[i] !== null) { first ? ctx.moveTo(xOf(i), yOfR(projOptimistic[i])) : ctx.lineTo(xOf(i), yOfR(projOptimistic[i])); first = false; }
+                }
+                ctx.stroke();
+                ctx.restore();
+
+                // Pessimistic boundary line
+                ctx.save();
+                ctx.strokeStyle = 'rgba(239,68,68,0.35)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                first = true;
+                for (let i = todayIdx; i < N; i++) {
+                  if (projPessimistic[i] !== null) { first ? ctx.moveTo(xOf(i), yOfR(projPessimistic[i])) : ctx.lineTo(xOf(i), yOfR(projPessimistic[i])); first = false; }
+                }
+                ctx.stroke();
+                ctx.restore();
+              }
+            }
+
+            // ── Most-Likely projection line ──
+            {
+              ctx.save();
+              ctx.strokeStyle = '#e55a4e'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.globalAlpha = 0.65;
+              ctx.beginPath();
+              let first = true;
+              for (let i = todayIdx; i < N; i++) {
+                if (projMostLikely[i] !== null) {
+                  first ? ctx.moveTo(xOf(i), yOfR(projMostLikely[i])) : ctx.lineTo(xOf(i), yOfR(projMostLikely[i]));
+                  first = false;
+                }
+              }
+              ctx.stroke();
+              ctx.restore();
+
+              // "Most Likely" label — y-clamped, centred in cone
+              const coneStart = todayIdx + 1;
+              const coneEnd = N - 1;
+              const labelI = Math.floor(coneStart + (coneEnd - coneStart) * 0.55);
+              if (labelI < N && projMostLikely[labelI] !== null) {
+                const lx = xOf(labelI);
+                const rawLY = yOfR(projMostLikely[labelI]);
+                const lY = Math.max(pT + 14, Math.min(pT + aH - 14, rawLY + 14));
+                ctx.save();
+                ctx.font = `bold 9px ${window.bodyFont || 'sans-serif'}`;
+                const mlW = ctx.measureText('Most Likely').width + 10;
+                ctx.fillStyle = 'rgba(220,38,38,0.12)';
+                ctx.beginPath();
+                if (ctx.roundRect) ctx.roundRect(lx - mlW / 2, lY - 10, mlW, 14, 3); else ctx.rect(lx - mlW / 2, lY - 10, mlW, 14);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(180,0,0,0.85)';
+                ctx.textAlign = 'center';
+                ctx.fillText('Most Likely', lx, lY);
+                ctx.restore();
+              }
+            }
+
+            // ── Ideal Burndown (dashed amber) ──
+            ctx.save();
+            ctx.strokeStyle = '#b45309'; ctx.lineWidth = 2; ctx.setLineDash([7, 4]); ctx.globalAlpha = 0.8;
+            ctx.beginPath();
+            ideal.forEach((v, i) => i === 0 ? ctx.moveTo(xOf(i), yOfR(v)) : ctx.lineTo(xOf(i), yOfR(v)));
+            ctx.stroke();
+            ctx.restore();
+
+            // ── Burn-Up Line (green, area fill below) ──
+            ctx.save();
+            const buGrad = ctx.createLinearGradient(0, pT, 0, pT + aH);
+            buGrad.addColorStop(0, 'rgba(34,197,94,0.3)');
+            buGrad.addColorStop(1, 'rgba(34,197,94,0.0)');
+            ctx.fillStyle = buGrad;
+            ctx.beginPath();
+            ctx.moveTo(xOf(0), yOfC(burnUp[0]));
+            burnUp.forEach((v, i) => { if (i > 0) ctx.lineTo(xOf(i), yOfC(v)); });
+            ctx.lineTo(xOf(N - 1), pT + aH); ctx.lineTo(xOf(0), pT + aH); ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            ctx.save();
+            ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 2.5; ctx.setLineDash([]);
+            ctx.shadowColor = 'rgba(34,197,94,0.4)'; ctx.shadowBlur = 8;
+            ctx.beginPath();
+            burnUp.forEach((v, i) => i === 0 ? ctx.moveTo(xOf(i), yOfC(v)) : ctx.lineTo(xOf(i), yOfC(v)));
+            ctx.stroke();
+            ctx.restore();
+
+            // ── Actual Burndown line (red, area fill) ──
+            ctx.save();
+            const actGrad = ctx.createLinearGradient(0, pT, 0, pT + aH);
+            actGrad.addColorStop(0, 'rgba(229,90,78,0.25)');
+            actGrad.addColorStop(1, 'rgba(229,90,78,0.0)');
+            ctx.fillStyle = actGrad;
+            ctx.beginPath();
+            const histActual = actual.slice(0, todayIdx + 1);
+            ctx.moveTo(xOf(0), yOfR(histActual[0]));
+            histActual.forEach((v, i) => { if (i > 0) ctx.lineTo(xOf(i), yOfR(v)); });
+            ctx.lineTo(xOf(todayIdx), pT + aH); ctx.lineTo(xOf(0), pT + aH); ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            ctx.save();
+            ctx.strokeStyle = '#e55a4e'; ctx.lineWidth = 3; ctx.setLineDash([]);
+            ctx.shadowColor = 'rgba(229,90,78,0.45)'; ctx.shadowBlur = 10;
+            ctx.beginPath();
+            histActual.forEach((v, i) => i === 0 ? ctx.moveTo(xOf(i), yOfR(v)) : ctx.lineTo(xOf(i), yOfR(v)));
+            ctx.stroke();
+            ctx.restore();
+
+            // ── Dots + smart value labels on Actual Burndown ──
+            const labelMinChangePx = maxV * 0.015; // ≥1.5% change triggers a label
+            let lastLabeledVal = null;
+            histActual.forEach((v, i) => {
+              const x = xOf(i), y = yOfR(v);
+              const isKeyPoint = i === 0 || i === histActual.length - 1 || i === todayIdx;
+              const showDot = isKeyPoint || (i % dotStep === 0);
+              if (!showDot) return;
+              // Dot
+              ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2);
+              ctx.fillStyle = '#e55a4e'; ctx.fill();
+              ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+              // Value label: only at key points or when value changed significantly
+              const changedEnough = lastLabeledVal === null || Math.abs(v - lastLabeledVal) >= labelMinChangePx;
+              if (isKeyPoint || ((i % valStep === 0) && changedEnough)) {
+                ctx.save();
+                ctx.fillStyle = '#e55a4e'; ctx.font = `bold 9px ${window.monoFont || 'monospace'}`;
+                ctx.textAlign = 'center';
+                const labelY = Math.max(pT + 10, y - 8);
+                ctx.fillText(v.toFixed(1), x, labelY);
+                ctx.restore();
+                lastLabeledVal = v;
+              }
+            });
+
+            // ── Dots on Burn-Up (thinned) ──
+            burnUp.forEach((v, i) => {
+              if (i % dotStep !== 0 && i !== 0 && i !== N - 1) return;
+              const x = xOf(i), y = yOfC(v);
+              ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+              ctx.fillStyle = '#22c55e'; ctx.fill();
+              ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+            });
+
+            // ── Interactive Hover ──
+            if (cvs._hoverIdx !== null && cvs._hoverIdx < N) {
+              const hIdx = cvs._hoverIdx;
+              const hX = xOf(hIdx);
+
+              ctx.save();
+              ctx.strokeStyle = '#6366f1'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]); ctx.globalAlpha = 0.7;
+              ctx.beginPath(); ctx.moveTo(hX, pT); ctx.lineTo(hX, pT + aH); ctx.stroke();
+              ctx.restore();
+
+              // Tooltip — dynamic height, only non-null rows
+              const visibleRows = [
+                { label: 'Ideal',     val: ideal[hIdx],          color: '#b45309' },
+                { label: 'Remaining', val: actual[hIdx],          color: '#e55a4e' },
+                { label: 'Completed', val: burnUp[hIdx],          color: '#22c55e' },
+                { label: 'Proj. ML',  val: projMostLikely[hIdx],  color: '#dc2626' },
+              ].filter(r => r.val !== null && r.val !== undefined);
+
+              const tW = 175, tH = 28 + visibleRows.length * 20;
+              let tX = hX + 14;
+              if (tX + tW > W - pR) tX = hX - tW - 14;
+              let tY = pT + 10;
+              if (tY + tH > pT + aH) tY = pT + aH - tH - 4;
+
+              ctx.save();
+              ctx.shadowColor = 'rgba(0,0,0,0.18)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 5;
+              ctx.fillStyle = surfCol;
+              ctx.beginPath();
+              if (ctx.roundRect) ctx.roundRect(tX, tY, tW, tH, 10); else ctx.rect(tX, tY, tW, tH);
+              ctx.fill();
+              ctx.restore();
+
+              ctx.save();
+              ctx.strokeStyle = gridCol; ctx.lineWidth = 1;
+              ctx.beginPath();
+              if (ctx.roundRect) ctx.roundRect(tX, tY, tW, tH, 10); else ctx.rect(tX, tY, tW, tH);
+              ctx.stroke();
+
+              ctx.fillStyle = textCol; ctx.font = `bold 11px ${window.bodyFont || 'sans-serif'}`;
+              ctx.textAlign = 'left';
+              ctx.fillText(labels[hIdx], tX + 12, tY + 17);
+
+              visibleRows.forEach((r, ri) => {
+                const ry = tY + 30 + ri * 20;
+                ctx.fillStyle = r.color; ctx.beginPath(); ctx.arc(tX + 16, ry - 4, 4, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = mutedText; ctx.font = `10px ${window.bodyFont || 'sans-serif'}`;
+                ctx.textAlign = 'left'; ctx.fillText(r.label + ':', tX + 26, ry);
+                ctx.fillStyle = textCol; ctx.font = `bold 10px ${window.monoFont || 'monospace'}`;
+                ctx.textAlign = 'right'; ctx.fillText(r.val.toFixed(1), tX + tW - 10, ry);
+              });
+              ctx.restore();
+            }
+          }
+
+          if (!cvs._hasBdListener) {
+            cvs._hasBdListener = true;
+            cvs.addEventListener('mousemove', e => {
+              const rect = cvs.getBoundingClientRect();
+              const { labels } = cvs._bdData;
+              const pL = 52, pR = 52;
+              const aW = rect.width - pL - pR;
+              let idx = Math.round(((e.clientX - rect.left - pL) / aW) * (labels.length - 1));
+              idx = Math.max(0, Math.min(labels.length - 1, idx));
+              if (cvs._hoverIdx !== idx) { cvs._hoverIdx = idx; renderBD(); }
+            });
+            cvs.addEventListener('mouseleave', () => { cvs._hoverIdx = null; renderBD(); });
+          }
+
+          renderBD();
         }
 
         // Bar chart

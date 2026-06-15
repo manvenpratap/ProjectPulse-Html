@@ -64,13 +64,6 @@ def ch_getting_started(doc):
         "Never close the browser tab while the 'Saving...' indicator is active. "
         "Wait for it to disappear before closing to ensure your last changes are saved.",style="caution")
 
-    make_heading(doc,"1.4  System Architecture & Data Flow",level=2,color=CLR_ACCENT)
-    make_body(doc,
-        "ProjectPulse is built as a single-page application (SPA) running entirely client-side. "
-        "The diagram below explains how data flows between the user interface, in-memory cache, "
-        "local browser storage, and external file exports.",space_after=8)
-    add_screenshot(doc, "diagrams/system_architecture", "Figure 1.2 — ProjectPulse Client-Side SPA System Architecture & Data Flow")
-    add_page_break(doc)
 
 
 def ch_overview(doc):
@@ -119,11 +112,6 @@ def ch_overview(doc):
         "The Sandbox never modifies your live schedule unless you click 'Commit Changes'. "
         "Discarding has no effect on your actual project data.",style="tip")
 
-    make_heading(doc,"2.3.1  What-If Sandbox Simulation Workflow",level=3,color=CLR_ACCENT)
-    make_body(doc,
-        "The diagram below outlines the Sandbox simulation workflow, showing how to activate, model, "
-        "and either commit or discard changes without impacting your live schedule.",space_after=8)
-    add_screenshot(doc, "diagrams/sandbox_workflow", "Figure 2.2 — Sandbox Simulation Workflow and State Reversion")
 
     make_heading(doc,"2.4  Interactive Dashboard Widgets Reference Guide",level=2,color=CLR_ACCENT)
     make_body(doc,
@@ -214,22 +202,17 @@ def ch_insights(doc):
         "EVM metrics are most meaningful after 2+ weeks of task completions. "
         "On new projects, give the analytics a week to calibrate.",style="note")
 
-    make_heading(doc,"3.1.1  EVM Calculation and Performance Index Bands",level=3,color=CLR_ACCENT)
-    make_body(doc,
-        "The diagram below displays the standard EVM metrics curves — comparing Planned Value (PV), "
-        "Earned Value (EV), and Actual Cost (AC) over time. It details the visual performance index "
-        "bands for schedule and cost performance, highlighting variances.",space_after=8)
-    add_screenshot(doc, "diagrams/evm_calculation", "Figure 3.2 — EVM Metrics Comparison Curves & Performance Bands")
 
-    make_heading(doc,"3.2  Reading the Burn-Up Chart",level=2,color=CLR_ACCENT)
+    make_heading(doc,"3.2  Reading the Burn-Down & Burn-Up Chart",level=2,color=CLR_ACCENT)
     make_body(doc,
-        "The burn-up chart shows your project's progress trajectory:",space_after=4)
-    make_bullet(doc,"Blue Line (Scope): Total work to be done. A rising line means scope has been added.")
-    make_bullet(doc,"Green Line (Completion): Cumulative work completed each week.")
-    make_bullet(doc,"Dashed Amber Line (Projection): Where the green line is heading based on current velocity.")
-    make_body(doc,
-        "If the amber projection line crosses the blue scope line before your project end date, "
-        "you are on track to deliver. If it projects past your end date, review your schedule.",space_after=8)
+        "The chart widget renders four series on a single canvas to track remaining and completed work:",space_after=4)
+    make_bullet(doc,"Actual Burndown (Red solid): Remaining effort to date, reflecting detailed sub-task and screen progress.")
+    make_bullet(doc,"Ideal Burndown (Amber dashed): A linear baseline from total project scope down to zero remaining work.")
+    make_bullet(doc,"Burn-Up (Green solid): Cumulative completed effort, including partial progress from screen sub-tasks.")
+    make_bullet(doc,"Projection Cone (Red shaded zone): The range of possible outcomes (Optimistic, Most-Likely, and Pessimistic) after Today based on recent burn rates.")
+    add_callout(doc,
+        "Use the Module Filter Chips at the top of the card to filter the dataset. "
+        "Selecting specific modules instantly recalculates all metrics and trajectories for that subset of work.",style="note")
 
     make_heading(doc,"3.3  Interpreting the 30-Day Activity Heatmap",level=2,color=CLR_ACCENT)
     make_body(doc,
@@ -276,11 +259,6 @@ def ch_delivery(doc):
     make_numbered(doc,"The status pill updates immediately and the change is recorded in the Audit Log.")
     doc.add_paragraph()
 
-    make_heading(doc,"4.3.1  Task Lifecycle State Transition Diagram",level=3,color=CLR_ACCENT)
-    make_body(doc,
-        "The diagram below outlines the valid status transitions within the ProjectPulse Task Lifecycle, "
-        "including transition guards, blocked/hold state paths, and re-activation triggers.",space_after=8)
-    add_screenshot(doc, "diagrams/task_lifecycle", "Figure 4.3 — Task State Machine & Transition Paths")
 
     make_heading(doc,"4.4  Filtering Tasks",level=2,color=CLR_ACCENT)
     make_numbered(doc,"Click the Filter icon in the top-right toolbar to open the filter panel.")
@@ -304,6 +282,46 @@ def ch_delivery(doc):
         "ProjectPulse prevents circular dependencies. If you attempt to add a dependency "
         "that would create a loop (e.g., Task A depends on Task B which already depends on Task A), "
         "an error message is shown and the dependency is not saved.",style="warning")
+
+    make_heading(doc, "4.6  Field Reference: Task & Subtask Business Objects", level=2, color=CLR_ACCENT)
+    make_body(doc,
+        "This section provides an authoritative data glossary for all attributes of the Task and Subtask business objects. "
+        "Every field must be entered exactly as defined below to ensure downstream calculations function correctly.", space_after=6)
+    
+    make_heading(doc, "4.6.1  Task Object Attributes", level=3, color=CLR_NAVY)
+    add_data_table(doc,
+        ["Field Name", "Type / Format", "UI Required?", "Validation / Allowed Values", "Description / Cross-Module Effect"],
+        [
+            ["Task Title", "String", "Yes", "Non-empty. Max 100 chars.", "Human-readable label shown in the Gantt bar and list views."],
+            ["Assignee", "String (Enum)", "No", "Selected from active members.", "Designated worker. Used by Scheduler for weekly capacity loading."],
+            ["Status", "String (Enum)", "Yes", "VALID_TRANSITIONS key.", "Current state (e.g. Not Started, In Progress, QA, Completed). Triggers log."],
+            ["Priority", "String (Enum)", "Yes", "Critical / High / Medium / Low.", "Qualitative severity. Used to prioritize tasks in lists and reports."],
+            ["Category", "String (Enum)", "Yes", "Active category list.", "Classification (e.g. Feature, Bug, DevOps). Used for effort distribution."],
+            ["Module", "String (Enum)", "Yes", "Active module list.", "System component linked to this task. Recalculates module maturity matrix."],
+            ["Start Date", "Date (YYYY-MM-DD)", "Yes", "Must be <= Due Date.", "Planned start. Shifts downstream tasks if Cascade is enabled."],
+            ["Due Date", "Date (YYYY-MM-DD)", "Yes", "Must be >= Start Date.", "Planned deadline. Used for overdue badges and slippage calculation."],
+            ["Est. Effort", "Number", "Yes", ">= 0 hours (or active unit).", "Expected effort. Used to load the resource Scheduler heatmap."],
+            ["Act. Effort", "Number", "No", ">= 0 hours (or active unit).", "Logged work to date. Increments actuals in EVM analytics calculations."],
+            ["Depends On", "String List", "No", "Task IDs. Must be acyclic.", "Prerequisite task dependencies. Circular dependencies are rejected in form."],
+            ["Complexity", "String (Enum)", "Yes", "Easy / Medium / Complex.", "Point multiplier (0.5x, 1.0x, 1.5x) used to calculate weekly velocity."],
+            ["Progress (%)", "Number", "No", "0 to 100.", "Completions. Derived as weighted average of subtasks if present."],
+            ["Notes", "String", "No", "Free text.", "Additional instructions, specifications, or development comments."]
+        ],
+        col_widths=[1.1, 1.1, 0.8, 1.5, 2.2]
+    )
+
+    make_heading(doc, "4.6.2  Subtask Object Attributes", level=3, color=CLR_NAVY)
+    add_data_table(doc,
+        ["Field Name", "Type / Format", "UI Required?", "Validation / Allowed Values", "Description / Cross-Module Effect"],
+        [
+            ["Subtask Title", "String", "Yes", "Non-empty.", "Detailed step description (e.g. 'Build login controller')."],
+            ["Category", "String (Enum)", "Yes", "Step / GUI Screen / Test.", "Subtask type. Linked GUI Screen types auto-update design states."],
+            ["Status", "String (Enum)", "Yes", "Not Started / In Progress / Completed.", "Subtask status. Setting to Completed sets 'done' to true."],
+            ["Effort (Hrs)", "Number", "Yes", ">= 0.", "Estimated effort. Aggregates to parent task's total estimates."],
+            ["Act. Effort", "Number", "No", ">= 0.", "Logged effort. Propagates actuals to parent task and EVM metrics."]
+        ],
+        col_widths=[1.1, 1.1, 0.8, 1.5, 2.2]
+    )
     add_page_break(doc)
 
 
@@ -331,12 +349,6 @@ def ch_gantt(doc):
     make_bullet(doc,"Red arrow: VIOLATION — the successor task starts before the predecessor finishes. Needs attention.")
     doc.add_paragraph()
 
-    make_heading(doc,"5.2.1  Gantt Dependency Flow & Date Cascade Cascade",level=3,color=CLR_ACCENT)
-    make_body(doc,
-        "The diagram below displays the Gantt Bezier dependency linking mechanism, showing "
-        "predecessor-to-successor date cascades, visual highlighting of violated dates, "
-        "and downstream rescheduling propagation.",space_after=8)
-    add_screenshot(doc, "diagrams/gantt_dependencies", "Figure 5.2 — Gantt Dependency Linkage and Cascading Reschedule Flow")
 
     make_heading(doc,"5.3  Rescheduling Tasks by Drag",level=2,color=CLR_ACCENT)
     make_numbered(doc,"Click and hold on a task bar.")
@@ -398,12 +410,6 @@ def ch_scheduler(doc):
         "It will never reassign a task to a member with a different role, "
         "and it always preserves task durations when shifting dates.",style="rule")
 
-    make_heading(doc,"6.3.1  Scheduler Conflict Auto-Resolution Workflow",level=3,color=CLR_ACCENT)
-    make_body(doc,
-        "The diagram below outlines the auto-resolution loop executed by the Scheduler's Copilot, "
-        "illustrating how capacity conflicts are diagnosed and resolved using the auto-sequence, "
-        "smart reassignment, and cascading shift heuristics.",space_after=8)
-    add_screenshot(doc, "diagrams/scheduler_workflow", "Figure 6.2 — Copilot Auto-Resolution Decision Path & Heuristics Loop")
     add_page_break(doc)
 
 
@@ -452,11 +458,28 @@ def ch_raid(doc):
     make_bullet(doc,"Realized (Risks only): The risk event occurred. Item should be converted to an Issue.")
     make_bullet(doc,"Closed: Item fully resolved. Archived for reporting purposes.")
 
-    make_heading(doc,"7.3.1  RAID Threat Evaluation & Mitigation Workflow",level=3,color=CLR_ACCENT)
+    make_heading(doc, "7.4  Field Reference: RAID Item Business Object", level=2, color=CLR_ACCENT)
     make_body(doc,
-        "The diagram below outlines the complete RAID governance lifecycle, illustrating risk discovery, "
-        "5x5 scoring assessment, owner assignment, mitigation monitoring, and resolution closure.",space_after=8)
-    add_screenshot(doc, "diagrams/raid_lifecycle", "Figure 7.3 — RAID Threat Assessment & Resolution Process")
+        "This section defines the data fields that govern RAID register entries. "
+        "RAID items dictate project threat metrics and impact the overall Health Index.", space_after=6)
+    
+    add_data_table(doc,
+        ["Field Name", "Type / Format", "UI Required?", "Validation / Allowed Values", "Description / Cross-Module Effect"],
+        [
+            ["Type", "String (Enum)", "Yes", "Risk / Assumption / Issue / Dependency.", "Entity class. Risks compute exposure; Issues track active blocks."],
+            ["Title", "String", "Yes", "Non-empty. Max 100 chars.", "Short descriptive title shown in lists and executive widgets."],
+            ["Description", "String", "Yes", "Free text description.", "Detailed background of the threat, assumption, or blocker."],
+            ["Status", "String (Enum)", "Yes", "Identified / Active / Mitigated / Closed / Realized.", "Active items require Owner. Reaching Realized converts Risks to Issues."],
+            ["Impact", "String (Enum)", "Yes", "High (3) / Medium (2) / Low (1).", "Severity multiplier. Used in Risk Exposure calculations."],
+            ["Probability", "String (Enum)", "Yes (Risks)", "High (3) / Medium (2) / Low (1).", "Probability multiplier (Risks only). Multiplied by impact for Exposure."],
+            ["Exposure Score", "Number", "No", "Calculated: 1 to 9.", "Risk priority. Probability x Impact. Scores >= 7 flag red alerts."],
+            ["Owner", "String", "Yes (Active)", "Member name.", "Responsible person for mitigation. Must match active team members."],
+            ["Mitigation", "String", "Yes (Active)", "Free text.", "Mitigation plan or resolution step to manage or close the item."],
+            ["Target Date", "Date (YYYY-MM-DD)", "Yes (Active)", "Must be future date.", "Committed resolution date. Overdue targets trigger warning alerts."],
+            ["Raised Date", "Date (YYYY-MM-DD)", "Yes", "Defaults to today.", "Date logged. Tracks aging of RAID risks and issues."]
+        ],
+        col_widths=[1.1, 1.1, 0.8, 1.5, 2.2]
+    )
     add_page_break(doc)
 
 
@@ -493,6 +516,24 @@ def ch_team(doc):
     make_bullet(doc,"Other Assignment: Temporarily excluded from capacity. Existing task assignments remain.")
     make_bullet(doc,"Serving Notice Period: Cannot be assigned to new tasks. Copilot will not reassign work to them.")
     make_bullet(doc,"Departed: Fully removed from capacity calculations. Existing assignments remain for record.")
+
+    make_heading(doc, "8.4  Field Reference: Team Member Business Object", level=2, color=CLR_ACCENT)
+    make_body(doc,
+        "This section documents the configuration fields for team members. "
+        "Member capacity settings directly drive the resource Scheduler heatmap.", space_after=6)
+    
+    add_data_table(doc,
+        ["Field Name", "Type / Format", "UI Required?", "Validation / Allowed Values", "Description / Cross-Module Effect"],
+        [
+            ["Full Name", "String", "Yes", "Unique name.", "Identifier. Used in all assignee selectors and scheduler rows."],
+            ["Role", "String (Enum)", "Yes", "Active roles list.", "Specialty (e.g. QA, Dev). Copilot limits reassignments to matched roles."],
+            ["Status", "String (Enum)", "Yes", "Active / On Leave / notice / notice notice / Departed.", "Availability state. Non-Active status removes them from allocation pools."],
+            ["Weekly Hour Cap", "Number", "Yes", ">= 0. Defaults to 40.", "Standard weekly work capacity limit. Red flags appear if exceeded."],
+            ["Utilisation Rate", "Number", "Yes", "0.0 to 1.0. Default 1.0.", "Fractions (e.g. 0.5 for part-time). Multiplies hour cap for net capacity."],
+            ["Planned Leaves", "Date Ranges", "No", "Pairs of {start, end}.", "Planned vacation blocks. Sets capacity to zero for those calendar weeks."]
+        ],
+        col_widths=[1.1, 1.1, 0.8, 1.5, 2.2]
+    )
     add_page_break(doc)
 
 
@@ -531,11 +572,25 @@ def ch_defects(doc):
     make_bullet(doc,"Retest -> Assigned (re-open): QA finds the fix incomplete. Developer is reassigned.")
     make_bullet(doc,"Any -> Rejected: Defect is by design or cannot be reproduced. Requires a rejection reason.")
 
-    make_heading(doc,"9.2.1  Defect Lifecycle & Retest Verification Pipeline",level=3,color=CLR_ACCENT)
+    make_heading(doc, "9.3  Field Reference: Defect Business Object", level=2, color=CLR_ACCENT)
     make_body(doc,
-        "The diagram below outlines the full state machine of the Defect lifecycle, illustrating triage, "
-        "rejection, dev assignment, fixing, testing/retesting loops, and closure verification.",space_after=8)
-    add_screenshot(doc, "diagrams/defect_lifecycle", "Figure 9.3 — Defect Lifecycle & Retesting Decision Paths")
+        "This section details defect fields. Defect tracking is tightly linked to "
+        "task deliverables and heavily impacts the quality rating of product modules.", space_after=6)
+    
+    add_data_table(doc,
+        ["Field Name", "Type / Format", "UI Required?", "Validation / Allowed Values", "Description / Cross-Module Effect"],
+        [
+            ["Defect Title", "String", "Yes", "Non-empty.", "Title detailing the failure (e.g., 'Chart axis overflow')."],
+            ["Type", "String (Enum)", "Yes", "Bug / UI-UX / Perf / Sec / Data.", "Defect type classification for metrics donut charts."],
+            ["Severity", "String (Enum)", "Yes", "S1 Blocker / S2 High / S3 Med / S4 Low.", "Severity grading. S1 blocker triggers immediate Dashboard red banner."],
+            ["Priority", "String (Enum)", "Yes", "Critical / High / Medium / Low.", "Resolution urgency. Dictates SLA timers for developers."],
+            ["Status", "String (Enum)", "Yes", "New / Assigned / Fixed / Retest / Closed / Rejected / Deferred.", "Bug state. Re-opening triggers transition back to Assigned."],
+            ["Linked Task ID", "String", "No", "Valid TASK-NNN or ST-NNN.", "Prerequisite task. Attributes bugs directly to code modules in matrix."],
+            ["Assignee", "String", "No", "Active developer.", "Assigned developer. Must have development roles to receive assignments."],
+            ["Reproduction Steps", "String", "Yes", "Detailed text.", "Step-by-step description to reproduce defect. Required to start work."]
+        ],
+        col_widths=[1.1, 1.1, 0.8, 1.5, 2.2]
+    )
     add_page_break(doc)
 
 
@@ -557,12 +612,6 @@ def ch_reports(doc):
     make_numbered(doc,"Click 'Print' to send to a printer or 'Save as PDF' to generate a PDF file.")
     doc.add_paragraph()
 
-    make_heading(doc,"10.1.1  Report Compilation & Board Pack Compilation Workflow",level=3,color=CLR_ACCENT)
-    make_body(doc,
-        "The diagram below displays the Report Compilation and Board Pack Export Pipeline Flow, "
-        "detailing how data is gathered from various cache modules, formatted, and exported to PDF/Word "
-        "or Excel sheets.",space_after=8)
-    add_screenshot(doc, "diagrams/report_workflow", "Figure 10.2 — Report and Board Pack Generation Pipeline")
 
     make_heading(doc,"10.2  Exporting to Excel",level=2,color=CLR_ACCENT)
     make_numbered(doc,"Click 'Export to Excel' in the Reports module.")
@@ -657,12 +706,6 @@ def ch_config(doc):
         "Best practice: Capture a baseline at project kickoff and again at each major phase gate or re-scope. "
         "This gives you a clear record of schedule evolution over the project lifetime.",style="tip")
 
-    make_heading(doc,"12.4.1  Schedule Baseline Management & Restoration Loop",level=3,color=CLR_ACCENT)
-    make_body(doc,
-        "The diagram below outlines the schedule baseline capture, variance tracking, and restoration loops. "
-        "It visualizes how current planned dates compare to baseline snapshots and how they can be reverted "
-        "safely.",space_after=8)
-    add_screenshot(doc, "diagrams/baseline_workflow", "Figure 12.2 — Baseline Snapshot Capture and Restoration Workflow")
     add_page_break(doc)
 
 
@@ -774,7 +817,7 @@ def ch_widgets_glossary(doc):
         "• Interpretation: The radial gauge arc transitions from Green (80-100: healthy) to Amber (50-79: warning) to Red (0-49: critical). "
         "It evaluates delivery confidence, Schedule Performance Index (SPI), and active RAID issues.\n"
         "• How to Use: Leadership uses this widget at startup to determine if a project requires recovery planning.",space_after=4)
-    add_screenshot(doc, "widgets/summary", "Illustration 14.1: Executive Summary (summary) Widget Component View")
+    add_screenshot(doc, "widgets/summary", "Figure 14.1 — Executive Summary Widget (summary)", width_inches=5.5)
 
     # 2. health
     make_heading(doc,"14.2.2  Project Health & Quality (health)",level=3,color=CLR_NAVY)
@@ -783,7 +826,7 @@ def ch_widgets_glossary(doc):
         "• Interpretation: Displays status splits (Not Started, In Progress, QA, Completed) in a stacked bar chart. "
         "A separate donut chart maps tasks by priority (Critical, High, Medium, Low).\n"
         "• How to Use: Project managers use this to check task distributions and ensure there isn't a bottleneck in the QA state.",space_after=4)
-    add_screenshot(doc, "widgets/health", "Illustration 14.2: Project Health & Quality (health) Widget Component View")
+    add_screenshot(doc, "widgets/health", "Figure 14.2 — Project Health & Quality Widget (health)", width_inches=5.5)
 
     # 3. mgmt_insights
     make_heading(doc,"14.2.3  Management Insights (mgmt_insights)",level=3,color=CLR_NAVY)
@@ -791,7 +834,7 @@ def ch_widgets_glossary(doc):
         "• Description: A compound widget surfacing schedule pacing, high-priority risks, workload thresholds, and developer friction.\n"
         "• Interpretation: Flags tasks due within immediate (7d), mid-term (14d), and long-term (30d) horizons. Highlight cells turn red when overdue volume accumulates.\n"
         "• How to Use: Scrum masters check this daily to align task workloads with sprint capacity.",space_after=4)
-    add_screenshot(doc, "widgets/mgmt_insights", "Illustration 14.3: Management Insights (mgmt_insights) Widget Component View")
+    add_screenshot(doc, "widgets/mgmt_insights", "Figure 14.3 — Management Insights Widget (mgmt_insights)", width_inches=5.5)
 
     # 4. exec_reporting
     make_heading(doc,"14.2.4  Executive Reporting (exec_reporting)",level=3,color=CLR_NAVY)
@@ -799,7 +842,7 @@ def ch_widgets_glossary(doc):
         "• Description: High-density card presentation summarizing milestone achievements, critical path milestones, and RAID exposure levels.\n"
         "• Interpretation: Formatted with large text metrics and badge indicators, omitting technical logs for presentation cleanliness.\n"
         "• How to Use: Use this view to capture quick status screenshots for monthly steering committee slides.",space_after=4)
-    add_screenshot(doc, "widgets/exec_reporting", "Illustration 14.4: Executive Reporting (exec_reporting) Widget Component View")
+    add_screenshot(doc, "widgets/exec_reporting", "Figure 14.4 — Executive Reporting Widget (exec_reporting)", width_inches=5.5)
 
     # 5. exec_capacity
     make_heading(doc,"14.2.5  Team Capacity Allocation (exec_capacity)",level=3,color=CLR_NAVY)
@@ -807,7 +850,7 @@ def ch_widgets_glossary(doc):
         "• Description: Discloses planned working hours mapped against role capabilities.\n"
         "• Interpretation: Shows grid items per role (e.g. Lead Frontend) with a horizontal bar highlighting planned effort vs capacity.\n"
         "• How to Use: Use this to detect capacity shortfalls. If QA capacity is exceeded, adjust incoming feature scopes.",space_after=4)
-    add_screenshot(doc, "widgets/exec_capacity", "Illustration 14.5: Team Capacity Allocation (exec_capacity) Widget Component View")
+    add_screenshot(doc, "widgets/exec_capacity", "Figure 14.5 — Team Capacity Allocation Widget (exec_capacity)", width_inches=5.5)
 
     # 6. module_matrix
     make_heading(doc,"14.2.6  Strategic Module Status Matrix (module_matrix)",level=3,color=CLR_NAVY)
@@ -815,7 +858,7 @@ def ch_widgets_glossary(doc):
         "• Description: Grid mapping code modules against development statuses.\n"
         "• Interpretation: Intersecting cells contain task counts. Features a progress bar reflecting completed vs total tasks per module.\n"
         "• How to Use: Evaluates module maturity. Ensure gateway or authentication modules are completed before starting GUI components.",space_after=4)
-    add_screenshot(doc, "widgets/module_matrix", "Illustration 14.6: Strategic Module Status Matrix (module_matrix) Widget Component View")
+    add_screenshot(doc, "widgets/module_matrix", "Figure 14.6 — Strategic Module Status Matrix Widget (module_matrix)", width_inches=5.5)
 
     # 7. module_health
     make_heading(doc,"14.2.7  Module & Release Health (module_health)",level=3,color=CLR_NAVY)
@@ -823,7 +866,7 @@ def ch_widgets_glossary(doc):
         "• Description: Quality index chart correlating active defects against code modules.\n"
         "• Interpretation: Assigns a health grade (A to F) to modules based on S1-S4 defect densities.\n"
         "• How to Use: Engineering managers check this to schedule technical debt refactoring sprints on modules with D/F grades.",space_after=4)
-    add_screenshot(doc, "widgets/module_health", "Illustration 14.7: Module & Release Health (module_health) Widget Component View")
+    add_screenshot(doc, "widgets/module_health", "Figure 14.7 — Module & Release Health Widget (module_health)", width_inches=5.5)
 
     # 8. feature_insights
     make_heading(doc,"14.2.8  Feature Intelligence (feature_insights)",level=3,color=CLR_NAVY)
@@ -831,7 +874,7 @@ def ch_widgets_glossary(doc):
         "• Description: Bento grid showing delivery progress of functional user features.\n"
         "• Interpretation: Shows completion percentages, feature complexity scores, and associated risks.\n"
         "• How to Use: Product Owners use this to report feature release readiness to marketing stakeholders.",space_after=4)
-    add_screenshot(doc, "widgets/feature_insights", "Illustration 14.8: Feature Intelligence (feature_insights) Widget Component View")
+    add_screenshot(doc, "widgets/feature_insights", "Figure 14.8 — Feature Intelligence Widget (feature_insights)", width_inches=5.5)
 
     # 9. screen_status
     make_heading(doc,"14.2.9  Screen Status Details (screen_status)",level=3,color=CLR_NAVY)
@@ -839,7 +882,7 @@ def ch_widgets_glossary(doc):
         "• Description: Detailed tracker logging progress of frontend UI screens.\n"
         "• Interpretation: Grid lists screen names, linked module, and current design/development states.\n"
         "• How to Use: UI/UX designers check this to coordinate screen sign-offs with developers.",space_after=4)
-    add_screenshot(doc, "widgets/screen_status", "Illustration 14.9: Screen Status Details (screen_status) Widget Component View")
+    add_screenshot(doc, "widgets/screen_status", "Figure 14.9 — Screen Status Details Widget (screen_status)", width_inches=5.5)
 
     # 10. release_timeline
     make_heading(doc,"14.2.10  Release Timeline (release_timeline)",level=3,color=CLR_NAVY)
@@ -847,7 +890,7 @@ def ch_widgets_glossary(doc):
         "• Description: Visual roadmap showing target dates and completion status of version releases.\n"
         "• Interpretation: Chronological timeline bar showing milestones (e.g. v1.0.0, v1.1.0) and status badges (Released, In Progress).\n"
         "• How to Use: Release managers use this to coordinate deployment windows and release notes.",space_after=4)
-    add_screenshot(doc, "widgets/release_timeline", "Illustration 14.10: Release Timeline (release_timeline) Widget Component View")
+    add_screenshot(doc, "widgets/release_timeline", "Figure 14.10 — Release Timeline Widget (release_timeline)", width_inches=5.5)
 
     # 11. milestone_timeline
     make_heading(doc,"14.2.11  Milestone Timeline (milestone_timeline)",level=3,color=CLR_NAVY)
@@ -855,7 +898,7 @@ def ch_widgets_glossary(doc):
         "• Description: List tracking critical milestone deliverables.\n"
         "• Interpretation: Maps target dates against milestone completions. Completed milestones show green indicators.\n"
         "• How to Use: Program coordinators review this weekly to verify key phase gate completions.",space_after=4)
-    add_screenshot(doc, "widgets/milestone_timeline", "Illustration 14.11: Milestone Timeline (milestone_timeline) Widget Component View")
+    add_screenshot(doc, "widgets/milestone_timeline", "Figure 14.11 — Milestone Timeline Widget (milestone_timeline)", width_inches=5.5)
 
     # 12. burndown
     make_heading(doc,"14.2.12  Burndown Chart (burndown)",level=3,color=CLR_NAVY)
@@ -863,7 +906,7 @@ def ch_widgets_glossary(doc):
         "• Description: SVG chart plotting total scope baseline against actual task completions.\n"
         "• Interpretation: X-axis represents weeks; Y-axis shows effort hours. The projection line forecast final dates.\n"
         "• How to Use: PMs use the burn-down projection to detect early signs of schedule slippage.",space_after=4)
-    add_screenshot(doc, "widgets/burndown", "Illustration 14.12: Burndown Chart (burndown) Widget Component View")
+    add_screenshot(doc, "widgets/burndown", "Figure 14.12 — Burndown Chart Widget (burndown)", width_inches=5.5)
 
     # 13. velocity
     make_heading(doc,"14.2.13  Weekly Velocity (velocity)",level=3,color=CLR_NAVY)
@@ -871,7 +914,7 @@ def ch_widgets_glossary(doc):
         "• Description: Bar chart tracking effort completed week-over-week.\n"
         "• Interpretation: Each bar represents a week's total completed effort. Steady height shows stable throughput.\n"
         "• How to Use: PMs use average velocity to estimate capacity for future planning cycles.",space_after=4)
-    add_screenshot(doc, "widgets/velocity", "Illustration 14.13: Weekly Velocity (velocity) Widget Component View")
+    add_screenshot(doc, "widgets/velocity", "Figure 14.13 — Weekly Velocity Widget (velocity)", width_inches=5.5)
 
     # 14. cfd
     make_heading(doc,"14.2.14  Cumulative Flow Diagram (cfd)",level=3,color=CLR_NAVY)
@@ -879,7 +922,7 @@ def ch_widgets_glossary(doc):
         "• Description: Area chart showing work items in various states over time.\n"
         "• Interpretation: Band widths show task counts in Not Started, In Progress, QA, and Completed. Bulging bands indicate bottlenecks.\n"
         "• How to Use: Identifies bottleneck areas. A widening 'QA' band implies a testing resource bottleneck.",space_after=4)
-    add_screenshot(doc, "widgets/cfd", "Illustration 14.14: Cumulative Flow Diagram (cfd) Widget Component View")
+    add_screenshot(doc, "widgets/cfd", "Figure 14.14 — Cumulative Flow Diagram Widget (cfd)", width_inches=5.5)
 
     # 15. overdue
     make_heading(doc,"14.2.15  Overdue Attention (overdue)",level=3,color=CLR_NAVY)
@@ -887,7 +930,7 @@ def ch_widgets_glossary(doc):
         "• Description: List of tasks that have missed their due dates.\n"
         "• Interpretation: Displays task ID, name, assignee, and days overdue in red highlight.\n"
         "• How to Use: Team leads review this in stand-ups to assign help to delayed items.",space_after=4)
-    add_screenshot(doc, "widgets/overdue", "Illustration 14.15: Overdue Attention (overdue) Widget Component View")
+    add_screenshot(doc, "widgets/overdue", "Figure 14.15 — Overdue Attention Widget (overdue)", width_inches=5.5)
 
     # 16. high_impact_entities
     make_heading(doc,"14.2.16  High Impact Entities (high_impact_entities)",level=3,color=CLR_NAVY)
@@ -895,7 +938,7 @@ def ch_widgets_glossary(doc):
         "• Description: Surfaced list of critical tasks that block the largest volume of downstream tasks.\n"
         "• Interpretation: Ranked by follower count. Items at the top are critical path nodes.\n"
         "• How to Use: Developers prioritize these tasks to unblock downstream dependent work items.",space_after=4)
-    add_screenshot(doc, "widgets/high_impact_entities", "Illustration 14.16: High Impact Entities (high_impact_entities) Widget Component View")
+    add_screenshot(doc, "widgets/high_impact_entities", "Figure 14.16 — High Impact Entities Widget (high_impact_entities)", width_inches=5.5)
 
     # 17. workload
     make_heading(doc,"14.2.17  Team Workload (workload)",level=3,color=CLR_NAVY)
@@ -903,7 +946,7 @@ def ch_widgets_glossary(doc):
         "• Description: Mapped chart showing workload hours assigned per team member.\n"
         "• Interpretation: Mapped against standard capacity limits (e.g. 40h). Highlights overallocated members.\n"
         "• How to Use: Balance assignments in scheduler to prevent burnout.",space_after=4)
-    add_screenshot(doc, "widgets/workload", "Illustration 14.17: Team Workload (workload) Widget Component View")
+    add_screenshot(doc, "widgets/workload", "Figure 14.17 — Team Workload Widget (workload)", width_inches=5.5)
 
     # 18. cat_hours
     make_heading(doc,"14.2.18  Category & Effort (cat_hours)",level=3,color=CLR_NAVY)
@@ -911,7 +954,7 @@ def ch_widgets_glossary(doc):
         "• Description: Donut chart showing effort hours distributed across task categories.\n"
         "• Interpretation: Segments show percentages spent on Feature, Bug, DevOps, Design, etc.\n"
         "• How to Use: Product Owners ensure focus aligns with goals, e.g., keeping bug effort below 20%.",space_after=4)
-    add_screenshot(doc, "widgets/cat_hours", "Illustration 14.18: Category & Effort (cat_hours) Widget Component View")
+    add_screenshot(doc, "widgets/cat_hours", "Figure 14.18 — Category & Effort Widget (cat_hours)", width_inches=5.5)
 
     # 19. defect_intel
     make_heading(doc,"14.2.19  Defect Intelligence (defect_intel)",level=3,color=CLR_NAVY)
@@ -919,7 +962,7 @@ def ch_widgets_glossary(doc):
         "• Description: High density bento statistics card focusing on defect status and density metrics.\n"
         "• Interpretation: Features counts of active S1-S4 bugs and resolution rates.\n"
         "• How to Use: QA leads check this before release to ensure no S1 blocker defects are open.",space_after=4)
-    add_screenshot(doc, "widgets/defect_intel", "Illustration 14.19: Defect Intelligence (defect_intel) Widget Component View")
+    add_screenshot(doc, "widgets/defect_intel", "Figure 14.19 — Defect Intelligence Widget (defect_intel)", width_inches=5.5)
 
     # 20. intelligence
     make_heading(doc,"14.2.20  Predictive Intelligence (intelligence)",level=3,color=CLR_NAVY)
@@ -927,7 +970,7 @@ def ch_widgets_glossary(doc):
         "• Description: Forecast analytics widget displaying projected completion dates.\n"
         "• Interpretation: Evaluates actual effort velocities against baselines to predict delays.\n"
         "• How to Use: PMs use predictions for re-scoping before timelines are compromised.",space_after=4)
-    add_screenshot(doc, "widgets/intelligence", "Illustration 14.20: Predictive Intelligence (intelligence) Widget Component View")
+    add_screenshot(doc, "widgets/intelligence", "Figure 14.20 — Predictive Intelligence Widget (intelligence)", width_inches=5.5)
 
     # 21. analytics
     make_heading(doc,"14.2.21  Advanced Analytics (analytics)",level=3,color=CLR_NAVY)
@@ -935,7 +978,7 @@ def ch_widgets_glossary(doc):
         "• Description: high-density table presenting Earned Value Management (EVM) values.\n"
         "• Interpretation: Tracks Earned Value (EV), Planned Value (PV), Schedule Variance (SV), and Schedule Performance Index (SPI).\n"
         "• How to Use: Finance and program managers review this for status reports.",space_after=4)
-    add_screenshot(doc, "widgets/analytics", "Illustration 14.21: Advanced Analytics (analytics) Widget Component View")
+    add_screenshot(doc, "widgets/analytics", "Figure 14.21 — Advanced Analytics Widget (analytics)", width_inches=5.5)
 
     # 22. activity
     make_heading(doc,"14.2.22  Recent Activity (activity)",level=3,color=CLR_NAVY)
@@ -943,7 +986,7 @@ def ch_widgets_glossary(doc):
         "• Description: Chronological audit trail showing system events.\n"
         "• Interpretation: Lists action events with timestamps and author details.\n"
         "• How to Use: Track accountability and audit changes in the workspace.",space_after=4)
-    add_screenshot(doc, "widgets/activity", "Illustration 14.22: Recent Activity (activity) Widget Component View")
+    add_screenshot(doc, "widgets/activity", "Figure 14.22 — Recent Activity Widget (activity)", width_inches=5.5)
 
     # 23. kpi_summary
     make_heading(doc,"14.2.23  Executive Metrics (kpi_summary) [Report Only]",level=3,color=CLR_NAVY)
@@ -951,7 +994,7 @@ def ch_widgets_glossary(doc):
         "• Description: Report card presenting key health indexes and delivery ratios.\n"
         "• Interpretation: Displays delivery confidence, SPI index, and RAID count in a structured print block.\n"
         "• How to Use: Pre-formatted block for steering committee reports.",space_after=4)
-    add_screenshot(doc, "widgets/kpi_summary", "Illustration 14.23: Executive Metrics (kpi_summary) Widget Component View")
+    add_screenshot(doc, "widgets/kpi_summary", "Figure 14.23 — Executive Metrics Widget (kpi_summary)", width_inches=5.5)
 
     # 24. activities
     make_heading(doc,"14.2.24  Key Activities (activities) [Report Only]",level=3,color=CLR_NAVY)
@@ -959,7 +1002,7 @@ def ch_widgets_glossary(doc):
         "• Description: Text-editable widget to log key activities.\n"
         "• Interpretation: Users type text summary bullet points directly into the PDF preview panel.\n"
         "• How to Use: PMs write comments to explain anomalies.",space_after=4)
-    add_screenshot(doc, "widgets/activities", "Illustration 14.24: Key Activities (activities) Widget Component View")
+    add_screenshot(doc, "widgets/activities", "Figure 14.24 — Key Activities Widget (activities)", width_inches=5.5)
 
     # 25. achievements
     make_heading(doc,"14.2.25  Achievements (achievements) [Report Only]",level=3,color=CLR_NAVY)
@@ -967,7 +1010,7 @@ def ch_widgets_glossary(doc):
         "• Description: Showcase widget to highlight successes.\n"
         "• Interpretation: Editable text list formatted for callouts.\n"
         "• How to Use: Highlight milestones met in the reporting period.",space_after=4)
-    add_screenshot(doc, "widgets/achievements", "Illustration 14.25: Achievements (achievements) Widget Component View")
+    add_screenshot(doc, "widgets/achievements", "Figure 14.25 — Achievements Widget (achievements)", width_inches=5.5)
 
     # 26. risks
     make_heading(doc,"14.2.26  Risks & Issues (risks) [Report Only]",level=3,color=CLR_NAVY)
@@ -975,7 +1018,7 @@ def ch_widgets_glossary(doc):
         "• Description: Detailed RAID table for stakeholder reports.\n"
         "• Interpretation: Lists top active risks, mitigation plans, and owners.\n"
         "• How to Use: Simplifies presenting risk registers to stakeholders.",space_after=4)
-    add_screenshot(doc, "widgets/risks", "Illustration 14.26: Risks & Issues (risks) Widget Component View")
+    add_screenshot(doc, "widgets/risks", "Figure 14.26 — Risks & Issues Widget (risks)", width_inches=5.5)
 
     # 27. plans
     make_heading(doc,"14.2.27  Upcoming Plans (plans) [Report Only]",level=3,color=CLR_NAVY)
@@ -983,7 +1026,7 @@ def ch_widgets_glossary(doc):
         "• Description: Text-editable section for upcoming plans.\n"
         "• Interpretation: Formatted text block for future objectives.\n"
         "• How to Use: Outline plans for the next reporting period.",space_after=4)
-    add_screenshot(doc, "widgets/plans", "Illustration 14.27: Upcoming Plans (plans) Widget Component View")
+    add_screenshot(doc, "widgets/plans", "Figure 14.27 — Upcoming Plans Widget (plans)", width_inches=5.5)
 
     # 28. team
     make_heading(doc,"14.2.28  Team Workload Table (team) [Report Only]",level=3,color=CLR_NAVY)
@@ -991,7 +1034,7 @@ def ch_widgets_glossary(doc):
         "• Description: Capacity overview table for reports.\n"
         "• Interpretation: Lists team member names, roles, and allocated hours.\n"
         "• How to Use: Verify workloads in stakeholder reports.",space_after=4)
-    add_screenshot(doc, "widgets/team", "Illustration 14.28: Team Workload Table (team) Widget Component View")
+    add_screenshot(doc, "widgets/team", "Figure 14.28 — Team Workload Table Widget (team)", width_inches=5.5)
 
     # 29. util
     make_heading(doc,"14.2.29  Resource Utilization Summary (util) [Report Only]",level=3,color=CLR_NAVY)
@@ -999,7 +1042,7 @@ def ch_widgets_glossary(doc):
         "• Description: High-level utilization stats.\n"
         "• Interpretation: Displays utilization percentages per role.\n"
         "• How to Use: Report resource efficiency to stakeholders.",space_after=4)
-    add_screenshot(doc, "widgets/util", "Illustration 14.29: Resource Utilization Summary (util) Widget Component View")
+    add_screenshot(doc, "widgets/util", "Figure 14.29 — Resource Utilization Summary Widget (util)", width_inches=5.5)
 
     # 30. overdue_tbl
     make_heading(doc,"14.2.30  Overdue Table Detail (overdue_tbl) [Report Only]",level=3,color=CLR_NAVY)
@@ -1007,8 +1050,83 @@ def ch_widgets_glossary(doc):
         "• Description: Table of overdue tasks for reports.\n"
         "• Interpretation: Lists task name, assignee, and delay details.\n"
         "• How to Use: Highlight delayed tasks in stakeholder updates.",space_after=4)
-    add_screenshot(doc, "widgets/overdue_tbl", "Illustration 14.30: Overdue Table Detail (overdue_tbl) Widget Component View")
+    add_screenshot(doc, "widgets/overdue_tbl", "Figure 14.30 — Overdue Table Detail Widget (overdue_tbl)", width_inches=5.5)
 
+    make_heading(doc,"14.3  Glossary of Terms",level=2,color=CLR_ACCENT)
+    add_data_table(doc,
+        ["Term","Definition"],
+        [
+            ["actCompletionDate","The actual date work was finished, used for retrospective activity attribution."],
+            ["Baseline","A named, timestamped snapshot of planned task dates and efforts."],
+            ["buildDashCache","The O(n) single-pass analytics aggregation function that populates P.cache."],
+            ["Complexity Factor","A multiplier (0.5x / 1.0x / 1.5x) applied to task effort for velocity scoring."],
+            ["Copilot","The automated conflict resolution engine in the Weekly Scheduler."],
+            ["Delivery Confidence","The velocity-based probability of delivering all remaining work on schedule."],
+            ["EVM","Earned Value Management — a PMI-standard project performance measurement framework."],
+            ["Exposure Score","RAID risk score: probability_int x impact_int. Ranges 1-9."],
+            ["Health Index","Composite project health score (0-100) derived from overdue tasks, risks, and defects."],
+            ["localStorage","Browser-native key-value storage used to persist project data."],
+            ["P","The global JavaScript state object containing all project data."],
+            ["pp-data","The localStorage key under which the serialised P object is stored."],
+            ["RAID","Risks, Assumptions, Issues, and Dependencies — the four governance entity types."],
+            ["Sandbox","The non-destructive simulation environment for what-if scenario modelling."],
+            ["SPI","Schedule Performance Index: EV / PV. < 1.0 = schedule slippage."],
+            ["SV","Schedule Variance: EV - PV. Negative = behind schedule."],
+            ["VALID_TRANSITIONS","The authoritative map of permitted task status transitions enforced by the state machine."],
+            ["Velocity","Rolling 3-week average of completed complexity points per week."],
+        ],
+        col_widths=[2.0,4.4],
+    )
+
+    add_page_break(doc)
+
+
+def ch_project_intelligence(doc):
+    make_heading(doc,"Chapter 15 — Project Intelligence & Training Resources",level=1,color=CLR_NAVY)
+    add_horizontal_rule(doc,"00C2A8")
+    make_body(doc,
+        "To maximize efficiency and operational insight, ProjectPulse incorporates several high-level "
+        "visual blueprints and training resources generated to support executive reviews and new team member onboarding.",space_after=8)
+
+    make_heading(doc,"15.1  Interactive Workstation Blueprint",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "The ProjectPulse workspace coordinates state change across a highly integrated set of "
+        "interactive cards, tables, and analytics modules in the client-side UI, allowing users "
+        "to manage all tasks and capacity from a single workstation interface.",space_after=8)
+
+    make_heading(doc,"15.2  Software Delivery Ecosystem Mind Map",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "The delivery ecosystem encompasses the relationships between the state machine variables "
+        "(contained within the global P object) and active management modules. This structure helps "
+        "developers and managers trace data propagation paths across the system.",space_after=8)
+
+    make_heading(doc,"15.3  Stakeholder Training Slide Deck Outline",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "The project file directory contains the official onboarding and presentation slide deck "
+        "(ProjectPulse_Intelligence_Workstation.pptx). Below is the structured outline of the 15 presentation slides "
+        "designed for team training:",space_after=6)
+
+    add_data_table(doc,
+        ["Slide","Title","Visual Concept & Presentation Key points"],
+        [
+            ["1","Executive Cover Slide","Title: ProjectPulse — Browser-Native Project Intelligence Workstation. Core theme: Serverless, Local-First, Zero-Backend operational management."],
+            ["2","Product Concept","Visual: Mockup of the local-first UI. Concept: Operational workstation delivering zero-dependency planning for agile teams."],
+            ["3","Client-Side SPA Architecture","Visual: Component mapping of projectpulse.html. Focus: Inlined JS/CSS, localStorage data model, and memory caches."],
+            ["4","Global State topology (P)","Visual: Interactive JSON tree diagram. Focus: Schema reference for tasks, team capacity, RAID register, and logs."],
+            ["5","Interactive Delivery Matrix","Visual: Gantt + spreadsheet layout. Focus: In-place cell editing, custom sorting/filtering, and row expansion."],
+            ["6","Earned Value Management (EVM)","Visual: S-Curves showing PV, EV, AC. Focus: Schedule Performance Index (SPI) and Cost Performance Index (CPI) metrics."],
+            ["7","Weekly Capacity Heatmap","Visual: Color-coded grid per resource. Focus: Under/over-allocation alerts and automated leveling diagnostics."],
+            ["8","Copilot Heuristic Resolver","Visual: Decision flowchart. Focus: Automatic sequencing and conflict resolution logic rules."],
+            ["9","Defect Verification Pipeline","Visual: Pipeline of defect states. Focus: S1-S4 severities, SLAs, and retesting loops."],
+            ["10","RAID Governance Matrix","Visual: 5x5 threat matrix. Focus: Exposure scoring, owner assignments, and action items."],
+            ["11","Schedule Baselines","Visual: Drift timeline overlays. Focus: Freeze snapshots, variance tracking, and recovery loops."],
+            ["12","Custom Report Builder","Visual: Checklist config panel. Focus: Generating board packs, custom filters, and printing."],
+            ["13","Keyboard Shortcuts","Visual: Command cheatsheet card. Focus: Power-user hotkeys for navigation and saving."],
+            ["14","Business Value & Security","Visual: Security architecture card. Focus: 100% data ownership, zero database leaks, offline operation."],
+            ["15","Summary & Roadmaps","Visual: Future release milestones. Focus: Offline-first advancements and next-generation UI updates."]
+        ],
+        col_widths=[0.6,2.0,3.7]
+    )
     add_page_break(doc)
 
 
@@ -1047,6 +1165,7 @@ def build_umi():
         ("12", "System Configuration",                    "43"),
         ("13", "Tips, Best Practices & Troubleshooting",  "47"),
         ("14", "Complete Widget Directory & Glossary",    "50"),
+        ("15", "Project Intelligence & Training Resources", "55"),
     ]
     build_toc(doc, toc_chapters)
 
@@ -1078,6 +1197,8 @@ def build_umi():
     ch_tips(doc)
     print("  Writing Ch 14: Widgets Directory...")
     ch_widgets_glossary(doc)
+    print("  Writing Ch 15: Project Intelligence...")
+    ch_project_intelligence(doc)
 
     print(f"\n  Saving document -> {OUT_PATH}")
     doc.save(OUT_PATH)

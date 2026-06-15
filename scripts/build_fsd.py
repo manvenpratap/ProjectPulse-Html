@@ -529,20 +529,18 @@ def fsd_insights(doc):
         "bands for schedule and cost performance, highlighting variances.",space_after=8)
     add_screenshot(doc, "diagrams/evm_calculation", "Figure 7.1 — EVM Metrics Comparison Curves & Performance Bands")
 
-    make_heading(doc,"7.2  Burn-Up Chart Rendering",level=2,color=CLR_ACCENT)
+    make_heading(doc,"7.2  Burn-Down & Burn-Up Chart Rendering",level=2,color=CLR_ACCENT)
     make_body(doc,
-        "The burn-up chart displays three lines plotted on a weekly time axis:",space_after=6)
-    make_bullet(doc,"Scope Line (Blue): SUM(estEffort x complexityFactor) for all tasks at each week. Rises when scope is added.")
-    make_bullet(doc,"Completion Line (Green): Cumulative SUM of completed task complexity points per week, using actCompletionDate for attribution.")
-    make_bullet(doc,"Projection Line (Dashed Amber): Linear extrapolation from current completion to 100% scope, based on rolling 3-week velocity.")
+        "The widget renders four data series on a single canvas with a velocity-based projection cone:",space_after=6)
+    make_bullet(doc,"Actual Burndown (Red solid): Remaining effort each week up to Today, including fractional sub-task and screen completions.")
+    make_bullet(doc,"Ideal Burndown (Amber dashed): Linear target from total scope to zero remaining effort.")
+    make_bullet(doc,"Burn-Up (Green solid): Cumulative completed effort per week.")
+    make_bullet(doc,"Projection Cone (Red shaded zone): Optimistic (1.35x), Most-Likely (1.0x), and Pessimistic (0.65x) outcomes based on recent average velocity.")
     make_body(doc,
-        "Projection formula:",space_after=4)
-    make_formula(doc,
-        "weeksToComplete = remainingPoints / weeklyVelocity\n"
-        "projectedEndDate = today + weeksToComplete weeks")
-    add_callout(doc,
-        "The projection line is only displayed when at least 3 weeks of velocity data exist. "
-        "On newly created projects, only the Scope and Completion lines are shown.",style="note")
+        "Decomposed Sub-Task & Screen-Aware Effort:",space_after=4)
+    make_bullet(doc,"Tasks without sub-tasks: Evaluated as a single binary unit.")
+    make_bullet(doc,"Tasks with sub-tasks: Effort is split proportionally. Screen sub-tasks use fractional progress (0-100%) for incremental completion.")
+    make_bullet(doc,"Module Filter: Interactive multi-select chip bar filters the task dataset and dynamically re-renders all series.")
 
     make_heading(doc,"7.3  30-Day Activity Heatmap & Date Resolution",level=2,color=CLR_ACCENT)
     make_body(doc,
@@ -1337,6 +1335,53 @@ def fsd_appendices(doc):
         col_widths=[2.0,4.4],
     )
 
+    make_heading(doc,"Appendix D — Project Intelligence & Training Resources",level=1,color=CLR_NAVY)
+    add_horizontal_rule(doc,"00C2A8")
+    
+    make_heading(doc,"D.1  Interactive Workstation Blueprint",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "The ProjectPulse Interactive Workstation is designed as a browser-native "
+        "operational dashboard. The blueprint below shows the complete structural "
+        "topology of the user interface components and how they tie into the client-side "
+        "Nexus Theme Engine.",space_after=8)
+    add_screenshot(doc, "diagrams/project_management_workstation_blueprint", "Figure D.1 — ProjectPulse Client-Side Workstation Blueprint & Component Topology")
+    
+    make_heading(doc,"D.2  Client-Side Schema & Feature Ecosystem Mind Map",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "The mind map below maps out the functional ecosystem of ProjectPulse. It illustrates "
+        "how individual features (Tasks, RAID Register, Defect Tracking, and Capacity Analytics) "
+        "intersect with the client-side data schemas and the local-first storage architecture.",space_after=8)
+    add_screenshot(doc, "diagrams/notebook_llm_mind_map", "Figure D.2 — Software Delivery Ecosystem & Data Schema Mind Map")
+
+    make_heading(doc,"D.3  Product Pitch & Training Slide Deck Outline",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "To facilitate rapid onboarding of team members and stakeholders, ProjectPulse includes a "
+        "comprehensive, slide-by-slide training presentation (ProjectPulse_Intelligence_Workstation.pptx) "
+        "stored inside the project folder. Below is the detailed structural outline of the slide deck:",space_after=6)
+
+    add_data_table(doc,
+        ["Slide","Title","Visual & Presentation Outline"],
+        [
+            ["1","Executive Cover Slide","Title: ProjectPulse — Browser-Native Project Intelligence Workstation. Core theme: Serverless, Local-First, Zero-Backend operational management."],
+            ["2","Product Concept","Visual: Mockup of the local-first UI. Concept: Operational workstation delivering zero-dependency planning for agile teams."],
+            ["3","Client-Side SPA Architecture","Visual: Component mapping of projectpulse.html. Focus: Inlined JS/CSS, localStorage data model, and memory caches."],
+            ["4","Global State topology (P)","Visual: Interactive JSON tree diagram. Focus: Schema reference for tasks, team capacity, RAID register, and logs."],
+            ["5","Interactive Delivery Matrix","Visual: Gantt + spreadsheet layout. Focus: In-place cell editing, custom sorting/filtering, and row expansion."],
+            ["6","Earned Value Management (EVM)","Visual: S-Curves showing PV, EV, AC. Focus: Schedule Performance Index (SPI) and Cost Performance Index (CPI) metrics."],
+            ["7","Weekly Capacity Heatmap","Visual: Color-coded grid per resource. Focus: Under/over-allocation alerts and automated leveling diagnostics."],
+            ["8","Copilot Heuristic Resolver","Visual: Decision flowchart. Focus: Automatic sequencing and conflict resolution logic rules."],
+            ["9","Defect Verification Pipeline","Visual: Pipeline of defect states. Focus: S1-S4 severities, SLAs, and retesting loops."],
+            ["10","RAID Governance Matrix","Visual: 5x5 threat matrix. Focus: Exposure scoring, owner assignments, and action items."],
+            ["11","Schedule Baselines","Visual: Drift timeline overlays. Focus: Freeze snapshots, variance tracking, and recovery loops."],
+            ["12","Custom Report Builder","Visual: Checklist config panel. Focus: Generating board packs, custom filters, and printing."],
+            ["13","Keyboard Shortcuts","Visual: Command cheatsheet card. Focus: Power-user hotkeys for navigation and saving."],
+            ["14","Business Value & Security","Visual: Security architecture card. Focus: 100% data ownership, zero database leaks, offline operation."],
+            ["15","Summary & Roadmaps","Visual: Future release milestones. Focus: Offline-first advancements and next-generation UI updates."]
+        ],
+        col_widths=[0.6,2.0,3.7]
+    )
+
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  MAIN BUILD ORCHESTRATOR
@@ -1393,6 +1438,7 @@ def build_fsd():
         ("A",   "Appendix A — Keyboard Shortcuts",                  "82"),
         ("B",   "Appendix B — Formula Reference Card",              "83"),
         ("C",   "Appendix C — Glossary",                            "85"),
+        ("D",   "Appendix D — Project Intelligence & Training Resources", "87"),
     ]
     build_toc(doc, toc_chapters)
 
