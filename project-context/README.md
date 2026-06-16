@@ -5,21 +5,26 @@ This single document contains the authoritative architecture mapping, schema spe
 ---
 
 ## 1. Codebase Architecture & File Map
-The entire application resides within [projectpulse.html](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/projectpulse.html).
+The ProjectPulse repository consists of the monolithic core application, automated document compilers, and structured documentation assets.
 ```
-projectpulse.html
-├── CSS Stylesheet (lines 1 – 8,960)
-│   └── 20 Curated Themes, Dark/Light color modes, layout, components, and animations.
-└── JavaScript Application (lines 8,960 – 35,000+)
-    ├── Core Constants (STATUSES, VALID_TRANSITIONS, THEMES, CC colors)
-    ├── State Definition: const P = { ... } (~L9489)
-    ├── Storage & Backups (localStorage, IndexedDB ProjectPulseDB, File System Access API)
-    ├── CRUD & Operations (createTask, updateField, addSubtask, saveMember, saveDefect)
-    ├── View Renderers (renderTasksView, renderTimeline, renderDash, renderTeam, etc.)
-    ├── Dashboard Aggregation Engine (buildDashCache, renderDash)
-    ├── Excel Import/Export Engine (generateProjectWorkbook, reconstructProjectFromBuffer)
-    ├── Project Scaffolder / Architect (renderScaffolder, generateFromScaffold)
-    └── App Initialization (DOMContentLoaded, enterApp)
+ProjectPulse/
+├── projectpulse.html            # Monolithic single-page application (~35,000 lines Vanilla HTML5/JS/CSS)
+│   ├── CSS Stylesheet           # (Lines 1 – 8,960) 20 Curated Themes, Light/Dark modes, layout, transitions
+│   └── JavaScript Application   # (Lines 8,960 – 35,000+) State, Persistence, CRUD, Gantt/Timeline, Excel sync
+├── docs/                        # Authoritative product specifications and user guides
+│   ├── user_manual/             # Compiled dynamic markdown user manuals
+│   ├── screenshots/             # Cropped widget screenshot assets for manual illustrations
+│   └── *.docx, *.pptx           # High-fidelity compiled Word documents and presentation decks
+└── scripts/                     # Modular documentation compiler toolchain
+    ├── build_all.py             # Master orchestrator for doc compilation
+    ├── build_fsd.py             # Functional Specification Document compiler
+    ├── build_pcd.py             # Product Capabilities Document compiler
+    ├── build_umi.py             # User Manual Index compiler
+    ├── build_user_manual_docx.py# User Manual docx compiler
+    ├── docx_helpers.py          # Shared Word document styling, tables, XML helpers
+    ├── update_manual.js         # Scrapes projectpulse.html dropdown configurations to update markdown docs
+    ├── generate_diagrams.py     # Generates light-themed vector diagrams for document embedding
+    └── capture_widgets.py       # Puppeteer-based automated widget screenshot cropper
 ```
 
 ---
@@ -234,6 +239,29 @@ Status transitions must strictly match the following mapping. Comment logging is
   - Persisted Local Folder Sync Path directory name to the Excel System State sheet, allowing auto-restoration of File System Access directory handles on workbook import.
   - Added calculations for Health Index and Delivery Confidence to "How this view works" Help Guide modal.
 * **📅 [2026-06-04] Retrospective Completion Tracking**:
-  - Implemented `getLogActivityDate(l)` and `getLogActivityDateStr(l)` date normalization helpers to resolve activity dates retrospectively using `actCompletionDate` fields.
-  - Enhanced `addLog` to accept and serialize custom completion metadata (`subtaskId`, `actCompletionDate`).
-  - Rewrote 30-Day Activity timeline, recent activity widgets, member contribution heatmaps, weekly velocity dashboards, health metrics log replay (`calculateSparklineData`), and status reports (`autoPopulateReport`) to query log histories via resolved activity dates instead of log insertion timestamps.
+  - Implemented activity date normalization helpers (`getLogActivityDate`) using `actCompletionDate` fields.
+  - Rewrote performance widgets, velocity metrics, and timelines to query activity dates retrospectively.
+* **📅 [2026-06-14] Three-Document Suite & Build System**:
+  - Implemented modular compilers (`build_pcd.py`, `build_fsd.py`, `build_umi.py`, `build_user_manual_docx.py`) orchestrated by `build_all.py` to compile core technical documents.
+  - Developed `update_manual.js` to dynamically compile Markdown system configurations.
+* **📅 [2026-06-15] Styling & Visual Enhancements**:
+  - Added 10 custom architectural/workflow diagrams and 30 screenshot glossary mappings.
+  - Upgraded docx designs to professional Segoe UI typography and grid layout guidelines.
+* **📅 [2026-06-16] Knowledge Graph Exclusions**:
+  - Excluded `docs/` and `scripts/` from Graphify analysis to focus graph navigation strictly on the code codebase.
+
+---
+
+## 8. Modular Documentation Build System
+
+ProjectPulse uses an automated document generation system that translates codebase configuration registries, schemas, and screenshots into formatted specifications:
+
+### A. Dynamic Configuration Extraction
+* **Source**: The script blocks inside [projectpulse.html](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/projectpulse.html) define the authoritative UI states and database dropdown configurations.
+* **Extraction**: `scripts/update_manual.js` loads the HTML page structure, parses JavaScript runtime settings (e.g. system dropdown categories, complexities), and rewrites them into [configuration_reference.md](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/configuration_reference.md) dynamically.
+
+### B. High-Fidelity Word (.docx) Compilation
+* **Layout Engines**: Individual python compilers (`build_pcd.py`, `build_fsd.py`, `build_umi.py`, `build_user_manual_docx.py`) load text data, markdown chapters, and diagram configurations.
+* **Styling & Rendering**: Powered by `scripts/docx_helpers.py`, which provides XML abstractions for custom background borders, Margins (padding) in twentieths of a point (dxa), tables, callout blocks, headers/footers, and custom Segoe UI font properties to render documents match-themed to the ProjectPulse aesthetics.
+* **Screenshots Automation**: Heads-up automated browsers (`capture_screenshots.py`, `capture_widgets.py`) spin up the single-page application in headless mode, inject project states, wait for animations to settle, take screenshots of interactive modules, and crop them directly to place inside user manual documents.
+

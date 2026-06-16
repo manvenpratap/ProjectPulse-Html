@@ -85,3 +85,22 @@
 - **Dashboard & Performance Timelines**: Updated 30-Day Activity timeline, recent activity widgets, member contribution heatmaps, weekly velocity dashboards, health metrics log replay (`calculateSparklineData`), and status reports (`autoPopulateReport`) to query log histories via resolved activity dates instead of log insertion timestamps.
 - **Velocity & Confidence Fixes**: Corrected target log queries in Predictive AI ETA and Board Pack widgets to search by correct actions and newVal attributes, restoring historical velocity calculations.
 - **Verification & Documentation**: Validated all changes via check_syntax.js and test_runtime.js, updated entity schemas and changelogs in the offline project context.
+
+## 📅 [2026-06-05] - UI Layout & Icon Rendering Fixes
+- **Dynamic Icon Binding**: Resolved invisible Lucide icons (specifically `trash-2` delete buttons in the reports list) by calling `lucide.createIcons()` immediately after dynamic toolbar and list injection.
+- **Trash Icon Centering**: Fixed layout alignments and margin offsets for delete trash icons inside buttons and list item containers.
+
+## 📅 [2026-06-14] - Three-Document Suite & Modular Build System
+- **Document Generation Suite**: Added python build scripts (`build_pcd.py`, `build_fsd.py`, `build_umi.py`, `build_user_manual_docx.py`) to generate three core documents: Product Capabilities Document (PCD), Functional Specification Document (FSD), and User Manual Index (UMI) in DOCX and Markdown formats.
+- **Master Compiler Orchestration**: Implemented `build_all.py` as a central script to run all python doc compilers in sequence.
+- **Dynamic Manual Updates**: Created `update_manual.js` to parse current system dropdown configurations from `projectpulse.html` and compile updated Markdown manual sheets.
+
+## 📅 [2026-06-15] - Premium Document Styles & Visual Illustrations
+- **Custom Diagrams**: Designed and embedded 10 custom workflow, lifecycle, and architecture diagrams into the PCD, FSD, and UMI suites.
+- **High-Density Screenshots**: Automated widget capturing via `capture_screenshots.py` and `capture_widgets.py` to crop and embed screenshots of all 30 widgets in the User Manual.
+- **Premium DOCX Styling**: Configured explicit Segoe UI styling, clean XML table structures, and theme-matching borders for professional document exports.
+
+## 📅 [2026-06-16] - Graphify Navigation & Exclusions
+- **Community Labels**: Added names for Graphify communities 18-25 mapping the User Manual index, delivery matrix, team capacity, and bug tracker components.
+- **Graph Scope Reduction**: Excluded non-code resources `docs/` and `scripts/` from Graphify analysis via `.graphifyignore`, narrowing the codebase analysis to the monolithic single-page app core.
+
