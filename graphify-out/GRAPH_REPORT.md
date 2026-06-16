@@ -1,8 +1,7 @@
-# Graph Report - ProjectPulse  (2026-06-15)
+# Graph Report - .  (2026-06-16)
 
 ## Corpus Check
-- 28 files · ~2,670,186 words
-- Verdict: corpus is large enough that graph structure adds value.
+- cluster-only mode — file stats not available
 
 ## Summary
 - 329 nodes · 512 edges · 27 communities (25 shown, 2 thin omitted)
@@ -10,7 +9,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `45a24522`
+- Built from commit: `a5d6cddc`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -33,14 +32,14 @@
 - [[_COMMUNITY_Reports & Board & Md|Reports & Board & Md]]
 - [[_COMMUNITY_Activity & Md & Audit|Activity & Md & Audit]]
 - [[_COMMUNITY_Project & Status & Md|Project & Status & Md]]
-- [[_COMMUNITY_Community 18|Community 18]]
-- [[_COMMUNITY_Community 19|Community 19]]
-- [[_COMMUNITY_Community 20|Community 20]]
-- [[_COMMUNITY_Community 21|Community 21]]
-- [[_COMMUNITY_Community 22|Community 22]]
-- [[_COMMUNITY_Community 23|Community 23]]
-- [[_COMMUNITY_Community 24|Community 24]]
-- [[_COMMUNITY_Community 25|Community 25]]
+- [[_COMMUNITY_User Manual & Architecture & Sync|User Manual & Architecture & Sync]]
+- [[_COMMUNITY_Delivery Matrix & Hierarchy & Edit|Delivery Matrix & Hierarchy & Edit]]
+- [[_COMMUNITY_Capacity & Workload & Role|Capacity & Workload & Role]]
+- [[_COMMUNITY_Defect Tracker & Bug Lifecycle|Defect Tracker & Bug Lifecycle]]
+- [[_COMMUNITY_Reports & Board & Export|Reports & Board & Export]]
+- [[_COMMUNITY_Audit Log & Activity & Session|Audit Log & Activity & Session]]
+- [[_COMMUNITY_Widgets & Capture & Screenshot|Widgets & Capture & Screenshot]]
+- [[_COMMUNITY_Status & Dashboard & Live|Status & Dashboard & Live]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `build_fsd()` - 25 edges
@@ -140,27 +139,27 @@ Nodes (4): capture_screenshots.py Launches ProjectPulse in a headless Chromium b
 Cohesion: 0.33
 Nodes (5): 1. RAID Classifications, 2. Threat Exposure Calculations, 3. Mitigation Plans and Owners, Scoring Reference:, Unified RAID Register
 
-### Community 18 - "Community 18"
+### Community 18 - "User Manual & Architecture & Sync"
 Cohesion: 0.33
 Nodes (5): Architecture Schematic, code:block1 ([LocalStorage/IndexedDB Backup Store]), Daily Automated Synchronization, Directory Navigation & Feature Guides, ProjectPulse User Manual — Master Index
 
-### Community 19 - "Community 19"
+### Community 19 - "Delivery Matrix & Hierarchy & Edit"
 Cohesion: 0.33
 Nodes (5): 1. Parent-Child Hierarchies, 2. Spreadsheet-Style Inline Editing, 3. Complexity & Estimation Scaling, code:block1 ([Deliverable 1: Core API Setup]), Hierarchical Delivery Matrix
 
-### Community 20 - "Community 20"
+### Community 20 - "Capacity & Workload & Role"
 Cohesion: 0.4
 Nodes (4): 1. Capacity Modeling, 2. Dynamic Workload Balancing, 3. Role Assignments, Team Capacity Hub & Role Management
 
-### Community 21 - "Community 21"
+### Community 21 - "Defect Tracker & Bug Lifecycle"
 Cohesion: 0.4
 Nodes (4): 1. Defect Severity Matrix, 2. Bug Lifecycle States, code:block1 ([New] ──► [Assigned] ──► [In Progress] ──► [Fixed] ──► [Veri), Defect Tracker & Bug Lifecycle
 
-### Community 22 - "Community 22"
+### Community 22 - "Reports & Board & Export"
 Cohesion: 0.5
 Nodes (3): 1. Executive Board Pack Generator, 2. Spreadsheet Export Settings (ExcelJS), Reports & Stakeholder Board Packs
 
-### Community 23 - "Community 23"
+### Community 23 - "Audit Log & Activity & Session"
 Cohesion: 0.5
 Nodes (3): 1. Automated Action Logging, 2. Session Rollback Capability, Audit Log & Activity Streams
 
@@ -174,13 +173,13 @@ _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `build_fsd()` connect `Architecture & Audit & State` to `Delivery & Md & Hierarchical`, `Manual & State & Md`?**
   _High betweenness centrality (0.021) - this node is a cross-community bridge._
-- **Why does `build_umi()` connect `Schedule & Manual & Check` to `Manual & State & Md`, `Delivery & Md & Hierarchical`?**
+- **Why does `build_umi()` connect `Schedule & Manual & Check` to `Delivery & Md & Hierarchical`, `Manual & State & Md`?**
   _High betweenness centrality (0.021) - this node is a cross-community bridge._
 - **Why does `new_document()` connect `Manual & State & Md` to `Architecture & Audit & State`, `Delivery & Md & Hierarchical`, `Schedule & Manual & Check`?**
   _High betweenness centrality (0.012) - this node is a cross-community bridge._
 - **Are the 5 inferred relationships involving `build_fsd()` (e.g. with `new_document()` and `add_footer()`) actually correct?**
   _`build_fsd()` has 5 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 3 inferred relationships involving `build_umi()` (e.g. with `main()` and `new_document()`) actually correct?**
+- **Are the 3 inferred relationships involving `build_umi()` (e.g. with `new_document()` and `add_footer()`) actually correct?**
   _`build_umi()` has 3 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `capture_widgets.py ================== Captures element-specific cropped screensh`, `build_pcd.py ============ Builds the ProjectPulse Product Capabilities Document`, `build_fsd.py ============ Builds the ProjectPulse Functional Specification Docum` to the rest of the system?**
   _157 weakly-connected nodes found - possible documentation gaps or missing edges._
