@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ProjectPulse | Interactive Project Intelligence</title>
   <meta name="description" content="ProjectPulse — full-featured single-page project management suite">
-  <meta name="version" content="2.0-enhanced">
+  <meta name="version" content="2.0-merged">
   <meta name="build-date" content="2026-06-06">
   <script>
     // PP logger wrapper defined early to prevent ReferenceError in fallback loaders
@@ -13967,9 +13967,9 @@
 
     const layoutToWidgetIdMap = {
       'steering_hero': 'dash-steering-hero',
-      'health_gauge': 'dash-health-gauge',
-      'status_overview': 'dash-status-overview',
-      'summary': 'dash-summary-cards',
+        'health_gauge': 'dash-health-gauge',
+        'status_overview': 'dash-status-overview',
+        'summary': 'dash-summary-cards',
       'exec_capacity': 'dash-exec-capacity',
       'health': 'dash-health-main',
       'module_status_matrix': 'dash-msm-main',
@@ -14890,6 +14890,7 @@ clearProjectState() {
         P.filters = { 
           status: new Set(), priority: new Set(), assignee: new Set(), module: new Set(), feature: new Set(), category: new Set(),
           action: new Set(), field: new Set(), featComplexity: new Set(), featScreens: new Set(), featModules: new Set(),
+          moduleType: new Set(), featModuleTypes: new Set(),
           overdueOnly: false, blockedOnly: false
         };
         P.expanded = new Set();
@@ -15183,7 +15184,9 @@ save() {
                 field: Array.from((P.filters || {}).field || []),
                 featComplexity: Array.from((P.filters || {}).featComplexity || []),
                 featScreens: Array.from((P.filters || {}).featScreens || []),
-                featModules: Array.from((P.filters || {}).featModules || [])
+                featModules: Array.from((P.filters || {}).featModules || []),
+                moduleType: Array.from((P.filters || {}).moduleType || []),
+                featModuleTypes: Array.from((P.filters || {}).featModuleTypes || [])
               }
             }));
             if (P.dashLayout) localStorage.setItem('pp-dash-layout', JSON.stringify(P.dashLayout));
@@ -15247,7 +15250,9 @@ load() {
                 field: new Set(d.filters.field || []),
                 featComplexity: new Set(d.filters.featComplexity || []),
                 featScreens: new Set(d.filters.featScreens || []),
-                featModules: new Set(d.filters.featModules || [])
+                featModules: new Set(d.filters.featModules || []),
+                moduleType: new Set(d.filters.moduleType || []),
+                featModuleTypes: new Set(d.filters.featModuleTypes || [])
               };
             }
             if (P.sort && P.sort.dir === undefined) P.sort = { col: 'id', dir: 'asc' };
@@ -15291,7 +15296,11 @@ load() {
             if (!P.expanded) P.expanded = new Set();
             if (!P.collapsedNodes) P.collapsedNodes = new Set();
             if (!P.filters) {
-              P.filters = { status: new Set(), priority: new Set(), assignee: new Set(), module: new Set(), feature: new Set() };
+              P.filters = {
+                status: new Set(), priority: new Set(), assignee: new Set(), module: new Set(), feature: new Set(), category: new Set(),
+                action: new Set(), field: new Set(), featComplexity: new Set(), featScreens: new Set(), featModules: new Set(),
+                moduleType: new Set(), featModuleTypes: new Set()
+              };
             }
 
             // Ensure defect properties exist for legacy data
@@ -16718,6 +16727,7 @@ load() {
       if (P.filters.priority && P.filters.priority.size) t = t.filter(x => P.filters.priority.has(x.priority));
       if (P.filters.assignee && P.filters.assignee.size) t = t.filter(x => P.filters.assignee.has(x.assignee));
       if (P.filters.module && P.filters.module.size) t = t.filter(x => P.filters.module.has(x.module));
+      if (P.filters.moduleType && P.filters.moduleType.size) t = t.filter(x => P.filters.moduleType.has(x.moduleType));
       if (P.filters.category && P.filters.category.size) t = t.filter(x => P.filters.category.has(x.category));
 
       if (P.filters.status && P.filters.status.size > 0) {
@@ -16769,6 +16779,14 @@ load() {
       let l = [...P.log];
       if (P.filters.action && P.filters.action.size) l = l.filter(e => P.filters.action.has(e.action));
       if (P.filters.module && P.filters.module.size) l = l.filter(e => P.filters.module.has(e.module));
+      if (P.filters.moduleType && P.filters.moduleType.size) {
+        const taskByIdMap = {};
+        P.tasks.forEach(task => taskByIdMap[task.id] = task);
+        l = l.filter(e => {
+          const t = taskByIdMap[e.taskId];
+          return t && P.filters.moduleType.has(t.moduleType);
+        });
+      }
       if (P.filters.field && P.filters.field.size) l = l.filter(e => P.filters.field.has(e.field));
       if (P.filters.assignee && P.filters.assignee.size) l = l.filter(e => P.filters.assignee.has(e.assignee));
 
@@ -18143,6 +18161,30 @@ load() {
       const selected = P.settings.moduleBreakdownSelected || [];
       const allSelected = modSet.length > 0 && modSet.every(m => selected.includes(m));
       P.settings.moduleBreakdownSelected = allSelected ? [] : [...modSet];
+      renderDash();
+    }
+    window.toggleModuleBreakdownTypeOpt = toggleModuleBreakdownTypeOpt;
+    function toggleModuleBreakdownTypeOpt(typeName) {
+      if (!P.settings) P.settings = {};
+      const tasks = P.tasks || [];
+      const allTypes = Array.from(new Set(tasks.map(t => t.moduleType || 'Other'))).sort();
+      if (!P.settings.moduleBreakdownTypesSelected) P.settings.moduleBreakdownTypesSelected = [...allTypes];
+      let selected = P.settings.moduleBreakdownTypesSelected;
+      if (selected.includes(typeName)) {
+        P.settings.moduleBreakdownTypesSelected = selected.filter(t => t !== typeName);
+      } else {
+        P.settings.moduleBreakdownTypesSelected = [...selected, typeName];
+      }
+      renderDash();
+    }
+    window.toggleModuleBreakdownTypesAll = toggleModuleBreakdownTypesAll;
+    function toggleModuleBreakdownTypesAll() {
+      if (!P.settings) P.settings = {};
+      const tasks = P.tasks || [];
+      const allTypes = Array.from(new Set(tasks.map(t => t.moduleType || 'Other'))).sort();
+      const selected = P.settings.moduleBreakdownTypesSelected || [];
+      const allSelected = allTypes.length > 0 && allTypes.every(t => selected.includes(t));
+      P.settings.moduleBreakdownTypesSelected = allSelected ? [] : [...allTypes];
       renderDash();
     }
 
@@ -23274,20 +23316,31 @@ load() {
       if (!container) return;
       container.innerHTML = '';
 
-      // Extract unique modules
+      // Extract unique modules and types
       const allMods = Array.from(new Set(tasks.map(t => t.module || 'General'))).sort();
+      const allTypes = Array.from(new Set(tasks.map(t => t.moduleType || 'Other'))).sort();
       if (!P.settings) P.settings = {};
       if (!P.settings.roadmapModulesSelected) {
         P.settings.roadmapModulesSelected = [...allMods];
       }
+      if (!P.settings.roadmapModuleTypesSelected) {
+        P.settings.roadmapModuleTypesSelected = [...allTypes];
+      }
       const selectedMods = P.settings.roadmapModulesSelected;
+      const selectedTypes = P.settings.roadmapModuleTypesSelected.filter(t => allTypes.includes(t));
 
-      // Filter tasks to selected modules
-      const filteredTasks = tasks.filter(t => selectedMods.includes(t.module || 'General'));
+      // Filter tasks to selected modules and module types
+      const filteredTasks = tasks.filter(t => selectedMods.includes(t.module || 'General') && selectedTypes.includes(t.moduleType || 'Other'));
 
       // Create filter bar
       const pillBar = document.createElement('div');
-      pillBar.style.cssText = 'display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:10px 16px; border-bottom:1px solid var(--color-divider); margin-bottom:16px;';
+      pillBar.style.cssText = 'display:flex; flex-direction:column; gap:10px; padding:10px 16px; border-bottom:1px solid var(--color-divider); margin-bottom:16px;';
+
+      const row1 = document.createElement('div');
+      row1.style.cssText = 'display:flex; align-items:center; gap:6px; flex-wrap:wrap;';
+
+      const row2 = document.createElement('div');
+      row2.style.cssText = 'display:flex; align-items:center; gap:6px; flex-wrap:wrap;';
 
       const mkPill = (label, active, onclick, color) => {
         const p = document.createElement('button');
@@ -23317,11 +23370,11 @@ load() {
         save();
         renderMilestoneRoadmap(tasks, container);
       }, 'var(--color-primary)');
-      pillBar.appendChild(allPill);
+      row1.appendChild(allPill);
 
       const sep = document.createElement('div');
       sep.style.cssText = 'width:1px; height:18px; background:var(--color-divider); margin:0 2px; flex-shrink:0;';
-      pillBar.appendChild(sep);
+      row1.appendChild(sep);
 
       allMods.forEach((m, mi) => {
         const active = selectedMods.includes(m);
@@ -23336,8 +23389,41 @@ load() {
           save();
           renderMilestoneRoadmap(tasks, container);
         }, color);
-        pillBar.appendChild(pill);
+        row1.appendChild(pill);
       });
+      pillBar.appendChild(row1);
+
+      // Row 2: Module Types
+      const typeColors = ['#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4'];
+      const allTypesSelected = allTypes.length > 0 && allTypes.every(t => selectedTypes.includes(t));
+
+      const allTypesPill = mkPill('All Types', allTypesSelected, () => {
+        P.settings.roadmapModuleTypesSelected = allTypesSelected ? [] : [...allTypes];
+        save();
+        renderMilestoneRoadmap(tasks, container);
+      }, 'var(--color-primary)');
+      row2.appendChild(allTypesPill);
+
+      const sep2 = document.createElement('div');
+      sep2.style.cssText = 'width:1px; height:18px; background:var(--color-divider); margin:0 2px; flex-shrink:0;';
+      row2.appendChild(sep2);
+
+      allTypes.forEach((t, ti) => {
+        const active = selectedTypes.includes(t);
+        const color = typeColors[ti % typeColors.length];
+        const pill = mkPill(esc(t), active, (e) => {
+          e.stopPropagation();
+          if (selectedTypes.includes(t)) {
+            P.settings.roadmapModuleTypesSelected = P.settings.roadmapModuleTypesSelected.filter(x => x !== t);
+          } else {
+            P.settings.roadmapModuleTypesSelected = [...P.settings.roadmapModuleTypesSelected, t];
+          }
+          save();
+          renderMilestoneRoadmap(tasks, container);
+        }, color);
+        row2.appendChild(pill);
+      });
+      pillBar.appendChild(row2);
 
       container.appendChild(pillBar);
 
@@ -24245,11 +24331,28 @@ load() {
               });
               return fMods.has(val);
             }).length;
+          } else if (key === 'featModuleTypes') {
+            cnt = P.features.filter(f => {
+              const fModTypes = new Set();
+              (f.screens || []).forEach(scName => {
+                const scObj = dashCache.screenByName[scName];
+                if (scObj && scObj.parentTasks) {
+                  scObj.parentTasks.forEach(pt => {
+                    if (pt.moduleType) fModTypes.add(pt.moduleType);
+                  });
+                }
+              });
+              return fModTypes.has(val);
+            }).length;
           } else {
             cnt = source.filter(t => {
               const v = t[key];
               if (isLogs && key === 'module') return (v || 'General') === val;
               if (isLogs && key === 'assignee') return (v || 'Unassigned') === val;
+              if (isLogs && key === 'moduleType') {
+                const task = dashCache.taskById[t.taskId];
+                return (task ? (task.moduleType || 'Other') : 'Other') === val;
+              }
               return v === val;
             }).length;
           }
@@ -24293,11 +24396,28 @@ load() {
               });
               return fMods.has(val);
             }).length;
+          } else if (key === 'featModuleTypes') {
+            cnt = P.features.filter(f => {
+              const fModTypes = new Set();
+              (f.screens || []).forEach(scName => {
+                const scObj = dashCache.screenByName[scName];
+                if (scObj && scObj.parentTasks) {
+                  scObj.parentTasks.forEach(pt => {
+                    if (pt.moduleType) fModTypes.add(pt.moduleType);
+                  });
+                }
+              });
+              return fModTypes.has(val);
+            }).length;
           } else {
             cnt = source.filter(t => {
               const v = t[key];
               if (isLogs && key === 'module') return (v || 'General') === val;
               if (isLogs && key === 'assignee') return (v || 'Unassigned') === val;
+              if (isLogs && key === 'moduleType') {
+                const task = dashCache.taskById[t.taskId];
+                return (task ? (task.moduleType || 'Other') : 'Other') === val;
+              }
               return v === val;
             }).length;
           }
@@ -24387,6 +24507,8 @@ load() {
 
         const modules = [...new Set(P.tasks.map(t => t.module).filter(Boolean))].sort();
         if (modules.length) mkMultiSelect('sb-mf', 'module', modules, 'Module', 'Filter tasks by project module');
+        const moduleTypes = [...new Set(P.tasks.map(t => t.moduleType).filter(Boolean))].sort();
+        if (moduleTypes.length) mkMultiSelect('sb-mtf', 'moduleType', moduleTypes, 'Module Type', 'Filter tasks by project module type');
         mkMultiSelect('sb-af', 'assignee', getTeamNames(), 'Assignee', 'Filter tasks by the assigned team member');
         mkChips('sb-sf', 'status', STATUSES, 'Status', 'Filter tasks by their workflow state');
         mkChips('sb-pf', 'priority', PRIORITIES, 'Priority', 'Filter tasks by urgency/impact level');
@@ -24479,6 +24601,13 @@ load() {
 
         const logModules = [...new Set(P.log.map(l => l.module || 'General'))].filter(Boolean);
         if (logModules.length) mkChips('sb-lmf', 'module', logModules, 'Task Module', '', false, true);
+
+        const taskByIdMap = {}; P.tasks.forEach(t => taskByIdMap[t.id] = t);
+        const logModuleTypes = [...new Set(P.log.map(l => {
+          const t = taskByIdMap[l.taskId];
+          return t ? (t.moduleType || 'Other') : 'Other';
+        }))].filter(Boolean);
+        if (logModuleTypes.length) mkChips('sb-lmtf', 'moduleType', logModuleTypes, 'Task Module Type', '', false, true);
 
         const logFields = [...new Set(P.log.map(l => l.field))].filter(f => f && f.trim() !== '');
         if (logFields.length) mkMultiSelect('sb-lff', 'field', logFields.sort(), 'Modified Field', '', false, true);
@@ -24646,6 +24775,10 @@ load() {
 
         // Module Filter
         mkMultiSelect('feat-modules-filter', 'featModules', MODULES, 'Architectural Modules', 'Filter by impacted system modules');
+
+        // Module Type Filter
+        const allModuleTypes = [...new Set(P.tasks.map(t => t.moduleType).filter(Boolean))].sort();
+        if (allModuleTypes.length) mkMultiSelect('feat-modtypes-filter', 'featModuleTypes', allModuleTypes, 'Architectural Module Types', 'Filter by impacted module types');
 
         qhContent = `
           <div style="margin-bottom:8px"><i data-lucide="map"></i> <b>Feature Matrix:</b> Maps business requirements to technical architectural screens.</div>
@@ -26206,7 +26339,7 @@ load() {
             `;
       }
 
-      const tasks = P.tasks, now = new Date(), raids = P.raids || [];
+      const tasks = P.tasks, now = new Date();
       const dashCache = buildDashCache(tasks, P.log);
       window.lastDashCache = dashCache;
       const total = dashCache.total, done = dashCache.done;
@@ -26426,7 +26559,7 @@ load() {
           const budgetBarColor = cpi >= 1.0 ? 'var(--color-green)' : 'var(--red)';
 
           // Risk Level from RAID
-          const activeRaids = raids.filter(r => r.status !== 'Closed' && r.status !== 'Mitigated');
+          const activeRaids = (P.raids || []).filter(r => r.status !== 'Closed' && r.status !== 'Mitigated');
           const highPriorityRisks = activeRaids.filter(r => r.severity.startsWith('S1') || r.severity.startsWith('S2') || r.impact === 'High').length;
           let riskLevel = 'Low';
           let riskColor = 'var(--color-green)';
@@ -26826,6 +26959,253 @@ load() {
           `;
 
           setTimeout(() => { if (window.lucide) lucide.createIcons(grid); }, 100);        } else if (sec.id === 'summary') {
+          const inProg = dashCache.inProg;
+          const avgP = total ? Math.round(tasks.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / total) : 0;
+          const onHold = dashCache.onHold;
+          const blocked = dashCache.blocked;
+          const activeCount = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
+          const remainingWeighted = tasks.reduce((s, t) => {
+            if (t.status === 'Completed' || t.status === 'Cancelled') return s;
+            return s + (1 - (parseInt(t.progress, 10) || 0) / 100);
+          }, 0);
+          const openDefects = P.defects ? P.defects.filter(d => d.status !== 'Resolved' && d.status !== 'Closed').length : 0;
+          const healthScore = getHealthScore(tasks, dashCache.taskById);
+          const healthColor = overdueTasks.length > 3 || completionPct < 20 ? 'var(--red)' : overdueTasks.length > 0 || completionPct < 50 ? 'var(--amber)' : 'var(--green)';
+          const healthLabel = healthColor === 'var(--green)' ? 'On Track' : healthColor === 'var(--amber)' ? 'At Risk' : 'Critical';
+
+          const sId = 'dash-summary-cards';
+          const sSpan = (P.widgetSpans && P.widgetSpans[sId]) || sec.span || 4;
+          const sCard = mkCC('Executive KPI Cockpit', 'Unified steering metrics & pacing performance', sId, '', 'standard', "<b>Executive KPI Cockpit:</b> Core operational health indicators. Keep PHI above 80% and resolve active Blockers immediately to avoid timeline deviations.", 'View Explanation', 'activity');
+          sCard.style.gridColumn = `span ${sSpan}`;
+          const grid = addGrid(inner);
+          grid.appendChild(sCard);
+
+          const sparkData = calculateSparklineData(tasks, P.log || []);
+          const totalPath = generateSparklineSVGPath(sparkData.total, false);
+          const totalFill = generateSparklineSVGPath(sparkData.total, true);
+          const completedPath = generateSparklineSVGPath(sparkData.completed, false);
+          const completedFill = generateSparklineSVGPath(sparkData.completed, true);
+          const inProgressPath = generateSparklineSVGPath(sparkData.inProgress, false);
+          const inProgressFill = generateSparklineSVGPath(sparkData.inProgress, true);
+          const onHoldPath = generateSparklineSVGPath(sparkData.onHold, false);
+          const onHoldFill = generateSparklineSVGPath(sparkData.onHold, true);
+          const blockedPath = generateSparklineSVGPath(sparkData.blocked, false);
+          const blockedFill = generateSparklineSVGPath(sparkData.blocked, true);
+          const overduePath = generateSparklineSVGPath(sparkData.overdue, false);
+          const overdueFill = generateSparklineSVGPath(sparkData.overdue, true);
+
+          // Calculate velocity trend
+          const lastWeeks = [];
+          for (let i = 4; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i * 7);
+            lastWeeks.push({ w: getWeekNumber(d), y: d.getFullYear() });
+          }
+          const weeklyEfforts = lastWeeks.map(w => tasks.filter(t => {
+            if (t.status !== 'Completed' || !t.dueDate) return false;
+            const d = new Date(t.dueDate);
+            return getWeekNumber(d) === w.w && d.getFullYear() === w.y;
+          }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
+
+          const latestVel = weeklyEfforts[weeklyEfforts.length - 1] || 0;
+          const prevAvg = weeklyEfforts.slice(0, -1).reduce((s, v) => s + v, 0) / (weeklyEfforts.length - 1) || 0;
+          let trendIcon = 'trending-up';
+          let trendColor = 'var(--green)';
+          let trendText = 'Rising';
+          if (latestVel < prevAvg * 0.95) {
+            trendIcon = 'trending-down';
+            trendColor = 'var(--red)';
+            trendText = 'Slowing';
+          } else if (Math.abs(latestVel - prevAvg) <= prevAvg * 0.05) {
+            trendIcon = 'minus';
+            trendColor = 'var(--color-text-muted)';
+            trendText = 'Steady';
+          }
+
+          sCard.querySelector('.cb').innerHTML = `
+                  <div class="kpi-strip-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; width: 100%;">
+                    <!-- 1. Total Scope -->
+                    <div class="scard enhanced-scard scard-total" onclick="filterDashboardMetric('status','')" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Click to view all tasks">
+                      <svg class="sparkline-svg" preserveAspectRatio="none" viewBox="0 0 100 40">
+                        <defs>
+                          <linearGradient id="spark-total" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="var(--color-primary)" stop-opacity="0.55"/>
+                            <stop offset="100%" stop-color="var(--color-primary)" stop-opacity="0"/>
+                          </linearGradient>
+                        </defs>
+                        <path d="${totalFill}" fill="url(#spark-total)"></path>
+                        <path d="${totalPath}" fill="none" stroke="var(--color-primary)" stroke-width="1.5" stroke-linecap="round"></path>
+                      </svg>
+                      <div class="sc-hdr"><i data-lucide="layers"></i> Total Scope</div>
+                      <div class="sc-val" data-count="${total}">0</div>
+                      <div class="sc-ftr">Total project backlog</div>
+                    </div>
+                    
+                    <!-- 2. Active Scope -->
+                    <div class="scard enhanced-scard scard-inprogress" onclick="filterDashboardMetric('status','In Progress')" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Click to view in-progress tasks">
+                      <svg class="sparkline-svg" preserveAspectRatio="none" viewBox="0 0 100 40">
+                        <path d="${inProgressFill}" fill="url(#spark-blue)"></path>
+                        <path d="${inProgressPath}" fill="none" stroke="var(--blue)" stroke-width="1.5" stroke-linecap="round"></path>
+                      </svg>
+                      <div class="sc-hdr"><i data-lucide="activity"></i> Active Scope</div>
+                      <div class="sc-val" data-count="${activeCount}">0</div>
+                      <div class="sc-ftr" style="display:flex; flex-direction:column; gap:4px; font-size:11px; margin-top:2px;">
+                        <div>Tasks currently in flight</div>
+                        <div style="color:var(--color-text-muted)">Remaining: <b>${remainingWeighted.toFixed(1)}</b> eq. tasks</div>
+                      </div>
+                    </div>
+
+                    <!-- 3. Completed -->
+                    <div class="scard enhanced-scard scard-completed" onclick="filterDashboardMetric('status','Completed')" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Click to view completed tasks">
+                      <svg class="sparkline-svg" preserveAspectRatio="none" viewBox="0 0 100 40">
+                        <path d="${completedFill}" fill="url(#spark-green)"></path>
+                        <path d="${completedPath}" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round"></path>
+                      </svg>
+                      <div class="sc-hdr"><i data-lucide="check-circle-2"></i> Completed</div>
+                      <div class="sc-val" data-count="${done}">0</div>
+                      <div class="sc-ftr" style="display:flex; flex-direction:column; gap:4px; font-size:11px; margin-top:2px;">
+                        <div style="display:flex; align-items:center; gap:6px;">
+                          <span class="badge green" style="font-weight:700;" title="Binary completion rate">${completionPct}% Bin</span>
+                          <span class="badge blue" style="font-weight:700;" title="Subtask-weighted completion rate">${dashCache.weightedPct}% Wtd</span>
+                        </div>
+                        <div style="color:var(--color-text-muted)">Weighted: <b>${dashCache.weightedDone.toFixed(1)}</b> eq. tasks</div>
+                      </div>
+                    </div>
+
+                    <!-- 4. Overdue -->
+                    <div class="scard enhanced-scard scard-overdue ${overdueTasks.length > 0 ? 'has-overdue' : ''}" onclick="filterDashboardMetric('overdue','')" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Click to view overdue tasks">
+                      <svg class="sparkline-svg" preserveAspectRatio="none" viewBox="0 0 100 40">
+                        <path d="${overdueFill}" fill="url(#spark-red-overdue)"></path>
+                        <path d="${overduePath}" fill="none" stroke="var(--red)" stroke-width="1.5" stroke-linecap="round"></path>
+                      </svg>
+                      <div class="sc-hdr"><i data-lucide="calendar-x"></i> Overdue Delay</div>
+                      <div class="sc-val" data-count="${overdueTasks.length}">0</div>
+                      <div class="sc-ftr">${overdueTasks.length > 0 ? '<span class="badge red">Timeline Risk</span>' : 'On schedule'}</div>
+                    </div>
+
+                    <!-- 5. Blocked -->
+                    <div class="scard enhanced-scard scard-blocked" onclick="filterDashboardMetric('blocked','')" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Click to view blocked tasks">
+                      <svg class="sparkline-svg" preserveAspectRatio="none" viewBox="0 0 100 40">
+                        <path d="${blockedFill}" fill="url(#spark-red-blocked)"></path>
+                        <path d="${blockedPath}" fill="none" stroke="var(--red)" stroke-width="1.5" stroke-linecap="round"></path>
+                      </svg>
+                      <div class="sc-hdr"><i data-lucide="alert-octagon"></i> Blocked Items</div>
+                      <div class="sc-val" data-count="${blocked}">0</div>
+                      <div class="sc-ftr">${blocked > 0 ? '<span class="badge red">Friction</span>' : 'Zero blockers'}</div>
+                    </div>
+
+                    <!-- 6. On Hold -->
+                    <div class="scard enhanced-scard scard-onhold" onclick="filterDashboardMetric('status','On Hold')" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Click to view on-hold tasks">
+                      <svg class="sparkline-svg" preserveAspectRatio="none" viewBox="0 0 100 40">
+                        <path d="${onHoldFill}" fill="url(#spark-amber)"></path>
+                        <path d="${onHoldPath}" fill="none" stroke="var(--amber)" stroke-width="1.5" stroke-linecap="round"></path>
+                      </svg>
+                      <div class="sc-hdr"><i data-lucide="pause-circle"></i> On Hold</div>
+                      <div class="sc-val" data-count="${onHold}">0</div>
+                      <div class="sc-ftr">Awaiting steering / info</div>
+                    </div>
+
+                    <!-- 7. Open Defects -->
+                    <div class="scard enhanced-scard" onclick="setView('defects')" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Click to view defects log">
+                      <div class="sc-hdr"><i data-lucide="bug"></i> Open Defects</div>
+                      <div class="sc-val" data-count="${openDefects}">0</div>
+                      <div class="sc-ftr">${openDefects > 0 ? `<span class="badge ${openDefects > 5 ? 'red' : 'amber'}">Quality Debt</span>` : 'Zero open bugs'}</div>
+                    </div>
+
+                    <!-- 8. Project Health Score -->
+                    <div class="scard enhanced-scard" onclick="const el=$id('dash-health-main'); if(el) el.scrollIntoView({behavior:'smooth'})" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Overall Project Health Score">
+                      <div class="sc-hdr"><i data-lucide="shield-check"></i> Health Index</div>
+                      <div class="sc-val" style="color:${healthColor};">${healthScore}<span style="font-size:12px;color:var(--color-text-muted);font-weight:600;">/100</span></div>
+                      <div class="sc-ftr"><span class="badge ${healthColor === 'var(--green)' ? 'green' : healthColor === 'var(--amber)' ? 'amber' : 'red'}">${healthLabel}</span></div>
+                    </div>
+
+                    <!-- 9. Avg Progress -->
+                    <div class="scard enhanced-scard" onclick="const el=$id('dash-burndown'); if(el) el.scrollIntoView({behavior:'smooth'})" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Average completion progress across all scope items">
+                      <div class="sc-hdr"><i data-lucide="percent"></i> Avg Progress</div>
+                      <div class="sc-val">${avgP}%</div>
+                      <div class="sc-ftr">
+                        <div style="width:100%;height:4px;background:var(--color-divider);border-radius:2px;overflow:hidden;margin-top:5px;">
+                          <div style="width:${avgP}%;height:100%;background:var(--color-primary);border-radius:2px;"></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 10. Delivery Velocity -->
+                    <div class="scard enhanced-scard" onclick="const el=$id('dash-velocity'); if(el) el.scrollIntoView({behavior:'smooth'})" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Weekly completed effort vs prior average">
+                      <div class="sc-hdr"><i data-lucide="zap"></i> Weekly Velocity</div>
+                      <div class="sc-val" style="font-family:var(--font-mono)">${latestVel.toFixed(1)}<span style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-left:2px">d/wk</span></div>
+                      <div class="sc-ftr" style="display:flex;align-items:center;gap:4px;color:${trendColor};font-weight:700;">
+                        <i data-lucide="${trendIcon}" style="width:12px;height:12px"></i> ${trendText} pacing
+                      </div>
+                    </div>
+
+                    <!-- 11. Days to Project Deadline -->
+                    ${(() => {
+              const latestDue = tasks
+                .filter(t => t.dueDate && t.status !== 'Completed' && t.status !== 'Cancelled')
+                .map(t => new Date(t.dueDate))
+                .filter(d => !isNaN(d));
+              const projectDeadline = latestDue.length ? new Date(Math.max(...latestDue)) : null;
+              const daysToEnd = projectDeadline
+                ? Math.ceil((projectDeadline - now) / 86400000)
+                : null;
+              const deadlineColor = daysToEnd === null ? 'var(--color-text-muted)' :
+                daysToEnd < 0 ? 'var(--red)' :
+                  daysToEnd <= 14 ? 'var(--amber)' : 'var(--green)';
+              const deadlineLabel = daysToEnd === null ? 'No deadline set' :
+                daysToEnd < 0 ? Math.abs(daysToEnd) + 'd overdue' :
+                  daysToEnd === 0 ? 'Due today!' :
+                    daysToEnd + 'd remaining';
+              const deadlineIcon = daysToEnd < 0 ? 'alert-triangle' : daysToEnd <= 14 ? 'clock' : 'calendar-check';
+              return `<div class="scard enhanced-scard" onclick="const el=$id('dash-burndown'); if(el) el.scrollIntoView({behavior:'smooth'})" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Days until final project deadline">
+                        <div class="sc-hdr"><i data-lucide="${deadlineIcon}"></i> Project Deadline</div>
+                        <div class="sc-val" style="color:${deadlineColor};${daysToEnd !== null ? 'font-variant-numeric:tabular-nums' : ''}">${daysToEnd !== null ? Math.abs(daysToEnd) : '—'}<span style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-left:2px">${daysToEnd !== null ? 'd' : ''}</span></div>
+                        <div class="sc-ftr" style="color:${deadlineColor};font-weight:700">${deadlineLabel}</div>
+                      </div>`;
+                    })()}
+
+                    <!-- 12. Members Active -->
+                    ${(() => {
+                  const activeMembers = (P.members || []).filter(m => m.status === 'Active').length;
+                  const totalMembers = (P.members || []).length;
+                  return `<div class="scard enhanced-scard" onclick="setView('team')" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Active team members">
+                        <div class="sc-hdr"><i data-lucide="users"></i> Team Size</div>
+                        <div class="sc-val" data-count="${activeMembers}">${activeMembers}</div>
+                        <div class="sc-ftr">${activeMembers} of ${totalMembers} active</div>
+                      </div>`;
+                    })()}
+                  </div>`;
+
+                  setTimeout(() => {
+                    if (window.lucide) lucide.createIcons(grid);
+                    // animateCounter: smooth count-up for KPI values
+                    grid.querySelectorAll('.sc-val[data-count]').forEach(el => {
+                      const target = parseInt(el.dataset.count, 10);
+                      if (isNaN(target) || target === 0) { el.textContent = '0'; return; }
+                      const duration = Math.min(1200, Math.max(350, target * 6));
+                      const start = performance.now();
+                      const step = (now) => {
+                        const t = Math.min((now - start) / duration, 1);
+                        const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic
+                        el.textContent = Math.round(ease * target);
+                        if (t < 1) requestAnimationFrame(step);
+                        else el.textContent = target;
+                      };
+                      requestAnimationFrame(step);
+                    });
+
+                    // Attach mousemove dynamic spotlight glow listener to enhanced scards
+                    grid.querySelectorAll('.enhanced-scard').forEach(el => {
+                      el.addEventListener('mousemove', (e) => {
+                        const rect = el.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        el.style.setProperty('--mouse-x', `${x}px`);
+                        el.style.setProperty('--mouse-y', `${y}px`);
+                      });
+                    });
+                  }, 100);
+                } else if (sec.id === 'summary') {
                   // ─────── AFTER summary cards: inject blocker alert strip ───────
                   // This runs as a post-process hook outside the widget loop
                   // to inject a full-width strip before the next widget
@@ -28607,21 +28987,37 @@ load() {
                   bdCard.style.gridColumn = `span ${bdSpan}`;
                   grid.appendChild(bdCard);
 
+                  // ── Module & Type multi-select filter bar container ──
+                  const filterContainer = document.createElement('div');
+                  filterContainer.style.cssText = 'display:flex;flex-direction:column;gap:8px;padding:10px 16px 8px;border-bottom:1px solid var(--color-divider);';
+
                   // ── Module multi-select filter bar ──
                   const allModules = [...new Set(tasks.map(t => t.module).filter(Boolean))].sort();
                   bdCard._bdModFilter = bdCard._bdModFilter || new Set(); // persist across re-renders
 
                   const filterBar = document.createElement('div');
                   filterBar.className = 'bd-filter-bar';
-                  filterBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px 8px;align-items:center;';
+                  filterBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;align-items:center;';
 
                   const filterLabel = document.createElement('span');
-                  filterLabel.style.cssText = 'font-size:10px;font-weight:700;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.5px;margin-right:2px;';
+                  filterLabel.style.cssText = 'font-size:10px;font-weight:700;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.5px;margin-right:2px;min-width:45px;';
                   filterLabel.textContent = 'Module:';
                   filterBar.appendChild(filterLabel);
 
+                  // ── Module Type multi-select filter bar ──
+                  const allTypes = [...new Set(tasks.map(t => t.moduleType || 'Other').filter(Boolean))].sort();
+                  bdCard._bdTypeFilter = bdCard._bdTypeFilter || new Set(); // persist across re-renders
+
+                  const typeFilterBar = document.createElement('div');
+                  typeFilterBar.className = 'bd-type-filter-bar';
+                  typeFilterBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;align-items:center;';
+
+                  const typeFilterLabel = document.createElement('span');
+                  typeFilterLabel.style.cssText = 'font-size:10px;font-weight:700;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.5px;margin-right:2px;min-width:45px;';
+                  typeFilterLabel.textContent = 'Type:';
+                  typeFilterBar.appendChild(typeFilterLabel);
+
                   function renderFilterChips() {
-                    // Remove old chips (keep label)
                     while (filterBar.children.length > 1) filterBar.removeChild(filterBar.lastChild);
 
                     const makeChip = (label, isAll) => {
@@ -28648,8 +29044,40 @@ load() {
                     filterBar.appendChild(makeChip('All', true));
                     allModules.forEach(m => filterBar.appendChild(makeChip(m, false)));
                   }
+
+                  function renderTypeFilterChips() {
+                    while (typeFilterBar.children.length > 1) typeFilterBar.removeChild(typeFilterBar.lastChild);
+
+                    const makeChip = (label, isAll) => {
+                      const chip = document.createElement('button');
+                      const active = isAll ? bdCard._bdTypeFilter.size === 0 : bdCard._bdTypeFilter.has(label);
+                      chip.style.cssText = `font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;cursor:pointer;border:1.5px solid;transition:all 0.15s;white-space:nowrap;` +
+                        (active
+                          ? `background:var(--color-primary);color:#fff;border-color:var(--color-primary);`
+                          : `background:var(--color-surface-2);color:var(--color-text-muted);border-color:var(--color-border);`);
+                      chip.textContent = label;
+                      chip.onclick = () => {
+                        if (isAll) {
+                          bdCard._bdTypeFilter.clear();
+                        } else {
+                          if (bdCard._bdTypeFilter.has(label)) bdCard._bdTypeFilter.delete(label);
+                          else bdCard._bdTypeFilter.add(label);
+                        }
+                        renderTypeFilterChips();
+                        rebuildBurndown();
+                      };
+                      return chip;
+                    };
+
+                    typeFilterBar.appendChild(makeChip('All', true));
+                    allTypes.forEach(t => typeFilterBar.appendChild(makeChip(t, false)));
+                  }
+
                   renderFilterChips();
-                  bdCard.querySelector('.cb').appendChild(filterBar);
+                  renderTypeFilterChips();
+                  filterContainer.appendChild(filterBar);
+                  filterContainer.appendChild(typeFilterBar);
+                  bdCard.querySelector('.cb').appendChild(filterContainer);
 
                   // ── Legend ──
                   const bdLeg = document.createElement('div');
@@ -28675,9 +29103,14 @@ load() {
                   // ── Core rebuild function (called on filter change too) ──
                   function rebuildBurndown() {
                     // Filter tasks by selected modules
-                    const filteredTasks = bdCard._bdModFilter.size === 0
+                    let filteredTasks = bdCard._bdModFilter.size === 0
                       ? tasks
                       : tasks.filter(t => bdCard._bdModFilter.has(t.module));
+
+                    // Filter tasks by selected module types
+                    if (bdCard._bdTypeFilter.size > 0) {
+                      filteredTasks = filteredTasks.filter(t => bdCard._bdTypeFilter.has(t.moduleType || 'Other'));
+                    }
 
                     // ── Expand tasks into atomic effort units for sub-task-aware calculation ──
                     // Each unit: { effort, isCompleted, completedAt (Date|null), taskStartDate (Date), taskDueDate (Date) }
@@ -29088,6 +29521,14 @@ load() {
                     const existingSelected = P.settings.moduleBreakdownSelected.filter(m => modSet.includes(m));
                     const allSelected = existingSelected.length === modSet.length;
 
+                    // Extract all module types dynamically from tasks
+                    const allTypes = Array.from(new Set(tasks.map(t => t.moduleType || 'Other'))).sort();
+                    if (!P.settings.moduleBreakdownTypesSelected) {
+                      P.settings.moduleBreakdownTypesSelected = [...allTypes];
+                    }
+                    const existingTypesSelected = P.settings.moduleBreakdownTypesSelected.filter(t => allTypes.includes(t));
+                    const allTypesSelected = existingTypesSelected.length === allTypes.length;
+
                     addST(inner, 'Module & Release Progress');
                     const grid = addGrid(inner);
 
@@ -29100,7 +29541,13 @@ load() {
                     // ── Pill filter bar ──────────────────────────────────────────────────
                     const pillBar = document.createElement('div');
                     pillBar.id = 'mbf-pill-bar';
-                    pillBar.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 16px 10px;border-bottom:1px solid var(--color-divider);';
+                    pillBar.style.cssText = 'display:flex;flex-direction:column;gap:10px;padding:10px 16px 10px;border-bottom:1px solid var(--color-divider);';
+
+                    const row1 = document.createElement('div');
+                    row1.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;';
+
+                    const row2 = document.createElement('div');
+                    row2.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;';
 
                     const mkPill = (label, active, onclick, color) => {
                       const p = document.createElement('button');
@@ -29125,22 +29572,44 @@ load() {
 
                     const pillColors = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#f97316', '#84cc16', '#e11d48', '#a78bfa'];
 
-                    // "All" pill
+                    // "All Modules" pill
                     const allPill = mkPill('All Modules', allSelected, () => window.toggleModuleBreakdownAll(), 'var(--color-primary)');
-                    pillBar.appendChild(allPill);
+                    row1.appendChild(allPill);
 
                     // Divider tick
                     const sep = document.createElement('div');
                     sep.style.cssText = 'width:1px;height:18px;background:var(--color-divider);margin:0 2px;flex-shrink:0;';
-                    pillBar.appendChild(sep);
+                    row1.appendChild(sep);
 
                     // Per-module pills
                     modSet.forEach((m, mi) => {
                       const active = existingSelected.includes(m);
                       const color = pillColors[mi % pillColors.length];
                       const pill = mkPill(esc(m), active, (e) => { e.stopPropagation(); window.toggleModuleBreakdownOpt(m); }, color);
-                      pillBar.appendChild(pill);
+                      row1.appendChild(pill);
                     });
+                    pillBar.appendChild(row1);
+
+                    // Row 2: Module Types
+                    const typeColors = ['#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4'];
+
+                    // "All Types" pill
+                    const allTypesPill = mkPill('All Types', allTypesSelected, () => window.toggleModuleBreakdownTypesAll(), 'var(--color-primary)');
+                    row2.appendChild(allTypesPill);
+
+                    // Divider tick
+                    const sep2 = document.createElement('div');
+                    sep2.style.cssText = 'width:1px;height:18px;background:var(--color-divider);margin:0 2px;flex-shrink:0;';
+                    row2.appendChild(sep2);
+
+                    // Per-type pills
+                    allTypes.forEach((t, ti) => {
+                      const active = existingTypesSelected.includes(t);
+                      const color = typeColors[ti % typeColors.length];
+                      const pill = mkPill(esc(t), active, (e) => { e.stopPropagation(); window.toggleModuleBreakdownTypeOpt(t); }, color);
+                      row2.appendChild(pill);
+                    });
+                    pillBar.appendChild(row2);
 
                     mhCard.querySelector('.cb').prepend(pillBar);
 
@@ -29148,12 +29617,19 @@ load() {
                     const palette = [{ main: "linear-gradient(90deg, #8b5cf6, #3b82f6)", svr: "#8b5cf6", gui: "#3b82f6" }, { main: "linear-gradient(90deg, #10b981, #3b82f6)", svr: "#10b981", gui: "#3b82f6" }, { main: "linear-gradient(90deg, #f59e0b, #ef4444)", svr: "#f59e0b", gui: "#ef4444" }, { main: "linear-gradient(90deg, #ec4899, #8b5cf6)", svr: "#ec4899", gui: "#8b5cf6" }, { main: "linear-gradient(90deg, #06b6d4, #10b981)", svr: "#06b6d4", gui: "#10b981" }, { main: "linear-gradient(90deg, #f97316, #eab308)", svr: "#f97316", gui: "#eab308" }];
                     const mhWrap = document.createElement('div'); mhWrap.style.padding = '12px';
 
+                    const visibleModules = existingSelected.filter(m => {
+                      const mTasks = (dashCache.byModule[m]?.tasks || []);
+                      return mTasks.some(t => existingTypesSelected.includes(t.moduleType || 'Other'));
+                    });
+
                     if (existingSelected.length === 0) {
                       mhWrap.innerHTML = `<div style="text-align:center; padding:48px 20px; color:var(--color-text-faint); display:flex; flex-direction:column; align-items:center; gap:12px"><span style="font-size:32px">🔍</span><span style="font-size:13px; font-weight:600;">No modules selected</span><span style="font-size:12px">Tap a module pill above to view its breakdown</span></div>`;
+                    } else if (visibleModules.length === 0) {
+                      mhWrap.innerHTML = `<div style="text-align:center; padding:48px 20px; color:var(--color-text-faint); display:flex; flex-direction:column; align-items:center; gap:12px"><span style="font-size:32px">🔍</span><span style="font-size:13px; font-weight:600;">No matching module types</span><span style="font-size:12px">No tasks in selected modules match the active type filters</span></div>`;
                     } else {
-                      existingSelected.forEach((m, mi) => {
+                      visibleModules.forEach((m, mi) => {
                         const pal = palette[mi % palette.length];
-                        const mTasks = dashCache.byModule[m].tasks;
+                        const mTasks = dashCache.byModule[m].tasks.filter(t => existingTypesSelected.includes(t.moduleType || 'Other'));
                         const isSvr = t => String(t.moduleType || t.Side || t.side || '').trim().toLowerCase().includes('server');
                         const isGui = t => String(t.moduleType || t.Side || t.side || '').trim().toLowerCase().includes('gui');
                         const svr = mTasks.filter(isSvr);
@@ -29208,6 +29684,7 @@ load() {
                     }));
                   });
                   if (screens.length) {
+                    window._screenViewMode = window._screenViewMode || 'view-grid';
                     addST(inner, 'Screen Delivery Details');
                     const grid = addGrid(inner);
                     const ssId = 'dash-screen-status';
@@ -29260,7 +29737,7 @@ load() {
                     const statuses = ['All', 'Completed', 'In Progress', 'On Hold', 'Not Started', 'Under Review'];
                     const counts = { All: totalScreens, Completed: completedScreens, 'In Progress': inProgScreens, 'On Hold': screens.filter(s => s.status === 'On Hold').length, 'Under Review': screens.filter(s => s.status === 'Under Review').length, 'Not Started': screens.filter(s => s.status === 'Not Started' || !s.status).length };
 
-                    let filterHtml = `<div class="screen-filters" style="display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap; padding-top: 8px;">`;
+                    let filterHtml = `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px; padding-top:8px;"><div class="screen-filters" style="display:flex; gap:8px; flex-wrap:wrap;">`;
                     statuses.forEach(st => {
                       if (counts[st] > 0 || st === 'All') {
                         filterHtml += `<button class="screen-filter-pill ${st === 'All' ? 'active' : ''}" data-status="${st}" style="padding:6px 12px; border-radius:20px; font-size:11px; font-weight:600; cursor:pointer; border:1px solid ${st === 'All' ? 'var(--color-primary)' : 'var(--color-border)'}; background:${st === 'All' ? 'var(--color-primary)' : 'var(--color-surface-2)'}; color:${st === 'All' ? 'var(--color-surface)' : 'var(--color-text-muted)'}; transition:all 0.2s;">
@@ -29268,9 +29745,10 @@ load() {
                  </button>`;
                       }
                     });
-                    filterHtml += `</div>`;
+                    filterHtml += `</div><div class="screen-view-toggle" style="display:flex;gap:4px;background:var(--color-surface-2);padding:4px;border-radius:8px;border:1px solid var(--color-border);"><button id="screen-btn-grid" title="Grid View" style="padding:4px 8px;border-radius:6px;cursor:pointer;border:none;background:${window._screenViewMode==='view-grid'?'var(--color-surface-1)':'transparent'};color:${window._screenViewMode==='view-grid'?'var(--color-primary)':'var(--color-text-muted)'};transition:all 0.2s;display:flex;align-items:center;justify-content:center;"><i data-lucide="layout-grid" style="width:14px;height:14px;"></i></button><button id="screen-btn-list" title="List View" style="padding:4px 8px;border-radius:6px;cursor:pointer;border:none;background:${window._screenViewMode==='view-list'?'var(--color-surface-1)':'transparent'};color:${window._screenViewMode==='view-list'?'var(--color-primary)':'var(--color-text-muted)'};transition:all 0.2s;display:flex;align-items:center;justify-content:center;"><i data-lucide="list" style="width:14px;height:14px;"></i></button></div></div>`;
 
-                    let cardsHtml = `<div class="screen-bento-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px; margin-bottom:16px;">`;
+                    let cardsHtml = `<div class="screen-bento-grid" style="display:${window._screenViewMode==='view-grid'?'grid':'none'}; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px; margin-bottom:16px;">`;
+                    let listHtml = `<div class="screen-list-view" style="display:${window._screenViewMode==='view-list'?'block':'none'};overflow-x:auto;margin-bottom:16px;"><table style="width:100%;border-collapse:collapse;text-align:left;font-size:12px;"><thead><tr style="border-bottom:2px solid var(--color-border);color:var(--color-text-muted);font-weight:700;"><th style="padding:10px 8px;">Screen</th><th style="padding:10px 8px;width:110px;">Module</th><th style="padding:10px 8px;width:140px;">Assignee</th><th style="padding:10px 8px;width:130px;">Status</th><th style="padding:10px 8px;width:140px;">Progress</th></tr></thead><tbody>`;
 
                     Object.entries(grouped).forEach(([module, items]) => {
                       items.forEach(s => {
@@ -29305,15 +29783,20 @@ load() {
                     </div>
                   </div>
                 `;
+
+                        listHtml += `<tr class="screen-list-row" data-status="${statusStr}" style="border-bottom:1px solid var(--color-divider);"><td style="padding:10px 8px;font-weight:600;color:var(--color-text);">${esc(s.name)}</td><td style="padding:10px 8px;"><span style="font-size:10px;color:var(--color-text-faint);font-weight:700;text-transform:uppercase;background:var(--color-surface-2);padding:3px 6px;border-radius:4px;">${esc(module)}</span></td><td style="padding:10px 8px;color:var(--color-text-muted);">${esc(s.assignee||'Unassigned')}</td><td style="padding:10px 8px;color:${sColor};font-weight:700;"><div style="display:flex;align-items:center;gap:5px;"><i data-lucide="${statusIcon}" style="width:13px;height:13px;"></i>${statusStr}</div></td><td style="padding:10px 8px;"><div style="display:flex;align-items:center;gap:6px;"><div style="flex:1;height:5px;background:var(--color-surface-3);border-radius:3px;overflow:hidden;min-width:50px;max-width:90px;"><div style="width:${s.progress||0}%;height:100%;background:${sColor};border-radius:3px;"></div></div><span style="font-size:11px;font-weight:800;color:var(--color-text);">${s.progress||0}%</span></div></td></tr>`;
                       });
                     });
                     cardsHtml += `</div>`;
+                    listHtml += `</tbody></table></div>`;
 
-                    screensHtml += filterHtml + cardsHtml + '</div>';
+                    screensHtml += filterHtml + cardsHtml + listHtml + '</div>';
                     ssCard.querySelector('.cb').innerHTML = screensHtml;
+                    if (window.lucide) lucide.createIcons(ssCard);
 
                     const pills = ssCard.querySelectorAll('.screen-filter-pill');
-                    const cards = ssCard.querySelectorAll('.screen-bento-card');
+                    const bentoCards = ssCard.querySelectorAll('.screen-bento-card');
+                    const listRows = ssCard.querySelectorAll('.screen-list-row');
                     pills.forEach(p => p.addEventListener('click', (e) => {
                       pills.forEach(x => {
                         x.classList.remove('active');
@@ -29321,10 +29804,7 @@ load() {
                         x.style.borderColor = 'var(--color-border)';
                         x.style.color = 'var(--color-text-muted)';
                         const cnt = x.querySelector('.pill-counter');
-                        if (cnt) {
-                          cnt.style.background = 'var(--color-surface-3)';
-                          cnt.style.color = 'var(--color-text)';
-                        }
+                        if (cnt) { cnt.style.background = 'var(--color-surface-3)'; cnt.style.color = 'var(--color-text)'; }
                       });
                       const btn = e.currentTarget;
                       btn.classList.add('active');
@@ -29332,16 +29812,30 @@ load() {
                       btn.style.borderColor = 'var(--color-primary)';
                       btn.style.color = 'var(--color-surface)';
                       const cnt = btn.querySelector('.pill-counter');
-                      if (cnt) {
-                        cnt.style.background = 'var(--color-surface)';
-                        cnt.style.color = 'var(--color-primary)';
-                      }
+                      if (cnt) { cnt.style.background = 'var(--color-surface)'; cnt.style.color = 'var(--color-primary)'; }
                       const st = btn.dataset.status;
-                      cards.forEach(c => {
-                        if (st === 'All' || c.dataset.status === st) c.style.display = 'flex';
-                        else c.style.display = 'none';
-                      });
+                      bentoCards.forEach(c => { c.style.display = (st === 'All' || c.dataset.status === st) ? 'flex' : 'none'; });
+                      listRows.forEach(r => { r.style.display = (st === 'All' || r.dataset.status === st) ? '' : 'none'; });
                     }));
+
+                    const btnGrid = ssCard.querySelector('#screen-btn-grid');
+                    const btnList = ssCard.querySelector('#screen-btn-list');
+                    const bentoGrid = ssCard.querySelector('.screen-bento-grid');
+                    const listView = ssCard.querySelector('.screen-list-view');
+                    if (btnGrid && btnList && bentoGrid && listView) {
+                      btnGrid.addEventListener('click', () => {
+                        window._screenViewMode = 'view-grid';
+                        bentoGrid.style.display = 'grid'; listView.style.display = 'none';
+                        btnGrid.style.background = 'var(--color-surface-1)'; btnGrid.style.color = 'var(--color-primary)';
+                        btnList.style.background = 'transparent'; btnList.style.color = 'var(--color-text-muted)';
+                      });
+                      btnList.addEventListener('click', () => {
+                        window._screenViewMode = 'view-list';
+                        listView.style.display = 'block'; bentoGrid.style.display = 'none';
+                        btnList.style.background = 'var(--color-surface-1)'; btnList.style.color = 'var(--color-primary)';
+                        btnGrid.style.background = 'transparent'; btnGrid.style.color = 'var(--color-text-muted)';
+                      });
+                    }
                   } else {
                     addST(inner, 'Screen Delivery Details');
                     const grid = addGrid(inner);
@@ -33317,7 +33811,6 @@ function setView(v, preserveSearch = false) {
           const raids = P.raids || [];
           const decisions = P.decisions || [];
           const healthHistory = P.healthHistory || [];
-          const today = new Date();
 
           // Sparkline Calculation
           const scores = healthHistory.map(h => h.score);
@@ -33370,219 +33863,23 @@ function setView(v, preserveSearch = false) {
           const ewsCards = Object.keys(ewsAnomalies).map(catKey => {
             const cat = ewsAnomalies[catKey];
             return `
-            <div style="padding:12px 16px; background:var(--color-surface-2); border-radius:12px; border:1px solid ${cat.count > 0 ? cat.color : 'var(--color-divider)'}; display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:transform 0.2s, box-shadow 0.2s" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.05)'" onmouseout="this.style.transform='none'; this.style.boxShadow='none'" onclick="openEwsModal('${catKey}')">
-              <div style="display:flex; align-items:center; gap:12px">
-                <div style="width:36px; height:36px; border-radius:10px; background:${cat.bg}; color:${cat.color}; display:flex; align-items:center; justify-content:center">
-                  <i data-lucide="${cat.icon}" style="width:18px; height:18px"></i>
+            <div style="padding:20px; background:var(--color-surface-2); border-radius:16px; border:1px solid ${cat.count > 0 ? cat.color : 'var(--color-divider)'}; display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:transform 0.2s, box-shadow 0.2s" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='none'; this.style.boxShadow='none'" onclick="openEwsModal('${catKey}')">
+              <div style="display:flex; align-items:center; gap:16px">
+                <div style="width:48px; height:48px; border-radius:14px; background:${cat.bg}; color:${cat.color}; display:flex; align-items:center; justify-content:center">
+                  <i data-lucide="${cat.icon}" style="width:24px; height:24px"></i>
                 </div>
                 <div>
-                  <div style="font-size:10px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px">${esc(cat.label)}</div>
-                  <div style="font-size:18px; font-weight:900; color:${cat.count > 0 ? cat.color : 'var(--color-text)'}; margin-top:1px">${cat.count} <span style="font-size:10px; font-weight:700; color:var(--color-text-faint)">Anomalies</span></div>
+                  <div style="font-size:12px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:1px">${esc(cat.label)}</div>
+                  <div style="font-size:24px; font-weight:900; color:${cat.count > 0 ? cat.color : 'var(--color-text)'}; margin-top:2px">${cat.count} <span style="font-size:12px; font-weight:700; color:var(--color-text-faint)">Anomalies</span></div>
                 </div>
               </div>
-              <div style="width:24px; height:24px; border-radius:12px; background:var(--color-surface-3); display:flex; align-items:center; justify-content:center; color:var(--color-text-muted)">
-                <i data-lucide="chevron-right" style="width:14px; height:14px"></i>
+              <div style="width:32px; height:32px; border-radius:16px; background:var(--color-surface-3); display:flex; align-items:center; justify-content:center; color:var(--color-text-muted)">
+                <i data-lucide="chevron-right" style="width:18px; height:18px"></i>
               </div>
             </div>
           `;
           }).join('');
-          const ewsHtml = `<div style="margin-bottom:20px; display:grid; grid-template-columns:repeat(3, 1fr); gap:12px">${ewsCards}</div>`;
-
-          // Additional Hero Banner Calculations
-          const heroActiveRel = (P.releases || []).find(r => r.status === 'Active') || { name: 'v1.0.0', date: '2026-06-30' };
-          const heroRelDate = new Date(heroActiveRel.date);
-          const heroRelDueDateFormatted = heroRelDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-          const msDiff = heroRelDate - today;
-          const daysRemaining = Math.max(0, Math.ceil(msDiff / (1000 * 60 * 60 * 24)));
-
-          const p1_start = new Date(heroRelDate); p1_start.setDate(heroRelDate.getDate() - 30);
-          const p1_end = new Date(heroRelDate); p1_end.setDate(heroRelDate.getDate() - 20);
-          const p2_start = new Date(heroRelDate); p2_start.setDate(heroRelDate.getDate() - 20);
-          const p2_end = new Date(heroRelDate); p2_end.setDate(heroRelDate.getDate() - 10);
-          const p3_start = new Date(heroRelDate); p3_start.setDate(heroRelDate.getDate() - 10);
-          const p3_end = new Date(heroRelDate); p3_end.setDate(heroRelDate.getDate() - 2);
-          const p4_start = new Date(heroRelDate); p4_start.setDate(heroRelDate.getDate() - 2);
-          const p4_end = heroRelDate;
-
-          const heroPhases = [
-            { name: 'Planning', start: p1_start, end: p1_end, color: '#3b82f6' },
-            { name: 'Execution', start: p2_start, end: p2_end, color: '#f59e0b' },
-            { name: 'Testing', start: p3_start, end: p3_end, color: '#10b981' },
-            { name: 'Release', start: p4_start, end: p4_end, color: '#9ca3af' }
-          ];
-
-          const currentDate = new Date();
-          heroPhases.forEach((p, idx) => {
-            if (currentDate > p.end) {
-              p.status = 'completed';
-            } else if (currentDate >= p.start && currentDate <= p.end) {
-              p.status = 'active';
-            } else {
-              p.status = 'upcoming';
-            }
-          });
-
-          if (!heroPhases.some(p => p.status === 'active')) {
-            if (currentDate < heroPhases[0].start) {
-              heroPhases[0].status = 'active';
-            } else {
-              heroPhases[2].status = 'active';
-            }
-          }
-
-          const activeIdx = heroPhases.findIndex(p => p.status === 'active');
-          heroPhases.forEach((p, idx) => {
-            if (idx < activeIdx) p.status = 'completed';
-            if (idx > activeIdx) p.status = 'upcoming';
-          });
-
-          function fmtHeroPhaseDateRange(start, end) {
-            const startM = start.toLocaleDateString([], { month: 'short' });
-            const startD = start.getDate();
-            const endM = end.toLocaleDateString([], { month: 'short' });
-            const endD = end.getDate();
-            return startM === endM ? `${startM} ${startD}-${endD}` : `${startM} ${startD} - ${endM} ${endD}`;
-          }
-
-          const phaseHtml = heroPhases.map((phase, i) => {
-            const isActive = phase.status === 'active';
-            const isCompleted = phase.status === 'completed';
-            
-            let topIconHtml = '';
-            if (isCompleted) {
-              topIconHtml = `
-                <div style="position: absolute; top: -14px; left: 50%; transform: translateX(-50%); width: 24px; height: 24px; border-radius: 50%; background: ${phase.color}; border: 3px solid var(--color-surface-2); display: flex; align-items: center; justify-content: center; color: #ffffff; z-index: 10;">
-                  <i data-lucide="check" style="width: 10px; height: 10px; stroke-width: 4px;"></i>
-                </div>
-              `;
-            } else if (isActive) {
-              topIconHtml = `
-                <div style="position: absolute; top: -35px; left: 50%; transform: translateX(-50%); z-index: 12; animation: arrow-bounce 1.5s infinite ease-in-out; filter: drop-shadow(0 0 6px ${phase.color});">
-                  <svg width="24" height="28" viewBox="0 0 24 28" fill="none">
-                    <path d="M12 25V3M12 25L4 17M12 25L20 17" stroke="${phase.color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </div>
-                <div style="position: absolute; top: -14px; left: 50%; transform: translateX(-50%); width: 24px; height: 24px; border-radius: 50%; background: var(--color-surface-2); border: 3px solid ${phase.color}; z-index: 10;"></div>
-              `;
-            } else {
-              topIconHtml = `
-                <div style="position: absolute; top: -14px; left: 50%; transform: translateX(-50%); width: 24px; height: 24px; border-radius: 50%; background: var(--color-surface-3); border: 3px solid var(--color-border); z-index: 10;"></div>
-              `;
-            }
-
-            return `
-              <div style="position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; min-width: 0;">
-                ${topIconHtml}
-                <div style="width: 100%; height: 12px; background: ${phase.color}; border-radius: 6px; opacity: ${isActive || isCompleted ? 1 : 0.45};"></div>
-                <div style="text-align: center; margin-top: 14px;">
-                  <div style="font-size: 13px; font-weight: 700; color: ${isActive ? phase.color : 'var(--color-text)'};">${phase.name}</div>
-                  <div style="font-size: 11px; color: var(--color-text-faint); margin-top: 2px;">${fmtHeroPhaseDateRange(phase.start, phase.end)}</div>
-                </div>
-              </div>
-            `;
-          }).join('');
-
-          // Health Gauge Needle Calculation
-          const healthScoreVal = getHealthScore(tasks);
-          const angle = 180 + (healthScoreVal / 100) * 180;
-          const rad = angle * Math.PI / 180;
-          const nx = 250 + 105 * Math.cos(rad);
-          const ny = 170 + 105 * Math.sin(rad);
-
-          // Calculate SPI & CPI
-          let ev = 0, pv = 0, ac = 0;
-          tasks.forEach(t => {
-            const effort = t.baselineEffort || t.estEffort || 5;
-            ev += ((t.progress || 0) / 100) * effort;
-            
-            const baseDue = t.baselineDueDate ? new Date(t.baselineDueDate) : (t.dueDate ? new Date(t.dueDate) : null);
-            if (baseDue && baseDue <= today) {
-              pv += effort;
-            } else if (!baseDue) {
-              pv += effort * 0.7;
-            }
-
-            const act = t.actEffort || (t.progress > 0 ? (t.progress / 100) * (t.estEffort || 5) * 1.1 : 0);
-            ac += act;
-          });
-          const spi = pv > 0 ? Math.min(1.2, Math.max(0.5, ev / pv)) : 0.95;
-          const spiVal = spi.toFixed(2);
-          const spiStatus = spi >= 0.95 ? 'On Track' : 'Off Track';
-          const spiColor = spi >= 0.95 ? 'var(--color-green)' : 'var(--red)';
-          const spiIcon = spi >= 0.95 ? 'trending-up' : 'trending-down';
-
-          const cpi = ac > 0 ? Math.min(1.3, Math.max(0.5, ev / ac)) : 1.12;
-          const cpiVal = cpi.toFixed(2);
-          const cpiStatus = cpi >= 1.0 ? 'Under Budget' : 'Over Budget';
-          const cpiColor = cpi >= 1.0 ? 'var(--color-green)' : 'var(--red)';
-          const cpiIcon = cpi >= 1.0 ? 'trending-up' : 'trending-down';
-
-          const avgProgress = Math.round(tasks.reduce((sum, t) => sum + (t.progress || 0), 0) / (tasks.length || 1));
-
-          // Team Metadata
-          const totalMembers = P.members.filter(m => m.status !== 'Departed').length || 15;
-          const activeMembers = P.members.filter(m => m.status === 'Active').length || 4;
-          const remoteMembers = totalMembers - activeMembers || 11;
-
-          // Budget Status calculations
-          let estEffortTotal = 0, actEffortTotal = 0;
-          tasks.forEach(t => {
-            const effort = t.baselineEffort || t.estEffort || 5;
-            estEffortTotal += effort;
-            actEffortTotal += t.actEffort || (t.progress > 0 ? (t.progress / 100) * effort * 1.1 : 0);
-          });
-          const budgetUsedPct = Math.min(100, Math.round((actEffortTotal / (estEffortTotal || 1)) * 100)) || 85;
-          const budgetStatusText = cpi >= 1.0 ? `Under Budget (${budgetUsedPct}% Used)` : `Over Budget (${budgetUsedPct}% Used)`;
-          const budgetBarColor = cpi >= 1.0 ? 'var(--color-green)' : 'var(--red)';
-
-          // Risk Level from RAID
-          const activeRaids = raids.filter(r => r.status !== 'Closed' && r.status !== 'Mitigated');
-          const highPriorityRisks = activeRaids.filter(r => r.severity.startsWith('S1') || r.severity.startsWith('S2') || r.impact === 'High').length;
-          let riskLevel = 'Low';
-          let riskColor = 'var(--color-green)';
-          if (highPriorityRisks >= 4) {
-            riskLevel = 'High';
-            riskColor = 'var(--red)';
-          } else if (highPriorityRisks >= 1) {
-            riskLevel = 'Medium';
-            riskColor = 'var(--color-amber)';
-          }
-
-          // Schedule & Status Overview Panel Calculations
-          const activeRel = (P.releases || []).find(r => r.status === 'Active');
-          const phaseName = activeRel ? activeRel.name : 'Phase 2 — Execution';
-          
-          const overallStatus = spi >= 0.95 ? 'On Track' : (spi >= 0.85 ? 'At Risk' : 'Off Track');
-          const overallStatusBg = overallStatus === 'On Track' ? '#0d9488' : (overallStatus === 'At Risk' ? 'var(--amber)' : 'var(--red)');
-          
-          const lastSavedDate = P.lastSavedTime || new Date();
-          const timeStr = lastSavedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          const lastSavedFormatted = `Today, ${timeStr}`;
-          
-          const activeTasks = tasks.filter(t => t.status !== 'Cancelled');
-          const totalTasksCount = activeTasks.length;
-          const completedTasks = activeTasks.filter(t => t.status === 'Completed').length;
-          const remainingTasks = totalTasksCount - completedTasks;
-          const tasksCompletionPct = totalTasksCount > 0 ? Math.round((completedTasks / totalTasksCount) * 100) : 0;
-          
-          const overdueTasksList = tasks.filter(t => { const d = daysDiff(t.dueDate); return d !== null && d < 0 && t.status !== 'Completed' && t.status !== 'Cancelled'; });
-          const overdueCount = overdueTasksList.length;
-          const formattedOverdueCount = overdueCount < 10 ? '0' + overdueCount : overdueCount;
-          const overdueListHtml = overdueTasksList.slice(0, 2).map(t => {
-            const days = Math.abs(daysDiff(t.dueDate));
-            const label = days === 1 ? 'yesterday' : `${days} days ago`;
-            return `<div style="font-size:12px; color:var(--color-text-muted); margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="${esc(t.name)} (Due ${label})">• ${esc(t.name)} <span style="font-size:11px; color:var(--red)">(Due ${label})</span></div>`;
-          }).join('') || `<div style="font-size:12px; color:var(--color-text-muted)">All tasks are within deadlines.</div>`;
-          
-          const blockedTasksList = tasks.filter(t => t.status === 'On Hold');
-          const blockedCount = blockedTasksList.length;
-          const formattedBlockedCount = blockedCount < 10 ? '0' + blockedCount : blockedCount;
-          const blockedListHtml = blockedTasksList.slice(0, 2).map(t => `
-            <div style="margin-bottom:6px">
-              <div style="font-size:12px; font-weight:700; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="${esc(t.name)}">• ${esc(t.name)}</div>
-              <div style="font-size:11px; color:var(--color-text-faint); margin-left:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="${esc(t.slippageReason || t.notes || 'Awaiting unblocking')}">${esc(t.slippageReason || t.notes || 'Awaiting unblocking')}</div>
-            </div>
-          `).join('') || `<div style="font-size:12px; color:var(--color-text-muted)">No blocked tasks.</div>`;
+          const ewsHtml = `<div style="margin-bottom:24px; display:grid; grid-template-columns:repeat(3, 1fr); gap:16px">${ewsCards}</div>`;
 
           let html = `
           <div class="overview-header" style="display:flex; flex-wrap:wrap; gap:20px; justify-content:space-between; align-items:center; margin-bottom:24px; padding:24px; background:var(--color-surface-2); border-radius:16px; border:1px solid var(--color-divider); box-shadow:0 4px 20px rgba(0,0,0,0.03)">
@@ -33615,473 +33912,127 @@ function setView(v, preserveSearch = false) {
           ${ewsHtml}
 
           <div class="bento-grid" style="display:grid; grid-template-columns:repeat(12, 1fr); gap:24px; margin-bottom:24px">
-            
-            <!-- Project Steering Hero Banner (Span 8) -->
-            <div class="bento-card" style="grid-column: span 8; background: var(--color-surface-2); border-radius: 16px; border: 1px solid var(--color-divider); overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.03); padding: 24px; display: flex; flex-direction: column; gap: 20px;">
-              <style>
-                @keyframes arrow-bounce {
-                  0%, 100% { transform: translate(-50%, 0); }
-                  50% { transform: translate(-50%, -6px); }
-                }
-              </style>
-              
-              <!-- Header -->
-              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <div>
-                  <div style="font-size: 11px; font-weight: 800; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: 1px;">${esc(P.name || 'ProjectPulse')}</div>
-                  <div style="font-size: 20px; font-weight: 900; color: var(--color-text); margin-top: 4px;">${esc(heroActiveRel.name)} Release Cycle</div>
-                </div>
-                <span style="font-size: 10px; padding: 4px 10px; background: rgba(var(--color-primary-rgb), 0.1); color: var(--color-primary); border-radius: 12px; font-weight: 700;">Executive Snapshot</span>
-              </div>
-
-              <!-- Row 1: KPI Stats -->
-              <div style="display: flex; justify-content: space-between; align-items: stretch; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-border-faint);">
-                <!-- Total Tasks -->
-                <div style="text-align: center; border-right: 1px solid var(--color-border-faint); flex: 1;">
-                  <div style="font-size: 10px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Total Tasks</div>
-                  <div style="font-size: 32px; font-weight: 900; color: var(--color-text); margin: 4px 0;">${totalTasks}</div>
-                  <span style="font-size: 10px; padding: 2px 8px; background: var(--color-surface-3); border-radius: 12px; color: var(--color-text-muted); font-weight: 700;">${tasks.filter(t => t.status === 'In Progress').length} in progress</span>
-                </div>
-
-                <!-- % Done -->
-                <div style="text-align: center; border-right: 1px solid var(--color-border-faint); flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                  <div style="font-size: 10px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.5px;">% Done</div>
-                  <div style="position: relative; width: 44px; height: 44px; margin: 4px 0; display: flex; align-items: center; justify-content: center;">
-                    <svg width="44" height="44" viewBox="0 0 50 50">
-                      <circle cx="25" cy="25" r="21" fill="none" stroke="var(--color-surface-3)" stroke-width="4.5" />
-                      <circle cx="25" cy="25" r="21" fill="none" stroke="#3b82f6" stroke-width="4.5"
-                              stroke-dasharray="132" stroke-dashoffset="${132 - (132 * avgProgress) / 100}"
-                              stroke-linecap="round" transform="rotate(-90 25 25)" />
-                    </svg>
-                    <div style="position: absolute; font-size: 11px; font-weight: 800; color: var(--color-text);">${avgProgress}%</div>
-                  </div>
-                  <span style="font-size: 9px; padding: 2px 8px; background: rgba(16, 185, 129, 0.1); border-radius: 12px; color: var(--color-green); font-weight: 800; text-transform: uppercase;">${spiStatus}</span>
-                </div>
-
-                <!-- Days Remaining -->
-                <div style="text-align: center; flex: 1;">
-                  <div style="font-size: 10px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Days Remaining</div>
-                  <div style="font-size: 32px; font-weight: 900; color: var(--color-text); margin: 4px 0;">${daysRemaining}</div>
-                  <span style="font-size: 10px; padding: 2px 8px; background: var(--color-surface-3); border-radius: 12px; color: var(--color-text-muted); font-weight: 700;">Due: ${heroRelDueDateFormatted}</span>
-                </div>
-              </div>
-
-              <!-- Row 2: Phases Timeline -->
-              <div style="display: flex; gap: 8px; padding: 24px 0 8px 0; border-bottom: 1px solid var(--color-border-faint); margin-top: -8px;">
-                ${phaseHtml}
-              </div>
-
-              <!-- Row 3: Bottom Meta Cards -->
-              <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 4px;">
-                <!-- Team Size -->
-                <div style="display: flex; align-items: center; gap: 10px; flex: 1; border-right: 1px solid var(--color-border-faint); padding-right: 8px;">
-                  <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(59, 130, 246, 0.1); color: #3b82f6; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                    <i data-lucide="users" style="width: 18px; height: 18px;"></i>
-                  </div>
-                  <div>
-                    <div style="font-size: 9px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Team Size</div>
-                    <div style="font-size: 14px; font-weight: 800; color: var(--color-text); margin-top: 1px;">${totalMembers} Members</div>
-                    <div style="font-size: 10px; color: var(--color-text-faint); margin-top: 1px;">${activeMembers} Active, ${remoteMembers} Remote</div>
-                  </div>
-                </div>
-
-                <!-- Budget Status -->
-                <div style="display: flex; align-items: center; gap: 10px; flex: 1; border-right: 1px solid var(--color-border-faint); padding: 0 8px;">
-                  <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(16, 185, 129, 0.1); color: var(--color-green); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                    <i data-lucide="coins" style="width: 18px; height: 18px;"></i>
-                  </div>
-                  <div style="flex: 1; min-width: 0;">
-                    <div style="font-size: 9px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Budget Status</div>
-                    <div style="display: flex; align-items: center; gap: 6px; margin-top: 1px;">
-                      <div style="flex: 1; height: 5px; background: var(--color-surface-3); border-radius: 2.5px; overflow: hidden;">
-                        <div style="height: 100%; width: ${budgetUsedPct}%; background: ${budgetBarColor}; border-radius: 2.5px;"></div>
-                      </div>
-                      <span style="font-size: 10px; font-weight: 700; color: var(--color-text);">${budgetUsedPct}%</span>
-                    </div>
-                    <div style="font-size: 9px; color: var(--color-text-faint); margin-top: 2px;">${budgetStatusText}</div>
-                  </div>
-                </div>
-
-                <!-- Risk Level -->
-                <div style="display: flex; align-items: center; gap: 10px; flex: 1; padding-left: 8px;">
-                  <div style="position: relative; width: 36px; height: 18px; overflow: hidden; flex-shrink: 0;">
-                    <svg width="36" height="18" viewBox="0 0 44 22">
-                      <path d="M 4 22 A 18 18 0 0 1 40 22" stroke="var(--color-surface-3)" stroke-width="3.5" fill="none" />
-                      <path d="M 4 22 A 18 18 0 0 1 ${riskLevel === 'High' ? '40' : (riskLevel === 'Medium' ? '22' : '13')} 22" stroke="${riskColor}" stroke-width="3.5" fill="none" />
-                    </svg>
-                    <div style="position: absolute; bottom: 0; left: 50%; transform: translateX(-50%) rotate(${riskLevel === 'High' ? '45deg' : (riskLevel === 'Medium' ? '0deg' : '-45deg')}); transform-origin: bottom center; width: 2px; height: 12px; background: var(--color-text); border-radius: 1px;"></div>
-                  </div>
-                  <div>
-                    <div style="font-size: 9px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Risk Level</div>
-                    <div style="display: flex; align-items: center; gap: 4px; margin-top: 1px;">
-                      <span style="font-size: 12px; font-weight: 800; color: ${riskColor};">${riskLevel}</span>
-                      <i data-lucide="shield-alert" style="width: 10px; height: 10px; color: ${riskColor};"></i>
-                    </div>
-                    <div style="font-size: 10px; color: var(--color-text-faint); margin-top: 1px;">${highPriorityRisks} High Priority Risk${highPriorityRisks !== 1 ? 's' : ''}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Project Health Gauge Widget (Span 4) -->
-            <div class="bento-card" style="grid-column:span 4; background:var(--color-surface-2); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-radius:16px; padding:20px; border:1px solid var(--color-divider); display:flex; flex-direction:column; align-items:center; box-shadow:0 4px 20px rgba(0,0,0,0.03); overflow:hidden;">
-              <style>
-                @keyframes gauge-sweep-overview-health-gauge {
-                  from { transform: rotate(0deg); }
-                  to { transform: rotate(${(healthScoreVal / 100) * 180}deg); }
-                }
-              </style>
-              <div style="width:100%; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--color-border-faint); padding-bottom:8px; margin-bottom:12px;">
-                <div style="font-size:14px; font-weight:700; display:flex; align-items:center; gap:6px;">
-                  <i data-lucide="gauge" style="color:var(--color-primary)"></i> Project Health Index
-                </div>
-                <span style="font-size:10px; padding:2px 6px; background:rgba(var(--color-primary-rgb),0.1); color:var(--color-primary); border-radius:10px; font-weight:700;">Composite Rating</span>
-              </div>
-
-              <!-- Gauge Visualization -->
-              <svg width="100%" height="150" viewBox="0 0 500 210" style="max-width: 260px; overflow:visible;">
-                <defs>
-                  <linearGradient id="gauge-red-overview" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#ef4444" />
-                    <stop offset="100%" stop-color="#f87171" />
-                  </linearGradient>
-                  <linearGradient id="gauge-orange-overview" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#f59e0b" />
-                    <stop offset="100%" stop-color="#fbbf24" />
-                  </linearGradient>
-                  <linearGradient id="gauge-green-overview" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#10b981" />
-                    <stop offset="100%" stop-color="#34d399" />
-                  </linearGradient>
-                  <filter id="needle-shadow-overview" x="-20%" y="-20%" width="140%" height="140%">
-                    <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.25" />
-                  </filter>
-                </defs>
-                <!-- Gauge Background Track -->
-                <path d="M 130 170 A 120 120 0 0 1 370 170" stroke="var(--color-surface-3)" stroke-width="20" stroke-linecap="round" fill="none" opacity="0.5" />
-                
-                <!-- Gauge Colored Arcs -->
-                <path d="M 130 170 A 120 120 0 0 1 204.1 59.1" stroke="url(#gauge-red-overview)" stroke-width="20" stroke-linecap="round" fill="none" />
-                <path d="M 204.1 59.1 A 120 120 0 0 1 334.8 85.1" stroke="url(#gauge-orange-overview)" stroke-width="20" fill="none" />
-                <path d="M 334.8 85.1 A 120 120 0 0 1 370 170" stroke="url(#gauge-green-overview)" stroke-width="20" stroke-linecap="round" fill="none" />
-
-                <!-- Ticks Labels positioned cleanly outside -->
-                <text x="105" y="180" font-size="11px" font-weight="800" fill="var(--color-text-muted)" text-anchor="middle">0</text>
-                <text x="148" y="72" font-size="11px" font-weight="800" fill="var(--color-text-muted)" text-anchor="middle">25</text>
-                <text x="250" y="32" font-size="11px" font-weight="800" fill="var(--color-text-muted)" text-anchor="middle">50</text>
-                <text x="352" y="72" font-size="11px" font-weight="800" fill="var(--color-text-muted)" text-anchor="middle">75</text>
-                <text x="395" y="180" font-size="11px" font-weight="800" fill="var(--color-text-muted)" text-anchor="middle">100</text>
-
-                <!-- Center Text Readout positioned to avoid overlapping needle center -->
-                <text x="250" y="105" font-size="10px" font-weight="800" fill="var(--color-text-faint)" text-anchor="middle" letter-spacing="1.5px">HEALTH SCORE</text>
-                <text x="250" y="145" font-size="44px" font-weight="900" fill="var(--color-text)" text-anchor="middle">${healthScoreVal}%</text>
-
-                <!-- Tapered Needle Pointer with sweep animation -->
-                <polygon points="250,174 140,170 250,166" fill="#ef4444" filter="url(#needle-shadow-overview)"
-                         style="transform-origin: 250px 170px; transform: rotate(${(healthScoreVal / 100) * 180}deg); animation: gauge-sweep-overview-health-gauge 1.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;" />
-                <circle cx="250" cy="170" r="14" fill="#ef4444" stroke="#ffffff" stroke-width="3" filter="url(#needle-shadow-overview)" />
-                <circle cx="250" cy="170" r="6" fill="#ffffff" />
-              </svg>
-
-              <!-- Metrics Cards 2x2 Grid with dynamic hover effect -->
-              <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; width:100%; margin-top:8px;">
-                <!-- SPI -->
-                <div style="background:var(--color-surface); border:1px solid var(--color-border); border-left:4px solid ${spiColor}; border-radius:12px; padding:8px 12px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 8px rgba(0,0,0,0.02); transition:transform 0.2s;" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
-                  <div style="width:28px; height:28px; border-radius:50%; background:${spiColor}15; color:${spiColor}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                    <i data-lucide="${spiIcon}" style="width:14px; height:14px;"></i>
-                  </div>
-                  <div>
-                    <div style="font-size:9px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px;">SPI</div>
-                    <div style="font-size:14px; font-weight:850; color:${spiColor}; line-height:1.2;">${spiVal}</div>
-                  </div>
-                </div>
-
-                <!-- CPI -->
-                <div style="background:var(--color-surface); border:1px solid var(--color-border); border-left:4px solid ${cpiColor}; border-radius:12px; padding:8px 12px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 8px rgba(0,0,0,0.02); transition:transform 0.2s;" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
-                  <div style="width:28px; height:28px; border-radius:50%; background:${cpiColor}15; color:${cpiColor}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                    <i data-lucide="${cpiIcon}" style="width:14px; height:14px;"></i>
-                  </div>
-                  <div>
-                    <div style="font-size:9px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px;">CPI</div>
-                    <div style="font-size:14px; font-weight:850; color:${cpiColor}; line-height:1.2;">${cpiVal}</div>
-                  </div>
-                </div>
-
-                <!-- % Complete -->
-                <div style="background:var(--color-surface); border:1px solid var(--color-border); border-left:4px solid var(--color-green); border-radius:12px; padding:8px 12px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 8px rgba(0,0,0,0.02); transition:transform 0.2s;" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
-                  <div style="width:28px; height:28px; border-radius:50%; background:rgba(16,185,129,0.1); color:var(--color-green); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                    <i data-lucide="check-circle" style="width:14px; height:14px;"></i>
-                  </div>
-                  <div>
-                    <div style="font-size:9px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px;">% Done</div>
-                    <div style="font-size:14px; font-weight:850; color:var(--color-green); line-height:1.2;">${avgProgress}%</div>
-                  </div>
-                </div>
-
-                <!-- Tasks Remaining -->
-                <div style="background:var(--color-surface); border:1px solid var(--color-border); border-left:4px solid var(--color-amber); border-radius:12px; padding:8px 12px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 8px rgba(0,0,0,0.02); transition:transform 0.2s;" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
-                  <div style="width:28px; height:28px; border-radius:50%; background:rgba(245,158,11,0.1); color:var(--color-amber); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                    <i data-lucide="clipboard" style="width:14px; height:14px;"></i>
-                  </div>
-                  <div>
-                    <div style="font-size:9px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px;">Rem. Tasks</div>
-                    <div style="font-size:14px; font-weight:850; color:var(--color-amber); line-height:1.2;">${remTasks.length}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Schedule & Status Overview Panel (Span 12) -->
-            <div class="bento-card" style="grid-column: span 12; background: var(--color-surface-2); border-radius: 16px; border: 1px solid var(--color-divider); overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.03); display: flex; flex-direction: column;">
-              <!-- Header Bar -->
-              <div style="background: #0d9488; padding: 10px 20px; text-align: center; color: #ffffff; font-size: 15px; font-weight: 800; letter-spacing: 0.5px;">
-                Schedule & Status Overview Panel
-              </div>
-              
-              <!-- Content Body -->
-              <div style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
-                
-                <!-- Top Row -->
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-                  <!-- Project and Progress -->
-                  <div style="display: flex; align-items: center; gap: 20px; flex: 1; min-width: 250px;">
-                    <span style="font-size: 20px; font-weight: 800; color: var(--color-text);">${esc(P.name || 'ProjectPulse')}</span>
-                    <div style="flex: 1; max-width: 300px; padding-top: 4px;">
-                      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 10px; font-weight: 700; color: var(--color-text-muted); margin-bottom: 4px;">
-                        <span style="background: rgba(13, 148, 136, 0.1); color: #0d9488; padding: 2px 8px; border-radius: 12px; font-weight: 800;">${esc(phaseName)}</span>
-                        <span>Overall Progress</span>
-                      </div>
-                      <div style="position: relative; height: 8px; background: var(--color-surface-3); border-radius: 4px; margin-top: 16px;">
-                        <div style="height: 100%; width: ${avgProgress}%; background: #0d9488; border-radius: 4px;"></div>
-                        <div style="position: absolute; top: -22px; left: calc(${avgProgress}% - 30px); background: var(--color-surface-3); border: 1px solid var(--color-border); padding: 1px 4px; border-radius: 6px; font-size: 9px; font-weight: 800; color: var(--color-text); white-space: nowrap;">
-                          ${avgProgress}% Complete
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <!-- Status and Last Saved -->
-                  <div style="display: flex; align-items: center; gap: 16px;">
-                    <div style="text-align: center;">
-                      <div style="font-size: 10px; color: var(--color-text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 2px;">Status</div>
-                      <span style="background: ${overallStatusBg}; color: #ffffff; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 800; text-transform: uppercase; tracking: 0.5px;">${overallStatus}</span>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--color-text-muted); font-weight: 600;">
-                      <i data-lucide="clock" style="width: 12px; height: 12px;"></i>
-                      <span>Last saved:<br><b>${lastSavedFormatted}</b></span>
-                    </div>
-                  </div>
-                </div>
-                
-                <!-- Divider -->
-                <div style="height: 1px; background: var(--color-border-faint); margin: 2px 0;"></div>
-                
-                <!-- Three Columns -->
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; min-width: 0;">
-                  <!-- Tasks Column -->
-                  <div style="border-right: 1px solid var(--color-border-faint); padding-right: 20px; display: flex; flex-direction: column; gap: 8px;">
-                    <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: var(--color-text);">
-                      <i data-lucide="clipboard" style="width: 14px; height: 14px; color: var(--color-text-muted);"></i>
-                      <span>Tasks</span>
-                    </div>
-                    
-                    <div style="display: flex; align-items: baseline; justify-content: space-between;">
-                      <span style="font-size: 32px; font-weight: 900; color: var(--color-text); line-height: 1;">${totalTasksCount}</span>
-                      <span style="font-size: 12px; font-weight: 800; color: var(--color-text-muted);">${tasksCompletionPct}%</span>
-                    </div>
-                    <div style="font-size: 10px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; margin-bottom: -4px;">Total Tasks</div>
-                    
-                    <div style="height: 5px; background: var(--color-surface-3); border-radius: 2.5px; overflow: hidden;">
-                      <div style="height: 100%; width: ${tasksCompletionPct}%; background: var(--color-green); border-radius: 2.5px;"></div>
-                    </div>
-                    
-                    <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 2px;">
-                      <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--color-text-muted); font-weight: 600;">
-                        <i data-lucide="check-circle" style="width: 12px; height: 12px; color: var(--color-green);"></i>
-                        <span>${completedTasks} Completed</span>
-                      </div>
-                      <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--color-text-muted); font-weight: 600;">
-                        <div style="width: 12px; height: 12px; border-radius: 50%; background: var(--color-border); display: flex; align-items: center; justify-content: center; font-size: 8px; color: var(--color-text-muted); font-weight: 800;">•</div>
-                        <span>${remainingTasks} Remaining</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <!-- Overdue Column -->
-                  <div style="border-right: 1px solid var(--color-border-faint); padding-right: 20px; display: flex; flex-direction: column; gap: 8px;">
-                    <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: var(--red);">
-                      <i data-lucide="alert-triangle" style="width: 14px; height: 14px; color: var(--red);"></i>
-                      <span>Overdue</span>
-                    </div>
-                    
-                    <div style="display: flex; align-items: baseline; justify-content: space-between;">
-                      <span style="font-size: 32px; font-weight: 900; color: var(--red); line-height: 1;">${formattedOverdueCount}</span>
-                    </div>
-                    <div style="font-size: 10px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; margin-bottom: -4px;">Tasks Overdue</div>
-                    
-                    <div style="height: 5px; background: var(--color-surface-3); border-radius: 2.5px; overflow: hidden;">
-                      <div style="height: 100%; width: ${Math.min(100, (overdueCount / (totalTasksCount || 1)) * 100)}%; background: var(--red); border-radius: 2.5px;"></div>
-                    </div>
-                    
-                    <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 2px;">
-                      <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--red); font-weight: 800;">
-                        <i data-lucide="clock" style="width: 12px; height: 12px; color: var(--red);"></i>
-                        <span>Deadline missed</span>
-                      </div>
-                      <div style="display: flex; flex-direction: column; gap: 3px; max-width: 100%;">
-                        ${overdueListHtml}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <!-- Blocked Column -->
-                  <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
-                    <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: var(--color-amber);">
-                      <i data-lucide="shield-alert" style="width: 14px; height: 14px; color: var(--color-amber);"></i>
-                      <span>Blocked</span>
-                    </div>
-                    
-                    <div style="display: flex; align-items: baseline; justify-content: space-between;">
-                      <span style="font-size: 32px; font-weight: 900; color: var(--color-amber); line-height: 1;">${formattedBlockedCount}</span>
-                    </div>
-                    <div style="font-size: 10px; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; margin-bottom: -4px;">Task Blocked</div>
-                    
-                    <div style="height: 5px; background: var(--color-surface-3); border-radius: 2.5px; overflow: hidden;">
-                      <div style="height: 100%; width: ${Math.min(100, (blockedCount / (totalTasksCount || 1)) * 100)}%; background: var(--color-amber); border-radius: 2.5px;"></div>
-                    </div>
-                    
-                    <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 2px; max-width: 100%;">
-                      <div style="display: flex; flex-direction: column; gap: 4px; max-width: 100%;">
-                        ${blockedListHtml}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-              </div>
-            </div>
-
-            <!-- Milestones at Risk (Span 4) -->
-            <div class="bento-card" style="grid-column:span 4; background:var(--color-surface-2); border-radius:16px; padding:20px; border:1px solid var(--color-divider); display:flex; flex-direction:column">
-               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-                 <div style="font-size:14px; font-weight:700; display:flex; align-items:center; gap:6px"><i data-lucide="alert-circle" style="color:var(--amber); width:16px; height:16px;"></i> Milestones at Risk</div>
-                 <span style="font-size:10px; padding:2px 6px; background:rgba(245,158,11,0.1); color:var(--amber); border-radius:10px; font-weight:700">${atRiskMilestones.length} Actionable</span>
+            <!-- Milestones at Risk (Span 6) -->
+            <div class="bento-card" style="grid-column:span 6; background:var(--color-surface-2); border-radius:16px; padding:24px; border:1px solid var(--color-divider); display:flex; flex-direction:column">
+               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+                 <div style="font-size:16px; font-weight:700; display:flex; align-items:center; gap:8px"><i data-lucide="alert-circle" style="color:var(--amber)"></i> Milestones at Risk</div>
+                 <span style="font-size:11px; padding:2px 8px; background:rgba(245,158,11,0.1); color:var(--amber); border-radius:12px; font-weight:700">${atRiskMilestones.length} Actionable</span>
                </div>
-               <div class="milestones-list" style="display:flex; flex-direction:column; gap:8px; max-height:240px; overflow-y:auto; padding-right:4px;">
+               <div class="milestones-list" style="display:flex; flex-direction:column; gap:12px; flex:1">
                  ${atRiskMilestones.length ? atRiskMilestones.map(m => `
-                   <div style="padding:12px; background:var(--color-bg); border-radius:10px; border:1px solid var(--color-border-faint); display:flex; flex-direction:column; gap:6px">
+                   <div style="padding:16px; background:var(--color-bg); border-radius:12px; border:1px solid var(--color-border-faint); display:flex; flex-direction:column; gap:8px">
                      <div style="display:flex; justify-content:space-between; align-items:flex-start">
-                       <div style="font-weight:700; font-size:12px; color:var(--color-text); text-overflow:ellipsis; overflow:hidden; white-space:nowrap">${esc(m.name)}</div>
-                       <span style="padding:1px 6px; border-radius:8px; font-size:9px; font-weight:700; background:${m.confidence === 'Medium' ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)'}; color:${m.confidence === 'Medium' ? 'var(--amber)' : 'var(--red)'}">${m.confidence || 'Low'}</span>
+                       <div style="font-weight:700; font-size:14px; color:var(--color-text)">${esc(m.name)}</div>
+                       <span style="padding:2px 8px; border-radius:12px; font-size:10px; font-weight:700; background:${m.confidence === 'Medium' ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)'}; color:${m.confidence === 'Medium' ? 'var(--amber)' : 'var(--red)'}">${m.confidence || 'Low'} Confidence</span>
                      </div>
-                     <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--color-text-muted)">
-                       <div>Base: ${fmtDate(m.baselineDueDate || m.dueDate)}</div>
-                       <div style="color:var(--red); font-weight:600">Fore: ${fmtDate(m.forecastDueDate || m.dueDate)}</div>
+                     <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--color-text-muted)">
+                       <div>Baseline: ${fmtDate(m.baselineDueDate || m.dueDate)}</div>
+                       <div style="color:var(--red); font-weight:600">Forecast: ${fmtDate(m.forecastDueDate || m.dueDate)}</div>
                      </div>
-                     ${m.slippageReason ? `<div style="font-size:10px; color:var(--color-text-faint); background:var(--color-surface); padding:4px 8px; border-radius:4px; border-left:2.5px solid var(--amber)">${esc(m.slippageReason)}</div>` : ''}
+                     ${m.slippageReason ? `<div style="font-size:11px; color:var(--color-text-faint); background:var(--color-surface); padding:6px 10px; border-radius:6px; border-left:3px solid var(--amber)">${esc(m.slippageReason)}</div>` : ''}
                    </div>
-                 `).join('') : `<div style="text-align:center; padding:24px; color:var(--color-text-faint); font-size:12px">All milestones on track.</div>`}
+                 `).join('') : `<div style="text-align:center; padding:32px; color:var(--color-text-faint); font-size:13px">All milestones are currently tracking on schedule.</div>`}
                </div>
             </div>
 
-            <!-- Key Decisions Needed (Span 4) -->
-            <div class="bento-card" style="grid-column:span 4; background:var(--color-surface-2); border-radius:16px; padding:20px; border:1px solid var(--color-divider); display:flex; flex-direction:column">
-               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-                 <div style="font-size:14px; font-weight:700; display:flex; align-items:center; gap:6px"><i data-lucide="help-circle" style="color:var(--color-primary); width:16px; height:16px;"></i> Key Decisions Needed</div>
-                 <span style="font-size:10px; padding:2px 6px; background:rgba(var(--color-primary-rgb),0.1); color:var(--color-primary); border-radius:10px; font-weight:700">${decisions.filter(d => d.status === 'Pending Sign-off').length} Pending</span>
+            <!-- Key Decisions Needed (Span 6) -->
+            <div class="bento-card" style="grid-column:span 6; background:var(--color-surface-2); border-radius:16px; padding:24px; border:1px solid var(--color-divider); display:flex; flex-direction:column">
+               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+                 <div style="font-size:16px; font-weight:700; display:flex; align-items:center; gap:8px"><i data-lucide="help-circle" style="color:var(--color-primary)"></i> Key Decisions Needed</div>
+                 <span style="font-size:11px; padding:2px 8px; background:rgba(var(--color-primary-rgb),0.1); color:var(--color-primary); border-radius:12px; font-weight:700">${decisions.filter(d => d.status === 'Pending Sign-off').length} Pending</span>
                </div>
-               <div class="decisions-list" style="display:flex; flex-direction:column; gap:8px; max-height:240px; overflow-y:auto; padding-right:4px;">
+               <div class="decisions-list" style="display:flex; flex-direction:column; gap:12px; flex:1">
                  ${decisions.filter(d => d.status === 'Pending Sign-off').length ? decisions.filter(d => d.status === 'Pending Sign-off').map(d => `
-                   <div style="padding:12px; background:var(--color-bg); border-radius:10px; border:1px solid var(--color-border-faint); border-left:3px solid var(--color-primary); display:flex; flex-direction:column; gap:6px">
+                   <div style="padding:16px; background:var(--color-bg); border-radius:12px; border:1px solid var(--color-border-faint); border-left:4px solid var(--color-primary); display:flex; flex-direction:column; gap:8px">
                      <div style="display:flex; justify-content:space-between; align-items:flex-start">
-                       <div style="font-weight:700; font-size:12px; color:var(--color-text); text-overflow:ellipsis; overflow:hidden; white-space:nowrap">${esc(d.title)}</div>
-                       <span style="font-size:9px; color:var(--color-text-muted)">${esc(d.date)}</span>
+                       <div style="font-weight:700; font-size:14px; color:var(--color-text)">${esc(d.title)}</div>
+                       <span style="font-size:10px; color:var(--color-text-muted)">${esc(d.date)}</span>
                      </div>
-                     <div style="font-size:11px; color:var(--color-text-muted)">${esc(d.rationale)}</div>
-                     <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--color-text-faint)">
+                     <div style="font-size:12px; color:var(--color-text-muted)">${esc(d.rationale)}</div>
+                     <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--color-text-faint)">
                        <div>Owner: <b>${esc(d.owner)}</b></div>
                        <div>Scope: <b>${esc(d.affectedScope)}</b></div>
                      </div>
                    </div>
-                 `).join('') : `<div style="text-align:center; padding:24px; color:var(--color-text-faint); font-size:12px">No pending decisions.</div>`}
+                 `).join('') : `<div style="text-align:center; padding:32px; color:var(--color-text-faint); font-size:13px">No pending executive decisions requiring sign-off.</div>`}
                </div>
             </div>
 
-            <!-- Top Risks & Blockers (Span 4) -->
-            <div class="bento-card" style="grid-column:span 4; background:var(--color-surface-2); border-radius:16px; padding:20px; border:1px solid var(--color-divider); display:flex; flex-direction:column">
-               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-                 <div style="font-size:14px; font-weight:700; display:flex; align-items:center; gap:6px"><i data-lucide="shield-alert" style="color:var(--red); width:16px; height:16px;"></i> Top Risks & Blockers</div>
-                 <span style="font-size:10px; padding:2px 6px; background:rgba(239,68,68,0.1); color:var(--red); border-radius:10px; font-weight:700">${s1s2Raids.length + blockedTasks.length} Critical</span>
+            <!-- Top Risks & Blockers (Span 7) -->
+            <div class="bento-card" style="grid-column:span 7; background:var(--color-surface-2); border-radius:16px; padding:24px; border:1px solid var(--color-divider); display:flex; flex-direction:column">
+               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+                 <div style="font-size:16px; font-weight:700; display:flex; align-items:center; gap:8px"><i data-lucide="shield-alert" style="color:var(--red)"></i> Top Risks & Blockers</div>
+                 <span style="font-size:11px; padding:2px 8px; background:rgba(239,68,68,0.1); color:var(--red); border-radius:12px; font-weight:700">${s1s2Raids.length + blockedTasks.length} Critical Items</span>
                </div>
-               <div class="risks-list" style="display:flex; flex-direction:column; gap:8px; max-height:240px; overflow-y:auto; padding-right:4px;">
+               <div class="risks-list" style="display:flex; flex-direction:column; gap:12px; flex:1">
                  ${(s1s2Raids.length || blockedTasks.length) ? [
-                   ...s1s2Raids.map(r => `
-                     <div style="padding:12px; background:var(--color-bg); border-radius:10px; border:1px solid var(--color-border-faint); border-left:3px solid var(--red); display:flex; flex-direction:column; gap:4px">
+              ...s1s2Raids.map(r => `
+                     <div style="padding:16px; background:var(--color-bg); border-radius:12px; border:1px solid var(--color-border-faint); border-left:4px solid var(--red); display:flex; flex-direction:column; gap:6px">
                        <div style="display:flex; justify-content:space-between; align-items:flex-start">
-                         <div style="font-weight:700; font-size:12px; color:var(--color-text); text-overflow:ellipsis; overflow:hidden; white-space:nowrap">[${r.type}] ${esc(r.title)}</div>
-                         <span style="padding:1px 4px; background:rgba(239,68,68,0.1); color:var(--red); border-radius:8px; font-size:9px; font-weight:700">${r.severity}</span>
+                         <div style="font-weight:700; font-size:14px; color:var(--color-text)">[${r.type}] ${esc(r.title)}</div>
+                         <span style="padding:2px 6px; background:rgba(239,68,68,0.1); color:var(--red); border-radius:8px; font-size:10px; font-weight:700">${r.severity}</span>
                        </div>
-                       <div style="font-size:11px; color:var(--color-text-muted); text-overflow:ellipsis; overflow:hidden; white-space:nowrap">${esc(r.desc)}</div>
-                       <div style="font-size:10px; color:var(--color-text-faint); margin-top:2px">Mitigation: ${esc(r.mitigation)}</div>
+                       <div style="font-size:12px; color:var(--color-text-muted)">${esc(r.desc)}</div>
+                       <div style="font-size:11px; color:var(--color-text-faint); margin-top:4px"><b>Mitigation:</b> ${esc(r.mitigation)} (${esc(r.owner)})</div>
                      </div>
                    `),
-                   ...blockedTasks.map(t => `
-                     <div style="padding:12px; background:var(--color-bg); border-radius:10px; border:1px solid var(--color-border-faint); border-left:3px solid var(--amber); display:flex; flex-direction:column; gap:4px">
+              ...blockedTasks.map(t => `
+                     <div style="padding:16px; background:var(--color-bg); border-radius:12px; border:1px solid var(--color-border-faint); border-left:4px solid var(--amber); display:flex; flex-direction:column; gap:6px">
                        <div style="display:flex; justify-content:space-between; align-items:flex-start">
-                         <div style="font-weight:700; font-size:12px; color:var(--color-text); text-overflow:ellipsis; overflow:hidden; white-space:nowrap">[Blocked] ${esc(t.name)}</div>
-                         <span style="padding:1px 4px; background:rgba(245,158,11,0.1); color:var(--amber); border-radius:8px; font-size:9px; font-weight:700">On Hold</span>
+                         <div style="font-weight:700; font-size:14px; color:var(--color-text)">[Blocked Task] ${esc(t.name)}</div>
+                         <span style="padding:2px 6px; background:rgba(245,158,11,0.1); color:var(--amber); border-radius:8px; font-size:10px; font-weight:700">On Hold</span>
                        </div>
-                       <div style="font-size:11px; color:var(--color-text-muted)">Module: ${esc(t.module || 'General')}</div>
-                       <div style="font-size:10px; color:var(--color-text-faint); margin-top:2px">Reason: ${esc(t.slippageReason || t.notes || 'Awaiting unblocking')}</div>
+                       <div style="font-size:12px; color:var(--color-text-muted)"><b>Module:</b> ${esc(t.module || 'General')} · <b>Assignee:</b> ${esc(t.assignee || 'Unassigned')}</div>
+                       <div style="font-size:11px; color:var(--color-text-faint); margin-top:4px"><b>Blocker Rationale:</b> ${esc(t.slippageReason || t.notes || 'Awaiting unblocking')}</div>
                      </div>
                    `)
-                 ].join('') : `<div style="text-align:center; padding:24px; color:var(--color-text-faint); font-size:12px">No critical risks.</div>`}
+            ].join('') : `<div style="text-align:center; padding:32px; color:var(--color-text-faint); font-size:13px">No critical risks or blocked tasks identified.</div>`}
                </div>
             </div>
 
-            <!-- Overdue Work by Module (Span 4) -->
-            <div class="bento-card" style="grid-column:span 4; background:var(--color-surface-2); border-radius:16px; padding:20px; border:1px solid var(--color-divider); display:flex; flex-direction:column">
-               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-                 <div style="font-size:14px; font-weight:700; display:flex; align-items:center; gap:6px"><i data-lucide="clock" style="color:var(--amber); width:16px; height:16px;"></i> Overdue Work by Module</div>
-                 <span style="font-size:10px; padding:2px 6px; background:var(--color-surface-3); color:var(--color-text-muted); border-radius:10px; font-weight:700">${overdueTasks.length} Overdue</span>
+            <!-- Overdue Work by Module (Span 5) -->
+            <div class="bento-card" style="grid-column:span 5; background:var(--color-surface-2); border-radius:16px; padding:24px; border:1px solid var(--color-divider); display:flex; flex-direction:column">
+               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+                 <div style="font-size:16px; font-weight:700; display:flex; align-items:center; gap:8px"><i data-lucide="clock" style="color:var(--amber)"></i> Overdue Work by Module</div>
+                 <span style="font-size:11px; padding:2px 8px; background:var(--color-surface-3); color:var(--color-text-muted); border-radius:12px; font-weight:700">${overdueTasks.length} Total Overdue</span>
                </div>
-               <div class="overdue-chart-container" style="flex:1; display:flex; flex-direction:column; gap:10px; justify-content:center; max-height:240px; overflow-y:auto; padding-right:4px;">
+               <div class="overdue-chart-container" style="flex:1; display:flex; flex-direction:column; gap:14px; justify-content:center">
                  ${sortedMods.length ? sortedMods.map(([mod, cnt]) => {
-                   const pct = Math.round((cnt / overdueTasks.length) * 100);
-                   return `
+              const pct = Math.round((cnt / overdueTasks.length) * 100);
+              return `
                      <div>
-                       <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:600; margin-bottom:4px">
-                         <span style="color:var(--color-text); text-overflow:ellipsis; overflow:hidden; white-space:nowrap">${esc(mod)}</span>
-                         <span style="color:var(--amber); font-family:var(--font-mono); font-weight:700">${cnt} t (${pct}%)</span>
+                       <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:600; margin-bottom:6px">
+                         <span style="color:var(--color-text)">${esc(mod)}</span>
+                         <span style="color:var(--amber); font-family:var(--font-mono); font-weight:700">${cnt} task(s) (${pct}%)</span>
                        </div>
-                       <div style="height:6px; background:var(--color-surface-3); border-radius:3px; overflow:hidden">
-                         <div style="height:100%; width:${pct}%; background:var(--amber); border-radius:3px"></div>
+                       <div style="height:8px; background:var(--color-surface-3); border-radius:4px; overflow:hidden">
+                         <div style="height:100%; width:${pct}%; background:var(--amber); border-radius:4px"></div>
                        </div>
                      </div>
                    `;
-                 }).join('') : `<div style="text-align:center; padding:24px; color:var(--color-text-faint); font-size:12px">Zero overdue tasks!</div>`}
+            }).join('') : `<div style="text-align:center; padding:32px; color:var(--color-text-faint); font-size:13px">Zero overdue tasks across all modules!</div>`}
                </div>
             </div>
 
-            <!-- Recent Changes Delta (Span 8) -->
-            <div class="bento-card" style="grid-column:span 8; background:var(--color-surface-2); border-radius:16px; padding:20px; border:1px solid var(--color-divider); display:flex; flex-direction:column">
-               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
-                 <div style="font-size:14px; font-weight:700; display:flex; align-items:center; gap:6px"><i data-lucide="activity" style="color:var(--color-green); width:16px; height:16px;"></i> Recent Changes Delta</div>
-                 <span style="font-size:10px; padding:2px 6px; background:rgba(34,197,94,0.1); color:var(--color-green); border-radius:10px; font-weight:700">7 Days Stream</span>
+            <!-- Recent Changes Delta (Span 12) -->
+            <div class="bento-card" style="grid-column:span 12; background:var(--color-surface-2); border-radius:16px; padding:24px; border:1px solid var(--color-divider)">
+               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+                 <div style="font-size:16px; font-weight:700; display:flex; align-items:center; gap:8px"><i data-lucide="activity" style="color:var(--color-green)"></i> Recent Changes Delta</div>
+                 <span style="font-size:11px; padding:2px 8px; background:rgba(34,197,94,0.1); color:var(--color-green); border-radius:12px; font-weight:700">Last 7 Days Stream</span>
                </div>
-               <div class="changes-list" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:10px; max-height:240px; overflow-y:auto; padding-right:4px;">
+               <div class="changes-list" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px">
                  ${recentLogs.length ? recentLogs.map(l => `
-                   <div style="padding:10px; background:var(--color-bg); border-radius:10px; border:1px solid var(--color-border-faint); display:flex; align-items:flex-start; gap:8px">
-                     <div style="width:24px; height:24px; border-radius:6px; background:var(--color-surface-2); display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--color-primary)">
-                       <i data-lucide="${l.action === 'Created' ? 'plus-circle' : l.action === 'Status Changed' ? 'check-circle' : 'edit-2'}" style="width:14px; height:14px"></i>
+                   <div style="padding:16px; background:var(--color-bg); border-radius:12px; border:1px solid var(--color-border-faint); display:flex; align-items:flex-start; gap:12px">
+                     <div style="width:32px; height:32px; border-radius:8px; background:var(--color-surface-2); display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--color-primary)">
+                       <i data-lucide="${l.action === 'Created' ? 'plus-circle' : l.action === 'Status Changed' ? 'check-circle' : 'edit-2'}" style="width:18px; height:18px"></i>
                      </div>
                      <div style="flex:1; min-width:0">
-                       <div style="font-size:11px; font-weight:700; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(l.taskName || l.taskId)}</div>
-                       <div style="font-size:10px; color:var(--color-text-muted); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${l.action}: ${l.field ? esc(l.field) + ' → ' + esc(l.newVal) : esc(l.newVal || '')}</div>
-                       <div style="font-size:9px; color:var(--color-text-faint); margin-top:2px">${esc(l.ts)}</div>
+                       <div style="font-size:13px; font-weight:700; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(l.taskName || l.taskId)}</div>
+                       <div style="font-size:12px; color:var(--color-text-muted); margin-top:2px">${l.action}: ${l.field ? esc(l.field) + ' → ' + esc(l.newVal) : esc(l.newVal || '')}</div>
+                       <div style="font-size:10px; color:var(--color-text-faint); margin-top:4px">${esc(l.ts)}</div>
                      </div>
                    </div>
-                 `).join('') : `<div style="grid-column:1/-1; text-align:center; padding:24px; color:var(--color-text-faint); font-size:12px">No recent changes logged.</div>`}
+                 `).join('') : `<div style="grid-column:1/-1; text-align:center; padding:32px; color:var(--color-text-faint); font-size:13px">No recent changes logged in the last 7 days.</div>`}
                </div>
             </div>
           </div>
@@ -39694,7 +39645,6 @@ function enterApp() {
         function openDashBuilder() {
           if (P.readonly) { notify('Action disabled in View-Only mode', 'amber'); return; }
           const def = [
-            { id: 'steering_hero', t: 'Project Steering & Health', on: true, span: 4 },
             { id: 'summary', t: 'Summary Cards', on: true },
             { id: 'health', t: 'Project Health', on: true },
             { id: 'mgmt_insights', t: 'Management Insights', on: true },
@@ -39977,13 +39927,69 @@ function enterApp() {
           P._pvFiltKey = key;
           P._pvFiltTarget = target;
           const tasks = typeof getFiltered === 'function' ? getFiltered() : P.tasks;
+          const modalEl = $id('pv-filter-modal');
+          const clearBtn = modalEl ? modalEl.querySelector('button[onclick="clearPvFilt()"]') : null;
+          const applyBtn = modalEl ? modalEl.querySelector('button[onclick="applyPvFilt()"]') : null;
+
+          if (!key) {
+            $id('pv-filt-title').textContent = 'Select Filter Field';
+            if (clearBtn) clearBtn.style.display = 'none';
+            if (applyBtn) applyBtn.style.display = 'none';
+
+            const cont = $id('pv-filt-options');
+            cont.innerHTML = '';
+            cont.style.display = 'grid';
+            cont.style.gridTemplateColumns = 'repeat(auto-fill, minmax(140px, 1fr))';
+            cont.style.gap = '8px';
+            cont.style.padding = '4px';
+
+            const fields = [];
+            const seen = new Set();
+            const allCols = [...P.cols, ...P.defCols, ...P.customFields.map(cf => ({ key: cf.name, label: cf.name }))];
+            allCols.forEach(c => {
+              if (c.key && !seen.has(c.key)) {
+                seen.add(c.key);
+                fields.push(c);
+              }
+            });
+            fields.sort((a, b) => (a.label || '').localeCompare(b.label || ''));
+
+            fields.forEach(f => {
+              const btn = document.createElement('button');
+              btn.className = 'btn ghost';
+              btn.style.cssText = 'text-align:left;padding:8px 12px;font-size:12px;border:1px solid var(--color-border);border-radius:6px;width:100%;display:flex;align-items:center;justify-content:space-between;';
+              btn.innerHTML = `<span>${esc(f.label)}</span><i data-lucide="chevron-right" style="width:14px;height:14px;color:var(--color-text-faint)"></i>`;
+              btn.onclick = () => {
+                pickPvFilt(f.key, target);
+              };
+              cont.appendChild(btn);
+            });
+            if (window.lucide) lucide.createIcons(cont);
+            openModal('pv-filter-modal');
+            return;
+          }
+
+          if (clearBtn) clearBtn.style.display = '';
+          if (applyBtn) applyBtn.style.display = '';
+
           const type = getFieldType(key);
           const isRangeType = (type === 'number' || type === 'date' || type === 'progress');
 
           if (!P._pvS.filters) P._pvS.filters = {};
           const f = P._pvS.filters[key] || {};
 
-          $id('pv-filt-title').textContent = `Filter by ${cap(key)}`;
+          // Helper to map column keys to friendly names
+          const labelMap = {
+            module: 'Module',
+            moduleType: 'Module Type',
+            releaseVersion: 'Release Version',
+            status: 'Status',
+            priority: 'Priority',
+            assignee: 'Assignee',
+            category: 'Category',
+            complexity: 'Complexity'
+          };
+          $id('pv-filt-title').textContent = `Filter by ${esc(labelMap[key] || cap(key))}`;
           const cont = $id('pv-filt-options');
           cont.innerHTML = '';
 
@@ -41860,6 +41866,22 @@ function enterApp() {
             });
           }
 
+          const modTypeFilters = P.filters.featModuleTypes || new Set();
+          if (modTypeFilters.size > 0) {
+            filtered = filtered.filter(f => {
+              const fModTypes = new Set();
+              (f.screens || []).forEach(scName => {
+                const scObj = dashCache.screenByName[scName];
+                if (scObj && scObj.parentTasks) {
+                  scObj.parentTasks.forEach(pt => {
+                    if (pt.moduleType) fModTypes.add(pt.moduleType);
+                  });
+                }
+              });
+              return Array.from(fModTypes).some(mt => modTypeFilters.has(mt));
+            });
+          }
+
           // Compute Top Summary KPIs
           const totalF = P.features.length;
           const uniqueScreens = new Set();
@@ -41941,6 +41963,19 @@ function enterApp() {
                   }
                 });
                 if (!Array.from(fMods).some(m => modFilters.has(m))) show = false;
+              }
+
+              if (show && modTypeFilters.size > 0) {
+                const fModTypes = new Set();
+                (f.screens || []).forEach(scName => {
+                  const scObj = dashCache.screenByName[scName];
+                  if (scObj && scObj.parentTasks) {
+                    scObj.parentTasks.forEach(pt => {
+                      if (pt.moduleType) fModTypes.add(pt.moduleType);
+                    });
+                  }
+                });
+                if (!Array.from(fModTypes).some(mt => modTypeFilters.has(mt))) show = false;
               }
 
               if (show) {
