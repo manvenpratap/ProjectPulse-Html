@@ -24541,6 +24541,95 @@ load() {
           <div class="sb-stat" title="Decisions Pending Sign-off"><span>Pending Dec</span><span class="val" style="color:var(--red)">${pendingDec}</span></div>
         `;
 
+        // Render Premium RAID Matrix on Sidebar!
+        const activeItemsForMatrix = P._currentRaidFilter === 'All' 
+          ? (P.raids || []).filter(r => r.status !== 'Closed' && r.status !== 'Mitigated') 
+          : (P.raids || []).filter(r => r.type === P._currentRaidFilter && r.status !== 'Closed' && r.status !== 'Mitigated');
+
+        const getCellCount = (imp, prb) => {
+          return activeItemsForMatrix.filter(r => {
+            const rProb = r.probability || (r.type === 'Issue' || r.type === 'Dependency' ? 'High' : 'Medium');
+            return r.impact === imp && rProb === prb;
+          }).length;
+        };
+
+        const mkCell = (imp, prb, bg, textCol) => {
+          const count = getCellCount(imp, prb);
+          const isSelected = P._matrixFilter && P._matrixFilter.impact === imp && P._matrixFilter.prob === prb;
+          const borderStyle = isSelected 
+            ? 'border: 2px solid var(--color-primary); box-shadow: 0 0 8px var(--color-primary); transform: scale(1.04); z-index: 2;'
+            : 'border: 1px solid var(--color-divider);';
+          const opacityStyle = count === 0 ? 'opacity: 0.35;' : 'opacity: 1; font-weight: 900;';
+          return `
+            <div onclick="selectMatrixCell('${imp}', '${prb}')" 
+                 style="background:${bg}; color:${textCol}; ${borderStyle} ${opacityStyle} border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.2s ease; aspect-ratio:1; min-height:36px; position:relative"
+                 onmouseover="this.style.transform='scale(1.05)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.12)';"
+                 onmouseout="if(!${isSelected}){this.style.transform='scale(1)';this.style.boxShadow='none';}"
+                 title="${imp} Impact / ${prb} Probability: ${count} active item(s)">
+              <span style="font-size:14px">${count}</span>
+            </div>
+          `;
+        };
+
+        const heatmapHtml = `
+        <div style="display:flex; flex-direction:column; gap:4px; width:100%">
+          <div style="display:flex; align-items:center">
+            <div style="writing-mode:vertical-lr; transform:rotate(180deg); font-size:9px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:1px; margin-right:8px; height:120px; text-align:center; display:flex; align-items:center; justify-content:center">Impact</div>
+            
+            <div style="display:flex; flex-direction:column; flex:1">
+              <div style="display:flex; gap:6px">
+                <div style="display:flex; flex-direction:column; justify-content:space-between; height:120px; font-size:10px; font-weight:700; color:var(--color-text-muted); text-align:right; width:28px; padding-right:6px; box-sizing:border-box">
+                  <div style="height:36px; display:flex; align-items:center; justify-content:flex-end">High</div>
+                  <div style="height:36px; display:flex; align-items:center; justify-content:flex-end">Med</div>
+                  <div style="height:36px; display:flex; align-items:center; justify-content:flex-end">Low</div>
+                </div>
+                
+                <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; flex:1; height:120px">
+                   ${mkCell('High', 'Low', 'rgba(245, 158, 11, 0.15)', 'var(--color-warning)')}
+                   ${mkCell('High', 'Medium', 'rgba(249, 115, 22, 0.25)', 'var(--color-danger)')}
+                   ${mkCell('High', 'High', 'rgba(239, 68, 68, 0.4)', 'var(--red)')}
+                   
+                   ${mkCell('Medium', 'Low', 'rgba(234, 179, 8, 0.15)', 'var(--color-warning)')}
+                   ${mkCell('Medium', 'Medium', 'rgba(245, 158, 11, 0.25)', 'var(--color-warning)')}
+                   ${mkCell('Medium', 'High', 'rgba(249, 115, 22, 0.35)', 'var(--color-danger)')}
+                   
+                   ${mkCell('Low', 'Low', 'rgba(34, 197, 94, 0.15)', 'var(--color-success)')}
+                   ${mkCell('Low', 'Medium', 'rgba(234, 179, 8, 0.2)', 'var(--color-warning)')}
+                   ${mkCell('Low', 'High', 'rgba(245, 158, 11, 0.3)', 'var(--color-warning)')}
+                </div>
+              </div>
+              
+              <div style="display:flex; margin-left:34px; margin-top:6px; flex-direction:column; gap:4px">
+                <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; font-size:10px; font-weight:700; color:var(--color-text-muted); text-align:center">
+                  <div>Low</div>
+                  <div>Medium</div>
+                  <div>High</div>
+                </div>
+                <div style="font-size:9px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:1px; text-align:center; margin-top:4px">Probability</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        `;
+
+        const matrixSec = document.createElement('div');
+        matrixSec.className = 'sb-sec';
+        matrixSec.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
+            <div class="sb-stit" style="margin-bottom:0">RAID Heatmap Matrix</div>
+            ${P._matrixFilter ? `<button class="btn ghost danger" style="padding:2px 8px; font-size:10px; height:auto; min-width:auto" onclick="clearMatrixFilter()">Clear</button>` : ''}
+          </div>
+          <div style="padding:0 12px 12px 12px">
+            ${heatmapHtml}
+          </div>
+          ${P._matrixFilter ? `
+          <div style="margin:8px 12px 0 12px; padding:8px; background:var(--color-surface-3); border-radius:6px; font-size:10px; color:var(--color-primary); font-weight:700; display:flex; align-items:center; gap:4px">
+            <i data-lucide="filter" style="width:12px; height:12px"></i> Filtering: ${P._matrixFilter.impact} / ${P._matrixFilter.prob}
+          </div>
+          ` : ''}
+        `;
+        sbInner.appendChild(matrixSec);
+
         qhContent = `
           <div style="margin-bottom:8px"><i data-lucide="shield"></i> <b>RAID Log Drawer:</b> Log and edit Risks, Assumptions, Issues, and Dependencies using a sleek right-side flyout.</div>
           <div style="margin-bottom:8px">📊 <b>Dynamic Probability:</b> Probability fields and severe visual tags update dynamically based on your selected item type.</div>
@@ -34091,157 +34180,61 @@ function setView(v, preserveSearch = false) {
               : '<i data-lucide="chevron-down" style="width:12px; height:12px; margin-left:4px; vertical-align:middle; color:var(--color-primary)"></i>';
           };
 
-          // Calculate counts for active items matching matrix cells (based on current category filter)
-          const activeItemsForMatrix = P._currentRaidFilter === 'All' 
-            ? raids.filter(r => r.status !== 'Closed' && r.status !== 'Mitigated') 
-            : raids.filter(r => r.type === P._currentRaidFilter && r.status !== 'Closed' && r.status !== 'Mitigated');
-
-          const getCellCount = (imp, prb) => {
-            return activeItemsForMatrix.filter(r => {
-              const rProb = r.probability || (r.type === 'Issue' || r.type === 'Dependency' ? 'High' : 'Medium');
-              return r.impact === imp && rProb === prb;
-            }).length;
-          };
-
-          const mkCell = (imp, prb, bg, textCol) => {
-            const count = getCellCount(imp, prb);
-            const isSelected = P._matrixFilter && P._matrixFilter.impact === imp && P._matrixFilter.prob === prb;
-            const borderStyle = isSelected 
-              ? 'border: 2px solid var(--color-primary); box-shadow: 0 0 10px var(--color-primary); transform: scale(1.04); z-index: 2;'
-              : 'border: 1px solid var(--color-divider);';
-            const opacityStyle = count === 0 ? 'opacity: 0.35;' : 'opacity: 1; font-weight: 900;';
-            return `
-              <div onclick="selectMatrixCell('${imp}', '${prb}')" 
-                   style="background:${bg}; color:${textCol}; ${borderStyle} ${opacityStyle} border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.2s ease; aspect-ratio:1; min-height:36px; position:relative"
-                   onmouseover="this.style.transform='scale(1.05)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.12)';"
-                   onmouseout="if(!${isSelected}){this.style.transform='scale(1)';this.style.boxShadow='none';}"
-                   title="${imp} Impact / ${prb} Probability: ${count} active item(s)">
-                <span style="font-size:14px">${count}</span>
-              </div>
-            `;
-          };
-
-          const heatmapHtml = `
-          <div style="display:flex; flex-direction:column; gap:4px; width:100%">
-            <div style="display:flex; align-items:center">
-              <div style="writing-mode:vertical-lr; transform:rotate(180deg); font-size:9px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:1px; margin-right:8px; height:120px; text-align:center; display:flex; align-items:center; justify-content:center">Impact</div>
-              
-              <div style="display:flex; flex-direction:column; flex:1">
-                <div style="display:flex; gap:6px">
-                  <div style="display:flex; flex-direction:column; justify-content:space-between; height:120px; font-size:10px; font-weight:700; color:var(--color-text-muted); text-align:right; width:28px; padding-right:6px; box-sizing:border-box">
-                    <div style="height:36px; display:flex; align-items:center; justify-content:flex-end">High</div>
-                    <div style="height:36px; display:flex; align-items:center; justify-content:flex-end">Med</div>
-                    <div style="height:36px; display:flex; align-items:center; justify-content:flex-end">Low</div>
-                  </div>
-                  
-                  <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; flex:1; height:120px">
-                     ${mkCell('High', 'Low', 'rgba(245, 158, 11, 0.15)', 'var(--color-warning)')}
-                     ${mkCell('High', 'Medium', 'rgba(249, 115, 22, 0.25)', 'var(--color-danger)')}
-                     ${mkCell('High', 'High', 'rgba(239, 68, 68, 0.4)', 'var(--red)')}
-                     
-                     ${mkCell('Medium', 'Low', 'rgba(234, 179, 8, 0.15)', 'var(--color-warning)')}
-                     ${mkCell('Medium', 'Medium', 'rgba(245, 158, 11, 0.25)', 'var(--color-warning)')}
-                     ${mkCell('Medium', 'High', 'rgba(249, 115, 22, 0.35)', 'var(--color-danger)')}
-                     
-                     ${mkCell('Low', 'Low', 'rgba(34, 197, 94, 0.15)', 'var(--color-success)')}
-                     ${mkCell('Low', 'Medium', 'rgba(234, 179, 8, 0.2)', 'var(--color-warning)')}
-                     ${mkCell('Low', 'High', 'rgba(245, 158, 11, 0.3)', 'var(--color-warning)')}
-                  </div>
-                </div>
-                
-                <div style="display:flex; margin-left:34px; margin-top:6px; flex-direction:column; gap:4px">
-                  <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; font-size:10px; font-weight:700; color:var(--color-text-muted); text-align:center">
-                    <div>Low</div>
-                    <div>Medium</div>
-                    <div>High</div>
-                  </div>
-                  <div style="font-size:9px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:1px; text-align:center; margin-top:4px">Probability</div>
-                </div>
-              </div>
-            </div>
-          </div>
-          `;
-
-          const sidebarHtml = `
-          <div class="bento-card sidebar" style="width:280px; flex-shrink:0; background:var(--color-surface-2); border-radius:16px; padding:20px; border:1px solid var(--color-divider); display:flex; flex-direction:column; gap:20px; box-sizing:border-box; box-shadow:0 4px 20px rgba(0,0,0,0.02)">
-            <div style="display:flex; justify-content:space-between; align-items:center">
-              <div style="font-size:12px; font-weight:800; color:var(--color-text); text-transform:uppercase; letter-spacing:0.5px">RAID Heatmap Matrix</div>
-              ${P._matrixFilter ? `<button class="btn ghost danger" style="padding:2px 8px; font-size:10px; height:auto; min-width:auto" onclick="clearMatrixFilter()">Clear</button>` : ''}
-            </div>
-            
-            ${heatmapHtml}
-            
-            <div style="display:flex; flex-direction:column; gap:10px; background:var(--color-surface-3); padding:12px; border-radius:10px; font-size:11px">
-              <div style="display:flex; justify-content:space-between; align-items:center">
-                <span style="color:var(--color-text-muted)">Active Items (Total):</span>
-                <span style="font-weight:800; color:var(--color-text)">${activeItemsForMatrix.length}</span>
-              </div>
-              <div style="display:flex; justify-content:space-between; align-items:center">
-                <span style="color:var(--color-text-muted)">Critical/High Severity:</span>
-                <span style="font-weight:800; color:var(--red)">${activeItemsForMatrix.filter(r => r.severity.startsWith('S1') || r.severity.startsWith('S2')).length}</span>
-              </div>
-              ${P._matrixFilter ? `
-              <div style="margin-top:6px; padding-top:6px; border-top:1px dashed var(--color-divider); color:var(--color-primary); font-weight:700; display:flex; align-items:center; gap:4px">
-                <i data-lucide="filter" style="width:12px; height:12px"></i> Filtering: ${P._matrixFilter.impact} Impact / ${P._matrixFilter.prob} Prob
-              </div>
-              ` : ''}
-            </div>
-          </div>
-          `;
-
           let html = `
-          <div style="display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap; width:100%">
-            <!-- Left Main Area (Tabs + Table) -->
-            <div style="flex:1; min-width:320px; display:flex; flex-direction:column">
-              <!-- Category Tabs -->
-              <div class="raid-tabs glass" style="display:flex; align-items:center; gap:8px; padding:8px 16px; background:var(--color-surface-2); border-radius:12px; border:1px solid var(--color-divider); margin-bottom:24px; overflow-x:auto">
-                <button class="btn ${P._currentRaidFilter === 'All' ? 'primary' : 'ghost'} raid-tab" onclick="filterRaid('All')"><i data-lucide="layers"></i> All (${raids.length})</button>
-                <button class="btn ${P._currentRaidFilter === 'Risk' ? 'primary' : 'ghost'} raid-tab" onclick="filterRaid('Risk')"><i data-lucide="shield-alert"></i> Risks (${raids.filter(r => r.type === 'Risk').length})</button>
-                <button class="btn ${P._currentRaidFilter === 'Assumption' ? 'primary' : 'ghost'} raid-tab" onclick="filterRaid('Assumption')"><i data-lucide="help-circle"></i> Assumptions (${raids.filter(r => r.type === 'Assumption').length})</button>
-                <button class="btn ${P._currentRaidFilter === 'Issue' ? 'primary' : 'ghost'} raid-tab" onclick="filterRaid('Issue')"><i data-lucide="alert-triangle"></i> Issues (${raids.filter(r => r.type === 'Issue').length})</button>
-                <button class="btn ${P._currentRaidFilter === 'Dependency' ? 'primary' : 'ghost'} raid-tab" onclick="filterRaid('Dependency')"><i data-lucide="link"></i> Dependencies (${raids.filter(r => r.type === 'Dependency').length})</button>
-              </div>
+          <!-- Category Tabs -->
+          <div class="raid-tabs glass" style="display:flex; align-items:center; gap:8px; padding:8px 16px; background:var(--color-surface-2); border-radius:12px; border:1px solid var(--color-divider); margin-bottom:24px; overflow-x:auto">
+            <button class="btn ${P._currentRaidFilter === 'All' ? 'primary' : 'ghost'} raid-tab" onclick="filterRaid('All')"><i data-lucide="layers"></i> All (${raids.length})</button>
+            <button class="btn ${P._currentRaidFilter === 'Risk' ? 'primary' : 'ghost'} raid-tab" onclick="filterRaid('Risk')"><i data-lucide="shield-alert"></i> Risks (${raids.filter(r => r.type === 'Risk').length})</button>
+            <button class="btn ${P._currentRaidFilter === 'Assumption' ? 'primary' : 'ghost'} raid-tab" onclick="filterRaid('Assumption')"><i data-lucide="help-circle"></i> Assumptions (${raids.filter(r => r.type === 'Assumption').length})</button>
+            <button class="btn ${P._currentRaidFilter === 'Issue' ? 'primary' : 'ghost'} raid-tab" onclick="filterRaid('Issue')"><i data-lucide="alert-triangle"></i> Issues (${raids.filter(r => r.type === 'Issue').length})</button>
+            <button class="btn ${P._currentRaidFilter === 'Dependency' ? 'primary' : 'ghost'} raid-tab" onclick="filterRaid('Dependency')"><i data-lucide="link"></i> Dependencies (${raids.filter(r => r.type === 'Dependency').length})</button>
+          </div>
 
-              <!-- High-Density Table -->
-              <div class="twrap" style="background:var(--color-surface-2); border-radius:16px; border:1px solid var(--color-divider); overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.03)">
-                <table id="raid-table" style="width:100%; border-collapse:collapse">
-                  <thead>
-                    <tr style="background:var(--color-surface-3); border-bottom:1px solid var(--color-divider); text-align:left; font-size:11px; color:var(--color-text-muted); line-height:1.3">
-                      <th style="padding:14px 16px; vertical-align:middle; width:12%; white-space:normal; cursor:pointer; user-select:none" onclick="sortRaid('id')">ID / Type ${sortArrow('id')}</th>
-                      <th style="padding:14px 16px; vertical-align:middle; width:25%; white-space:normal; cursor:pointer; user-select:none" onclick="sortRaid('title')">Title & Description ${sortArrow('title')}</th>
-                      <th style="padding:14px 16px; vertical-align:middle; width:12%; white-space:normal; cursor:pointer; user-select:none" onclick="sortRaid('owner')">Owner ${sortArrow('owner')}</th>
-                      <th style="padding:14px 16px; vertical-align:middle; width:12%; white-space:normal; cursor:pointer; user-select:none" onclick="sortRaid('impact')">Impact / Prob ${sortArrow('impact')}</th>
-                      <th style="padding:14px 16px; vertical-align:middle; width:10%; white-space:normal; cursor:pointer; user-select:none" onclick="sortRaid('severity')">Severity ${sortArrow('severity')}</th>
-                      <th style="padding:14px 16px; vertical-align:middle; width:19%; white-space:normal">Mitigation Plan</th>
-                      <th style="padding:14px 16px; vertical-align:middle; width:10%; white-space:normal; cursor:pointer; user-select:none" onclick="sortRaid('status')">Status ${sortArrow('status')}</th>
-                      <th style="padding:14px 16px; vertical-align:middle; width:12%; text-align:right; white-space:normal">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${matrixFiltered.length ? matrixFiltered.map(r => `
-                      <tr style="border-bottom:1px solid var(--color-divider); font-size:13px; background:var(--color-surface); transition:background 0.2s" onmouseover="this.style.background='var(--color-surface-2)'" onmouseout="this.style.background='var(--color-surface)'" ondblclick="openRaidModal('${r.id}')">
-                        <td style="padding:16px"><div style="font-weight:700; font-family:var(--font-mono); color:var(--color-primary)">${r.id}</div><div style="font-size:10px; color:var(--color-text-muted); margin-top:4px; text-transform:uppercase; font-weight:700">${r.type}</div></td>
-                        <td style="padding:16px; max-width:300px"><div style="font-weight:700; color:var(--color-text)">${esc(r.title)}</div><div style="font-size:12px; color:var(--color-text-muted); margin-top:4px; line-height:1.4">${esc(r.desc)}</div></td>
-                        <td style="padding:16px; white-space:nowrap">${esc(r.owner)}</td>
-                        <td style="padding:16px; white-space:nowrap"><span style="font-weight:600">${r.impact}</span> / <span style="font-weight:600">${r.probability || 'N/A'}</span></td>
-                        <td style="padding:16px; white-space:nowrap"><span style="padding:4px 10px; background:${r.severity.startsWith('S1') || r.severity.startsWith('S2') ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)'}; color:${r.severity.startsWith('S1') || r.severity.startsWith('S2') ? 'var(--red)' : 'var(--amber)'}; border-radius:12px; font-size:11px; font-weight:700">${r.severity}</span></td>
-                        <td style="padding:16px; max-width:250px; font-size:12px; color:var(--color-text-muted); line-height:1.4">${esc(r.mitigation)}</td>
-                        <td style="padding:16px; white-space:nowrap"><span class="st-pill st-${r.status.replace(/\s+/g, '-').toLowerCase()}">${r.status}</span></td>
-                        <td style="padding:16px; text-align:right">
-                          <div style="display:inline-flex; gap:6px; justify-content:flex-end">
-                            <button class="btn ghost" style="padding:6px; min-width:auto; height:auto; display:inline-flex; align-items:center; justify-content:center" onclick="openRaidModal('${r.id}')" title="Edit RAID Item"><i data-lucide="edit-2" style="width:14px; height:14px"></i></button>
-                            <button class="btn ghost danger" style="padding:6px; min-width:auto; height:auto; display:inline-flex; align-items:center; justify-content:center" onclick="if(confirm('Delete this RAID item?')){deleteRaidItemById('${r.id}')}" title="Delete RAID Item"><i data-lucide="trash-2" style="width:14px; height:14px"></i></button>
-                          </div>
-                        </td>
-                      </tr>
-                    `).join('') : `<tr><td colspan="8" style="text-align:center; padding:48px; color:var(--color-text-faint); font-size:14px">No RAID items found matching the selected filter.</td></tr>`}
-                  </tbody>
-                </table>
-              </div>
+          <!-- Active Matrix Filter Info Alert -->
+          ${P._matrixFilter ? `
+          <div style="margin-bottom:16px; padding:12px 16px; background:var(--color-surface-2); border:1px solid var(--color-primary); border-radius:12px; font-size:13px; color:var(--color-primary); display:flex; justify-content:space-between; align-items:center">
+            <div style="display:flex; align-items:center; gap:8px; font-weight:700">
+              <i data-lucide="filter" style="width:16px; height:16px"></i> Filtered by Sidebar Matrix: ${P._matrixFilter.impact} Impact / ${P._matrixFilter.prob} Probability
             </div>
+            <button class="btn ghost danger" style="padding:4px 10px; font-size:11px; height:auto; min-width:auto" onclick="clearMatrixFilter()">Clear Filter</button>
+          </div>
+          ` : ''}
 
-            <!-- Right Sidebar -->
-            ${sidebarHtml}
+          <!-- High-Density Table -->
+          <div class="twrap" style="background:var(--color-surface-2); border-radius:16px; border:1px solid var(--color-divider); overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.03)">
+            <table id="raid-table" style="width:100%; border-collapse:collapse">
+              <thead>
+                <tr style="background:var(--color-surface-3); border-bottom:1px solid var(--color-divider); text-align:left; font-size:11px; color:var(--color-text-muted); line-height:1.3">
+                  <th style="padding:14px 16px; vertical-align:middle; width:12%; white-space:normal; cursor:pointer; user-select:none" onclick="sortRaid('id')">ID / Type ${sortArrow('id')}</th>
+                  <th style="padding:14px 16px; vertical-align:middle; width:25%; white-space:normal; cursor:pointer; user-select:none" onclick="sortRaid('title')">Title & Description ${sortArrow('title')}</th>
+                  <th style="padding:14px 16px; vertical-align:middle; width:12%; white-space:normal; cursor:pointer; user-select:none" onclick="sortRaid('owner')">Owner ${sortArrow('owner')}</th>
+                  <th style="padding:14px 16px; vertical-align:middle; width:12%; white-space:normal; cursor:pointer; user-select:none" onclick="sortRaid('impact')">Impact / Prob ${sortArrow('impact')}</th>
+                  <th style="padding:14px 16px; vertical-align:middle; width:10%; white-space:normal; cursor:pointer; user-select:none" onclick="sortRaid('severity')">Severity ${sortArrow('severity')}</th>
+                  <th style="padding:14px 16px; vertical-align:middle; width:19%; white-space:normal">Mitigation Plan</th>
+                  <th style="padding:14px 16px; vertical-align:middle; width:10%; white-space:normal; cursor:pointer; user-select:none" onclick="sortRaid('status')">Status ${sortArrow('status')}</th>
+                  <th style="padding:14px 16px; vertical-align:middle; width:12%; text-align:right; white-space:normal">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${matrixFiltered.length ? matrixFiltered.map(r => `
+                  <tr style="border-bottom:1px solid var(--color-divider); font-size:13px; background:var(--color-surface); transition:background 0.2s" onmouseover="this.style.background='var(--color-surface-2)'" onmouseout="this.style.background='var(--color-surface)'" ondblclick="openRaidModal('${r.id}')">
+                    <td style="padding:16px"><div style="font-weight:700; font-family:var(--font-mono); color:var(--color-primary)">${r.id}</div><div style="font-size:10px; color:var(--color-text-muted); margin-top:4px; text-transform:uppercase; font-weight:700">${r.type}</div></td>
+                    <td style="padding:16px; max-width:300px"><div style="font-weight:700; color:var(--color-text)">${esc(r.title)}</div><div style="font-size:12px; color:var(--color-text-muted); margin-top:4px; line-height:1.4">${esc(r.desc)}</div></td>
+                    <td style="padding:16px; white-space:nowrap">${esc(r.owner)}</td>
+                    <td style="padding:16px; white-space:nowrap"><span style="font-weight:600">${r.impact}</span> / <span style="font-weight:600">${r.probability || 'N/A'}</span></td>
+                    <td style="padding:16px; white-space:nowrap"><span style="padding:4px 10px; background:${r.severity.startsWith('S1') || r.severity.startsWith('S2') ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)'}; color:${r.severity.startsWith('S1') || r.severity.startsWith('S2') ? 'var(--red)' : 'var(--amber)'}; border-radius:12px; font-size:11px; font-weight:700">${r.severity}</span></td>
+                    <td style="padding:16px; max-width:250px; font-size:12px; color:var(--color-text-muted); line-height:1.4">${esc(r.mitigation)}</td>
+                    <td style="padding:16px; white-space:nowrap"><span class="st-pill st-${r.status.replace(/\s+/g, '-').toLowerCase()}">${r.status}</span></td>
+                    <td style="padding:16px; text-align:right">
+                      <div style="display:inline-flex; gap:6px; justify-content:flex-end">
+                        <button class="btn ghost" style="padding:6px; min-width:auto; height:auto; display:inline-flex; align-items:center; justify-content:center" onclick="openRaidModal('${r.id}')" title="Edit RAID Item"><i data-lucide="edit-2" style="width:14px; height:14px"></i></button>
+                        <button class="btn ghost danger" style="padding:6px; min-width:auto; height:auto; display:inline-flex; align-items:center; justify-content:center" onclick="if(confirm('Delete this RAID item?')){deleteRaidItemById('${r.id}')}" title="Delete RAID Item"><i data-lucide="trash-2" style="width:14px; height:14px"></i></button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('') : `<tr><td colspan="8" style="text-align:center; padding:48px; color:var(--color-text-faint); font-size:14px">No RAID items found matching the selected filter.</td></tr>`}
+              </tbody>
+            </table>
           </div>
           `;
 
@@ -34263,6 +34256,7 @@ function setView(v, preserveSearch = false) {
           P._currentRaidFilter = type;
           P._matrixFilter = null; // Clear matrix filter when category tab changes
           renderRisksView();
+          renderSidebar();
         };
         window.selectMatrixCell = selectMatrixCell;
         function selectMatrixCell(impact, prob) {
@@ -34272,11 +34266,13 @@ function setView(v, preserveSearch = false) {
             P._matrixFilter = { impact, prob };
           }
           renderRisksView();
+          renderSidebar();
         }
         window.clearMatrixFilter = clearMatrixFilter;
         function clearMatrixFilter() {
           P._matrixFilter = null;
           renderRisksView();
+          renderSidebar();
         }
         window.openRaidModal = openRaidModal;
         function openRaidModal(id) {
