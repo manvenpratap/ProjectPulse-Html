@@ -24938,7 +24938,7 @@ load() {
         // ── RISKS: Specialized RAID & Decisions sidebar ──
       } else if (v === 'risks') {
         const totalR = (P.raids || []).length;
-        const openR = (P.raids || []).filter(r => r.status === 'Open').length;
+        const openR = (P.raids || []).filter(r => r.status !== 'Closed' && r.status !== 'Mitigated').length;
         const totalDec = (P.decisions || []).length;
         const pendingDec = (P.decisions || []).filter(d => d.status === 'Pending Sign-off').length;
 
@@ -24952,13 +24952,35 @@ load() {
 
         // Render Premium RAID Matrix on Sidebar!
         const activeItemsForMatrix = P._currentRaidFilter === 'All' 
-          ? (P.raids || []).filter(r => r.status !== 'Closed' && r.status !== 'Mitigated') 
-          : (P.raids || []).filter(r => r.type === P._currentRaidFilter && r.status !== 'Closed' && r.status !== 'Mitigated');
+          ? (P.raids || []) 
+          : (P.raids || []).filter(r => r.type === P._currentRaidFilter);
+
+        const normalizeImpact = (val) => {
+          const s = String(val || '').trim().toLowerCase();
+          if (s === 'high' || s === 'critical' || s === 's1' || s === 's2' || s === 's1 - critical' || s === 's2 - major') return 'High';
+          if (s === 'med' || s === 'medium' || s === 'moderate' || s === 's3' || s === 's3 - moderate') return 'Medium';
+          if (s === 'low' || s === 'minor' || s === 's4' || s === 's4 - minor') return 'Low';
+          return 'Medium';
+        };
+
+        const normalizeProbability = (val) => {
+          const s = String(val || '').trim().toLowerCase();
+          if (s === 'high' || s === 's1' || s === 's2') return 'High';
+          if (s === 'med' || s === 'medium' || s === 'moderate' || s === 's3') return 'Medium';
+          if (s === 'low' || s === 'minor' || s === 's4') return 'Low';
+          return 'Medium';
+        };
 
         const getCellCount = (imp, prb) => {
           return activeItemsForMatrix.filter(r => {
-            const rProb = r.probability || (r.type === 'Issue' || r.type === 'Dependency' ? 'High' : 'Medium');
-            return r.impact === imp && rProb === prb;
+            const rImp = normalizeImpact(r.impact);
+            let rProb = r.probability;
+            if (!rProb) {
+              rProb = (r.type === 'Issue' || r.type === 'Dependency') ? 'High' : 'Medium';
+            } else {
+              rProb = normalizeProbability(rProb);
+            }
+            return rImp === imp && rProb === prb;
           }).length;
         };
 
@@ -35721,9 +35743,29 @@ function setView(v, preserveSearch = false) {
           // Apply Matrix Heatmap Filter if active
           let matrixFiltered = filtered;
           if (P._matrixFilter) {
+            const normImp = (val) => {
+              const s = String(val || '').trim().toLowerCase();
+              if (s === 'high' || s === 'critical' || s === 's1' || s === 's2' || s === 's1 - critical' || s === 's2 - major') return 'High';
+              if (s === 'med' || s === 'medium' || s === 'moderate' || s === 's3' || s === 's3 - moderate') return 'Medium';
+              if (s === 'low' || s === 'minor' || s === 's4' || s === 's4 - minor') return 'Low';
+              return 'Medium';
+            };
+            const normProb = (val) => {
+              const s = String(val || '').trim().toLowerCase();
+              if (s === 'high' || s === 's1' || s === 's2') return 'High';
+              if (s === 'med' || s === 'medium' || s === 'moderate' || s === 's3') return 'Medium';
+              if (s === 'low' || s === 'minor' || s === 's4') return 'Low';
+              return 'Medium';
+            };
             matrixFiltered = filtered.filter(r => {
-              const rProb = r.probability || (r.type === 'Issue' || r.type === 'Dependency' ? 'High' : 'Medium');
-              return r.impact === P._matrixFilter.impact && rProb === P._matrixFilter.prob;
+              const rImp = normImp(r.impact);
+              let rProb = r.probability;
+              if (!rProb) {
+                rProb = (r.type === 'Issue' || r.type === 'Dependency') ? 'High' : 'Medium';
+              } else {
+                rProb = normProb(rProb);
+              }
+              return rImp === P._matrixFilter.impact && rProb === P._matrixFilter.prob;
             });
           }
 
