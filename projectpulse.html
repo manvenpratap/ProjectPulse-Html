@@ -13962,7 +13962,8 @@
       team: 'Team Workload',
       util: 'Resource Utilization',
       overdue_tbl: 'Overdue Table',
-      analytics: 'Advanced Analytics'
+      analytics: 'Advanced Analytics',
+      evm_analytics: 'Earned Value Management (EVM)'
     };
 
     const layoutToWidgetIdMap = {
@@ -13986,7 +13987,8 @@
       'workload': 'dash-workload',
       'overdue': 'dash-overdue',
       'activity': 'dash-updates',
-      'analytics': 'dash-analytics-summary'
+      'analytics': 'dash-analytics-summary',
+      'evm_analytics': 'dash-evm-summary'
     };
 
     function getSectionChildCardIds(secId) {
@@ -14014,6 +14016,7 @@
         case 'intelligence': return ['dash-eta', 'dash-aging', 'dash-btl', 'dash-capacity', 'dash-cprisk'];
         case 'activity': return ['dash-updates'];
         case 'analytics': return ['dash-analytics-summary'];
+        case 'evm_analytics': return ['dash-evm-summary'];
         default: return [];
       }
     }
@@ -25300,6 +25303,7 @@ load() {
                       { id: 'defect_intel', t: 'Defect Intelligence', on: true },
                       { id: 'intelligence', t: 'Predictive Intelligence', on: true },
                       { id: 'analytics', t: 'Advanced Analytics', on: true },
+                      { id: 'evm_analytics', t: 'Earned Value Management (EVM)', on: true },
                       { id: 'activity', t: 'Recent Activity', on: true }
                     ];
 
@@ -26463,6 +26467,7 @@ load() {
         { id: 'defect_intel', t: 'Defect Intelligence', on: true },
         { id: 'intelligence', t: 'Predictive Intelligence', on: true },
         { id: 'analytics', t: 'Advanced Analytics', on: true },
+        { id: 'evm_analytics', t: 'Earned Value Management (EVM)', on: true },
         { id: 'activity', t: 'Recent Activity', on: true }
       ];
       let layout = (Array.isArray(P.dashLayout) && P.dashLayout.length) ? P.dashLayout : defLayout;
@@ -30542,6 +30547,392 @@ load() {
             </div>
           `;
                   anCard.querySelector('.cb').appendChild(summaryContent);
+                } else if (sec.id === 'evm_analytics') {
+                  addST(inner, 'Earned Value Management (EVM)');
+                  const grid = addGrid(inner);
+                  const evmId = 'dash-evm-summary';
+                  const evmSpan = (P.widgetSpans && P.widgetSpans[evmId]) || sec.span || 4;
+                  const evmCard = mkCC('Earned Value Management (EVM)', 'EVM Metrics: SV, CV, SPI, CPI & Budget Tracking', evmId, '', 'standard', "<b>EVM Summary Card:</b> High-level Earned Value Management metrics including Cost/Schedule Variance, performance indices, and budget health forecasting.", 'View Explanation', 'trending-up');
+                  evmCard.style.gridColumn = `span ${evmSpan}`;
+                  grid.appendChild(evmCard);
+                  
+                  let pv = 0, ev = 0, ac = 0, bac = 0;
+                  const today = new Date();
+                  tasks.forEach(t => {
+                    const est = parseFloat(t.estEffort) || 0;
+                    const act = parseFloat(t.actualEffort) || 0;
+                    const prog = parseFloat(t.progress) || (t.status === 'Completed' ? 100 : t.status === 'In Progress' ? 50 : 0);
+                    bac += est;
+                    ev += est * (prog / 100);
+                    ac += act;
+                    
+                    const pStart = t.startDate ? new Date(t.startDate) : null;
+                    const pDue = t.dueDate ? new Date(t.dueDate) : null;
+                    if (pDue && pDue <= today) {
+                      pv += est;
+                    } else if (pStart && pStart <= today) {
+                      if (pDue && pDue > pStart) {
+                        const totalDays = (pDue - pStart) || 1;
+                        const elapsedDays = (today - pStart);
+                        const ratio = Math.min(1, Math.max(0, elapsedDays / totalDays));
+                        pv += est * ratio;
+                      } else {
+                        pv += est * 0.5;
+                      }
+                    }
+                  });
+                  
+                  if (pv === 0) pv = ev || 1;
+                  
+                  const sv = ev - pv;
+                  const cv = ev - ac;
+                  const spi = pv > 0 ? ev / pv : 1;
+                  const cpi = ac > 0 ? ev / ac : 1;
+                  const etc = cpi > 0 ? (bac - ev) / cpi : (bac - ev);
+                  const eac = ac + etc;
+                  const vac = bac - eac;
+                  
+                  const spiColor = spi >= 1.0 ? 'var(--green)' : spi >= 0.9 ? 'var(--amber)' : 'var(--red)';
+                  const cpiColor = cpi >= 1.0 ? 'var(--green)' : cpi >= 0.9 ? 'var(--amber)' : 'var(--red)';
+                  const svColor = sv >= 0 ? 'var(--green)' : 'var(--red)';
+                  const cvColor = cv >= 0 ? 'var(--green)' : 'var(--red)';
+
+                  // 1. Calculate 8-Week Cumulative EVM Trend Points
+                  const trendPoints = [];
+                  for (let i = 7; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(d.getDate() - i * 7);
+                    
+                    let t_pv = 0, t_ev = 0, t_ac = 0;
+                    tasks.forEach(t => {
+                      const est = parseFloat(t.estEffort) || 0;
+                      const act = parseFloat(t.actualEffort) || 0;
+                      const prog = parseFloat(t.progress) || (t.status === 'Completed' ? 100 : t.status === 'In Progress' ? 50 : 0);
+                      
+                      const pStart = t.startDate ? new Date(t.startDate) : null;
+                      const pDue = t.dueDate ? new Date(t.dueDate) : null;
+                      
+                      // PV at date d
+                      if (pDue && pDue <= d) {
+                        t_pv += est;
+                      } else if (pStart && pStart <= d) {
+                        if (pDue && pDue > pStart) {
+                          t_pv += est * Math.min(1, Math.max(0, (d - pStart) / (pDue - pStart)));
+                        } else {
+                          t_pv += est * 0.5;
+                        }
+                      }
+                      
+                      // EV at date d
+                      if (t.status === 'Completed') {
+                        const compDate = pDue || today;
+                        if (compDate <= d) {
+                          t_ev += est;
+                        } else if (pStart && pStart <= d) {
+                          t_ev += est * Math.min(1, Math.max(0, (d - pStart) / (compDate - pStart)));
+                        }
+                      } else {
+                        if (pStart && pStart <= d) {
+                          const timeRatio = Math.min(1, Math.max(0, (d - pStart) / (today - pStart || 1)));
+                          t_ev += est * (prog / 100) * timeRatio;
+                        }
+                      }
+                      
+                      // AC at date d
+                      if (act > 0) {
+                        if (pStart && pStart <= d) {
+                          const timeRatio = Math.min(1, Math.max(0, (d - pStart) / (today - pStart || 1)));
+                          t_ac += act * timeRatio;
+                        } else if (pDue && pDue <= d) {
+                          t_ac += act;
+                        }
+                      }
+                    });
+                    trendPoints.push({ date: d, pv: t_pv, ev: t_ev, ac: t_ac });
+                  }
+
+                  // 2. Calculate Top Variance Drivers
+                  const costDrivers = [];
+                  const schedDrivers = [];
+                  tasks.forEach(t => {
+                    const est = parseFloat(t.estEffort) || 0;
+                    const act = parseFloat(t.actualEffort) || 0;
+                    const prog = parseFloat(t.progress) || (t.status === 'Completed' ? 100 : t.status === 'In Progress' ? 50 : 0);
+                    
+                    const t_ev = est * (prog / 100);
+                    const t_cv = t_ev - act;
+                    if (act > 0 && t_cv < 0) {
+                      costDrivers.push({ task: t, variance: t_cv });
+                    }
+                    
+                    const pStart = t.startDate ? new Date(t.startDate) : null;
+                    const pDue = t.dueDate ? new Date(t.dueDate) : null;
+                    let t_pv = 0;
+                    if (pDue && pDue <= today) {
+                      t_pv = est;
+                    } else if (pStart && pStart <= today) {
+                      if (pDue && pDue > pStart) {
+                        t_pv = est * ((today - pStart) / (pDue - pStart));
+                      } else {
+                        t_pv = est * 0.5;
+                      }
+                    }
+                    const t_sv = t_ev - t_pv;
+                    if (t_sv < 0) {
+                      schedDrivers.push({ task: t, variance: t_sv });
+                    }
+                  });
+                  costDrivers.sort((a, b) => a.variance - b.variance);
+                  schedDrivers.sort((a, b) => a.variance - b.variance);
+                  const topCost = costDrivers.slice(0, 2);
+                  const topSched = schedDrivers.slice(0, 2);
+
+                  // 3. Construct Main EVM Container (Flex Layout)
+                  const evmContent = document.createElement('div');
+                  evmContent.style = "display:flex; gap:20px; flex-wrap:wrap; margin-top:12px;";
+                  
+                  // Left panel: 8 Metric Cards Grid
+                  const metricsGrid = document.createElement('div');
+                  metricsGrid.style = "flex:1.2; min-width:320px; display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px;";
+                  metricsGrid.innerHTML = `
+                    <div style="background:var(--color-surface-1); padding:12px; border-radius:10px; border:1px solid var(--color-border); transition:transform 0.2s ease, box-shadow 0.2s ease; cursor:default" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-sm)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='none'">
+                      <div style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:2px">Planned Value (PV)</div>
+                      <div style="font-size:20px; font-weight:900; color:var(--color-primary)">${pv.toFixed(1)}d</div>
+                      <div style="font-size:10px; color:var(--color-text-faint); margin-top:2px">Target budget progress</div>
+                    </div>
+                    <div style="background:var(--color-surface-1); padding:12px; border-radius:10px; border:1px solid var(--color-border); transition:transform 0.2s ease, box-shadow 0.2s ease; cursor:default" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-sm)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='none'">
+                      <div style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:2px">Earned Value (EV)</div>
+                      <div style="font-size:20px; font-weight:900; color:var(--color-primary)">${ev.toFixed(1)}d</div>
+                      <div style="font-size:10px; color:var(--color-text-faint); margin-top:2px">Value of work completed</div>
+                    </div>
+                    <div style="background:var(--color-surface-1); padding:12px; border-radius:10px; border:1px solid var(--color-border); transition:transform 0.2s ease, box-shadow 0.2s ease; cursor:default" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-sm)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='none'">
+                      <div style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:2px">Actual Cost (AC)</div>
+                      <div style="font-size:20px; font-weight:900; color:var(--color-primary)">${ac.toFixed(1)}d</div>
+                      <div style="font-size:10px; color:var(--color-text-faint); margin-top:2px">Effort actually spent</div>
+                    </div>
+                    <div style="background:var(--color-surface-1); padding:12px; border-radius:10px; border:1px solid var(--color-border); transition:transform 0.2s ease, box-shadow 0.2s ease; cursor:default" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-sm)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='none'">
+                      <div style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:2px">Budget Completion (BAC)</div>
+                      <div style="font-size:20px; font-weight:900; color:var(--color-primary)">${bac.toFixed(1)}d</div>
+                      <div style="font-size:10px; color:var(--color-text-faint); margin-top:2px">Total planned budget</div>
+                    </div>
+                    <div style="background:var(--color-surface-1); padding:12px; border-radius:10px; border:1px solid var(--color-border); transition:transform 0.2s ease, box-shadow 0.2s ease; cursor:default" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-sm)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='none'">
+                      <div style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:2px">Schedule Perf (SPI)</div>
+                      <div style="font-size:20px; font-weight:900; color:${spiColor}">${spi.toFixed(2)}</div>
+                      <div style="font-size:10px; color:var(--color-text-faint); margin-top:2px">SV: <span style="color:${svColor}; font-weight:bold">${sv >= 0 ? '+' : ''}${sv.toFixed(1)}d</span></div>
+                    </div>
+                    <div style="background:var(--color-surface-1); padding:12px; border-radius:10px; border:1px solid var(--color-border); transition:transform 0.2s ease, box-shadow 0.2s ease; cursor:default" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-sm)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='none'">
+                      <div style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:2px">Cost Efficiency (CPI)</div>
+                      <div style="font-size:20px; font-weight:900; color:${cpiColor}">${cpi.toFixed(2)}</div>
+                      <div style="font-size:10px; color:var(--color-text-faint); margin-top:2px">CV: <span style="color:${cvColor}; font-weight:bold">${cv >= 0 ? '+' : ''}${cv.toFixed(1)}d</span></div>
+                    </div>
+                    <div style="background:var(--color-surface-1); padding:12px; border-radius:10px; border:1px solid var(--color-border); transition:transform 0.2s ease, box-shadow 0.2s ease; cursor:default" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-sm)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='none'">
+                      <div style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:2px">Estimate At Comp (EAC)</div>
+                      <div style="font-size:20px; font-weight:900; color:var(--color-primary)">${eac.toFixed(1)}d</div>
+                      <div style="font-size:10px; color:var(--color-text-faint); margin-top:2px">Forecasted total cost</div>
+                    </div>
+                    <div style="background:var(--color-surface-1); padding:12px; border-radius:10px; border:1px solid var(--color-border); transition:transform 0.2s ease, box-shadow 0.2s ease; cursor:default" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-sm)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='none'">
+                      <div style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:2px">Variance At Comp (VAC)</div>
+                      <div style="font-size:20px; font-weight:900; color:${vac >= 0 ? 'var(--green)' : 'var(--red)'}">${vac >= 0 ? '+' : ''}${vac.toFixed(1)}d</div>
+                      <div style="font-size:10px; color:var(--color-text-faint); margin-top:2px">Forecasted surplus/deficit</div>
+                    </div>
+                  `;
+
+                  // Right panel: Interactive tabbed visualization card
+                  const vizPanel = document.createElement('div');
+                  vizPanel.style = "flex:1; min-width:300px; display:flex; flex-direction:column; background:var(--color-surface-1); border-radius:12px; border:1px solid var(--color-border); padding:16px; box-shadow:var(--shadow-sm); justify-content:space-between;";
+
+                  const tabsHeader = document.createElement('div');
+                  tabsHeader.style = "display: flex; gap: 8px; border-bottom: 1px solid var(--color-border-faint); padding-bottom: 8px; margin-bottom: 12px;";
+
+                  const btnTrend = document.createElement('button');
+                  btnTrend.innerText = 'Trend Chart';
+                  btnTrend.style = "background: var(--color-primary); color: white; border: none; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s; outline: none; border: 1px solid transparent;";
+
+                  const btnQuad = document.createElement('button');
+                  btnQuad.innerText = 'Status Quadrant';
+                  btnQuad.style = "background: transparent; color: var(--color-text-muted); border: 1px solid var(--color-border); padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s; outline: none;";
+
+                  const btnDrivers = document.createElement('button');
+                  btnDrivers.innerText = 'Key Drivers';
+                  btnDrivers.style = "background: transparent; color: var(--color-text-muted); border: 1px solid var(--color-border); padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s; outline: none;";
+
+                  tabsHeader.appendChild(btnTrend);
+                  tabsHeader.appendChild(btnQuad);
+                  tabsHeader.appendChild(btnDrivers);
+
+                  const tabContent = document.createElement('div');
+                  tabContent.style = "flex: 1; display: flex; flex-direction: column; justify-content: center;";
+
+                  const tabTrend = document.createElement('div');
+                  tabTrend.style.display = 'block';
+
+                  const tabQuad = document.createElement('div');
+                  tabQuad.style.display = 'none';
+
+                  const tabDrivers = document.createElement('div');
+                  tabDrivers.style.display = 'none';
+
+                  tabContent.appendChild(tabTrend);
+                  tabContent.appendChild(tabQuad);
+                  tabContent.appendChild(tabDrivers);
+
+                  vizPanel.appendChild(tabsHeader);
+                  vizPanel.appendChild(tabContent);
+
+                  // Setup Tab Buttons triggers
+                  const setTabActive = (activeBtn, showTab) => {
+                    [btnTrend, btnQuad, btnDrivers].forEach(b => {
+                      b.style.background = 'transparent';
+                      b.style.color = 'var(--color-text-muted)';
+                      b.style.borderColor = 'var(--color-border)';
+                    });
+                    [tabTrend, tabQuad, tabDrivers].forEach(t => t.style.display = 'none');
+                    activeBtn.style.background = 'var(--color-primary)';
+                    activeBtn.style.color = 'white';
+                    activeBtn.style.borderColor = 'transparent';
+                    showTab.style.display = 'block';
+                  };
+                  btnTrend.onclick = () => setTabActive(btnTrend, tabTrend);
+                  btnQuad.onclick = () => setTabActive(btnQuad, tabQuad);
+                  btnDrivers.onclick = () => setTabActive(btnDrivers, tabDrivers);
+
+                  // --- Draw Trend Chart SVG ---
+                  const maxVal = Math.max(...trendPoints.map(p => Math.max(p.pv, p.ev, p.ac)), 1);
+                  const pvPoints = trendPoints.map((p, idx) => `${25 + idx * 32},${105 - (p.pv / maxVal) * 80}`);
+                  const evPoints = trendPoints.map((p, idx) => `${25 + idx * 32},${105 - (p.ev / maxVal) * 80}`);
+                  const acPoints = trendPoints.map((p, idx) => `${25 + idx * 32},${105 - (p.ac / maxVal) * 80}`);
+
+                  tabTrend.innerHTML = `
+                    <div style="font-size:12px; font-weight:700; color:var(--color-text); margin-bottom:8px">Cumulative EVM Performance (8-Week Trend)</div>
+                    <svg viewBox="0 0 280 130" style="width:100%; height:130px; overflow:visible;">
+                      <line x1="25" y1="25" x2="255" y2="25" stroke="var(--color-border-faint)" stroke-dasharray="2,2"/>
+                      <line x1="25" y1="65" x2="255" y2="65" stroke="var(--color-border-faint)" stroke-dasharray="2,2"/>
+                      <line x1="25" y1="105" x2="255" y2="105" stroke="var(--color-border)" stroke-width="1"/>
+                      <text x="5" y="28" font-size="8" fill="var(--color-text-faint)">${maxVal.toFixed(0)}d</text>
+                      <text x="5" y="68" font-size="8" fill="var(--color-text-faint)">${(maxVal/2).toFixed(0)}d</text>
+                      <text x="5" y="108" font-size="8" fill="var(--color-text-faint)">0d</text>
+                      <path d="M ${pvPoints.join(' L ')}" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
+                      <path d="M ${evPoints.join(' L ')}" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"/>
+                      <path d="M ${acPoints.join(' L ')}" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"/>
+                      <circle cx="${25 + 7 * 32}" cy="${105 - (trendPoints[7].pv / maxVal) * 80}" r="3.5" fill="#3b82f6"/>
+                      <circle cx="${25 + 7 * 32}" cy="${105 - (trendPoints[7].ev / maxVal) * 80}" r="4" fill="var(--green)"/>
+                      <circle cx="${25 + 7 * 32}" cy="${105 - (trendPoints[7].ac / maxVal) * 80}" r="3.5" fill="var(--amber)"/>
+                    </svg>
+                    <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:9px; color:var(--color-text-faint); padding: 0 4px">
+                      <span>Wk ${trendPoints[0].date.toLocaleDateString([], {month:'short', day:'numeric'})}</span>
+                      <span>Wk ${trendPoints[3].date.toLocaleDateString([], {month:'short', day:'numeric'})}</span>
+                      <span>Today</span>
+                    </div>
+                    <div style="display:flex; gap:12px; margin-top:8px; font-size:10px; justify-content:center">
+                      <span style="display:flex; align-items:center; gap:4px"><span style="display:inline-block; width:10px; height:3px; background:#3b82f6; border-radius:1.5px"></span>PV</span>
+                      <span style="display:flex; align-items:center; gap:4px"><span style="display:inline-block; width:10px; height:3px; background:var(--green); border-radius:1.5px"></span>EV</span>
+                      <span style="display:flex; align-items:center; gap:4px"><span style="display:inline-block; width:10px; height:3px; background:var(--amber); border-radius:1.5px"></span>AC</span>
+                    </div>
+                  `;
+
+                  // --- Draw Status Quadrant Graph ---
+                  const cSpi = Math.min(1.5, Math.max(0.5, spi));
+                  const cCpi = Math.min(1.5, Math.max(0.5, cpi));
+                  const plotX = 15 + (cSpi - 0.5) * 110;
+                  const plotY = 125 - (cCpi - 0.5) * 110;
+                  
+                  let quadrantLabel = '';
+                  let quadrantColor = '';
+                  if (spi >= 1.0 && cpi >= 1.0) {
+                    quadrantLabel = 'Ahead of Schedule & Under Budget';
+                    quadrantColor = 'var(--green)';
+                  } else if (spi < 1.0 && cpi >= 1.0) {
+                    quadrantLabel = 'Behind Schedule & Under Budget';
+                    quadrantColor = '#3b82f6';
+                  } else if (spi >= 1.0 && cpi < 1.0) {
+                    quadrantLabel = 'Ahead of Schedule & Over Budget';
+                    quadrantColor = 'var(--amber)';
+                  } else {
+                    quadrantLabel = 'Behind Schedule & Over Budget';
+                    quadrantColor = 'var(--red)';
+                  }
+
+                  tabQuad.innerHTML = `
+                    <div style="font-size:12px; font-weight:700; color:var(--color-text); margin-bottom:8px">EVM Efficiency Positioning</div>
+                    <div style="display:flex; gap:16px; align-items:center">
+                      <svg viewBox="0 0 140 140" style="width:125px; height:125px; background:var(--color-surface-2); border-radius:8px; border:1px solid var(--color-border); overflow:visible">
+                        <rect x="70" y="0" width="70" height="70" fill="var(--green)" opacity="0.04" />
+                        <rect x="0" y="0" width="70" height="70" fill="#3b82f6" opacity="0.04" />
+                        <rect x="70" y="70" width="70" height="70" fill="var(--amber)" opacity="0.04" />
+                        <rect x="0" y="70" width="70" height="70" fill="var(--red)" opacity="0.04" />
+                        <line x1="70" y1="0" x2="70" y2="140" stroke="var(--color-border)" stroke-width="1"/>
+                        <line x1="0" y1="70" x2="140" y2="70" stroke="var(--color-border)" stroke-width="1"/>
+                        <text x="142" y="73" font-size="7" fill="var(--color-text-faint)" font-weight="700">SPI</text>
+                        <text x="73" y="-5" font-size="7" fill="var(--color-text-faint)" font-weight="700" text-anchor="middle">CPI</text>
+                        <text x="135" y="78" font-size="6" fill="var(--color-text-faint)" text-anchor="middle">1.5</text>
+                        <text x="5" y="78" font-size="6" fill="var(--color-text-faint)" text-anchor="middle">0.5</text>
+                        <text x="64" y="8" font-size="6" fill="var(--color-text-faint)" text-anchor="end">1.5</text>
+                        <text x="64" y="136" font-size="6" fill="var(--color-text-faint)" text-anchor="end">0.5</text>
+                        <circle cx="${plotX}" cy="${plotY}" r="6" fill="${quadrantColor}" stroke="white" stroke-width="1.5" style="filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.15))"/>
+                        <circle cx="${plotX}" cy="${plotY}" r="12" fill="${quadrantColor}" opacity="0.2">
+                          <animate attributeName="r" values="6;14;6" dur="3s" repeatCount="indefinite"/>
+                        </circle>
+                      </svg>
+                      <div style="flex:1">
+                        <div style="font-size:9px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700">Health Position</div>
+                        <div style="font-size:12px; font-weight:800; color:${quadrantColor}; margin-top:2px; line-height:1.2">${quadrantLabel}</div>
+                        <div style="font-size:10px; color:var(--color-text-muted); margin-top:6px; line-height:1.3">
+                          Project SPI is <b>${spi.toFixed(2)}</b> (schedule efficiency) and CPI is <b>${cpi.toFixed(2)}</b> (cost efficiency).
+                        </div>
+                      </div>
+                    </div>
+                  `;
+
+                  // --- Draw Key Drivers List ---
+                  let driversHtml = '<div style="font-size:12px; font-weight:700; color:var(--color-text); margin-bottom:8px">Performance Variance Drivers</div>';
+                  if (topCost.length === 0 && topSched.length === 0) {
+                    driversHtml += `
+                      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:80px; color:var(--color-text-faint)">
+                        <div style="font-size:20px">🎉</div>
+                        <div style="font-size:10px; margin-top:4px">No negative variances detected! All tasks on track.</div>
+                      </div>
+                    `;
+                  } else {
+                    if (topCost.length > 0) {
+                      driversHtml += `
+                        <div style="margin-bottom:8px">
+                          <div style="font-size:9px; font-weight:700; color:var(--red); text-transform:uppercase; margin-bottom:4px">Cost Overrun Drivers</div>
+                          <div style="display:flex; flex-direction:column; gap:4px">
+                      `;
+                      topCost.forEach(d => {
+                        driversHtml += `
+                          <div style="display:flex; justify-content:space-between; align-items:center; background:var(--color-surface-2); padding:6px 10px; border-radius:6px; font-size:10px; border:1px solid var(--color-border-faint)">
+                            <span style="font-weight:700; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px">${d.task.name || ('Task #' + d.task.id)}</span>
+                            <span style="color:var(--red); font-weight:bold">${d.variance.toFixed(1)}d CV</span>
+                          </div>
+                        `;
+                      });
+                      driversHtml += `</div></div>`;
+                    }
+                    if (topSched.length > 0) {
+                      driversHtml += `
+                        <div>
+                          <div style="font-size:9px; font-weight:700; color:var(--amber); text-transform:uppercase; margin-bottom:4px">Schedule Delay Drivers</div>
+                          <div style="display:flex; flex-direction:column; gap:4px">
+                      `;
+                      topSched.forEach(d => {
+                        driversHtml += `
+                          <div style="display:flex; justify-content:space-between; align-items:center; background:var(--color-surface-2); padding:6px 10px; border-radius:6px; font-size:10px; border:1px solid var(--color-border-faint)">
+                            <span style="font-weight:700; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px">${d.task.name || ('Task #' + d.task.id)}</span>
+                            <span style="color:var(--amber); font-weight:bold">${d.variance.toFixed(1)}d SV</span>
+                          </div>
+                        `;
+                      });
+                      driversHtml += `</div></div>`;
+                    }
+                  }
+                  tabDrivers.innerHTML = driversHtml;
+
+                  // Append sub-panels to the main EVM content wrapper
+                  evmContent.appendChild(metricsGrid);
+                  evmContent.appendChild(vizPanel);
+
+                  evmCard.querySelector('.cb').appendChild(evmContent);
                 } else if (sec.id === 'kpi_summary') {
                   addST(inner, 'Executive Metrics');
                   const kGrid = document.createElement('div'); kGrid.className = 'kpi-grid';
