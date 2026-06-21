@@ -26920,6 +26920,21 @@ load() {
           const spiAngle = Math.min(1, Math.max(0, spi / 1.5)) * 180;
           const cpiAngle = Math.min(1, Math.max(0, cpi / 1.5)) * 180;
 
+          // Generate speedometer inner scale tick marks dynamically
+          let ticksHTML = '';
+          for (let i = 0; i <= 10; i++) {
+            const angle = 180 + i * 18;
+            const rad = angle * Math.PI / 180;
+            const isMajor = i % 5 === 0;
+            const rStart = isMajor ? 62 : 66;
+            const rEnd = 70;
+            const x1 = cX + rStart * Math.cos(rad);
+            const y1 = cY + rStart * Math.sin(rad);
+            const x2 = cX + rEnd * Math.cos(rad);
+            const y2 = cY + rEnd * Math.sin(rad);
+            ticksHTML += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="var(--color-border)" stroke-width="${isMajor ? 1.5 : 0.8}" opacity="${isMajor ? 0.7 : 0.4}" />`;
+          }
+
           const gaugeUid = 'ghg-' + gId.replace(/[^a-z0-9]/g,'');
 
           gCard.querySelector('.cb').innerHTML = `
@@ -26955,8 +26970,11 @@ load() {
               <div style="display:flex; flex-direction:row; align-items:center; justify-content:center; width:100%; gap:20px; flex-wrap:wrap;">
                 
                 <!-- Left Speedometer: PHI -->
-                <div style="flex:1; min-width:200px; max-width:220px; position:relative; display:flex; flex-direction:column; align-items:center;">
-                  <svg viewBox="0 0 220 160" width="100%" style="display:block; overflow:visible;" aria-label="Health score gauge: ${healthScoreVal}%">
+                <div style="flex:1; min-width:200px; max-width:240px; position:relative; display:flex; flex-direction:column; align-items:center; background:var(--color-surface-2); border:1px solid var(--color-border-faint); border-radius:16px; padding:20px 16px; box-shadow:0 4px 12px rgba(0,0,0,0.01); transition:all 0.3s ease; cursor:default;"
+                     onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.04)'; this.style.borderColor='var(--color-border)';"
+                     onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.01)'; this.style.borderColor='var(--color-border-faint)';">
+                  <div style="font-size:10px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; font-family:var(--mono); text-align:center;">Health Score (PHI)</div>
+                  <svg viewBox="0 0 220 140" width="100%" style="display:block; overflow:visible;" aria-label="Health score gauge: ${healthScoreVal}%">
                     <defs>
                       <linearGradient id="${gaugeUid}-grad-phi" x1="0%" y1="0%" x2="100%" y2="0%">
                         <stop offset="0%"   stop-color="#ef4444"/>
@@ -26983,23 +27001,27 @@ load() {
                           style="animation:${gaugeUid}-phi-arc 1.6s cubic-bezier(0.34,1.2,0.64,1) forwards;"
                           ${healthScoreVal >= 80 ? `filter="url(#${gaugeUid}-glow)"` : ''}/>
 
+                    <!-- Scale Ticks -->
+                    ${ticksHTML}
+
                     <text x="${cX}" y="${cY - 30}" font-size="7" font-weight="800" fill="var(--color-text-faint)" text-anchor="middle" letter-spacing="1.2" font-family="var(--mono)">HEALTH INDEX</text>
                     <text x="${cX}" y="${cY - 2}" font-size="28" font-weight="900" fill="${healthLabelColor}" text-anchor="middle" font-family="var(--mono)">${healthScoreVal}</text>
 
-                    <!-- Sweeping needle -->
+                    <!-- Sweeping needle (tapered) -->
                     <g id="${gaugeUid}-needle-phi" style="transform: rotate(0deg); transform-origin: ${cX}px ${cY}px; transition: transform 1.6s cubic-bezier(0.25, 1, 0.5, 1);">
-                      <line x1="${cX}" y1="${cY}" x2="${cX - 72}" y2="${cY}" stroke="var(--color-text)" stroke-width="3" stroke-linecap="round"/>
+                      <path d="M ${cX} ${cY - 3} L ${cX - 72} ${cY} L ${cX} ${cY + 3} Z" fill="var(--color-text)" filter="url(#${gaugeUid}-nshadow)"/>
                     </g>
-                    <circle cx="${cX}" cy="${cY}" r="6" fill="var(--color-primary)" stroke="var(--color-surface)" stroke-width="2" filter="url(#${gaugeUid}-nshadow)"/>
+                    <circle cx="${cX}" cy="${cY}" r="6" fill="${healthLabelColor}" stroke="var(--color-surface)" stroke-width="2" filter="url(#${gaugeUid}-nshadow)"/>
                     <circle cx="${cX}" cy="${cY}" r="2.5" fill="var(--color-surface)"/>
-
-                    <text x="${cX}" y="${cY + 42}" font-size="8.5" font-weight="700" fill="var(--color-text-faint)" text-anchor="middle" font-family="var(--mono)">PHI (Health Score)</text>
                   </svg>
                 </div>
 
                 <!-- Middle Speedometer: SPI -->
-                <div style="flex:1; min-width:200px; max-width:220px; position:relative; display:flex; flex-direction:column; align-items:center;">
-                  <svg viewBox="0 0 220 160" width="100%" style="display:block; overflow:visible;" aria-label="Schedule Performance Index">
+                <div style="flex:1; min-width:200px; max-width:240px; position:relative; display:flex; flex-direction:column; align-items:center; background:var(--color-surface-2); border:1px solid var(--color-border-faint); border-radius:16px; padding:20px 16px; box-shadow:0 4px 12px rgba(0,0,0,0.01); transition:all 0.3s ease; cursor:default;"
+                     onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.04)'; this.style.borderColor='var(--color-border)';"
+                     onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.01)'; this.style.borderColor='var(--color-border-faint)';">
+                  <div style="font-size:10px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; font-family:var(--mono); text-align:center;">Schedule Index (SPI)</div>
+                  <svg viewBox="0 0 220 140" width="100%" style="display:block; overflow:visible;" aria-label="Schedule Performance Index">
                     <defs>
                       <linearGradient id="${gaugeUid}-grad-spi" x1="0%" y1="0%" x2="100%" y2="0%">
                         <stop offset="0%"   stop-color="#ef4444"/>
@@ -27016,20 +27038,28 @@ load() {
                           stroke-dasharray="${dCircum.toFixed(1)}"
                           stroke-dashoffset="${(dCircum - dashSVal).toFixed(1)}"
                           style="animation:${gaugeUid}-spi-arc 1.6s cubic-bezier(0.34,1.2,0.64,1) forwards;"/>
+                    
+                    <!-- Scale Ticks -->
+                    ${ticksHTML}
+
                     <text x="${cX}" y="${cY - 30}" font-size="7" font-weight="800" fill="var(--color-text-faint)" text-anchor="middle" letter-spacing="1.2" font-family="var(--mono)">SCHEDULE INDEX</text>
                     <text x="${cX}" y="${cY - 2}" font-size="28" font-weight="900" fill="${spiColor}" text-anchor="middle" font-family="var(--mono)">${spiVal}</text>
+                    
+                    <!-- Sweeping needle (tapered) -->
                     <g id="${gaugeUid}-needle-spi" style="transform: rotate(0deg); transform-origin: ${cX}px ${cY}px; transition: transform 1.6s cubic-bezier(0.25, 1, 0.5, 1);">
-                      <line x1="${cX}" y1="${cY}" x2="${cX - 72}" y2="${cY}" stroke="var(--color-text)" stroke-width="3" stroke-linecap="round"/>
+                      <path d="M ${cX} ${cY - 3} L ${cX - 72} ${cY} L ${cX} ${cY + 3} Z" fill="var(--color-text)" filter="url(#${gaugeUid}-nshadow)"/>
                     </g>
-                    <circle cx="${cX}" cy="${cY}" r="6" fill="var(--color-primary)" stroke="var(--color-surface)" stroke-width="2" filter="url(#${gaugeUid}-nshadow)"/>
+                    <circle cx="${cX}" cy="${cY}" r="6" fill="${spiColor}" stroke="var(--color-surface)" stroke-width="2" filter="url(#${gaugeUid}-nshadow)"/>
                     <circle cx="${cX}" cy="${cY}" r="2.5" fill="var(--color-surface)"/>
-                    <text x="${cX}" y="${cY + 42}" font-size="8.5" font-weight="700" fill="var(--color-text-faint)" text-anchor="middle" font-family="var(--mono)">SPI (Schedule Index)</text>
                   </svg>
                 </div>
 
                 <!-- Right Speedometer: CPI -->
-                <div style="flex:1; min-width:200px; max-width:220px; position:relative; display:flex; flex-direction:column; align-items:center;">
-                  <svg viewBox="0 0 220 160" width="100%" style="display:block; overflow:visible;" aria-label="Cost Performance Index">
+                <div style="flex:1; min-width:200px; max-width:240px; position:relative; display:flex; flex-direction:column; align-items:center; background:var(--color-surface-2); border:1px solid var(--color-border-faint); border-radius:16px; padding:20px 16px; box-shadow:0 4px 12px rgba(0,0,0,0.01); transition:all 0.3s ease; cursor:default;"
+                     onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.04)'; this.style.borderColor='var(--color-border)';"
+                     onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.01)'; this.style.borderColor='var(--color-border-faint)';">
+                  <div style="font-size:10px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; font-family:var(--mono); text-align:center;">Cost Index (CPI)</div>
+                  <svg viewBox="0 0 220 140" width="100%" style="display:block; overflow:visible;" aria-label="Cost Performance Index">
                     <defs>
                       <linearGradient id="${gaugeUid}-grad-cpi" x1="0%" y1="0%" x2="100%" y2="0%">
                         <stop offset="0%"   stop-color="#ef4444"/>
@@ -27046,14 +27076,19 @@ load() {
                           stroke-dasharray="${dCircum.toFixed(1)}"
                           stroke-dashoffset="${(dCircum - dashCVal).toFixed(1)}"
                           style="animation:${gaugeUid}-cpi-arc 1.6s cubic-bezier(0.34,1.2,0.64,1) forwards;"/>
+                    
+                    <!-- Scale Ticks -->
+                    ${ticksHTML}
+
                     <text x="${cX}" y="${cY - 30}" font-size="7" font-weight="800" fill="var(--color-text-faint)" text-anchor="middle" letter-spacing="1.2" font-family="var(--mono)">COST INDEX</text>
                     <text x="${cX}" y="${cY - 2}" font-size="28" font-weight="900" fill="${cpiColor}" text-anchor="middle" font-family="var(--mono)">${cpiVal}</text>
+                    
+                    <!-- Sweeping needle (tapered) -->
                     <g id="${gaugeUid}-needle-cpi" style="transform: rotate(0deg); transform-origin: ${cX}px ${cY}px; transition: transform 1.6s cubic-bezier(0.25, 1, 0.5, 1);">
-                      <line x1="${cX}" y1="${cY}" x2="${cX - 72}" y2="${cY}" stroke="var(--color-text)" stroke-width="3" stroke-linecap="round"/>
+                      <path d="M ${cX} ${cY - 3} L ${cX - 72} ${cY} L ${cX} ${cY + 3} Z" fill="var(--color-text)" filter="url(#${gaugeUid}-nshadow)"/>
                     </g>
-                    <circle cx="${cX}" cy="${cY}" r="6" fill="var(--color-primary)" stroke="var(--color-surface)" stroke-width="2" filter="url(#${gaugeUid}-nshadow)"/>
+                    <circle cx="${cX}" cy="${cY}" r="6" fill="${cpiColor}" stroke="var(--color-surface)" stroke-width="2" filter="url(#${gaugeUid}-nshadow)"/>
                     <circle cx="${cX}" cy="${cY}" r="2.5" fill="var(--color-surface)"/>
-                    <text x="${cX}" y="${cY + 42}" font-size="8.5" font-weight="700" fill="var(--color-text-faint)" text-anchor="middle" font-family="var(--mono)">CPI (Cost Index)</text>
                   </svg>
                 </div>
 
@@ -27230,7 +27265,6 @@ load() {
             }
             if (window.lucide) lucide.createIcons(gCard);
           }, 150);
-
           // ── CARD 3: Schedule & Status Overview ──
           const oId = 'dash-status-overview';
           const oSpan = (P.widgetSpans && P.widgetSpans[oId]) || 2;
