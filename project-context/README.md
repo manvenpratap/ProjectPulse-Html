@@ -249,6 +249,11 @@ Status transitions must strictly match the following mapping. Comment logging is
   - Upgraded docx designs to professional Segoe UI typography and grid layout guidelines.
 * **📅 [2026-06-16] Knowledge Graph Exclusions**:
   - Excluded `docs/` and `scripts/` from Graphify analysis to focus graph navigation strictly on the code codebase.
+* **📅 [2026-06-21] Project Steering & Health Widget Enhancement (ui-ux-pro-max)**:
+  - Upgraded the Project Steering & Health widget inside `projectpulse.html` to match premium Swiss design guidelines.
+  - Implemented an interactive horizontal timeline, bento-grid KPI cards, and custom gauge needle animations.
+  - Styled overdue and blocked tables with clean layouts, segment tabs, and warning badges.
+  - Added `scripts/check_syntax.py` to validate JavaScript syntax.
 
 ---
 

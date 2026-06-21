@@ -122,7 +122,10 @@ NEW_BLOCK = r"""          // ── CARD 2: Project Health Gauge ──
                 <div style="flex:1; min-width:200px; max-width:240px; position:relative; display:flex; flex-direction:column; align-items:center; background:var(--color-surface-2); border:1px solid var(--color-border-faint); border-radius:16px; padding:20px 16px; box-shadow:0 4px 12px rgba(0,0,0,0.01); transition:all 0.3s ease; cursor:default;"
                      onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.04)'; this.style.borderColor='var(--color-border)';"
                      onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.01)'; this.style.borderColor='var(--color-border-faint)';">
-                  <div style="font-size:10px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; font-family:var(--mono); text-align:center;">Health Score (PHI)</div>
+                  <div style="display:flex; align-items:center; justify-content:center; gap:6px; font-size:10px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; font-family:var(--mono); text-align:center;">
+                    <i data-lucide="${healthScoreVal >= 80 ? 'shield-check' : healthScoreVal >= 60 ? 'shield-alert' : 'shield-x'}" style="width:12px; height:12px; color:${healthLabelColor}; flex-shrink:0;"></i>
+                    Health Score (PHI)
+                  </div>
                   <svg viewBox="0 0 220 140" width="100%" style="display:block; overflow:visible;" aria-label="Health score gauge: ${healthScoreVal}%">
                     <defs>
                       <linearGradient id="${gaugeUid}-grad-phi" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -153,15 +156,14 @@ NEW_BLOCK = r"""          // ── CARD 2: Project Health Gauge ──
                     <!-- Scale Ticks -->
                     ${ticksHTML}
 
-                    <text x="${cX}" y="${cY - 30}" font-size="7" font-weight="800" fill="var(--color-text-faint)" text-anchor="middle" letter-spacing="1.2" font-family="var(--mono)">HEALTH INDEX</text>
-                    <text x="${cX}" y="${cY - 2}" font-size="28" font-weight="900" fill="${healthLabelColor}" text-anchor="middle" font-family="var(--mono)">${healthScoreVal}</text>
-
                     <!-- Sweeping needle (tapered) -->
                     <g id="${gaugeUid}-needle-phi" style="transform: rotate(0deg); transform-origin: ${cX}px ${cY}px; transition: transform 1.6s cubic-bezier(0.25, 1, 0.5, 1);">
                       <path d="M ${cX} ${cY - 3} L ${cX - 72} ${cY} L ${cX} ${cY + 3} Z" fill="var(--color-text)" filter="url(#${gaugeUid}-nshadow)"/>
                     </g>
                     <circle cx="${cX}" cy="${cY}" r="6" fill="${healthLabelColor}" stroke="var(--color-surface)" stroke-width="2" filter="url(#${gaugeUid}-nshadow)"/>
                     <circle cx="${cX}" cy="${cY}" r="2.5" fill="var(--color-surface)"/>
+
+                    <text x="${cX}" y="${cY - 25}" font-size="28" font-weight="900" fill="${healthLabelColor}" text-anchor="middle" font-family="var(--mono)">${healthScoreVal}</text>
                   </svg>
                 </div>
 
@@ -169,7 +171,10 @@ NEW_BLOCK = r"""          // ── CARD 2: Project Health Gauge ──
                 <div style="flex:1; min-width:200px; max-width:240px; position:relative; display:flex; flex-direction:column; align-items:center; background:var(--color-surface-2); border:1px solid var(--color-border-faint); border-radius:16px; padding:20px 16px; box-shadow:0 4px 12px rgba(0,0,0,0.01); transition:all 0.3s ease; cursor:default;"
                      onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.04)'; this.style.borderColor='var(--color-border)';"
                      onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.01)'; this.style.borderColor='var(--color-border-faint)';">
-                  <div style="font-size:10px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; font-family:var(--mono); text-align:center;">Schedule Index (SPI)</div>
+                  <div style="display:flex; align-items:center; justify-content:center; gap:6px; font-size:10px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; font-family:var(--mono); text-align:center;">
+                    <i data-lucide="clock" style="width:12px; height:12px; color:${spiColor}; flex-shrink:0;"></i>
+                    Schedule Index (SPI)
+                  </div>
                   <svg viewBox="0 0 220 140" width="100%" style="display:block; overflow:visible;" aria-label="Schedule Performance Index">
                     <defs>
                       <linearGradient id="${gaugeUid}-grad-spi" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -191,15 +196,14 @@ NEW_BLOCK = r"""          // ── CARD 2: Project Health Gauge ──
                     <!-- Scale Ticks -->
                     ${ticksHTML}
 
-                    <text x="${cX}" y="${cY - 30}" font-size="7" font-weight="800" fill="var(--color-text-faint)" text-anchor="middle" letter-spacing="1.2" font-family="var(--mono)">SCHEDULE INDEX</text>
-                    <text x="${cX}" y="${cY - 2}" font-size="28" font-weight="900" fill="${spiColor}" text-anchor="middle" font-family="var(--mono)">${spiVal}</text>
-                    
                     <!-- Sweeping needle (tapered) -->
                     <g id="${gaugeUid}-needle-spi" style="transform: rotate(0deg); transform-origin: ${cX}px ${cY}px; transition: transform 1.6s cubic-bezier(0.25, 1, 0.5, 1);">
                       <path d="M ${cX} ${cY - 3} L ${cX - 72} ${cY} L ${cX} ${cY + 3} Z" fill="var(--color-text)" filter="url(#${gaugeUid}-nshadow)"/>
                     </g>
                     <circle cx="${cX}" cy="${cY}" r="6" fill="${spiColor}" stroke="var(--color-surface)" stroke-width="2" filter="url(#${gaugeUid}-nshadow)"/>
                     <circle cx="${cX}" cy="${cY}" r="2.5" fill="var(--color-surface)"/>
+
+                    <text x="${cX}" y="${cY - 25}" font-size="28" font-weight="900" fill="${spiColor}" text-anchor="middle" font-family="var(--mono)">${spiVal}</text>
                   </svg>
                 </div>
 
@@ -207,7 +211,10 @@ NEW_BLOCK = r"""          // ── CARD 2: Project Health Gauge ──
                 <div style="flex:1; min-width:200px; max-width:240px; position:relative; display:flex; flex-direction:column; align-items:center; background:var(--color-surface-2); border:1px solid var(--color-border-faint); border-radius:16px; padding:20px 16px; box-shadow:0 4px 12px rgba(0,0,0,0.01); transition:all 0.3s ease; cursor:default;"
                      onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.04)'; this.style.borderColor='var(--color-border)';"
                      onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.01)'; this.style.borderColor='var(--color-border-faint)';">
-                  <div style="font-size:10px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; font-family:var(--mono); text-align:center;">Cost Index (CPI)</div>
+                  <div style="display:flex; align-items:center; justify-content:center; gap:6px; font-size:10px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; font-family:var(--mono); text-align:center;">
+                    <i data-lucide="dollar-sign" style="width:12px; height:12px; color:${cpiColor}; flex-shrink:0;"></i>
+                    Cost Index (CPI)
+                  </div>
                   <svg viewBox="0 0 220 140" width="100%" style="display:block; overflow:visible;" aria-label="Cost Performance Index">
                     <defs>
                       <linearGradient id="${gaugeUid}-grad-cpi" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -229,15 +236,14 @@ NEW_BLOCK = r"""          // ── CARD 2: Project Health Gauge ──
                     <!-- Scale Ticks -->
                     ${ticksHTML}
 
-                    <text x="${cX}" y="${cY - 30}" font-size="7" font-weight="800" fill="var(--color-text-faint)" text-anchor="middle" letter-spacing="1.2" font-family="var(--mono)">COST INDEX</text>
-                    <text x="${cX}" y="${cY - 2}" font-size="28" font-weight="900" fill="${cpiColor}" text-anchor="middle" font-family="var(--mono)">${cpiVal}</text>
-                    
                     <!-- Sweeping needle (tapered) -->
                     <g id="${gaugeUid}-needle-cpi" style="transform: rotate(0deg); transform-origin: ${cX}px ${cY}px; transition: transform 1.6s cubic-bezier(0.25, 1, 0.5, 1);">
                       <path d="M ${cX} ${cY - 3} L ${cX - 72} ${cY} L ${cX} ${cY + 3} Z" fill="var(--color-text)" filter="url(#${gaugeUid}-nshadow)"/>
                     </g>
                     <circle cx="${cX}" cy="${cY}" r="6" fill="${cpiColor}" stroke="var(--color-surface)" stroke-width="2" filter="url(#${gaugeUid}-nshadow)"/>
                     <circle cx="${cX}" cy="${cY}" r="2.5" fill="var(--color-surface)"/>
+
+                    <text x="${cX}" y="${cY - 25}" font-size="28" font-weight="900" fill="${cpiColor}" text-anchor="middle" font-family="var(--mono)">${cpiVal}</text>
                   </svg>
                 </div>
 

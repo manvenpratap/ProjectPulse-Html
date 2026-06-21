@@ -644,20 +644,17 @@ def ch_audit(doc):
     make_bullet(doc,"Change Details: Old value -> New value (e.g., 'Status: In Progress -> Under Review').")
     doc.add_paragraph()
 
-    make_heading(doc,"11.2  Rolling Back to a Prior State",level=2,color=CLR_ACCENT)
+    make_heading(doc,"11.2  Reviewing & Reconstructing State",level=2,color=CLR_ACCENT)
     make_body(doc,
-        "If an incorrect change was made, you can restore your project to any prior state "
-        "captured in the Audit Log:",space_after=4)
-    make_numbered(doc,"Find the log entry immediately BEFORE the unwanted change in the Audit Log.")
-    make_numbered(doc,"Click 'Restore to This Point' on that log entry.")
-    make_numbered(doc,"A confirmation dialog explains what will be restored.")
-    make_numbered(doc,"Click Confirm. The application restores all changes made after that point.")
-    make_numbered(doc,"A 'Rollback' entry is added to the Audit Log recording what was restored.")
+        "If an incorrect change was made or a task was accidentally deleted, the detailed "
+        "diff payload in the Audit Log can be used to manually reconstruct the prior state:",space_after=4)
+    make_numbered(doc,"Locate the log entry in the Audit Log representing the incorrect modification or deletion.")
+    make_numbered(doc,"View the details of the change to identify the 'Old Value' of the updated fields.")
+    make_numbered(doc,"Open the target view (e.g., Delivery Matrix or RAID Register) and edit the fields back to their original values.")
     doc.add_paragraph()
     add_callout(doc,
-        "Rollback is a powerful but permanent operation. After rolling back, all changes made "
-        "AFTER the restore point are lost. Ensure you have captured an Excel export before "
-        "performing a rollback if you may need those records.",style="caution")
+        "For project-wide rollbacks, you can also use captured baseline snapshots (Settings -> Schedule Baselines) "
+        "or restore database backups (Settings -> Data Recovery / Backups) to revert to previous saved states.",style="tip")
     add_page_break(doc)
 
 
@@ -731,7 +728,7 @@ def ch_tips(doc):
     make_bullet(doc,"Ctrl+F: Jump directly to the search bar in the Delivery Matrix or Defect Tracker.")
     make_bullet(doc,"Tab navigation: Use Tab and Shift+Tab to move between cells in the Delivery Matrix.")
     make_bullet(doc,"Bulk status update: Ctrl+Click multiple tasks, then right-click to bulk-change status.")
-    make_bullet(doc,"Export before major changes: Always export to Excel before a rollback or baseline restore.")
+    make_bullet(doc,"Export before major changes: Always export to Excel before a baseline restore or backups restore.")
     doc.add_paragraph()
 
     make_heading(doc,"13.3  Troubleshooting Common Issues",level=2,color=CLR_ACCENT)

@@ -31,7 +31,7 @@ Explore the detailed functional specifications and operating procedures for each
 8. **[Defect Tracker](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/defects.md)**
    - Bug lifecycle, severity metrics, and QA validation workflows.
 9. **[Audit & Activity Log](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/activity.md)**
-   - Historic logging, change tracking, and rollbacks.
+   - Historic logging, change tracking, and state reconstruction.
 10. **[Schedule Baselines & Snapshot History](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/baselines.md)**
     - Capturing baseline snapshots, calculating schedule variance, slippage rationales, and restoring history.
 

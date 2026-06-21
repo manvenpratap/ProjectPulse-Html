@@ -14,9 +14,9 @@ Any CRUD action on tasks, resources, RAID items, or defects triggers an entry in
 
 ---
 
-## 2. Session Rollback Capability
+## 2. Traceability & Historical Audit
 
-From the Activity Log UI:
-- **Reversion**: Managers can select a historical log entry and click "Revert State".
-- **Execution**: ProjectPulse computes the inverse operations from the diff payload and applies them sequentially back to the target index.
-- **State Save**: Following reversion, `save()` is automatically called to persist the restored state in browser storage.
+The Activity Log is designed as a read-only, immutable history ledger. 
+- **Auditing**: Managers can trace who made what change, which fields were updated, and when.
+- **State Reconstruction**: While there is no automated rollback feature directly in the Activity Log view, the detailed diff payload provides a record that allows managers to manually reconstruct prior states or values if necessary (e.g., in case of accidental deletions or overwrites).
+

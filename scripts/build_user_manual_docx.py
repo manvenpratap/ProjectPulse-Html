@@ -1056,7 +1056,7 @@ def ch_activity(doc):
         "ProjectPulse maintains an immutable, comprehensive audit trail of every "
         "state mutation — task CRUD operations, status transitions, defect lifecycle "
         "changes, RAID updates, and resource modifications. The Activity Log provides "
-        "full accountability, change tracking, and session rollback capabilities.", space_after=8)
+        "full accountability and change tracking capabilities.", space_after=8)
 
     add_screenshot(doc, "09_activity_audit_log",
                    "Figure 10.1 — Audit Log: Chronological activity stream with user identifiers and diff payloads")
@@ -1098,14 +1098,18 @@ def ch_activity(doc):
         "This allows teams to accurately record when work was actually done, even "
         "if it was logged retrospectively days later.", space_after=8)
 
-    make_heading(doc, "10.4  Session Rollback", level=2, color=CLR_ACCENT)
+    make_heading(doc, "10.4  State Reconstruction", level=2, color=CLR_ACCENT)
     make_body(doc,
-        "The Activity Log supports full session rollback to any previous state:", space_after=6)
-    make_numbered(doc, "Locate the log entry representing the point you wish to restore.")
-    make_numbered(doc, "Click 'Revert to this State' on the log entry row.")
-    make_numbered(doc, "Confirm the reversion in the confirmation dialog.")
-    make_numbered(doc, "ProjectPulse computes the inverse operations from the diff payloads of all subsequent entries and applies them sequentially.")
-    make_numbered(doc, "The restored state is immediately persisted to localStorage via an automatic save() call.")
+        "The Activity Log provides detailed before/after diff payloads for every logged transaction. "
+        "While there is no automated rollback feature directly in the Activity Log view, managers "
+        "can use these payloads to manually reconstruct prior states. The procedure is as follows:", space_after=6)
+    make_numbered(doc, "Identify the target entity and the historical timestamp when the incorrect change occurred.")
+    make_numbered(doc, "Locate the corresponding log entry containing the before/after details.")
+    make_numbered(doc, "Review the 'Old Value' in the diff details to find the original state of the field.")
+    make_numbered(doc, "Manually edit the target entity using the inline editing tables or flyout edit views to restore the previous value.")
+    make_body(doc,
+        "For project-wide rollbacks, managers can use baseline snapshots (Settings -> Schedule Baselines) "
+        "or restore database backups (Settings -> Data Recovery / Backups) to revert to previous saved states.", space_after=6)
     doc.add_paragraph()
 
     add_callout(doc,

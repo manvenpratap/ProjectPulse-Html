@@ -83,7 +83,7 @@ def ch_product_overview(doc):
             ["7",  "Team Capacity Hub",               "Member profiles, capacity parameters, leave management, and utilisation tracking."],
             ["8",  "Defect Tracker",                  "Full bug lifecycle from logging through fix, retest, and closure — linked to tasks."],
             ["9",  "Reports & Board Packs",           "One-click Executive Board Pack and multi-sheet Excel workbook export."],
-            ["10", "Audit Log",                       "Immutable activity stream with full diff payloads and session rollback."],
+            ["10", "Audit Log",                       "Immutable activity stream with before/after diff payloads for traceability."],
             ["11", "Schedule Baselines",              "Snapshot-based baseline management with variance and slippage analysis."],
             ["12", "System Configuration",            "Flexible dropdown management, custom fields, 20 visual themes, and effort unit switching."],
         ],
@@ -142,7 +142,7 @@ def ch_capabilities(doc):
          "Management (EVM) metric suite — Planned Value, Earned Value, Schedule Variance, and Cost Performance "
          "Index — updated in real time. A burn-up chart projects the exact week of project completion based "
          "on rolling 3-week velocity, giving management an evidence-based delivery forecast.",
-         None, None),
+         "01b_insights_analytics", "Figure 2.2 — Live Insights: EVM Performance Metrics, Burn-up Chart, and Weekly Velocity"),
 
         ("2.3", "Hierarchical Delivery Matrix",
          "The Delivery Matrix is the operational backbone of ProjectPulse — a high-density, "
@@ -203,8 +203,8 @@ def ch_capabilities(doc):
         ("2.10", "Immutable Audit Trail",
          "Every state mutation — task creation, status change, RAID update, member modification — "
          "is captured in an immutable, timestamped audit log with full before/after diff payloads. "
-         "Teams can trace any change back to who made it, when, and why. Full session rollback "
-         "to any prior state is available in one click.",
+         "Teams can trace any change back to who made it, when, and why, allowing manual recovery "
+         "if needed.",
          "09_activity_audit_log",
          "Figure 2.10 — Audit Log: chronological activity stream with diff payloads"),
 

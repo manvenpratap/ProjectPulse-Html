@@ -1051,8 +1051,8 @@ def fsd_audit(doc):
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The Audit Log provides a complete, immutable, chronological record of every state "
-        "mutation in the application. It is append-only and forms the basis for both "
-        "accountability reporting and session rollback.",space_after=8)
+        "mutation in the application. It is append-only and forms the basis for "
+        "accountability reporting and change tracking.",space_after=8)
     add_screenshot(doc,"09_activity_audit_log",
         "Figure 15.1 — Audit Log: chronological activity stream with diff payloads")
 
@@ -1065,21 +1065,15 @@ def fsd_audit(doc):
         "The 500-entry auto-pruning policy removes the oldest entries when the log exceeds 500 records. "
         "Export the log to Excel before reaching this limit if a permanent audit record is required.",style="warning")
 
-    make_heading(doc,"15.2  Session Rollback Algorithm",level=2,color=CLR_ACCENT)
+    make_heading(doc,"15.2  State Reconstruction Workflow",level=2,color=CLR_ACCENT)
     make_body(doc,
-        "The rollback system computes the inverse of all log entries between the current "
-        "state and the target restore point, then applies them in reverse chronological order.",space_after=6)
-    make_numbered(doc,"User selects a target log entry (the desired restore point).")
-    make_numbered(doc,"System collects all log entries with ts > target.ts in reverse chronological order.")
-    make_numbered(doc,"For each collected log entry, the inverse operation is computed:")
-    make_bullet(doc,"Created -> Deleted (remove entity from array).",level=1)
-    make_bullet(doc,"Updated -> Updated (swap oldVal/newVal, restore previous value).",level=1)
-    make_bullet(doc,"Status Changed -> Status Changed (restore previous status).",level=1)
-    make_bullet(doc,"Deleted -> Created (restore entity from snapshot in log entry).",level=1)
-    make_numbered(doc,"Inverse operations are applied sequentially to P.tasks/P.raids/P.defects/P.members.")
-    make_numbered(doc,"render() is called after all inverses are applied.")
-    make_numbered(doc,"A new 'Rollback' entry is appended to P.log describing what was restored.")
-    make_numbered(doc,"save() is called to persist the restored state.")
+        "The Audit Log provides detailed before/after diff payloads for every logged transaction. "
+        "While there is no automated rollback feature directly in the Activity Log view, managers "
+        "can use these payloads to manually reconstruct prior states. The procedure is as follows:",space_after=6)
+    make_numbered(doc,"Identify the target entity and the historical timestamp when the incorrect change occurred.")
+    make_numbered(doc,"Locate the corresponding log entry containing the before/after details.")
+    make_numbered(doc,"Review the 'Old Value' in the diff details to find the original state of the field.")
+    make_numbered(doc,"Manually edit the target entity using the inline editing tables or flyout edit views to restore the previous value.")
     add_page_break(doc)
 
 
