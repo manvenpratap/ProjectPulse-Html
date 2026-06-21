@@ -7011,40 +7011,96 @@
       flex-shrink: 0;
     }
 
+    /* ── Premium Donut Legend ──────────────────────────────── */
     .cleg {
       display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: center;
-      margin-top: 12px;
-      padding: 0 12px 12px;
+      flex-direction: column;
+      gap: 3px;
+      margin-top: 8px;
+      padding: 0 10px 10px;
     }
 
     .cli {
       display: flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 10px;
-      border-radius: 20px;
-      background: var(--color-surface-2);
-      border: 1px solid var(--color-divider);
+      padding: 3px 6px;
+      border-radius: 6px;
+      background: transparent;
+      border: 1px solid transparent;
       font-size: 11px;
       font-weight: 600;
       color: var(--color-text);
-      transition: background-color var(--tr-smooth);
-      margin-bottom: 4px;
+      transition: background 160ms ease, border-color 160ms ease, transform 120ms ease;
       cursor: pointer;
+      position: relative;
     }
 
     .cli:hover {
-      background: var(--color-surface-3);
+      background: var(--color-surface-2);
+      border-color: var(--color-divider);
+      transform: translateX(2px);
     }
 
+    /* colour swatch — thick pill on left edge */
     .cdot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
       flex-shrink: 0;
+    }
+
+    /* label inside .cli */
+    .cli-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--color-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1;
+    }
+
+    /* inline mini-bar track */
+    .cli-bar-wrap {
+      position: relative;
+      height: 3px;
+      background: var(--color-surface-3);
+      border-radius: 99px;
+      overflow: hidden;
+      width: 35px;
+      flex-shrink: 0;
+      margin: 0 4px;
+    }
+    .cli-bar-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      border-radius: 99px;
+      transition: width 600ms cubic-bezier(0.34,1.2,0.64,1);
+    }
+
+    /* count + pct badges on the right */
+    .cli-count {
+      font-size: 10px;
+      font-weight: 800;
+      font-family: var(--mono);
+      color: var(--color-text);
+      background: var(--color-surface-2);
+      border: 1px solid var(--color-divider);
+      border-radius: 6px;
+      padding: 1px 6px;
+      min-width: 22px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .cli-pct {
+      font-size: 10px;
+      font-weight: 700;
+      font-family: var(--mono);
+      color: var(--color-text-muted);
+      min-width: 30px;
+      text-align: right;
+      white-space: nowrap;
     }
 
     .overdue-list {
@@ -22514,37 +22570,128 @@ load() {
       const { ctx, W, H } = gCtx(cvs, lightMode);
       const totalDisp = totalVal !== null ? totalVal : entries.reduce((s, [, v]) => s + v, 0);
       const totalForCalc = entries.reduce((s, [, v]) => s + v, 0); if (!totalForCalc) return;
-      const cx = W / 2, cy = H / 2 - 4, R = Math.min(cx, cy) * .78, IR = R * .54;
-      let a = -Math.PI / 2;
-      const themeBg = lightMode ? '#ffffff' : (getComputedStyle(document.body).getPropertyValue('--color-surface').trim() || '#ffffff');
-      const themeText = lightMode ? '#1e1b4b' : (getComputedStyle(document.body).getPropertyValue('--color-text').trim() || '#1a1a1a');
-      const themeMuted = lightMode ? '#64748b' : (getComputedStyle(document.body).getPropertyValue('--color-text-muted').trim() || '#666666');
 
+      const dpr    = window.devicePixelRatio || 1;
+      const cx     = W / 2;
+      const cy     = H / 2 - 2;
+      const R      = Math.min(cx, cy) * 0.82;
+      const IR     = R * 0.60;           // wider ring = R - IR is ~40% of R
+      const GAP    = 0.018;              // radian gap between slices
+      const SW     = R - IR;             // stroke/ring width
+
+      const themeBg    = lightMode ? '#ffffff' : (getComputedStyle(document.body).getPropertyValue('--color-surface').trim() || '#1a1a2e');
+      const themeText  = lightMode ? '#1e1b4b' : (getComputedStyle(document.body).getPropertyValue('--color-text').trim() || '#f1f5f9');
+      const themeMuted = lightMode ? '#64748b' : (getComputedStyle(document.body).getPropertyValue('--color-text-muted').trim() || '#94a3b8');
+
+      // ── Find dominant segment for glow ──────────────────────────────────
+      let domIdx = 0;
+      entries.forEach(([, v], i) => { if (v > (entries[domIdx]?.[1] ?? 0)) domIdx = i; });
+
+      // ── Track background ring ────────────────────────────────────────────
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, (R + IR) / 2, 0, Math.PI * 2);
+      ctx.strokeStyle = lightMode ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.04)';
+      ctx.lineWidth = SW + 2;
+      ctx.stroke();
+      ctx.restore();
+
+      // ── Draw arc segments ────────────────────────────────────────────────
+      let a = -Math.PI / 2;
       entries.forEach(([, v], i) => {
-        const sl = (v / totalForCalc) * Math.PI * 2;
-        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, a, a + sl); ctx.closePath();
-        ctx.fillStyle = window.resolveColor(colors[i % colors.length]) || colors[i % colors.length]; ctx.fill();
-        ctx.strokeStyle = themeBg; ctx.lineWidth = 4; ctx.stroke();
+        if (!v) return;
+        const sl       = (v / totalForCalc) * Math.PI * 2;
+        const halfGap  = sl > GAP * 2 ? GAP : sl * 0.08;
+        const aStart   = a + halfGap;
+        const aEnd     = a + sl - halfGap;
+        const midR     = (R + IR) / 2;
+        const resolvedColor = window.resolveColor(colors[i % colors.length]) || colors[i % colors.length];
+
+        if (i === domIdx) {
+          // Glow pass for dominant segment
+          ctx.save();
+          ctx.shadowColor   = resolvedColor;
+          ctx.shadowBlur    = 12;
+          ctx.beginPath();
+          ctx.arc(cx, cy, midR, aStart, aEnd);
+          ctx.strokeStyle = resolvedColor;
+          ctx.lineWidth   = SW;
+          ctx.lineCap     = 'round';
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // Main arc stroke
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, midR, aStart, aEnd);
+        ctx.strokeStyle = resolvedColor;
+        ctx.lineWidth   = SW;
+        ctx.lineCap     = 'round';
+        ctx.stroke();
+        ctx.restore();
+
         a += sl;
       });
 
-      // Inner shadow ring
+      // ── Centre hole (clean fill over arcs) ──────────────────────────────
       ctx.save();
-      ctx.beginPath(); ctx.arc(cx, cy, IR, 0, Math.PI * 2);
-      ctx.shadowColor = 'rgba(0,0,0,0.15)';
-      ctx.shadowBlur = 10;
-      ctx.shadowOffsetX = 0;
+      ctx.beginPath();
+      ctx.arc(cx, cy, IR - 1, 0, Math.PI * 2);
+      ctx.fillStyle = themeBg;
+      ctx.shadowColor = 'rgba(0,0,0,0.22)';
+      ctx.shadowBlur  = 14;
       ctx.shadowOffsetY = 2;
-      ctx.fillStyle = themeBg; ctx.fill();
+      ctx.fill();
       ctx.restore();
 
-      ctx.textAlign = 'center';
+      // ── Centre text ─────────────────────────────────────────────────────
+      ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = `800 ${Math.floor(IR * (totalDisp > 999 ? .35 : .45))}px ` + window.monoFont;
-      ctx.fillStyle = themeText; ctx.fillText(totalDisp, cx, cy - IR * .1);
-      ctx.font = `600 ${Math.floor(IR * .22)}px ` + window.bodyFont;
-      ctx.fillStyle = themeMuted; ctx.fillText((totalLbl || 'total').toUpperCase(), cx, cy + IR * .35);
+      // Large number
+      const numSize = Math.floor(IR * (String(totalDisp).length > 3 ? 0.32 : 0.44));
+      ctx.font      = `900 ${numSize}px ${window.monoFont}`;
+      ctx.fillStyle = themeText;
+      ctx.fillText(totalDisp, cx, cy - IR * 0.10);
+      // Sub-label
+      ctx.font      = `600 ${Math.floor(IR * 0.20)}px ${window.bodyFont}`;
+      ctx.fillStyle = themeMuted;
+      ctx.fillText((totalLbl || 'total').toUpperCase(), cx, cy + IR * 0.36);
     }
+
+    /**
+     * makeDonutLegend(container, entries, colors)
+     * Renders a premium vertical legend into `container` (.cleg element).
+     * Each row: [swatch] [label + bar] [count badge] [pct]
+     */
+    function makeDonutLegend(container, entries, colors) {
+      if (!container || !entries || !entries.length) return;
+      const total = entries.reduce((s, [, v]) => s + v, 0) || 1;
+      const maxV  = Math.max(...entries.map(([, v]) => v), 1);
+      container.innerHTML = '';
+      entries.forEach(([label, val], i) => {
+        const col = colors[i % colors.length];
+        const pct = Math.round((val / total) * 100);
+        const barW = Math.round((val / maxV) * 100);
+        const resolvedCol = window.resolveColor ? (window.resolveColor(col) || col) : col;
+
+        const row = document.createElement('div');
+        row.className = 'cli';
+        row.title = `${label}: ${val} (${pct}%)`;
+        row.innerHTML = `
+          <div class="cdot" style="background:${col};box-shadow:0 0 6px ${resolvedCol}55"></div>
+          <span class="cli-label">${label}</span>
+          <div class="cli-bar-wrap">
+            <div class="cli-bar-fill" style="width:${barW}%;background:${col};opacity:0.75;"></div>
+          </div>
+          <span class="cli-count">${val}</span>
+          <span class="cli-pct">${pct}%</span>
+        `;
+        container.appendChild(row);
+      });
+    }
+    window.makeDonutLegend = makeDonutLegend;
+
     function drawVBar(cvs, entries, colors, maxVal = null, lightMode = false, rolling = null, rollingLabel = '3-Week Rolling Avg') {
       cvs._chartData = { entries, colors, maxVal, lightMode, rolling, rollingLabel };
       if (cvs._hoverIdx === undefined) cvs._hoverIdx = null;
@@ -27202,9 +27349,9 @@ load() {
                 ${ticksHTML}
 
                 <!-- Zone labels: Low / Mid / High -->
-                <text x="${cX - 72}" y="${cY + 16}" font-size="9" font-weight="700" fill="var(--color-text-muted)" font-family="var(--mono)" opacity="1" text-anchor="middle">LOW</text>
-                <text x="${cX}"      y="${cY - 84}" font-size="9" font-weight="700" fill="var(--color-text-muted)" font-family="var(--mono)" opacity="1" text-anchor="middle">MID</text>
-                <text x="${cX + 72}" y="${cY + 16}" font-size="9" font-weight="700" fill="var(--color-text-muted)" font-family="var(--mono)" opacity="1" text-anchor="middle">HIGH</text>
+                <text x="${cX - rDial}" y="${cY + 14}"          font-size="9" font-weight="700" fill="var(--color-text-muted)" font-family="var(--mono)" opacity="1" text-anchor="middle">LOW</text>
+                <text x="${cX}"         y="${cY - rDial - 15}" font-size="9" font-weight="700" fill="var(--color-text-muted)" font-family="var(--mono)" opacity="1" text-anchor="middle">MID</text>
+                <text x="${cX + rDial}" y="${cY + 14}"          font-size="9" font-weight="700" fill="var(--color-text-muted)" font-family="var(--mono)" opacity="1" text-anchor="middle">HIGH</text>
 
                 <!-- Tapered needle -->
                 <g id="${needleId}"
@@ -27603,19 +27750,21 @@ load() {
 
           // Setup unified Segment Control headers
           const oTabsHeader = document.createElement('div');
-          oTabsHeader.style = "display: inline-flex; background: var(--color-surface-3); padding: 4px; border-radius: 20px; border: 1px solid var(--color-border); margin-bottom: 16px; width: fit-content; gap: 4px;";
+          oTabsHeader.style.cssText = "display: inline-flex; background: var(--color-surface-3); padding: 4px; border-radius: 20px; border: 1px solid var(--color-border); margin-bottom: 16px; width: fit-content; gap: 4px;";
+
+          const buttonBaseStyle = "border: none; outline: none; -webkit-appearance: none; appearance: none; padding: 6px 16px; border-radius: 16px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; font-family: var(--font-body);";
 
           const oBtnAll = document.createElement('button');
           oBtnAll.innerText = 'All Registers';
-          oBtnAll.style = "background: var(--color-surface); color: var(--color-primary); border: 1px solid var(--color-border-faint); padding: 6px 16px; border-radius: 16px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; outline: none; box-shadow: 0 2px 6px rgba(0,0,0,0.05);";
+          oBtnAll.style.cssText = buttonBaseStyle;
 
           const oBtnOverdue = document.createElement('button');
           oBtnOverdue.innerText = `Overdue (${overdueCount})`;
-          oBtnOverdue.style = "background: transparent; color: var(--color-text-muted); border: 1px solid transparent; padding: 6px 16px; border-radius: 16px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; outline: none;";
+          oBtnOverdue.style.cssText = buttonBaseStyle;
 
           const oBtnBlocked = document.createElement('button');
           oBtnBlocked.innerText = `Blocked (${blockedCount})`;
-          oBtnBlocked.style = "background: transparent; color: var(--color-text-muted); border: 1px solid transparent; padding: 6px 16px; border-radius: 16px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; outline: none;";
+          oBtnBlocked.style.cssText = buttonBaseStyle;
 
           oTabsHeader.appendChild(oBtnAll);
           oTabsHeader.appendChild(oBtnOverdue);
@@ -27642,16 +27791,10 @@ load() {
 
           const setOTabActive = (activeBtn, showTab) => {
             [oBtnAll, oBtnOverdue, oBtnBlocked].forEach(b => {
-              b.style.background = 'transparent';
-              b.style.color = 'var(--color-text-muted)';
-              b.style.borderColor = 'transparent';
-              b.style.boxShadow = 'none';
+              b.style.cssText = buttonBaseStyle + " background: transparent; color: var(--color-text-muted); border: 1px solid transparent; box-shadow: none;";
             });
             [oTabAll, oTabOverdue, oTabBlocked].forEach(t => t.style.display = 'none');
-            activeBtn.style.background = 'var(--color-surface)';
-            activeBtn.style.color = 'var(--color-primary)';
-            activeBtn.style.borderColor = 'var(--color-border-faint)';
-            activeBtn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.05)';
+            activeBtn.style.cssText = buttonBaseStyle + " background: var(--color-surface); color: var(--color-primary); border: 1px solid var(--color-border-faint); box-shadow: 0 2px 6px rgba(0,0,0,0.05);";
             showTab.style.display = 'block';
             if (window.lucide) lucide.createIcons(showTab);
           };
@@ -27659,34 +27802,37 @@ load() {
           oBtnOverdue.onclick = () => setOTabActive(oBtnOverdue, oTabOverdue);
           oBtnBlocked.onclick = () => setOTabActive(oBtnBlocked, oTabBlocked);
 
+          // Initial call to set active styles
+          setOTabActive(oBtnAll, oTabAll);
+
           oTabAll.innerHTML = `
-            <div style="display: flex; flex-direction: column; gap: 16px; width: 100%;">
+            <div style="display: flex; flex-direction: column; gap: 20px; width: 100%;">
               <!-- Top Row -->
-              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 24px;">
                 <!-- Project and Progress -->
-                <div style="display: flex; align-items: center; gap: 20px; flex: 1; min-width: 250px;">
-                  <span style="font-size: 20px; font-weight: 900; color: var(--color-text); font-family: var(--font-headings);">${esc(P.name || 'ProjectPulse')}</span>
-                  <div style="flex: 1; max-width: 300px; padding-top: 4px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 10px; font-weight: 700; color: var(--color-text-muted); margin-bottom: 4px;">
-                      <span style="background: var(--color-primary-highlight); color: var(--color-primary); padding: 2px 8px; border-radius: 12px; font-weight: 800; font-family: var(--mono);">${esc(phaseName)}</span>
-                      <span>Overall Progress</span>
+                <div style="display: flex; align-items: center; gap: 24px; flex: 1; min-width: 250px;">
+                  <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <span style="font-size: 22px; font-weight: 900; color: var(--color-text); font-family: var(--font-headings); letter-spacing: -0.5px; line-height: 1.1;">${esc(P.name || 'ProjectPulse')}</span>
+                    <span style="background: var(--color-primary-highlight); color: var(--color-primary); padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 800; font-family: var(--mono); width: fit-content; margin-top: 2px;">${esc(phaseName)}</span>
+                  </div>
+                  <div style="flex: 1; max-width: 280px; padding-top: 4px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 10px; font-weight: 700; color: var(--color-text-muted); margin-bottom: 6px;">
+                      <span style="text-transform: uppercase; letter-spacing: 0.5px;">Overall Progress</span>
+                      <span style="font-family: var(--mono); font-weight: 800; color: var(--color-primary);">${avgProgress}% Completed</span>
                     </div>
-                    <div style="position: relative; height: 6px; background: var(--color-surface-3); border-radius: 3px; margin-top: 14px;">
-                      <div style="height: 100%; width: ${avgProgress}%; background: var(--color-primary); border-radius: 3px;"></div>
-                      <div style="position: absolute; top: -20px; left: calc(${avgProgress}% - 30px); background: var(--color-surface); border: 1px solid var(--color-border); padding: 2px 6px; border-radius: 6px; font-size: 9px; font-weight: 800; color: var(--color-text); white-space: nowrap; font-family: var(--mono); box-shadow: 0 2px 6px rgba(0,0,0,0.05);">
-                        ${avgProgress}% Done
-                      </div>
+                    <div style="position: relative; height: 8px; background: var(--color-surface-3); border-radius: 4px; overflow: hidden; border: 1px solid var(--color-border-faint);">
+                      <div style="height: 100%; width: ${avgProgress}%; background: var(--color-primary); border-radius: 4px; transition: width 1s ease-in-out;"></div>
                     </div>
                   </div>
                 </div>
                 
                 <!-- Status and Last Saved -->
-                <div style="display: flex; align-items: center; gap: 16px;">
-                  <div style="text-align: center;">
-                    <div style="font-size: 9px; color: var(--color-text-faint); font-weight: 700; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px;">Steering Status</div>
-                    <span style="background: ${overallStatusBg}; color: #ffffff; padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; font-family: var(--mono);">${overallStatus}</span>
+                <div style="display: flex; align-items: center; gap: 20px;">
+                  <div style="text-align: right; display: flex; flex-direction: column; gap: 4px;">
+                    <div style="font-size: 9px; color: var(--color-text-faint); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Steering Status</div>
+                    <span style="background: ${overallStatusBg}; color: #ffffff; padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; font-family: var(--mono); box-shadow: 0 2px 6px ${overallStatusBg}44;">${overallStatus}</span>
                   </div>
-                  <div style="display: flex; align-items: center; gap: 8px; font-size: 10px; color: var(--color-text-muted); font-weight: 600; background: var(--color-surface-2); padding: 6px 12px; border-radius: 10px; border: 1px solid var(--color-border-faint);">
+                  <div style="display: flex; align-items: center; gap: 8px; font-size: 10px; color: var(--color-text-muted); font-weight: 600; background: var(--color-surface-2); padding: 8px 12px; border-radius: 10px; border: 1px solid var(--color-border-faint); min-height: 40px;">
                     <i data-lucide="clock" style="width: 14px; height: 14px; color: var(--color-text-muted);"></i>
                     <span>Last Refreshed:<br><b style="color: var(--color-text)">${lastSavedFormatted}</b></span>
                   </div>
@@ -28844,16 +28990,15 @@ load() {
                   stCard.querySelector('.cb').appendChild(stCvs);
 
                   const stLeg = document.createElement('div');
-                  stLeg.style = 'display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:16px; padding:0 16px 16px;';
+                  stLeg.className = 'cleg';
                   stCard.appendChild(stLeg);
 
                   const eSt = Object.entries(stCounts);
                   const stColors = ['var(--color-text-faint)', 'var(--blue)', 'var(--green)', 'var(--amber)', 'var(--red)', 'var(--color-primary)'];
-                  eSt.forEach(([l, v], j) => {
-                    const col = stColors[j % stColors.length];
-                    stLeg.innerHTML += `<div style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--color-surface-2);border:1px solid var(--color-divider);font-size:11px;font-weight:600;color:var(--color-text)"><div style="width:8px;height:8px;border-radius:50%;background:${col}"></div>${esc(l)} <span style="color:var(--color-text-muted);margin-left:4px">${v}</span></div>`;
+                  dashDrawQueue.push(() => {
+                    drawDonut(stCvs, eSt, stColors);
+                    makeDonutLegend(stLeg, eSt, stColors);
                   });
-                  dashDrawQueue.push(() => drawDonut(stCvs, eSt, stColors));
 
                   const prCounts = {}; PRIORITIES.forEach(p => { const c = dashCache.byPriority[p]?.length || 0; if (c) prCounts[p] = c; });
                   const prId = 'dash-health-priority';
@@ -28869,16 +29014,15 @@ load() {
                   prCard.querySelector('.cb').appendChild(prCvs);
 
                   const prLeg = document.createElement('div');
-                  prLeg.style = 'display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:16px; padding:0 16px 16px;';
+                  prLeg.className = 'cleg';
                   prCard.appendChild(prLeg);
 
                   const priColors = ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-text-muted)'];
                   const ePr = Object.entries(prCounts);
-                  ePr.forEach(([l, v], j) => {
-                    const col = priColors[j % priColors.length];
-                    prLeg.innerHTML += `<div style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--color-surface-2);border:1px solid var(--color-divider);font-size:11px;font-weight:600;color:var(--color-text)"><div style="width:8px;height:8px;border-radius:50%;background:${col}"></div>${esc(l)} <span style="color:var(--color-text-muted);margin-left:4px">${v}</span></div>`;
+                  dashDrawQueue.push(() => {
+                    drawDonut(prCvs, ePr, priColors);
+                    makeDonutLegend(prLeg, ePr, priColors);
                   });
-                  dashDrawQueue.push(() => drawDonut(prCvs, ePr, priColors));
                 } else if (sec.id === 'module_status_matrix' || sec.id === 'module_matrix') {
                   const modules = P.dropdowns.module || ['General'];
                   const types = P.dropdowns.moduleType || ['Client / Frontend', 'Server / Backend', 'Database / Storage', 'API / Integration', 'UI / UX Design', 'Other'];
@@ -28925,7 +29069,7 @@ load() {
                     const sevData = Object.entries(sevCounts);
                     dashDrawQueue.push(() => {
                       drawDonut(sevCvs, sevData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)']);
-                      sevData.forEach(([l, v], j) => { sevLeg.innerHTML += `<div class="cli"><div class="cdot" style="background:${['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)'][j % 4]}"></div>${esc(l)} <span style="color:var(--color-text-muted);margin-left:4px">${v}</span></div>`; });
+                      makeDonutLegend(sevLeg, sevData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)']);
                     });
 
                     const priId = 'dash-defect-pri';
@@ -28938,7 +29082,7 @@ load() {
                     const priData = Object.entries(priCounts);
                     dashDrawQueue.push(() => {
                       drawDonut(priCvs, priData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)']);
-                      priData.forEach(([l, v], j) => { priLeg.innerHTML += `<div class="cli"><div class="cdot" style="background:${['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)'][j % 4]}"></div>${esc(l)} <span style="color:var(--color-text-muted);margin-left:4px">${v}</span></div>`; });
+                      makeDonutLegend(priLeg, priData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)']);
                     });
 
                     const typeId = 'dash-defect-type';
@@ -29586,9 +29730,7 @@ load() {
                     const cxData = [['Simple (0-2)', cxSimple], ['Moderate (3-5)', cxModerate], ['Complex (6+)', cxComplex]].filter(([, v]) => v > 0);
                     dashDrawQueue.push(() => {
                       drawDonut(cxCvs, cxData, ['var(--green)', 'var(--amber)', 'var(--red)']);
-                      [['Simple (0-2)', 'var(--green)', cxSimple], ['Moderate (3-5)', 'var(--amber)', cxModerate], ['Complex (6+)', 'var(--red)', cxComplex]].forEach(([l, c, v]) => {
-                        cxLeg.innerHTML += `<div class="cli"><div class="cdot" style="background:${c}"></div>${l} <span style="color:var(--color-text-muted);margin-left:4px">${v}</span></div>`;
-                      });
+                      makeDonutLegend(cxLeg, cxData, ['var(--green)', 'var(--amber)', 'var(--red)']);
                     });
 
                     // ── Widget 3: Screen Density Leaderboard ──────────────────────────────
