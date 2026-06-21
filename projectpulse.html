@@ -26864,160 +26864,384 @@ load() {
 
           // ── CARD 2: Project Health Gauge ──
           const gId = 'dash-health-gauge';
-          const gSpan = (P.widgetSpans && P.widgetSpans[gId]) || 1;
-          const gCard = mkCC('Project Health Gauge', 'Composite Rating & Performance Index', gId, '', 'standard', '<b>Project Health Gauge:</b> A color-coded composite gauge dial displaying the calculated health index alongside dynamic SPI/CPI, completion rate, and remaining tasks.', 'View Explanation', 'gauge');
+          const gSpan = (P.widgetSpans && P.widgetSpans[gId]) || 2;
+          const gCard = mkCC('Project Health Gauge', 'Composite Rating & Performance Index', gId, '', 'standard', '<b>Project Health Gauge:</b> A premium multi-ring composite gauge displaying the weighted health index, schedule performance (SPI), completion rate, and live penalty breakdown.', 'View Explanation', 'gauge');
           gCard.style.gridColumn = `span ${gSpan}`;
           grid.appendChild(gCard);
 
-          // Calculations for Health Gauge
+          // ── Calculations for Health Gauge ──
           const healthScoreVal = getHealthScore(tasks);
-          const angle = 180 + (healthScoreVal / 100) * 180;
-          const rad = angle * Math.PI / 180;
-          const nx = 250 + 105 * Math.cos(rad);
-          const ny = 170 + 105 * Math.sin(rad);
+          const healthLabel = healthScoreVal >= 80 ? 'Healthy' : healthScoreVal >= 60 ? 'At Risk' : 'Critical';
+          const healthLabelColor = healthScoreVal >= 80 ? 'var(--green)' : healthScoreVal >= 60 ? 'var(--amber)' : 'var(--red)';
+          const healthBg = healthScoreVal >= 80 ? 'rgba(16,185,129,0.08)' : healthScoreVal >= 60 ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)';
 
           const spiVal = spi.toFixed(2);
-          const spiColor = spi >= 0.95 ? 'var(--green)' : 'var(--red)';
+          const spiColor = spi >= 0.95 ? 'var(--green)' : spi >= 0.80 ? 'var(--amber)' : 'var(--red)';
           const spiIcon = spi >= 0.95 ? 'trending-up' : 'trending-down';
 
           const cpiVal = cpi.toFixed(2);
-          const cpiColor = cpi >= 1.0 ? 'var(--green)' : 'var(--red)';
+          const cpiColor = cpi >= 1.0 ? 'var(--green)' : cpi >= 0.85 ? 'var(--amber)' : 'var(--red)';
           const cpiIcon = cpi >= 1.0 ? 'trending-up' : 'trending-down';
 
           const overdueTasksCount = tasks.filter(t => { const d = daysDiff(t.dueDate); return d !== null && d < 0 && t.status !== 'Completed' && t.status !== 'Cancelled'; }).length;
           const blockedTasksCount = tasks.filter(t => t.status === 'On Hold').length;
+          const remainingTasksCount = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
+
+          // Accurate weighted penalty values matching getHealthScore() formula
+          const gActiveTasks = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled');
+          const gTotalActive = gActiveTasks.length || 1;
+          let overduePenaltyWt = 0, blockedPenaltyWt = 0, onHoldPenaltyWt = 0;
+          gActiveTasks.forEach(t => {
+            const pw = 1 - (parseInt(t.progress, 10) || 0) / 100;
+            if (t.dueDate) { const dd = daysDiff(t.dueDate); if (dd !== null && dd < 0) overduePenaltyWt += pw; }
+            if (t.status === 'On Hold') onHoldPenaltyWt += pw;
+          });
+          // blockedPenalty uses dependency check; approximate with On Hold for widget display
+          blockedPenaltyWt = blockedTasksCount > 0 ? gActiveTasks.filter(t => t.status === 'On Hold').reduce((s, t) => s + (1 - (parseInt(t.progress,10)||0)/100), 0) : 0;
+          const accurateOverduePenalty = Math.round((overduePenaltyWt / gTotalActive) * 50 * 10) / 10;
+          const accurateBlockedPenalty = Math.round((blockedPenaltyWt / gTotalActive) * 30 * 10) / 10;
+          const accurateOnHoldPenalty  = Math.round((onHoldPenaltyWt  / gTotalActive) * 20 * 10) / 10;
+
+          // SVG arc helpers — semicircle (180°) ring-segment math
+          // Centre: cx=200, cy=190. Rings: r=130 (outer), r=105 (middle), r=80 (inner)
+          function describeArc(cx, cy, r, startDeg, endDeg) {
+            const toR = d => d * Math.PI / 180;
+            const sx = cx + r * Math.cos(toR(startDeg));
+            const sy = cy + r * Math.sin(toR(startDeg));
+            const ex = cx + r * Math.cos(toR(endDeg));
+            const ey = cy + r * Math.sin(toR(endDeg));
+            const large = endDeg - startDeg > 180 ? 1 : 0;
+            return `M ${sx} ${sy} A ${r} ${r} 0 ${large} 1 ${ex} ${ey}`;
+          }
+          // Map a 0-100 score onto a 180° arc (180° = full left, 360°/0° = full right)
+          function scoreArc(cx, cy, r, score100) {
+            const deg = 180 + (score100 / 100) * 180;
+            return describeArc(cx, cy, r, 180, Math.min(deg, 359.9));
+          }
+          // Map SPI (0.5–1.2) onto 180° arc
+          function spiArc(cx, cy, r, spiNum) {
+            const pct = Math.min(1, Math.max(0, (spiNum - 0.5) / 0.7));
+            return scoreArc(cx, cy, r, pct * 100);
+          }
+
+          const cx = 200, cy = 185;
+          const rOuter = 130, rMid = 102, rInner = 74;
+          const strokeW = 14;
+
+          // Background track arcs (full 180°)
+          const trackPath = (r) => describeArc(cx, cy, r, 180, 359.9);
+
+          // Colored fill arcs
+          const healthArc   = healthScoreVal > 0 ? scoreArc(cx, cy, rOuter, healthScoreVal) : null;
+          const spiArcPath  = spi > 0.5 ? spiArc(cx, cy, rMid, spi) : null;
+          const progArcPath = avgProgress > 0 ? scoreArc(cx, cy, rInner, avgProgress) : null;
+
+          // Circumference-based dashoffset for CSS-animated stroke
+          const circumOuter = Math.PI * rOuter; // half-circle
+          const circumMid   = Math.PI * rMid;
+          const circumInner = Math.PI * rInner;
+          const dashHealth  = (healthScoreVal / 100) * circumOuter;
+          const dashSpi     = (Math.min(1, Math.max(0, (spi - 0.5) / 0.7))) * circumMid;
+          const dashProg    = (avgProgress / 100) * circumInner;
+
+          // Needle tip coords for health score
+          const needleAngleDeg = 180 + (healthScoreVal / 100) * 180;
+          const needleRad = needleAngleDeg * Math.PI / 180;
+          const needleTipX = cx + (rOuter - strokeW) * Math.cos(needleRad);
+          const needleTipY = cy + (rOuter - strokeW) * Math.sin(needleRad);
+
+          // Unique animation ID to avoid collision with other gauges
+          const gaugeUid = 'ghg-' + gId.replace(/[^a-z0-9]/g,'');
 
           gCard.querySelector('.cb').innerHTML = `
-            <div style="display: flex; flex-direction: column; align-items: center; width: 100%;">
-              <style>
-                @keyframes gauge-sweep-dash-health-gauge {
-                  from { transform: rotate(0deg); }
-                  to { transform: rotate(${(healthScoreVal / 100) * 180}deg); }
-                }
-              </style>
-              <!-- Gauge Visualization -->
-              <svg width="100%" height="150" viewBox="0 0 500 210" style="max-width: 240px; overflow:visible;">
-                <defs>
-                  <linearGradient id="gauge-red-dash" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#ef4444" />
-                    <stop offset="100%" stop-color="#f87171" />
-                  </linearGradient>
-                  <linearGradient id="gauge-orange-dash" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#f59e0b" />
-                    <stop offset="100%" stop-color="#fbbf24" />
-                  </linearGradient>
-                  <linearGradient id="gauge-green-dash" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#10b981" />
-                    <stop offset="100%" stop-color="#34d399" />
-                  </linearGradient>
-                  <filter id="needle-shadow-dash" x="-20%" y="-20%" width="140%" height="140%">
-                    <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.2" />
-                  </filter>
-                </defs>
-                <!-- Gauge Background Track -->
-                <path d="M 130 170 A 120 120 0 0 1 370 170" stroke="var(--color-surface-3)" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.6" />
-                
-                <!-- Gauge Colored Arcs -->
-                <path d="M 130 170 A 120 120 0 0 1 204.1 59.1" stroke="url(#gauge-red-dash)" stroke-width="8" stroke-linecap="round" fill="none" />
-                <path d="M 204.1 59.1 A 120 120 0 0 1 334.8 85.1" stroke="url(#gauge-orange-dash)" stroke-width="8" fill="none" />
-                <path d="M 334.8 85.1 A 120 120 0 0 1 370 170" stroke="url(#gauge-green-dash)" stroke-width="8" stroke-linecap="round" fill="none" />
+            <style>
+              @keyframes ${gaugeUid}-outer {
+                from { stroke-dashoffset: ${circumOuter.toFixed(1)}; }
+                to   { stroke-dashoffset: ${(circumOuter - dashHealth).toFixed(1)}; }
+              }
+              @keyframes ${gaugeUid}-mid {
+                from { stroke-dashoffset: ${circumMid.toFixed(1)}; }
+                to   { stroke-dashoffset: ${(circumMid - dashSpi).toFixed(1)}; }
+              }
+              @keyframes ${gaugeUid}-inner {
+                from { stroke-dashoffset: ${circumInner.toFixed(1)}; }
+                to   { stroke-dashoffset: ${(circumInner - dashProg).toFixed(1)}; }
+              }
+              @keyframes ${gaugeUid}-pulse {
+                0%, 100% { opacity: 1; } 50% { opacity: 0.3; }
+              }
+              @keyframes ${gaugeUid}-fadeIn {
+                from { opacity: 0; transform: translateY(6px); }
+                to   { opacity: 1; transform: translateY(0); }
+              }
+            </style>
 
-                <!-- Ticks Labels positioned cleanly outside -->
-                <text x="105" y="180" font-size="10px" font-weight="800" fill="var(--color-text-muted)" text-anchor="middle" font-family="var(--mono)">0</text>
-                <text x="148" y="72" font-size="10px" font-weight="800" fill="var(--color-text-muted)" text-anchor="middle" font-family="var(--mono)">25</text>
-                <text x="250" y="32" font-size="10px" font-weight="800" fill="var(--color-text-muted)" text-anchor="middle" font-family="var(--mono)">50</text>
-                <text x="352" y="72" font-size="10px" font-weight="800" fill="var(--color-text-muted)" text-anchor="middle" font-family="var(--mono)">75</text>
-                <text x="395" y="180" font-size="10px" font-weight="800" fill="var(--color-text-muted)" text-anchor="middle" font-family="var(--mono)">100</text>
+            <div style="display:flex; flex-direction:column; align-items:center; width:100%; gap:16px;">
 
-                <!-- Tick marks -->
-                <g stroke="var(--color-border)" stroke-width="1.5" opacity="0.6">
-                  <line x1="130" y1="170" x2="124" y2="170" />
-                  <line x1="250" y1="50" x2="250" y2="44" />
-                  <line x1="370" y1="170" x2="376" y2="170" />
-                  <line x1="165.2" y1="85.2" x2="161.0" y2="81.0" />
-                  <line x1="334.8" y1="85.2" x2="339.0" y2="81.0" />
-                </g>
+              <!-- ── MULTI-RING GAUGE SVG ── -->
+              <div style="position:relative; width:100%; max-width:340px;">
+                <svg viewBox="0 0 400 200" width="100%" style="overflow:visible; display:block;" aria-label="Health score gauge: ${healthScoreVal}%">
+                  <defs>
+                    <!-- Outer ring gradient: health score -->
+                    <linearGradient id="${gaugeUid}-grad-outer" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%"   stop-color="#ef4444"/>
+                      <stop offset="45%"  stop-color="#f59e0b"/>
+                      <stop offset="100%" stop-color="#10b981"/>
+                    </linearGradient>
+                    <!-- Middle ring gradient: SPI -->
+                    <linearGradient id="${gaugeUid}-grad-mid" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%"   stop-color="#ef4444"/>
+                      <stop offset="100%" stop-color="${spiColor === 'var(--green)' ? '#10b981' : spiColor === 'var(--amber)' ? '#f59e0b' : '#ef4444'}"/>
+                    </linearGradient>
+                    <!-- Inner ring: completion -->
+                    <linearGradient id="${gaugeUid}-grad-inner" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%"   stop-color="#3b82f6"/>
+                      <stop offset="100%" stop-color="#10b981"/>
+                    </linearGradient>
+                    <!-- Glow filter for healthy state -->
+                    <filter id="${gaugeUid}-glow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feGaussianBlur stdDeviation="4" result="blur"/>
+                      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                    </filter>
+                    <filter id="${gaugeUid}-needle-shadow">
+                      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.25"/>
+                    </filter>
+                  </defs>
 
-                <!-- Center Text Readout positioned to avoid overlapping needle center -->
-                <text x="250" y="105" font-size="9px" font-weight="800" fill="var(--color-text-faint)" text-anchor="middle" letter-spacing="1.5px" font-family="var(--mono)">HEALTH SCORE</text>
-                <text x="250" y="145" font-size="44px" font-weight="900" fill="var(--color-text)" text-anchor="middle" font-family="var(--mono)">${healthScoreVal}%</text>
+                  <!-- ── Background tracks ── -->
+                  <path d="${trackPath(rOuter)}" fill="none" stroke="var(--color-surface-3)" stroke-width="${strokeW}" stroke-linecap="round" opacity="0.5"/>
+                  <path d="${trackPath(rMid)}"   fill="none" stroke="var(--color-surface-3)" stroke-width="${strokeW}" stroke-linecap="round" opacity="0.5"/>
+                  <path d="${trackPath(rInner)}" fill="none" stroke="var(--color-surface-3)" stroke-width="${strokeW}" stroke-linecap="round" opacity="0.5"/>
 
-                <!-- Tapered Needle Pointer with sweep animation -->
-                <polygon points="250,172 145,170 250,168" fill="var(--color-primary)" filter="url(#needle-shadow-dash)"
-                         style="transform-origin: 250px 170px; transform: rotate(${(healthScoreVal / 100) * 180}deg); animation: gauge-sweep-dash-health-gauge 1.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; transition: all 0.2s;" />
-                <circle cx="250" cy="170" r="10" fill="var(--color-primary)" stroke="var(--color-surface)" stroke-width="2" filter="url(#needle-shadow-dash)" />
-                <circle cx="250" cy="170" r="4" fill="var(--color-surface)" />
-              </svg>
+                  <!-- ── Animated fill arcs ── -->
+                  <!-- Outer: Health Score -->
+                  <path d="${trackPath(rOuter)}" fill="none"
+                        stroke="url(#${gaugeUid}-grad-outer)" stroke-width="${strokeW}" stroke-linecap="round"
+                        stroke-dasharray="${circumOuter.toFixed(1)}"
+                        stroke-dashoffset="${(circumOuter - dashHealth).toFixed(1)}"
+                        style="animation: ${gaugeUid}-outer 1.6s cubic-bezier(0.34,1.2,0.64,1) forwards; transform-origin: ${cx}px ${cy}px;"
+                        ${healthScoreVal >= 80 ? `filter="url(#${gaugeUid}-glow)"` : ''}/>
 
-              <!-- Interactive calculation breakdown trigger -->
-              <button id="health-breakdown-btn" class="btn outline" style="font-size: 10px; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-weight: 700; margin-bottom: 12px; transition: all 0.2s ease; outline: none; border-color: var(--color-border); display: flex; align-items: center; gap: 6px; height: auto; background: var(--color-surface);" onmouseover="this.style.background='var(--color-primary-highlight)'; this.style.borderColor='var(--color-primary)';" onmouseout="this.style.background='var(--color-surface)'; this.style.borderColor='var(--color-border)';"><i data-lucide="calculator" style="width: 12px; height: 12px;"></i> Show Score Breakdown</button>
-              
-              <div id="health-breakdown-panel" style="width:100%; display:none; overflow:hidden; margin-bottom:12px; transition: all 0.3s ease;">
-                <div style="background:var(--color-surface-2); padding:12px; border-radius:10px; border:1px solid var(--color-border-faint); font-size:11px; display: flex; flex-direction: column; gap: 8px;">
-                  <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span style="color: var(--color-text-muted)">Task Completion Base</span>
-                    <span style="color:var(--green); font-weight:bold; font-family: var(--mono);">+${avgProgress}</span>
+                  <!-- Middle: SPI -->
+                  <path d="${trackPath(rMid)}" fill="none"
+                        stroke="url(#${gaugeUid}-grad-mid)" stroke-width="${strokeW}" stroke-linecap="round"
+                        stroke-dasharray="${circumMid.toFixed(1)}"
+                        stroke-dashoffset="${(circumMid - dashSpi).toFixed(1)}"
+                        style="animation: ${gaugeUid}-mid 1.8s cubic-bezier(0.34,1.2,0.64,1) 0.1s both;"/>
+
+                  <!-- Inner: Completion % -->
+                  <path d="${trackPath(rInner)}" fill="none"
+                        stroke="url(#${gaugeUid}-grad-inner)" stroke-width="${strokeW}" stroke-linecap="round"
+                        stroke-dasharray="${circumInner.toFixed(1)}"
+                        stroke-dashoffset="${(circumInner - dashProg).toFixed(1)}"
+                        style="animation: ${gaugeUid}-inner 2s cubic-bezier(0.34,1.2,0.64,1) 0.2s both;"/>
+
+                  <!-- ── Ring labels (outer right edge) ── -->
+                  <text x="${cx + rOuter + 10}" y="${cy + 5}" font-size="8" font-weight="800" fill="var(--color-text-faint)" font-family="var(--mono)" text-anchor="start">PHI</text>
+                  <text x="${cx + rMid + 10}" y="${cy + 5}" font-size="8" font-weight="800" fill="var(--color-text-faint)" font-family="var(--mono)" text-anchor="start">SPI</text>
+                  <text x="${cx + rInner + 10}" y="${cy + 5}" font-size="8" font-weight="800" fill="var(--color-text-faint)" font-family="var(--mono)" text-anchor="start">CPL</text>
+
+                  <!-- ── Tick marks at 0, 25, 50, 75, 100 ── -->
+                  <g stroke="var(--color-border)" stroke-width="1.5" opacity="0.7">
+                    <!-- 0° = left = 180deg -->
+                    <line x1="${(cx - rOuter - strokeW/2 - 4).toFixed(1)}" y1="${cy}" x2="${(cx - rOuter - strokeW/2 - 10).toFixed(1)}" y2="${cy}"/>
+                    <!-- 45° = 225deg -->
+                    <line x1="${(cx + (rOuter+strokeW/2+4)*Math.cos(225*Math.PI/180)).toFixed(1)}" y1="${(cy + (rOuter+strokeW/2+4)*Math.sin(225*Math.PI/180)).toFixed(1)}"
+                          x2="${(cx + (rOuter+strokeW/2+10)*Math.cos(225*Math.PI/180)).toFixed(1)}" y2="${(cy + (rOuter+strokeW/2+10)*Math.sin(225*Math.PI/180)).toFixed(1)}"/>
+                    <!-- 90° = top = 270deg -->
+                    <line x1="${cx}" y1="${(cy - rOuter - strokeW/2 - 4).toFixed(1)}" x2="${cx}" y2="${(cy - rOuter - strokeW/2 - 10).toFixed(1)}"/>
+                    <!-- 135° = 315deg -->
+                    <line x1="${(cx + (rOuter+strokeW/2+4)*Math.cos(315*Math.PI/180)).toFixed(1)}" y1="${(cy + (rOuter+strokeW/2+4)*Math.sin(315*Math.PI/180)).toFixed(1)}"
+                          x2="${(cx + (rOuter+strokeW/2+10)*Math.cos(315*Math.PI/180)).toFixed(1)}" y2="${(cy + (rOuter+strokeW/2+10)*Math.sin(315*Math.PI/180)).toFixed(1)}"/>
+                    <!-- 180° = right = 360deg -->
+                    <line x1="${(cx + rOuter + strokeW/2 + 4).toFixed(1)}" y1="${cy}" x2="${(cx + rOuter + strokeW/2 + 10).toFixed(1)}" y2="${cy}"/>
+                  </g>
+
+                  <!-- ── Tick labels ── -->
+                  <text x="${(cx - rOuter - strokeW/2 - 14).toFixed(1)}" y="${cy + 4}" font-size="8" font-weight="700" fill="var(--color-text-faint)" text-anchor="middle" font-family="var(--mono)">0</text>
+                  <text x="${cx}" y="${(cy - rOuter - strokeW/2 - 13).toFixed(1)}" font-size="8" font-weight="700" fill="var(--color-text-faint)" text-anchor="middle" font-family="var(--mono)">50</text>
+                  <text x="${(cx + rOuter + strokeW/2 + 14).toFixed(1)}" y="${cy + 4}" font-size="8" font-weight="700" fill="var(--color-text-faint)" text-anchor="middle" font-family="var(--mono)">100</text>
+
+                  <!-- ── Centre readout ── -->
+                  <text x="${cx}" y="${cy - 58}" font-size="7.5" font-weight="800" fill="var(--color-text-faint)" text-anchor="middle" letter-spacing="1.8" font-family="var(--mono)">HEALTH INDEX</text>
+                  <text x="${cx}" y="${cy - 14}" font-size="42" font-weight="900" fill="${healthLabelColor}" text-anchor="middle" font-family="var(--mono)">${healthScoreVal}</text>
+                  <text x="${cx + 26}" y="${cy - 17}" font-size="10" font-weight="600" fill="var(--color-text-faint)" text-anchor="middle" font-family="var(--mono)">/100</text>
+
+                  <!-- Status badge -->
+                  <rect x="${cx - 30}" y="${cy + 2}" width="60" height="17" rx="8.5" fill="${healthBg}" stroke="${healthLabelColor}" stroke-width="1" opacity="0.9"/>
+                  <text x="${cx}" y="${cy + 13.5}" font-size="7.5" font-weight="800" fill="${healthLabelColor}" text-anchor="middle" font-family="var(--mono)">${healthLabel.toUpperCase()}</text>
+                  ${healthScoreVal < 60 ? `<circle cx="${cx + 32}" cy="${cy + 44}" r="3" fill="var(--red)" style="animation: ${gaugeUid}-pulse 1.2s ease-in-out infinite;"/>` : ''}
+
+                  <!-- ── Needle ── -->
+                  <line x1="${cx}" y1="${cy}"
+                        x2="${needleTipX.toFixed(2)}" y2="${needleTipY.toFixed(2)}"
+                        stroke="var(--color-text)" stroke-width="2" stroke-linecap="round"
+                        filter="url(#${gaugeUid}-needle-shadow)"
+                        style="transform-origin:${cx}px ${cy}px; transform:rotate(0deg);
+                               animation:${gaugeUid}-outer 1.6s cubic-bezier(0.34,1.2,0.64,1) forwards;"/>
+                  <circle cx="${cx}" cy="${cy}" r="7" fill="var(--color-primary)" stroke="var(--color-surface)" stroke-width="2" filter="url(#${gaugeUid}-needle-shadow)"/>
+                  <circle cx="${cx}" cy="${cy}" r="3" fill="var(--color-surface)"/>
+                </svg>
+              </div>
+
+              <!-- ── STATUS STRIP ── -->
+              <div style="display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; animation: ${gaugeUid}-fadeIn 0.5s 0.3s both;">
+                <div style="display:flex; align-items:center; gap:5px; padding:5px 10px; border-radius:20px; background:${healthBg}; border:1px solid ${healthLabelColor}; font-size:10px; font-weight:800; color:${healthLabelColor};">
+                  <i data-lucide="${healthScoreVal >= 80 ? 'shield-check' : healthScoreVal >= 60 ? 'shield-alert' : 'shield-x'}" style="width:11px; height:11px;"></i>
+                  ${healthLabel}
+                </div>
+                ${overdueTasksCount > 0 ? `
+                <div style="display:flex; align-items:center; gap:5px; padding:5px 10px; border-radius:20px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.3); font-size:10px; font-weight:800; color:var(--red);">
+                  <i data-lucide="clock-alert" style="width:11px; height:11px;"></i>
+                  ${overdueTasksCount} Overdue
+                </div>` : `
+                <div style="display:flex; align-items:center; gap:5px; padding:5px 10px; border-radius:20px; background:rgba(16,185,129,0.06); border:1px solid rgba(16,185,129,0.2); font-size:10px; font-weight:700; color:var(--green);">
+                  <i data-lucide="check-circle" style="width:11px; height:11px;"></i>
+                  No Overdue
+                </div>`}
+                ${blockedTasksCount > 0 ? `
+                <div style="display:flex; align-items:center; gap:5px; padding:5px 10px; border-radius:20px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.3); font-size:10px; font-weight:800; color:var(--amber);">
+                  <i data-lucide="ban" style="width:11px; height:11px;"></i>
+                  ${blockedTasksCount} Blocked
+                </div>` : ''}
+                <div style="display:flex; align-items:center; gap:4px; padding:5px 10px; border-radius:20px; background:var(--color-surface-2); border:1px solid var(--color-border-faint); font-size:10px; font-weight:700; color:var(--color-text-muted);">
+                  <i data-lucide="${spi >= 0.95 ? 'trending-up' : 'trending-down'}" style="width:11px; height:11px; color:${spiColor};"></i>
+                  SPI ${spiVal}
+                </div>
+              </div>
+
+              <!-- ── BREAKDOWN TRIGGER ── -->
+              <button id="health-breakdown-btn" style="font-size:10px; padding:6px 16px; border-radius:20px; cursor:pointer; font-weight:700; border:1px solid var(--color-border); background:var(--color-surface); color:var(--color-text); display:flex; align-items:center; gap:6px; transition:all 0.2s ease;"
+                onmouseover="this.style.background='var(--color-primary-highlight)'; this.style.borderColor='var(--color-primary)';"
+                onmouseout="this.style.background='var(--color-surface)'; this.style.borderColor='var(--color-border)';">
+                <i data-lucide="bar-chart-2" style="width:12px; height:12px;"></i> Score Breakdown
+              </button>
+
+              <!-- ── ACCURATE SCORE BREAKDOWN PANEL ── -->
+              <div id="health-breakdown-panel" style="width:100%; display:none; animation:${gaugeUid}-fadeIn 0.25s ease;">
+                <div style="background:var(--color-surface-2); padding:14px 16px; border-radius:12px; border:1px solid var(--color-border-faint); font-size:11px; display:flex; flex-direction:column; gap:0;">
+                  <!-- Header row -->
+                  <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:8px; border-bottom:1px solid var(--color-border-faint); margin-bottom:6px;">
+                    <span style="font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:var(--color-text-faint); font-family:var(--mono);">Score Component</span>
+                    <span style="font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:var(--color-text-faint); font-family:var(--mono);">Impact</span>
                   </div>
-                  <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span style="color: var(--color-text-muted)">Overdue Penalty (${overdueTasksCount} tasks)</span>
-                    <span style="color:var(--red); font-weight:bold; font-family: var(--mono);">${overdueTasksCount > 0 ? '-' + (overdueTasksCount * 3) : '0'}</span>
+                  <!-- Active task base -->
+                  <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--color-border-faint);">
+                    <div style="display:flex; align-items:center; gap:7px;">
+                      <div style="width:8px; height:8px; border-radius:50%; background:var(--color-primary); flex-shrink:0;"></div>
+                      <span style="color:var(--color-text-muted);">Base Score</span>
+                    </div>
+                    <span style="color:var(--color-primary); font-weight:800; font-family:var(--mono);">+100</span>
                   </div>
-                  <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span style="color: var(--color-text-muted)">Blocked Penalty (${blockedTasksCount} tasks)</span>
-                    <span style="color:var(--red); font-weight:bold; font-family: var(--mono);">${blockedTasksCount > 0 ? '-' + (blockedTasksCount * 5) : '0'}</span>
+                  <!-- Overdue penalty -->
+                  <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--color-border-faint);">
+                    <div style="display:flex; align-items:center; gap:7px;">
+                      <div style="width:8px; height:8px; border-radius:50%; background:var(--red); flex-shrink:0;"></div>
+                      <span style="color:var(--color-text-muted);">Overdue Penalty <span style="color:var(--color-text-faint); font-size:9px;">(${overdueTasksCount} tasks · ×50 weight)</span></span>
+                    </div>
+                    <span style="color:${accurateOverduePenalty > 0 ? 'var(--red)' : 'var(--green)'}; font-weight:800; font-family:var(--mono);">${accurateOverduePenalty > 0 ? '-' + accurateOverduePenalty.toFixed(1) : '0'}</span>
                   </div>
-                  <div style="display:flex; justify-content:space-between; align-items:center; border-top: 1px solid var(--color-border-faint); padding-top: 6px;">
-                    <span style="color: var(--color-text-muted)">CPI Performance Modifier</span>
-                    <span style="${cpi >= 1.0 ? 'color:var(--green)' : 'color:var(--red)'}; font-weight:bold; font-family: var(--mono);">${cpi >= 1.0 ? '+5' : '-10'}</span>
+                  <!-- Blocked/On Hold penalty -->
+                  <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--color-border-faint);">
+                    <div style="display:flex; align-items:center; gap:7px;">
+                      <div style="width:8px; height:8px; border-radius:50%; background:var(--amber); flex-shrink:0;"></div>
+                      <span style="color:var(--color-text-muted);">On Hold Penalty <span style="color:var(--color-text-faint); font-size:9px;">(${blockedTasksCount} tasks · ×30 weight)</span></span>
+                    </div>
+                    <span style="color:${accurateBlockedPenalty > 0 ? 'var(--amber)' : 'var(--green)'}; font-weight:800; font-family:var(--mono);">${accurateBlockedPenalty > 0 ? '-' + accurateBlockedPenalty.toFixed(1) : '0'}</span>
+                  </div>
+                  <!-- On Hold penalty -->
+                  <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--color-border-faint);">
+                    <div style="display:flex; align-items:center; gap:7px;">
+                      <div style="width:8px; height:8px; border-radius:50%; background:var(--color-text-muted); flex-shrink:0;"></div>
+                      <span style="color:var(--color-text-muted);">Stalled Penalty <span style="color:var(--color-text-faint); font-size:9px;">(on-hold tasks · ×20 weight)</span></span>
+                    </div>
+                    <span style="color:${accurateOnHoldPenalty > 0 ? 'var(--color-text-muted)' : 'var(--green)'}; font-weight:800; font-family:var(--mono);">${accurateOnHoldPenalty > 0 ? '-' + accurateOnHoldPenalty.toFixed(1) : '0'}</span>
+                  </div>
+                  <!-- Final score -->
+                  <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0 2px 0;">
+                    <span style="font-weight:800; color:var(--color-text);">Project Health Index</span>
+                    <span style="font-size:16px; font-weight:900; color:${healthLabelColor}; font-family:var(--mono);">${healthScoreVal}<span style="font-size:10px; font-weight:600; color:var(--color-text-muted);">/100</span></span>
                   </div>
                 </div>
               </div>
 
-              <!-- Metrics Cards 2x2 Grid with dynamic hover effect -->
-              <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; width:100%; margin-top:4px;">
+              <!-- ── METRIC CARDS 2×2 ── -->
+              <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:10px; width:100%; animation:${gaugeUid}-fadeIn 0.5s 0.25s both;">
+
                 <!-- SPI -->
-                <div style="background:var(--color-surface-2); border:1px solid var(--color-border-faint); border-left:4px solid ${spiColor}; border-radius:10px; padding:10px 12px; display:flex; align-items:center; gap:10px; transition:all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
-                  <div style="width:28px; height:28px; border-radius:50%; background:${spiColor}15; color:${spiColor}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                    <i data-lucide="${spiIcon}" style="width:14px; height:14px;"></i>
-                  </div>
+                <div style="background:var(--color-surface-2); border:1px solid var(--color-border-faint); border-radius:12px; padding:12px 14px; display:flex; align-items:center; gap:12px; transition:all 0.2s; cursor:default;"
+                  onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)';"
+                  onmouseout="this.style.transform='none'; this.style.boxShadow='none';">
+                  <!-- Mini arc ring -->
+                  <svg width="36" height="36" viewBox="0 0 36 36" style="flex-shrink:0;" aria-hidden="true">
+                    <circle cx="18" cy="18" r="14" fill="none" stroke="var(--color-surface-3)" stroke-width="3.5"/>
+                    <circle cx="18" cy="18" r="14" fill="none" stroke="${spiColor}" stroke-width="3.5"
+                            stroke-dasharray="${(2 * Math.PI * 14).toFixed(1)}"
+                            stroke-dashoffset="${((1 - Math.min(1, Math.max(0, (spi - 0.5)/0.7))) * 2 * Math.PI * 14).toFixed(1)}"
+                            stroke-linecap="round" transform="rotate(-90 18 18)"/>
+                    <i data-lucide="${spiIcon}" style="display:none;"></i>
+                  </svg>
                   <div>
-                    <div style="font-size:9px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px;">SPI</div>
-                    <div style="font-size:14px; font-weight:850; color:${spiColor}; line-height:1.2; font-family: var(--mono);">${spiVal}</div>
+                    <div style="font-size:9px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px;">Schedule (SPI)</div>
+                    <div style="font-size:18px; font-weight:900; color:${spiColor}; line-height:1.2; font-family:var(--mono);">${spiVal}</div>
+                    <div style="font-size:9px; color:var(--color-text-faint); margin-top:1px;">${spi >= 0.95 ? 'On Schedule' : spi >= 0.80 ? 'Slight Delay' : 'Behind Schedule'}</div>
                   </div>
                 </div>
 
                 <!-- CPI -->
-                <div style="background:var(--color-surface-2); border:1px solid var(--color-border-faint); border-left:4px solid ${cpiColor}; border-radius:10px; padding:10px 12px; display:flex; align-items:center; gap:10px; transition:all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
-                  <div style="width:28px; height:28px; border-radius:50%; background:${cpiColor}15; color:${cpiColor}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                    <i data-lucide="${cpiIcon}" style="width:14px; height:14px;"></i>
-                  </div>
+                <div style="background:var(--color-surface-2); border:1px solid var(--color-border-faint); border-radius:12px; padding:12px 14px; display:flex; align-items:center; gap:12px; transition:all 0.2s; cursor:default;"
+                  onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)';"
+                  onmouseout="this.style.transform='none'; this.style.boxShadow='none';">
+                  <svg width="36" height="36" viewBox="0 0 36 36" style="flex-shrink:0;" aria-hidden="true">
+                    <circle cx="18" cy="18" r="14" fill="none" stroke="var(--color-surface-3)" stroke-width="3.5"/>
+                    <circle cx="18" cy="18" r="14" fill="none" stroke="${cpiColor}" stroke-width="3.5"
+                            stroke-dasharray="${(2 * Math.PI * 14).toFixed(1)}"
+                            stroke-dashoffset="${((1 - Math.min(1.3, cpi) / 1.3) * 2 * Math.PI * 14).toFixed(1)}"
+                            stroke-linecap="round" transform="rotate(-90 18 18)"/>
+                  </svg>
                   <div>
-                    <div style="font-size:9px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px;">CPI</div>
-                    <div style="font-size:14px; font-weight:850; color:${cpiColor}; line-height:1.2; font-family: var(--mono);">${cpiVal}</div>
+                    <div style="font-size:9px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px;">Cost (CPI)</div>
+                    <div style="font-size:18px; font-weight:900; color:${cpiColor}; line-height:1.2; font-family:var(--mono);">${cpiVal}</div>
+                    <div style="font-size:9px; color:var(--color-text-faint); margin-top:1px;">${cpi >= 1.0 ? 'Under Budget' : cpi >= 0.85 ? 'Near Budget' : 'Over Budget'}</div>
                   </div>
                 </div>
 
                 <!-- % Complete -->
-                <div style="background:var(--color-surface-2); border:1px solid var(--color-border-faint); border-left:4px solid var(--green); border-radius:10px; padding:10px 12px; display:flex; align-items:center; gap:10px; transition:all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
-                  <div style="width:28px; height:28px; border-radius:50%; background:rgba(16,185,129,0.08); color:var(--green); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                    <i data-lucide="check-circle" style="width:14px; height:14px;"></i>
-                  </div>
+                <div style="background:var(--color-surface-2); border:1px solid var(--color-border-faint); border-radius:12px; padding:12px 14px; display:flex; align-items:center; gap:12px; transition:all 0.2s; cursor:default;"
+                  onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)';"
+                  onmouseout="this.style.transform='none'; this.style.boxShadow='none';">
+                  <svg width="36" height="36" viewBox="0 0 36 36" style="flex-shrink:0;" aria-hidden="true">
+                    <circle cx="18" cy="18" r="14" fill="none" stroke="var(--color-surface-3)" stroke-width="3.5"/>
+                    <circle cx="18" cy="18" r="14" fill="none" stroke="var(--green)" stroke-width="3.5"
+                            stroke-dasharray="${(2 * Math.PI * 14).toFixed(1)}"
+                            stroke-dashoffset="${((1 - avgProgress / 100) * 2 * Math.PI * 14).toFixed(1)}"
+                            stroke-linecap="round" transform="rotate(-90 18 18)"/>
+                  </svg>
                   <div>
-                    <div style="font-size:9px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px;">% Done</div>
-                    <div style="font-size:14px; font-weight:850; color:var(--green); line-height:1.2; font-family: var(--mono);">${avgProgress}%</div>
+                    <div style="font-size:9px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px;">Avg. Progress</div>
+                    <div style="font-size:18px; font-weight:900; color:var(--green); line-height:1.2; font-family:var(--mono);">${avgProgress}%</div>
+                    <div style="font-size:9px; color:var(--color-text-faint); margin-top:1px;">${tasks.filter(t => t.status === 'Completed').length} of ${tasks.length} done</div>
                   </div>
                 </div>
 
-                <!-- Tasks Remaining -->
-                <div style="background:var(--color-surface-2); border:1px solid var(--color-border-faint); border-left:4px solid var(--amber); border-radius:10px; padding:10px 12px; display:flex; align-items:center; gap:10px; transition:all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
-                  <div style="width:28px; height:28px; border-radius:50%; background:rgba(245,158,11,0.08); color:var(--amber); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                    <i data-lucide="clipboard" style="width:14px; height:14px;"></i>
-                  </div>
+                <!-- Remaining Tasks -->
+                <div style="background:var(--color-surface-2); border:1px solid var(--color-border-faint); border-radius:12px; padding:12px 14px; display:flex; align-items:center; gap:12px; transition:all 0.2s; cursor:default;"
+                  onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)';"
+                  onmouseout="this.style.transform='none'; this.style.boxShadow='none';">
+                  <svg width="36" height="36" viewBox="0 0 36 36" style="flex-shrink:0;" aria-hidden="true">
+                    <circle cx="18" cy="18" r="14" fill="none" stroke="var(--color-surface-3)" stroke-width="3.5"/>
+                    <circle cx="18" cy="18" r="14" fill="none" stroke="var(--amber)" stroke-width="3.5"
+                            stroke-dasharray="${(2 * Math.PI * 14).toFixed(1)}"
+                            stroke-dashoffset="${(remainingTasksCount / (tasks.length || 1) * 2 * Math.PI * 14).toFixed(1)}"
+                            stroke-linecap="round" transform="rotate(-90 18 18)"/>
+                  </svg>
                   <div>
-                    <div style="font-size:9px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px;">Rem. Tasks</div>
-                    <div style="font-size:14px; font-weight:850; color:var(--amber); line-height:1.2; font-family: var(--mono);">${tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length}</div>
+                    <div style="font-size:9px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px;">Remaining</div>
+                    <div style="font-size:18px; font-weight:900; color:var(--amber); line-height:1.2; font-family:var(--mono);">${remainingTasksCount}</div>
+                    <div style="font-size:9px; color:var(--color-text-faint); margin-top:1px;">tasks to complete</div>
                   </div>
                 </div>
+
               </div>
             </div>
           `;
@@ -27028,36 +27252,18 @@ load() {
             const panel = gCard.querySelector('#health-breakdown-panel');
             if (btn && panel) {
               btn.onclick = () => {
-                if (panel.style.display === 'none') {
-                  panel.style.display = 'block';
-                  btn.innerHTML = '<i data-lucide="eye-off" style="width:12px; height:12px;"></i> Hide Score Breakdown';
-                  btn.style.background = 'var(--color-primary)';
-                  btn.style.color = 'var(--color-surface)';
-                  btn.style.borderColor = 'var(--color-primary)';
-                  btn.onmouseover = () => {
-                    btn.style.background = 'var(--color-primary-hover)';
-                  };
-                  btn.onmouseout = () => {
-                    btn.style.background = 'var(--color-primary)';
-                  };
-                } else {
-                  panel.style.display = 'none';
-                  btn.innerHTML = '<i data-lucide="calculator" style="width:12px; height:12px;"></i> Show Score Breakdown';
-                  btn.style.background = 'var(--color-surface)';
-                  btn.style.color = 'var(--color-text)';
-                  btn.style.borderColor = 'var(--color-border)';
-                  btn.onmouseover = () => {
-                    btn.style.background = 'var(--color-primary-highlight)';
-                    btn.style.borderColor = 'var(--color-primary)';
-                  };
-                  btn.onmouseout = () => {
-                    btn.style.background = 'var(--color-surface)';
-                    btn.style.borderColor = 'var(--color-border)';
-                  };
-                }
+                const open = panel.style.display !== 'none';
+                panel.style.display = open ? 'none' : 'block';
+                const icon = open ? 'bar-chart-2' : 'eye-off';
+                const label = open ? 'Score Breakdown' : 'Hide Breakdown';
+                btn.innerHTML = `<i data-lucide="${icon}" style="width:12px;height:12px;"></i> ${label}`;
+                btn.style.background = open ? 'var(--color-surface)' : 'var(--color-primary)';
+                btn.style.color = open ? 'var(--color-text)' : 'var(--color-surface)';
+                btn.style.borderColor = open ? 'var(--color-border)' : 'var(--color-primary)';
                 if (window.lucide) lucide.createIcons(btn);
               };
             }
+            if (window.lucide) lucide.createIcons(gCard);
           }, 150);
 
           // ── CARD 3: Schedule & Status Overview ──
