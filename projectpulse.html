@@ -27095,20 +27095,61 @@ load() {
           grid.appendChild(sCard);
 
           // Calculations for Steering Hero
-          const heroActiveRel = (P.releases || []).find(r => r.status === 'Active') || { name: 'v1.0.0', date: '2026-06-30' };
+          const heroActiveRel = (P.releases || []).find(r => r.status === 'Active') || (P.releases && P.releases[0]) || { name: 'v1.0.0', date: '2026-06-30' };
           const heroRelDate = new Date(heroActiveRel.date);
           const heroRelDueDateFormatted = heroRelDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
           const msDiff = heroRelDate - now;
           const daysRemaining = Math.max(0, Math.ceil(msDiff / (1000 * 60 * 60 * 24)));
 
-          const p1_start = new Date(heroRelDate); p1_start.setDate(heroRelDate.getDate() - 30);
-          const p1_end   = new Date(heroRelDate); p1_end.setDate(heroRelDate.getDate()   - 20);
-          const p2_start = new Date(heroRelDate); p2_start.setDate(heroRelDate.getDate() - 20);
-          const p2_end   = new Date(heroRelDate); p2_end.setDate(heroRelDate.getDate()   - 10);
-          const p3_start = new Date(heroRelDate); p3_start.setDate(heroRelDate.getDate() - 10);
-          const p3_end   = new Date(heroRelDate); p3_end.setDate(heroRelDate.getDate()   -  2);
-          const p4_start = new Date(heroRelDate); p4_start.setDate(heroRelDate.getDate() -  2);
-          const p4_end   = heroRelDate;
+          // Dynamically compute start date based on tasks mapped to this release
+          const relTasks = tasks.filter(t => t.releaseVersion && t.releaseVersion.trim().toLowerCase() === heroActiveRel.name.trim().toLowerCase());
+          
+          let relStart = new Date(heroRelDate);
+          relStart.setDate(relStart.getDate() - 30); // default fallback
+          if (relTasks.length > 0) {
+            const taskStarts = relTasks.map(t => t.startDate ? new Date(t.startDate) : null).filter(d => d && !isNaN(d.getTime()));
+            if (taskStarts.length > 0) {
+              relStart = new Date(Math.min(...taskStarts));
+            }
+          }
+
+          // Define progressive phases based on tasks matching phase types
+          const planningTasks = relTasks.filter(t => t.category === 'Design' || t.category === 'Research' || /plan|design|scope|spec/i.test(t.name || ''));
+          const execTasks = relTasks.filter(t => t.category === 'Feature' || t.category === 'Improvement' || t.category === 'Backend' || t.category === 'Frontend' || t.category === 'Server Module' || t.category === 'GUI Module' || t.category === 'GUI Screen');
+          const testingTasks = relTasks.filter(t => t.category === 'Testing' || t.category === 'QA' || t.category === 'Bug' || /test|qa|bug|defect|verify/i.test(t.name || ''));
+          const releaseTasks = relTasks.filter(t => t.category === 'DevOps' || t.category === 'Infrastructure' || t.category === 'Security' || /release|deploy|prod|launch/i.test(t.name || ''));
+
+          function getTaskDateRange(taskList, defaultStart, defaultEnd) {
+            const starts = taskList.map(t => t.startDate ? new Date(t.startDate) : null).filter(d => d && !isNaN(d.getTime()));
+            const ends = taskList.map(t => t.dueDate ? new Date(t.dueDate) : null).filter(d => d && !isNaN(d.getTime()));
+            const start = starts.length > 0 ? new Date(Math.min(...starts)) : defaultStart;
+            const end = ends.length > 0 ? new Date(Math.max(...ends)) : defaultEnd;
+            return { start, end };
+          }
+
+          const totalDuration = heroRelDate - relStart;
+          const f1_start = new Date(relStart);
+          const f1_end = new Date(relStart.getTime() + totalDuration * 0.2);
+          const f2_start = new Date(f1_end);
+          const f2_end = new Date(relStart.getTime() + totalDuration * 0.7);
+          const f3_start = new Date(f2_end);
+          const f3_end = new Date(relStart.getTime() + totalDuration * 0.9);
+          const f4_start = new Date(f3_end);
+          const f4_end = new Date(heroRelDate);
+
+          const phase1 = getTaskDateRange(planningTasks, f1_start, f1_end);
+          const phase2 = getTaskDateRange(execTasks, f2_start, f2_end);
+          const phase3 = getTaskDateRange(testingTasks, f3_start, f3_end);
+          const phase4 = getTaskDateRange(releaseTasks, f4_start, f4_end);
+
+          const p1_start = phase1.start;
+          const p1_end = phase1.end;
+          const p2_start = new Date(Math.max(p1_end.getTime(), phase2.start.getTime()));
+          const p2_end = new Date(Math.max(p2_start.getTime(), phase2.end.getTime()));
+          const p3_start = new Date(Math.max(p2_end.getTime(), phase3.start.getTime()));
+          const p3_end = new Date(Math.max(p3_start.getTime(), phase3.end.getTime()));
+          const p4_start = new Date(Math.max(p3_end.getTime(), phase4.start.getTime()));
+          const p4_end = new Date(Math.max(p4_start.getTime(), phase4.end.getTime()));
 
           const heroPhases = [
             { name: 'Planning',  start: p1_start, end: p1_end, color: 'var(--color-primary)', icon: 'compass'     },
@@ -27152,25 +27193,26 @@ load() {
             const act = t.actEffort || (t.progress > 0 ? (t.progress / 100) * (t.estEffort || 5) * 1.1 : 0);
             ac += act;
           });
-          const spi = pv > 0 ? Math.min(1.2, Math.max(0.5, ev / pv)) : 0.95;
+          const spi = pv > 0 ? Math.min(1.2, Math.max(0.5, ev / pv)) : 1.0;
           const spiStatus = spi >= 0.95 ? 'On Track' : 'Off Track';
-          const cpi = ac > 0 ? Math.min(1.3, Math.max(0.5, ev / ac)) : 1.12;
-          const avgProgress = Math.round(tasks.reduce((s, t) => s + (t.progress || 0), 0) / (tasks.length || 1));
+          const cpi = ac > 0 ? Math.min(1.3, Math.max(0.5, ev / ac)) : 1.0;
+          const avgProgress = tasks.length > 0 ? Math.round(tasks.reduce((s, t) => s + (t.progress || 0), 0) / tasks.length) : 0;
 
-          // Team
-          const totalMembers  = P.members.filter(m => m.status !== 'Departed').length || 15;
-          const activeMembers = P.members.filter(m => m.status === 'Active').length    ||  4;
-          const remoteMembers = totalMembers - activeMembers                            || 11;
+          // Team Capacity actuals
+          const totalMembers  = P.members.filter(m => m.status !== 'Departed').length;
+          const activeMembers = P.members.filter(m => m.status === 'Active').length;
+          const onLeaveMembers = P.members.filter(m => m.status === 'On Leave').length;
+          const otherMembers = totalMembers - activeMembers - onLeaveMembers;
 
-          // Budget
+          // Budget actuals
           let estEffortTotal = 0, actEffortTotal = 0;
           tasks.forEach(t => {
             const effort = t.baselineEffort || t.estEffort || 5;
             estEffortTotal  += effort;
             actEffortTotal  += t.actEffort || (t.progress > 0 ? (t.progress / 100) * effort * 1.1 : 0);
           });
-          const budgetUsedPct    = Math.min(100, Math.round((actEffortTotal / (estEffortTotal || 1)) * 100)) || 85;
-          const budgetStatusText = cpi >= 1.0 ? `Under Budget (${budgetUsedPct}% Used)` : `Over Budget (${budgetUsedPct}% Used)`;
+          const budgetUsedPct    = estEffortTotal > 0 ? Math.min(100, Math.round((actEffortTotal / estEffortTotal) * 100)) : 0;
+          const budgetStatusText = estEffortTotal > 0 ? (cpi >= 1.0 ? `Under Budget (${budgetUsedPct}% Used)` : `Over Budget (${budgetUsedPct}% Used)`) : 'No effort estimated';
           const budgetBarColor   = cpi >= 1.0 ? 'var(--green)' : 'var(--red)';
 
           // Risk
@@ -27322,7 +27364,7 @@ load() {
                   <div>
                     <div class="sh-meta-label">Team Capacity</div>
                     <div class="sh-meta-value">${totalMembers} Resources</div>
-                    <div class="sh-meta-sub">${activeMembers} Active \u00b7 ${remoteMembers} Remote</div>
+                    <div class="sh-meta-sub">${activeMembers} Active \u00b7 ${onLeaveMembers} On Leave \u00b7 ${otherMembers} Other</div>
                   </div>
                 </div>
 
@@ -27371,15 +27413,16 @@ load() {
             const phaseBtns = sCard.querySelectorAll('.sh-phase');
             const phaseDesc = sCard.querySelector('#hero-phase-desc');
 
-            const totalFeatureTasks    = tasks.filter(t => t.category === 'Feature').length || 10;
-            const completedFeatures    = tasks.filter(t => t.category === 'Feature' && t.status === 'Completed').length || 6;
-            const featurePct           = Math.round((completedFeatures / totalFeatureTasks) * 100);
-            const activeExecutionTasks = tasks.filter(t => t.status === 'In Progress' || t.status === 'Under Review').length;
-            const activeEffortSum      = tasks.filter(t => t.status === 'In Progress').reduce((s,t) => s+(t.estEffort||5), 0);
-            const qaTasks              = tasks.filter(t => t.category==='Bug'||t.category==='QA'||t.name.toLowerCase().includes('test')).length;
-            const completedQa          = tasks.filter(t => (t.category==='Bug'||t.category==='QA'||t.name.toLowerCase().includes('test'))&&t.status==='Completed').length;
+            const sourceTasks = relTasks.length > 0 ? relTasks : tasks;
+            const totalFeatureTasks    = sourceTasks.filter(t => t.category === 'Feature').length;
+            const completedFeatures    = sourceTasks.filter(t => t.category === 'Feature' && t.status === 'Completed').length;
+            const featurePct           = totalFeatureTasks > 0 ? Math.round((completedFeatures / totalFeatureTasks) * 100) : 0;
+            const activeExecutionTasks = sourceTasks.filter(t => t.status === 'In Progress' || t.status === 'Under Review').length;
+            const activeEffortSum      = sourceTasks.filter(t => t.status === 'In Progress').reduce((s,t) => s+(t.estEffort||0), 0);
+            const qaTasks              = sourceTasks.filter(t => t.category==='Bug'||t.category==='QA'||t.name.toLowerCase().includes('test')).length;
+            const completedQa          = sourceTasks.filter(t => (t.category==='Bug'||t.category==='QA'||t.name.toLowerCase().includes('test'))&&t.status==='Completed').length;
             const defectsActive        = P.defects ? P.defects.filter(d => d.status!=='Resolved'&&d.status!=='Closed').length : 0;
-            const remainingWorkload    = tasks.filter(t => t.status!=='Completed'&&t.status!=='Cancelled').length;
+            const remainingWorkload    = sourceTasks.filter(t => t.status!=='Completed'&&t.status!=='Cancelled').length;
 
             const phaseDetails = [
               { desc: 'Requirements alignment, architectural scoping, and technical sprint backlog planning.',               target: `${featurePct}% Features Ready`,       stat: `${completedFeatures}/${totalFeatureTasks} Features Scoped` },
