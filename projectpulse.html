@@ -15425,6 +15425,21 @@
         save();
         render();
       },
+      updateEVMWeeks(w) {
+        const stateP = PulseState.P;
+        let val = parseInt(w) || 8;
+        if (val < 4) val = 4;
+        if (val > 52) val = 52;
+        stateP.evmWeeks = val;
+        save();
+        render();
+      },
+      updateEVMSubtasks(s) {
+        const stateP = PulseState.P;
+        stateP.evmSubtasks = !!s;
+        save();
+        render();
+      },
       updateDefectInflowWeeks(w) {
         const stateP = PulseState.P;
         let val = parseInt(w) || 7;
@@ -15434,6 +15449,7 @@
         save();
         render();
       },
+
 
       createBaselineSnapshot(name, desc) {
         const stateP = PulseState.P;
@@ -17159,6 +17175,12 @@
     function updateDefectInflowWeeks(w) {
       return PulseState.updateDefectInflowWeeks(w);
     }
+    function updateEVMWeeks(w) {
+      return PulseState.updateEVMWeeks(w);
+    }
+    function updateEVMSubtasks(s) {
+      return PulseState.updateEVMSubtasks(s);
+    }
     function createBaselineSnapshot(name, desc) {
       const res = PulseState.createBaselineSnapshot(name, desc);
       if (res && P._adminActiveTab === 'baselines' && typeof renderSettingsBaselines === 'function') {
@@ -17275,6 +17297,8 @@
     window.updateVelocityMode = updateVelocityMode;
     window.updateCFDWeeks = updateCFDWeeks;
     window.updateDefectInflowWeeks = updateDefectInflowWeeks;
+    window.updateEVMWeeks = updateEVMWeeks;
+    window.updateEVMSubtasks = updateEVMSubtasks;
     window.showValidationErrors = showValidationErrors;
     window.syncTaskModal = syncTaskModal;
     window.submitComment = submitComment;
@@ -18609,7 +18633,6 @@
           step.actEffort = 0;
         }
         window.recalcGUIScreenLocal();
-        openScreenFlyout(window._editingTaskId, window._editingSubtaskId, 'edit');
       };
 
       window.markAllGUIStepsDoneLocal = markAllGUIStepsDoneLocal;
@@ -18673,21 +18696,21 @@
                 ${isScreen ? `
                 <div class="fg" style="margin:0">
                    <label class="flbl">Window Name</label>
-                   <input class="finp" value="${esc(stEdit.windowName || stEdit.name || '')}" oninput="window._editingSubtask.windowName = this.value" style="background:var(--color-surface)">
+                   <input id="subtask_edit_window_name" class="finp" value="${esc(stEdit.windowName || stEdit.name || '')}" oninput="window._editingSubtask.windowName = this.value" style="background:var(--color-surface)">
                 </div>
                 ` : ''}
                 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
                    <div class="fg" style="margin:0">
                       <label class="flbl">Assignee</label>
-                      <select class="finp" onchange="window._editingSubtask.assignee = this.value" style="background:var(--color-surface)">
+                      <select id="subtask_edit_assignee" class="finp" onchange="window._editingSubtask.assignee = this.value" style="background:var(--color-surface)">
                          <option value="">Unassigned</option>
                          ${getTeamNames().map(a => `<option value="${esc(a)}" ${stEdit.assignee === a ? 'selected' : ''}>${esc(a)}</option>`).join('')}
                       </select>
                    </div>
                    <div class="fg" style="margin:0">
                       <label class="flbl">Priority</label>
-                      <select class="finp" onchange="window._editingSubtask.priority = this.value" style="background:var(--color-surface)">
+                      <select id="subtask_edit_priority" class="finp" onchange="window._editingSubtask.priority = this.value" style="background:var(--color-surface)">
                          ${(P.dropdowns?.priority || ['Critical', 'High', 'Medium', 'Low']).map(p => `<option value="${esc(p)}" ${stEdit.priority === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
                       </select>
                    </div>
@@ -18697,27 +18720,27 @@
                    ${isScreen ? `
                    <div class="fg" style="margin:0">
                       <label class="flbl">Complexity</label>
-                      <select class="finp" onchange="window._editingSubtask.complexity = this.value; window.recalcGUIScreenLocal(); window.openScreenFlyout('${taskId}','${stId}','edit');" style="background:var(--color-surface)">
+                      <select id="subtask_edit_complexity" class="finp" onchange="window._editingSubtask.complexity = this.value; window.recalcGUIScreenLocal(); window.openScreenFlyout('${taskId}','${stId}','edit');" style="background:var(--color-surface)">
                          ${(P.dropdowns?.complexity || ['Easy', 'Medium', 'Complex']).map(c => `<option value="${esc(c)}" ${stEdit.complexity === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
                       </select>
                    </div>
                    <div style="display:flex; align-items:center; justify-content:space-between; background:var(--color-surface); padding:8px 12px; border:1px solid var(--color-border); border-radius:var(--radius-md); margin-top:14px">
                       <label class="flbl" style="margin:0; font-size:11px; font-weight:600; color:var(--color-text-muted)">New Window?</label>
                       <label class="sw">
-                         <input type="checkbox" ${stEdit.isNewWindow ? 'checked' : ''} onchange="window._editingSubtask.isNewWindow = this.checked">
+                         <input id="subtask_edit_new_window" type="checkbox" ${stEdit.isNewWindow ? 'checked' : ''} onchange="window._editingSubtask.isNewWindow = this.checked">
                          <span class="sl"></span>
                       </label>
                    </div>
                    ` : `
                    <div class="fg" style="margin:0">
                       <label class="flbl">Status</label>
-                      <select class="finp" onchange="window._editingSubtask.status = this.value; if(this.value === 'Completed'){ window._editingSubtask.done = true; if(!window._editingSubtask.actCompletionDate) window._editingSubtask.actCompletionDate = new Date().toISOString().split('T')[0]; } else { window._editingSubtask.done = false; }" style="background:var(--color-surface)">
+                      <select id="subtask_edit_status" class="finp" onchange="window._editingSubtask.status = this.value; if(this.value === 'Completed'){ window._editingSubtask.done = true; if(!window._editingSubtask.actCompletionDate) window._editingSubtask.actCompletionDate = new Date().toISOString().split('T')[0]; } else { window._editingSubtask.done = false; }" style="background:var(--color-surface)">
                          ${STATUSES.map(s => `<option value="${s}" ${stEdit.status === s ? 'selected' : ''}>${s}</option>`).join('')}
                       </select>
                    </div>
                    <div class="fg" style="margin:0">
                       <label class="flbl">Effort (Days)</label>
-                      <input type="number" class="finp" value="${stEdit.effort || 1}" oninput="window._editingSubtask.effort = parseFloat(this.value) || 0" style="background:var(--color-surface)">
+                      <input id="subtask_edit_effort" type="number" class="finp" value="${stEdit.effort || 1}" oninput="window._editingSubtask.effort = parseFloat(this.value) || 0" style="background:var(--color-surface)">
                    </div>
                    `}
                 </div>
@@ -18725,18 +18748,18 @@
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
                    <div class="fg" style="margin:0">
                       <label class="flbl">Start Date</label>
-                      <input type="text" class="finp" value="${stEdit.startDate ? fmtDate(stEdit.startDate) : ''}" placeholder="dd-mmm-yyyy" onchange="window._editingSubtask.startDate = parseDateDMY(this.value); window.recalcGUIScreenLocal(); window.openScreenFlyout('${taskId}','${stId}','edit');" style="background:var(--color-surface)">
+                      <input type="date" id="subtask_edit_start_date" class="finp" value="${stEdit.startDate || ''}" max="9999-12-31" oninput="window._editingSubtask.startDate = this.value; window.recalcGUIScreenLocal(); const due = document.getElementById('subtask_edit_due_date'); if (due) due.value = ${isScreen} ? (window._editingSubtask.dueDate ? fmtDate(window._editingSubtask.dueDate) : '') : (window._editingSubtask.dueDate || '');" style="background:var(--color-surface)">
                    </div>
                    <div class="fg" style="margin:0">
                       <label class="flbl">${isScreen ? 'Due Date (Auto)' : 'Due Date'}</label>
-                      <input type="text" class="finp" value="${stEdit.dueDate ? fmtDate(stEdit.dueDate) : ''}" placeholder="dd-mmm-yyyy" ${isScreen ? 'readonly style="opacity:0.65; cursor:not-allowed; background:var(--color-surface-offset)"' : `onchange="window._editingSubtask.dueDate = parseDateDMY(this.value); window.openScreenFlyout('${taskId}','${stId}','edit');" style="background:var(--color-surface)"`}>
+                      <input type="${isScreen ? 'text' : 'date'}" id="subtask_edit_due_date" class="finp" value="${isScreen ? (stEdit.dueDate ? fmtDate(stEdit.dueDate) : '') : (stEdit.dueDate || '')}" max="9999-12-31" ${isScreen ? 'readonly style="opacity:0.65; cursor:not-allowed; background:var(--color-surface-offset)"' : `oninput="window._editingSubtask.dueDate = this.value;" style="background:var(--color-surface)"`}>
                    </div>
                 </div>
 
                 <!-- Notes input field -->
                 <div class="fg" style="margin:0">
                    <label class="flbl">Notes / Comments</label>
-                   <textarea class="finp" style="background:var(--color-surface); min-height:80px; font-family:inherit; resize:vertical; padding:8px 10px; font-size:12px; line-height:1.5" placeholder="Add details, notes, or implementation details..." oninput="window._editingSubtask.notes = this.value">${esc(stEdit.notes || '')}</textarea>
+                   <textarea id="subtask_edit_notes" class="finp" style="background:var(--color-surface); min-height:80px; font-family:inherit; resize:vertical; padding:8px 10px; font-size:12px; line-height:1.5" placeholder="Add details, notes, or implementation details..." oninput="window._editingSubtask.notes = this.value">${esc(stEdit.notes || '')}</textarea>
                 </div>
              </div>
              
@@ -18809,7 +18832,7 @@
                   <div style="display:flex; flex-direction:column; gap:4px;">
                      <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Actual Completion</span>
                      <div style="display:flex; align-items:center; gap:6px;">
-                        <input type="text" id="gui_step_act_${idx}" value="${step.actCompletionDate ? fmtDate(step.actCompletionDate) : ''}" placeholder="dd-mmm-yyyy" style="background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; width:110px;" onchange="window.updateGUIStepCompletionDateLocal(${idx},parseDateDMY(this.value))">
+                        <input type="date" id="gui_step_act_${idx}" value="${step.actCompletionDate || ''}" max="9999-12-31" style="background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; width:110px;" oninput="window.updateGUIStepCompletionDateLocal(${idx},this.value)" onblur="window.openScreenFlyout(window._editingTaskId,window._editingSubtaskId,'edit')">
                         <span id="step_act_hours_${idx}" class="badge success" style="font-weight:700; font-size:8px; display:${step.actEffort ? 'inline-flex' : 'none'}; padding: 1px 4px; border-radius: 3px; white-space:nowrap">${step.actEffort || 0}d act</span>
                      </div>
                   </div>
@@ -19891,7 +19914,6 @@
           }
         }
         window.recalcServerWorkflowLocal();
-        openServerWorkflowFlyout(window._editingServerTaskId);
       };
 
       window.markAllServerSubtasksDoneLocal = markAllServerSubtasksDoneLocal;
@@ -20032,7 +20054,7 @@
                 <div style="display:flex; flex-direction:column; gap:4px;">
                    <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Actual Completion</span>
                    <div style="display:flex; align-items:center; gap:6px;">
-                      <input type="text" id="server_st_act_${st.id}" value="${st.actCompletionDate ? fmtDate(st.actCompletionDate) : ''}" placeholder="dd-mmm-yyyy" style="background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; width:110px;" onchange="window.updateServerSubtaskCompletionDateLocal('${st.id}',parseDateDMY(this.value))">
+                      <input type="date" id="server_st_act_${st.id}" value="${st.actCompletionDate || ''}" max="9999-12-31" style="background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; width:110px;" oninput="window.updateServerSubtaskCompletionDateLocal('${st.id}',this.value)" onblur="window.openServerWorkflowFlyout(window._editingServerTaskId)">
                       <span id="server_act_hours_${st.id}" class="badge success" style="font-weight:700; font-size:8px; display:${st.actEffort ? 'inline-flex' : 'none'}; padding: 1px 4px; border-radius: 3px; white-space:nowrap">${st.actEffort || 0}d act</span>
                    </div>
                 </div>
@@ -32208,18 +32230,73 @@
         } else if (sec.id === 'evm_analytics') {
           addST(inner, 'Earned Value Management (EVM)');
           const grid = addGrid(inner);
+
+          // ── Card 1: Metrics Grid ──────────────────────────────────────────
           const evmId = 'dash-evm-summary';
           const evmSpan = (P.widgetSpans && P.widgetSpans[evmId]) || sec.span || 4;
           const evmCard = mkCC('Earned Value Management (EVM)', 'EVM Metrics: SV, CV, SPI, CPI & Budget Tracking', evmId, '', 'standard', "<b>EVM Summary Card:</b> High-level Earned Value Management metrics including Cost/Schedule Variance, performance indices, and budget health forecasting.", 'View Explanation', 'trending-up');
           evmCard.style.gridColumn = `span ${evmSpan}`;
           grid.appendChild(evmCard);
 
+          // ── Determine which items to measure ──────────────────────────────
+          const useSubtasks = !!P.evmSubtasks;
+          let evmItems = [];
+          if (useSubtasks) {
+            tasks.forEach(t => {
+              const subs = t.subtasks || [];
+              if (subs.length > 0) {
+                const parentEst = parseFloat(t.estEffort) || 0;
+                const parentAct = parseFloat(t.actEffort) || 0;
+                const totalSubEff = subs.reduce((s, st) => s + (parseFloat(st.effort) || 1), 0) || 1;
+                subs.forEach(st => {
+                  const stEff = parseFloat(st.effort) || 1;
+                  const fraction = stEff / totalSubEff;
+                  evmItems.push({
+                    estEffort: parentEst * fraction,
+                    actualEffort: (st.actEffort !== undefined && st.actEffort !== null) ? parseFloat(st.actEffort) : parentAct * fraction,
+                    progress: parseFloat(st.progress) || (st.status === 'Completed' ? 100 : st.status === 'In Progress' ? 50 : 0),
+                    status: st.status || 'Not Started',
+                    startDate: st.startDate || t.startDate,
+                    dueDate: st.dueDate || t.dueDate,
+                    actCompletionDate: st.actCompletionDate || (st.status === 'Completed' ? t.actCompletionDate : ''),
+                    name: st.name || t.name,
+                    id: st.id
+                  });
+                });
+              } else {
+                evmItems.push({
+                  estEffort: parseFloat(t.estEffort) || 0,
+                  actualEffort: parseFloat(t.actEffort) || 0,
+                  progress: parseFloat(t.progress) || (t.status === 'Completed' ? 100 : t.status === 'In Progress' ? 50 : 0),
+                  status: t.status,
+                  startDate: t.startDate,
+                  dueDate: t.dueDate,
+                  actCompletionDate: t.actCompletionDate,
+                  name: t.name,
+                  id: t.id
+                });
+              }
+            });
+          } else {
+            evmItems = tasks.map(t => ({
+              estEffort: parseFloat(t.estEffort) || 0,
+              actualEffort: parseFloat(t.actEffort) || 0,
+              progress: parseFloat(t.progress) || (t.status === 'Completed' ? 100 : t.status === 'In Progress' ? 50 : 0),
+              status: t.status,
+              startDate: t.startDate,
+              dueDate: t.dueDate,
+              actCompletionDate: t.actCompletionDate,
+              name: t.name,
+              id: t.id
+            }));
+          }
+
           let pv = 0, ev = 0, ac = 0, bac = 0;
           const today = new Date();
-          tasks.forEach(t => {
-            const est = parseFloat(t.estEffort) || 0;
-            const act = parseFloat(t.actualEffort) || 0;
-            const prog = parseFloat(t.progress) || (t.status === 'Completed' ? 100 : t.status === 'In Progress' ? 50 : 0);
+          evmItems.forEach(t => {
+            const est = t.estEffort;
+            const act = t.actualEffort;
+            const prog = t.progress;
             bac += est;
             ev += est * (prog / 100);
             ac += act;
@@ -32256,103 +32333,9 @@
           const svColor = sv >= 0 ? 'var(--green)' : 'var(--red)';
           const cvColor = cv >= 0 ? 'var(--green)' : 'var(--red)';
 
-          // 1. Calculate 8-Week Cumulative EVM Trend Points
-          const trendPoints = [];
-          for (let i = 7; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i * 7);
-
-            let t_pv = 0, t_ev = 0, t_ac = 0;
-            tasks.forEach(t => {
-              const est = parseFloat(t.estEffort) || 0;
-              const act = parseFloat(t.actualEffort) || 0;
-              const prog = parseFloat(t.progress) || (t.status === 'Completed' ? 100 : t.status === 'In Progress' ? 50 : 0);
-
-              const pStart = t.startDate ? new Date(t.startDate) : null;
-              const pDue = t.dueDate ? new Date(t.dueDate) : null;
-
-              // PV at date d
-              if (pDue && pDue <= d) {
-                t_pv += est;
-              } else if (pStart && pStart <= d) {
-                if (pDue && pDue > pStart) {
-                  t_pv += est * Math.min(1, Math.max(0, (d - pStart) / (pDue - pStart)));
-                } else {
-                  t_pv += est * 0.5;
-                }
-              }
-
-              // EV at date d
-              if (t.status === 'Completed') {
-                const compDate = pDue || today;
-                if (compDate <= d) {
-                  t_ev += est;
-                } else if (pStart && pStart <= d) {
-                  t_ev += est * Math.min(1, Math.max(0, (d - pStart) / (compDate - pStart)));
-                }
-              } else {
-                if (pStart && pStart <= d) {
-                  const timeRatio = Math.min(1, Math.max(0, (d - pStart) / (today - pStart || 1)));
-                  t_ev += est * (prog / 100) * timeRatio;
-                }
-              }
-
-              // AC at date d
-              if (act > 0) {
-                if (pStart && pStart <= d) {
-                  const timeRatio = Math.min(1, Math.max(0, (d - pStart) / (today - pStart || 1)));
-                  t_ac += act * timeRatio;
-                } else if (pDue && pDue <= d) {
-                  t_ac += act;
-                }
-              }
-            });
-            trendPoints.push({ date: d, pv: t_pv, ev: t_ev, ac: t_ac });
-          }
-
-          // 2. Calculate Top Variance Drivers
-          const costDrivers = [];
-          const schedDrivers = [];
-          tasks.forEach(t => {
-            const est = parseFloat(t.estEffort) || 0;
-            const act = parseFloat(t.actualEffort) || 0;
-            const prog = parseFloat(t.progress) || (t.status === 'Completed' ? 100 : t.status === 'In Progress' ? 50 : 0);
-
-            const t_ev = est * (prog / 100);
-            const t_cv = t_ev - act;
-            if (act > 0 && t_cv < 0) {
-              costDrivers.push({ task: t, variance: t_cv });
-            }
-
-            const pStart = t.startDate ? new Date(t.startDate) : null;
-            const pDue = t.dueDate ? new Date(t.dueDate) : null;
-            let t_pv = 0;
-            if (pDue && pDue <= today) {
-              t_pv = est;
-            } else if (pStart && pStart <= today) {
-              if (pDue && pDue > pStart) {
-                t_pv = est * ((today - pStart) / (pDue - pStart));
-              } else {
-                t_pv = est * 0.5;
-              }
-            }
-            const t_sv = t_ev - t_pv;
-            if (t_sv < 0) {
-              schedDrivers.push({ task: t, variance: t_sv });
-            }
-          });
-          costDrivers.sort((a, b) => a.variance - b.variance);
-          schedDrivers.sort((a, b) => a.variance - b.variance);
-          const topCost = costDrivers.slice(0, 2);
-          const topSched = schedDrivers.slice(0, 2);
-
-          // 3. Construct Main EVM Container (Flex Layout)
-          const evmContent = document.createElement('div');
-          evmContent.style = "display:flex; gap:20px; flex-wrap:wrap; margin-top:12px; align-items:flex-start;";
-
-          // Left panel: 8 Metric Cards Grid
+          // ── Metrics Grid (8 tiles) ────────────────────────────────────────
           const metricsGrid = document.createElement('div');
-          metricsGrid.style = "flex:0.9; min-width:280px; display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px;";
+          metricsGrid.style = "display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-top:12px;";
           metricsGrid.innerHTML = `
                     <div style="background:var(--color-surface-1); padding:12px; border-radius:10px; border:1px solid var(--color-border); transition:transform 0.2s ease, box-shadow 0.2s ease; cursor:default" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-sm)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='none'">
                       <div style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:2px">Planned Value (PV)</div>
@@ -32395,10 +32378,175 @@
                       <div style="font-size:10px; color:var(--color-text-faint); margin-top:2px">Forecasted surplus/deficit</div>
                     </div>
                   `;
+          evmCard.querySelector('.cb').appendChild(metricsGrid);
 
-          // Right panel: Interactive tabbed visualization card
+          // ── Hint for Card 1 ───────────────────────────────────────────────
+          const hintHtml = `<b>EVM Reference Guide & Formula Details</b><br/><br/>
+Earned Value Management measures project performance and progress by comparing planned value, actual cost, and earned value.<br/><br/>
+<b>Key Formulas & Live Project Values:</b>
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:8px; margin-top:8px; text-align:left">
+  <div style="background:var(--color-surface-2); padding:6px 10px; border-radius:4px; border:1px solid var(--color-border-faint); display:flex; justify-content:space-between">
+    <span><b>SPI</b> (Schedule Performance Index): EV / PV</span>
+    <span style="font-family:monospace; color:var(--color-text); font-weight:700">${spi.toFixed(2)}</span>
+  </div>
+  <div style="background:var(--color-surface-2); padding:6px 10px; border-radius:4px; border:1px solid var(--color-border-faint); display:flex; justify-content:space-between">
+    <span><b>CPI</b> (Cost Performance Index): EV / AC</span>
+    <span style="font-family:monospace; color:var(--color-text); font-weight:700">${cpi.toFixed(2)}</span>
+  </div>
+  <div style="background:var(--color-surface-2); padding:6px 10px; border-radius:4px; border:1px solid var(--color-border-faint); display:flex; justify-content:space-between">
+    <span><b>SV</b> (Schedule Variance): EV - PV</span>
+    <span style="font-family:monospace; color:var(--color-text); font-weight:700">${sv >= 0 ? '+' : ''}${sv.toFixed(1)}d</span>
+  </div>
+  <div style="background:var(--color-surface-2); padding:6px 10px; border-radius:4px; border:1px solid var(--color-border-faint); display:flex; justify-content:space-between">
+    <span><b>CV</b> (Cost Variance): EV - AC</span>
+    <span style="font-family:monospace; color:var(--color-text); font-weight:700">${cv >= 0 ? '+' : ''}${cv.toFixed(1)}d</span>
+  </div>
+  <div style="background:var(--color-surface-2); padding:6px 10px; border-radius:4px; border:1px solid var(--color-border-faint); display:flex; justify-content:space-between">
+    <span><b>EAC</b> (Estimate at Completion): BAC / CPI</span>
+    <span style="font-family:monospace; color:var(--color-text); font-weight:700">${eac.toFixed(1)}d</span>
+  </div>
+  <div style="background:var(--color-surface-2); padding:6px 10px; border-radius:4px; border:1px solid var(--color-border-faint); display:flex; justify-content:space-between">
+    <span><b>TCPI</b> (To-Complete Perf. Index): (BAC-EV)/(BAC-AC)</span>
+    <span style="font-family:monospace; color:var(--color-text); font-weight:700">${tcpi_bac.toFixed(2)}</span>
+  </div>
+</div>`;
+          evmCard.dataset.hint = hintHtml;
+          const hintPanel1 = evmCard.querySelector('.hint-panel');
+          if (hintPanel1) hintPanel1.innerHTML = `<b>GUIDE:</b> ${hintHtml}`;
+
+          // ── Card 2: EVM Efficiency & Trends ──────────────────────────────
+          const evmVizId = 'dash-evm-trends';
+          const evmVizSpan = (P.widgetSpans && P.widgetSpans[evmVizId]) || sec.span || 4;
+          const evmVizCard = mkCC('<i data-lucide="activity"></i> EVM Efficiency & Trends', 'Trend Chart, Status Quadrant & Key Drivers', evmVizId, '', 'standard', '', '');
+          evmVizCard.style.gridColumn = `span ${evmVizSpan}`;
+          grid.appendChild(evmVizCard);
+
+          // ── Controls: Trend Duration Dropdown + Sub-tasks Toggle ──────────
+          let evmWeeksCount = parseInt(P.evmWeeks) || 8;
+          if (evmWeeksCount < 4) evmWeeksCount = 4;
+          if (evmWeeksCount > 52) evmWeeksCount = 52;
+
+          const optEvmWeeks = [4, 8, 12, 16, 20, 24, 32, 40, 52];
+          if (!optEvmWeeks.includes(evmWeeksCount)) {
+            optEvmWeeks.push(evmWeeksCount);
+            optEvmWeeks.sort((a, b) => a - b);
+          }
+
+          let evmWeeksSelectHtml = `<select onchange="updateEVMWeeks(this.value)" style="border:none; background:transparent; color:var(--color-text-muted); font-size:11px; font-weight:700; cursor:pointer; outline:none; padding:2px 4px; border-right:1px solid var(--color-border); margin-right:6px;">`;
+          optEvmWeeks.forEach(w => {
+            const lbl = w === 52 ? ' (1 Year)' : '';
+            evmWeeksSelectHtml += `<option value="${w}" ${evmWeeksCount === w ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">${w} Weeks${lbl}</option>`;
+          });
+          evmWeeksSelectHtml += `</select>`;
+
+          const subChecked = !!P.evmSubtasks;
+          const subtasksToggleHtml = `<label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer; font-size:11px; font-weight:700; color:var(--color-text-muted);">
+            <input type="checkbox" ${subChecked ? 'checked' : ''} onchange="updateEVMSubtasks(this.checked)" style="accent-color:var(--color-primary); width:13px; height:13px; cursor:pointer;" />
+            Sub-tasks
+          </label>`;
+
+          const evmControls = document.createElement('div');
+          evmControls.style = "display:inline-flex; background:var(--color-surface-offset); padding:2px 8px; border-radius:7px; border:1px solid var(--color-border); align-items:center; flex-shrink:0; height:fit-content; margin-left:auto; gap:4px;";
+          evmControls.innerHTML = evmWeeksSelectHtml + subtasksToggleHtml;
+          evmVizCard.querySelector('.ch').appendChild(evmControls);
+
+          // ── Compute N-Week Trend Points ───────────────────────────────────
+          const trendPoints = [];
+          const svgW = 560;
+          const svgPadL = 65, svgPadR = 90;
+          const svgPlotW = svgW - svgPadL - svgPadR;
+          const svgPlotH = 220;
+          const svgBottom = 270;
+
+          for (let i = evmWeeksCount - 1; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i * 7);
+
+            let t_pv = 0, t_ev = 0, t_ac = 0;
+            evmItems.forEach(t => {
+              const est = t.estEffort;
+              const act = t.actEffort || t.actualEffort || 0; // fallback to either actEffort or actualEffort
+              const prog = t.progress;
+
+              const pStart = t.startDate ? new Date(t.startDate) : null;
+              const pDue = t.dueDate ? new Date(t.dueDate) : null;
+              const actComp = t.actCompletionDate ? new Date(t.actCompletionDate) : null;
+
+              if (pDue && pDue <= d) {
+                t_pv += est;
+              } else if (pStart && pStart <= d) {
+                if (pDue && pDue > pStart) {
+                  t_pv += est * Math.min(1, Math.max(0, (d - pStart) / (pDue - pStart)));
+                } else {
+                  t_pv += est * 0.5;
+                }
+              }
+
+              if (t.status === 'Completed') {
+                const compDate = actComp || pDue || today;
+                if (compDate <= d) {
+                  t_ev += est;
+                } else if (pStart && pStart <= d) {
+                  t_ev += est * Math.min(1, Math.max(0, (d - pStart) / (compDate - pStart)));
+                }
+              } else {
+                if (pStart && pStart <= d) {
+                  const timeRatio = Math.min(1, Math.max(0, (d - pStart) / (today - pStart || 1)));
+                  t_ev += est * (prog / 100) * timeRatio;
+                }
+              }
+
+              if (act > 0) {
+                const compDate = t.status === 'Completed' ? (actComp || pDue || today) : null;
+                if (compDate && compDate <= d) {
+                  t_ac += act;
+                } else if (pStart && pStart <= d) {
+                  const endRef = compDate || today;
+                  const timeRatio = Math.min(1, Math.max(0, (d - pStart) / (endRef - pStart || 1)));
+                  t_ac += act * timeRatio;
+                } else if (pDue && pDue <= d) {
+                  t_ac += act;
+                }
+              }
+            });
+            trendPoints.push({ date: d, pv: t_pv, ev: t_ev, ac: t_ac });
+          }
+
+          // ── Compute Key Drivers ───────────────────────────────────────────
+          const costDrivers = [];
+          const schedDrivers = [];
+          evmItems.forEach(t => {
+            const est = t.estEffort;
+            const act = t.actEffort || t.actualEffort || 0;
+            const prog = t.progress;
+
+            const t_ev_item = est * (prog / 100);
+            const t_cv = t_ev_item - act;
+            if (act > 0 && t_cv < 0) costDrivers.push({ task: t, variance: t_cv });
+
+            const pStart = t.startDate ? new Date(t.startDate) : null;
+            const pDue = t.dueDate ? new Date(t.dueDate) : null;
+            let t_pv_item = 0;
+            if (pDue && pDue <= today) {
+              t_pv_item = est;
+            } else if (pStart && pStart <= today) {
+              if (pDue && pDue > pStart) {
+                t_pv_item = est * ((today - pStart) / (pDue - pStart));
+              } else {
+                t_pv_item = est * 0.5;
+              }
+            }
+            const t_sv_item = t_ev_item - t_pv_item;
+            if (t_sv_item < 0) schedDrivers.push({ task: t, variance: t_sv_item });
+          });
+          costDrivers.sort((a, b) => a.variance - b.variance);
+          schedDrivers.sort((a, b) => a.variance - b.variance);
+          const topCost = costDrivers.slice(0, 2);
+          const topSched = schedDrivers.slice(0, 2);
+
+          // ── Build Tabbed Viz Panel ────────────────────────────────────────
           const vizPanel = document.createElement('div');
-          vizPanel.style = "flex:1.8; min-width:400px; display:flex; flex-direction:column; background:var(--color-surface-1); border-radius:12px; border:1px solid var(--color-border); padding:16px; box-shadow:var(--shadow-sm);";
+          vizPanel.style = "display:flex; flex-direction:column; margin-top:12px;";
 
           const tabsHeader = document.createElement('div');
           tabsHeader.style = "display: flex; gap: 8px; border-bottom: 1px solid var(--color-border-faint); padding-bottom: 8px; margin-bottom: 12px;";
@@ -32424,10 +32572,8 @@
 
           const tabTrend = document.createElement('div');
           tabTrend.style.display = 'block';
-
           const tabQuad = document.createElement('div');
           tabQuad.style.display = 'none';
-
           const tabDrivers = document.createElement('div');
           tabDrivers.style.display = 'none';
 
@@ -32438,7 +32584,6 @@
           vizPanel.appendChild(tabsHeader);
           vizPanel.appendChild(tabContent);
 
-          // Setup Tab Buttons triggers
           const setTabActive = (activeBtn, showTab) => {
             [btnTrend, btnQuad, btnDrivers].forEach(b => {
               b.style.background = 'transparent';
@@ -32455,20 +32600,20 @@
           btnQuad.onclick = () => setTabActive(btnQuad, tabQuad);
           btnDrivers.onclick = () => setTabActive(btnDrivers, tabDrivers);
 
-          // --- Draw Trend Chart SVG ---
-          const maxVal = Math.max(...trendPoints.map(p => Math.max(p.pv, p.ev, p.ac)), 1);
+          // ── Draw Trend Chart SVG ──────────────────────────────────────────
+          const maxTrendVal = Math.max(...trendPoints.map(p => Math.max(p.pv, p.ev, p.ac)), 1);
+          const n = trendPoints.length;
+          const xStep = n > 1 ? svgPlotW / (n - 1) : svgPlotW;
 
-          // Coordinates mapping helper with increased height and better margins
-          const pts_pv = trendPoints.map((p, idx) => ({ x: 65 + idx * 57, y: 270 - (p.pv / maxVal) * 220 }));
-          const pts_ev = trendPoints.map((p, idx) => ({ x: 65 + idx * 57, y: 270 - (p.ev / maxVal) * 220 }));
-          const pts_ac = trendPoints.map((p, idx) => ({ x: 65 + idx * 57, y: 270 - (p.ac / maxVal) * 220 }));
+          const pts_pv = trendPoints.map((p, idx) => ({ x: svgPadL + idx * xStep, y: svgBottom - (p.pv / maxTrendVal) * svgPlotH }));
+          const pts_ev = trendPoints.map((p, idx) => ({ x: svgPadL + idx * xStep, y: svgBottom - (p.ev / maxTrendVal) * svgPlotH }));
+          const pts_ac = trendPoints.map((p, idx) => ({ x: svgPadL + idx * xStep, y: svgBottom - (p.ac / maxTrendVal) * svgPlotH }));
 
           function getBezierPath(pts) {
             if (pts.length === 0) return '';
             let d = `M ${pts[0].x},${pts[0].y}`;
             for (let i = 0; i < pts.length - 1; i++) {
-              const p0 = pts[i];
-              const p1 = pts[i + 1];
+              const p0 = pts[i], p1 = pts[i + 1];
               const cp1x = p0.x + (p1.x - p0.x) / 3;
               const cp1y = p0.y;
               const cp2x = p0.x + 2 * (p1.x - p0.x) / 3;
@@ -32482,40 +32627,38 @@
           const evPath = getBezierPath(pts_ev);
           const acPath = getBezierPath(pts_ac);
 
-          // Position endpoints collision resolution
-          let y_pv = pts_pv[7].y;
-          let y_ev = pts_ev[7].y;
-          let y_ac = pts_ac[7].y;
+          let y_pv = pts_pv[n - 1].y;
+          let y_ev = pts_ev[n - 1].y;
+          let y_ac = pts_ac[n - 1].y;
 
           const endLabels = [
             { name: 'pv', y: y_pv },
             { name: 'ev', y: y_ev },
             { name: 'ac', y: y_ac }
           ].sort((a, b) => a.y - b.y);
-
           if (endLabels[1].y - endLabels[0].y < 12) endLabels[1].y = endLabels[0].y + 12;
           if (endLabels[2].y - endLabels[1].y < 12) endLabels[2].y = endLabels[1].y + 12;
-
           const yLabelsMap = {};
           endLabels.forEach(l => { yLabelsMap[l.name] = l.y; });
 
-
-
-          // Grid and dates
+          // Thin x-labels when many weeks are shown
+          const labelEvery = evmWeeksCount <= 12 ? 1 : evmWeeksCount <= 24 ? 2 : evmWeeksCount <= 40 ? 4 : 6;
           let xGridLines = '';
           let xLabels = '';
           trendPoints.forEach((p, idx) => {
-            const x = 65 + idx * 57;
-            const isToday = (idx === 7);
-            xGridLines += `<line x1="${x}" y1="50" x2="${x}" y2="270" stroke="var(--color-border-faint)" stroke-width="1" ${isToday ? 'stroke-dasharray="3,3" stroke="var(--color-text-muted)"' : ''}/>`;
-
-            const dateStr = p.date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-            xLabels += `<text x="${x}" y="285" font-size="8" fill="var(--color-text-muted)" text-anchor="middle">${isToday ? 'Today' : dateStr}</text>`;
+            const x = svgPadL + idx * xStep;
+            const isToday = (idx === n - 1);
+            xGridLines += `<line x1="${x}" y1="50" x2="${x}" y2="${svgBottom}" stroke="var(--color-border-faint)" stroke-width="1" ${isToday ? 'stroke-dasharray="3,3" stroke="var(--color-text-muted)"' : ''}/>`;
+            if (isToday || idx % labelEvery === 0) {
+              const dateStr = p.date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+              xLabels += `<text x="${x}" y="${svgBottom + 15}" font-size="8" fill="var(--color-text-muted)" text-anchor="middle">${isToday ? 'Today' : dateStr}</text>`;
+            }
           });
 
+          const lastX = svgPadL + (n - 1) * xStep;
           tabTrend.innerHTML = `
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px">
-                      <div style="font-size:12px; font-weight:700; color:var(--color-text)">Cumulative EVM Performance (8-Week Trend)</div>
+                      <div style="font-size:12px; font-weight:700; color:var(--color-text)">Cumulative EVM Performance (${evmWeeksCount}-Week Trend${useSubtasks ? ' · incl. Sub-tasks' : ''})</div>
                       <div style="display:flex; gap:8px; align-items:center">
                         <span style="font-size:9px; font-weight:700; padding:2px 6px; border-radius:4px; background:#0284c7; color:#ffffff; display:inline-flex; align-items:center; gap:4px">
                           <span style="opacity:0.8">SPI:</span> <b>${spi.toFixed(2)}</b> (${spi >= 1.0 ? 'On Track' : 'Behind Schedule'})
@@ -32525,48 +32668,31 @@
                         </span>
                       </div>
                     </div>
-                    <svg viewBox="0 0 560 320" style="width:100%; height:320px; overflow:visible; font-family:var(--font-family);">
-                      <!-- Rotated Y-axis title -->
+                    <svg viewBox="0 0 ${svgW} 320" style="width:100%; height:320px; overflow:visible; font-family:var(--font-family);">
                       <text x="-160" y="18" transform="rotate(-90)" font-size="8" font-weight="700" fill="var(--color-text-muted)" text-anchor="middle" style="letter-spacing:0.5px">Effort / Value (days)</text>
-                      
-                      <!-- X-axis title -->
-                      <text x="264" y="305" font-size="8" font-weight="700" fill="var(--color-text-muted)" text-anchor="middle" style="letter-spacing:0.5px">Timeline (weeks)</text>
-                      
-                      <!-- Horizontal Grid Lines -->
-                      <line x1="65" y1="50" x2="464" y2="50" stroke="var(--color-border-faint)" stroke-dasharray="2,2"/>
-                      <line x1="65" y1="160" x2="464" y2="160" stroke="var(--color-border-faint)" stroke-dasharray="2,2"/>
-                      <line x1="65" y1="270" x2="464" y2="270" stroke="var(--color-border)" stroke-width="1"/>
-                      
-                      <!-- Y-axis scale labels -->
-                      <text x="57" y="53" font-size="8" fill="var(--color-text-faint)" text-anchor="end">${maxVal.toFixed(0)}d</text>
-                      <text x="57" y="163" font-size="8" fill="var(--color-text-faint)" text-anchor="end">${(maxVal / 2).toFixed(0)}d</text>
-                      <text x="57" y="273" font-size="8" fill="var(--color-text-faint)" text-anchor="end">0d</text>
-                      
-                      <!-- Vertical Grid Lines and Date Labels -->
+                      <text x="${svgW / 2}" y="310" font-size="8" font-weight="700" fill="var(--color-text-muted)" text-anchor="middle" style="letter-spacing:0.5px">Timeline (weeks)</text>
+                      <line x1="${svgPadL}" y1="50" x2="${lastX}" y2="50" stroke="var(--color-border-faint)" stroke-dasharray="2,2"/>
+                      <line x1="${svgPadL}" y1="160" x2="${lastX}" y2="160" stroke="var(--color-border-faint)" stroke-dasharray="2,2"/>
+                      <line x1="${svgPadL}" y1="${svgBottom}" x2="${lastX}" y2="${svgBottom}" stroke="var(--color-border)" stroke-width="1"/>
+                      <text x="${svgPadL - 8}" y="53" font-size="8" fill="var(--color-text-faint)" text-anchor="end">${maxTrendVal.toFixed(0)}d</text>
+                      <text x="${svgPadL - 8}" y="163" font-size="8" fill="var(--color-text-faint)" text-anchor="end">${(maxTrendVal / 2).toFixed(0)}d</text>
+                      <text x="${svgPadL - 8}" y="${svgBottom + 3}" font-size="8" fill="var(--color-text-faint)" text-anchor="end">0d</text>
                       ${xGridLines}
                       ${xLabels}
-                      
-                      <!-- Current Week Top Label -->
-                      <text x="464" y="42" font-size="8" font-weight="700" fill="var(--color-text-muted)" text-anchor="middle">Current Week</text>
-                      
-                      <!-- Curves -->
+                      <text x="${lastX}" y="42" font-size="8" font-weight="700" fill="var(--color-text-muted)" text-anchor="middle">Current Week</text>
                       <path d="${pvPath}" fill="none" stroke="#3b82f6" stroke-width="2" stroke-dasharray="4,3" stroke-linecap="round"/>
                       <path d="${evPath}" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round"/>
                       <path d="${acPath}" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"/>
-                      
-                      <!-- Curve Endpoint Labels -->
-                      <text x="470" y="${yLabelsMap['pv'] + 3}" font-size="8" font-weight="700" fill="#3b82f6" text-anchor="start">Planned Value</text>
-                      <text x="470" y="${yLabelsMap['ev'] + 3}" font-size="8" font-weight="700" fill="var(--green)" text-anchor="start">Earned Value</text>
-                      <text x="470" y="${yLabelsMap['ac'] + 3}" font-size="8" font-weight="700" fill="var(--amber)" text-anchor="start">Actual Cost</text>
-                      
-                      <!-- Intersection Circles -->
-                      <circle cx="464" cy="${y_pv}" r="3.5" fill="#3b82f6" stroke="white" stroke-width="1"/>
-                      <circle cx="464" cy="${y_ev}" r="4" fill="var(--green)" stroke="white" stroke-width="1.5"/>
-                      <circle cx="464" cy="${y_ac}" r="3.5" fill="var(--amber)" stroke="white" stroke-width="1"/>
+                      <text x="${lastX + 6}" y="${yLabelsMap['pv'] + 3}" font-size="8" font-weight="700" fill="#3b82f6" text-anchor="start">Planned Value</text>
+                      <text x="${lastX + 6}" y="${yLabelsMap['ev'] + 3}" font-size="8" font-weight="700" fill="var(--green)" text-anchor="start">Earned Value</text>
+                      <text x="${lastX + 6}" y="${yLabelsMap['ac'] + 3}" font-size="8" font-weight="700" fill="var(--amber)" text-anchor="start">Actual Cost</text>
+                      <circle cx="${lastX}" cy="${y_pv}" r="3.5" fill="#3b82f6" stroke="white" stroke-width="1"/>
+                      <circle cx="${lastX}" cy="${y_ev}" r="4" fill="var(--green)" stroke="white" stroke-width="1.5"/>
+                      <circle cx="${lastX}" cy="${y_ac}" r="3.5" fill="var(--amber)" stroke="white" stroke-width="1"/>
                     </svg>
                   `;
 
-          // --- Draw Status Quadrant Graph ---
+          // ── Draw Status Quadrant ──────────────────────────────────────────
           const cSpi = Math.min(1.5, Math.max(0.5, spi));
           const cCpi = Math.min(1.5, Math.max(0.5, cpi));
           const plotX = 15 + (cSpi - 0.5) * 110;
@@ -32574,40 +32700,25 @@
 
           let quadrantLabel = '';
           let quadrantColor = '';
-          if (spi >= 1.0 && cpi >= 1.0) {
-            quadrantLabel = 'Ahead of Schedule & Under Budget';
-            quadrantColor = 'var(--green)';
-          } else if (spi < 1.0 && cpi >= 1.0) {
-            quadrantLabel = 'Behind Schedule & Under Budget';
-            quadrantColor = '#3b82f6';
-          } else if (spi >= 1.0 && cpi < 1.0) {
-            quadrantLabel = 'Ahead of Schedule & Over Budget';
-            quadrantColor = 'var(--amber)';
-          } else {
-            quadrantLabel = 'Behind Schedule & Over Budget';
-            quadrantColor = 'var(--red)';
-          }
+          if (spi >= 1.0 && cpi >= 1.0) { quadrantLabel = 'Ahead of Schedule & Under Budget'; quadrantColor = 'var(--green)'; }
+          else if (spi < 1.0 && cpi >= 1.0) { quadrantLabel = 'Behind Schedule & Under Budget'; quadrantColor = '#3b82f6'; }
+          else if (spi >= 1.0 && cpi < 1.0) { quadrantLabel = 'Ahead of Schedule & Over Budget'; quadrantColor = 'var(--amber)'; }
+          else { quadrantLabel = 'Behind Schedule & Over Budget'; quadrantColor = 'var(--red)'; }
 
-          // To-Complete Performance Index (TCPI) calculation
           const maxBudget = Math.max(bac, eac, 1);
           let tcpiColor = 'var(--color-primary)';
           let tcpiText = 'Standard effort required to meet budget';
-          if (tcpi_bac > 1.1) {
-            tcpiColor = 'var(--red)';
-            tcpiText = 'High efficiency required to meet budget target';
-          } else if (tcpi_bac < 0.9) {
-            tcpiColor = 'var(--green)';
-            tcpiText = 'Under budget buffer; targets easily achievable';
-          }
+          if (tcpi_bac > 1.1) { tcpiColor = 'var(--red)'; tcpiText = 'High efficiency required to meet budget target'; }
+          else if (tcpi_bac < 0.9) { tcpiColor = 'var(--green)'; tcpiText = 'Under budget buffer; targets easily achievable'; }
 
           tabQuad.innerHTML = `
-                    <div style="font-size:12px; font-weight:700; color:var(--color-text); margin-bottom:8px">EVM Efficiency Positioning</div>
+                    <div style="font-size:12px; font-weight:700; color:var(--color-text); margin-bottom:8px">EVM Efficiency Positioning${useSubtasks ? ' · incl. Sub-tasks' : ''}</div>
                     <div style="display:flex; gap:16px; align-items:flex-start">
                       <svg viewBox="0 0 140 140" style="width:125px; height:125px; background:var(--color-surface-2); border-radius:8px; border:1px solid var(--color-border); overflow:visible; flex-shrink:0">
-                        <rect x="70" y="0" width="70" height="70" fill="var(--green)" opacity="0.18" />
-                        <rect x="0" y="0" width="70" height="70" fill="#3b82f6" opacity="0.18" />
-                        <rect x="70" y="70" width="70" height="70" fill="var(--amber)" opacity="0.18" />
-                        <rect x="0" y="70" width="70" height="70" fill="var(--red)" opacity="0.18" />
+                        <rect x="70" y="0" width="70" height="70" fill="var(--green)" opacity="0.35" />
+                        <rect x="0" y="0" width="70" height="70" fill="#3b82f6" opacity="0.35" />
+                        <rect x="70" y="70" width="70" height="70" fill="var(--amber)" opacity="0.35" />
+                        <rect x="0" y="70" width="70" height="70" fill="var(--red)" opacity="0.35" />
                         <line x1="70" y1="0" x2="70" y2="140" stroke="var(--color-border)" stroke-width="1"/>
                         <line x1="0" y1="70" x2="140" y2="70" stroke="var(--color-border)" stroke-width="1"/>
                         <text x="142" y="73" font-size="7" fill="var(--color-text-faint)" font-weight="700">SPI</text>
@@ -32627,14 +32738,12 @@
                         <div style="font-size:10px; color:var(--color-text-muted); margin-top:6px; line-height:1.3">
                           Project SPI is <b>${spi.toFixed(2)}</b> (schedule efficiency) and CPI is <b>${cpi.toFixed(2)}</b> (cost efficiency).
                         </div>
-                        
                         <div style="margin-top: 10px; border-top: 1px solid var(--color-border-faint); padding-top: 8px">
                           <div style="font-size: 8px; color: var(--color-text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 4px">Budget Tracking Scenario (BAC vs EAC)</div>
                           <div style="display: flex; flex-direction: column; gap: 4px">
                             <div>
                               <div style="display:flex; justify-content:space-between; font-size:7px; color:var(--color-text-muted)">
-                                <span>Target Budget (BAC)</span>
-                                <span>${bac.toFixed(1)}d</span>
+                                <span>Target Budget (BAC)</span><span>${bac.toFixed(1)}d</span>
                               </div>
                               <div style="width:100%; height:3px; background:var(--color-surface-2); border-radius:1.5px; overflow:hidden; margin-top:1px">
                                 <div style="width:${(bac / maxBudget * 100).toFixed(0)}%; height:100%; background:var(--color-primary); border-radius:1.5px"></div>
@@ -32642,8 +32751,7 @@
                             </div>
                             <div>
                               <div style="display:flex; justify-content:space-between; font-size:7px; color:var(--color-text-muted)">
-                                <span>Forecasted Cost (EAC)</span>
-                                <span>${eac.toFixed(1)}d</span>
+                                <span>Forecasted Cost (EAC)</span><span>${eac.toFixed(1)}d</span>
                               </div>
                               <div style="width:100%; height:3px; background:var(--color-surface-2); border-radius:1.5px; overflow:hidden; margin-top:1px">
                                 <div style="width:${(eac / maxBudget * 100).toFixed(0)}%; height:100%; background:${eac > bac ? 'var(--red)' : 'var(--green)'}; border-radius:1.5px"></div>
@@ -32659,8 +32767,8 @@
                     </div>
                   `;
 
-          // --- Draw Key Drivers List ---
-          let driversHtml = '<div style="font-size:12px; font-weight:700; color:var(--color-text); margin-bottom:8px">Performance Variance Drivers</div>';
+          // ── Draw Key Drivers ──────────────────────────────────────────────
+          let driversHtml = `<div style="font-size:12px; font-weight:700; color:var(--color-text); margin-bottom:8px">Performance Variance Drivers${useSubtasks ? ' · incl. Sub-tasks' : ''}</div>`;
           if (topCost.length === 0 && topSched.length === 0) {
             driversHtml += `
                       <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:80px; color:var(--color-text-faint)">
@@ -32704,46 +32812,8 @@
           }
           tabDrivers.innerHTML = driversHtml;
 
-          // Append sub-panels to the main EVM content wrapper
-          evmContent.appendChild(metricsGrid);
-          evmContent.appendChild(vizPanel);
+          evmVizCard.querySelector('.cb').appendChild(vizPanel);
 
-          const hintHtml = `<b>EVM Reference Guide & Formula Details</b><br/><br/>
-Earned Value Management measures project performance and progress by comparing planned value, actual cost, and earned value.<br/><br/>
-<b>Key Formulas & Live Project Values:</b>
-<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:8px; margin-top:8px; text-align:left">
-  <div style="background:var(--color-surface-2); padding:6px 10px; border-radius:4px; border:1px solid var(--color-border-faint); display:flex; justify-content:space-between">
-    <span><b>SPI</b> (Schedule Performance Index): EV / PV</span>
-    <span style="font-family:monospace; color:var(--color-text); font-weight:700">${spi.toFixed(2)}</span>
-  </div>
-  <div style="background:var(--color-surface-2); padding:6px 10px; border-radius:4px; border:1px solid var(--color-border-faint); display:flex; justify-content:space-between">
-    <span><b>CPI</b> (Cost Performance Index): EV / AC</span>
-    <span style="font-family:monospace; color:var(--color-text); font-weight:700">${cpi.toFixed(2)}</span>
-  </div>
-  <div style="background:var(--color-surface-2); padding:6px 10px; border-radius:4px; border:1px solid var(--color-border-faint); display:flex; justify-content:space-between">
-    <span><b>SV</b> (Schedule Variance): EV - PV</span>
-    <span style="font-family:monospace; color:var(--color-text); font-weight:700">${sv >= 0 ? '+' : ''}${sv.toFixed(1)}d</span>
-  </div>
-  <div style="background:var(--color-surface-2); padding:6px 10px; border-radius:4px; border:1px solid var(--color-border-faint); display:flex; justify-content:space-between">
-    <span><b>CV</b> (Cost Variance): EV - AC</span>
-    <span style="font-family:monospace; color:var(--color-text); font-weight:700">${cv >= 0 ? '+' : ''}${cv.toFixed(1)}d</span>
-  </div>
-  <div style="background:var(--color-surface-2); padding:6px 10px; border-radius:4px; border:1px solid var(--color-border-faint); display:flex; justify-content:space-between">
-    <span><b>EAC</b> (Estimate at Completion): BAC / CPI</span>
-    <span style="font-family:monospace; color:var(--color-text); font-weight:700">${eac.toFixed(1)}d</span>
-  </div>
-  <div style="background:var(--color-surface-2); padding:6px 10px; border-radius:4px; border:1px solid var(--color-border-faint); display:flex; justify-content:space-between">
-    <span><b>TCPI</b> (To-Complete Perf. Index): (BAC-EV)/(BAC-AC)</span>
-    <span style="font-family:monospace; color:var(--color-text); font-weight:700">${tcpi_bac.toFixed(2)}</span>
-  </div>
-</div>`;
-          evmCard.dataset.hint = hintHtml;
-          const hintPanel = evmCard.querySelector('.hint-panel');
-          if (hintPanel) {
-            hintPanel.innerHTML = `<b>GUIDE:</b> ${hintHtml}`;
-          }
-
-          evmCard.querySelector('.cb').appendChild(evmContent);
         } else if (sec.id === 'kpi_summary') {
           addST(inner, 'Executive Metrics');
           const kGrid = document.createElement('div'); kGrid.className = 'kpi-grid';
