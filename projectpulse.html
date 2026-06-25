@@ -12223,7 +12223,7 @@
               <option value="S4 - Minor">S4 - Minor</option>
             </select>
           </div>
-          <div class="fg"><label class="flbl">Due Date</label><input type="date" class="finp" id="raid_due"></div>
+          <div class="fg"><label class="flbl">Due Date</label><input type="date" class="finp" id="raid_due" max="9999-12-31"></div>
         </div>
         <div class="fg"><label class="flbl">Status</label>
           <select class="fsel" id="raid_status">
@@ -14939,6 +14939,7 @@
         const colMod = stateP.cols.find(c => c.key === 'module'); if (colMod) colMod.opts = MODULES;
         const colModType = stateP.cols.find(c => c.key === 'moduleType'); if (colModType) colModType.opts = MODULE_TYPES;
         const colVer = stateP.cols.find(c => c.key === 'releaseVersion'); if (colVer) colVer.opts = VERSIONS;
+        const colCategory = stateP.cols.find(c => c.key === 'category'); if (colCategory) colCategory.opts = CATEGORIES;
 
         // Assignee sync
         const colAsg = stateP.cols.find(c => c.key === 'assignee');
@@ -17844,21 +17845,23 @@
           const cVal = (P[filtersKey] || {})[c.key] || '';
           const cStyle = 'width:100%;box-sizing:border-box;font-size:10px;padding:3px 4px;border:1px solid var(--color-border);border-radius:2px;background:var(--color-surface);color:var(--text);font-family:var(--font);outline:none;';
 
-          if (c.type === 'select' || c.type === 'dropdown' || ['status', 'priority', 'assignee', 'severity', 'type', 'linkedType', 'reporter'].includes(c.key)) {
+          if (c.type === 'select' || c.type === 'dropdown' || ['status', 'priority', 'assignee', 'severity', 'type', 'linkedType', 'reporter', 'category', 'releaseVersion'].includes(c.key)) {
             let opts = c.opts || [];
             if (prefix === '' && c.key === 'status') opts = STATUSES;
             else if (prefix === '' && c.key === 'priority') opts = PRIORITIES;
             else if (c.key === 'assignee' || c.key === 'reporter') opts = getTeamNames();
+            else if (c.key === 'category') opts = CATEGORIES;
+            else if (c.key === 'releaseVersion' || c.key === 'version') opts = VERSIONS;
 
             let optsHtml = '<option value="">All</option>';
             opts.forEach(o => { optsHtml += `<option value="${esc(o)}" ${cVal === o ? 'selected' : ''}>${esc(o)}</option>`; });
             fInp = `<select data-col="${c.key}" onchange="updateGridColFilter('${prefix}','${c.key}',this.value)" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" style="${cStyle}">${optsHtml}</select>`;
           } else if (c.type === 'date') {
             const f = typeof cVal === 'object' ? cVal : {};
-            fInp = `<div style="display:flex;gap:2px"><input type="date" placeholder="Min" value="${esc(f.min)}" oninput="updateGridColRangeFilter('${prefix}','${c.key}','min',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"><input type="date" placeholder="Max" value="${esc(f.max)}" oninput="updateGridColRangeFilter('${prefix}','${c.key}','max',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"></div>`;
+            fInp = `<div style="display:flex;gap:2px" onclick="event.stopPropagation()"><input type="date" placeholder="Min" value="${esc(f.min)}" max="9999-12-31" oninput="updateGridColRangeFilter('${prefix}','${c.key}','min',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"><input type="date" placeholder="Max" value="${esc(f.max)}" max="9999-12-31" oninput="updateGridColRangeFilter('${prefix}','${c.key}','max',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"></div>`;
           } else if (c.type === 'number' || c.key === 'progress' || c.type === 'progress') {
             const f = typeof cVal === 'object' ? cVal : {};
-            fInp = `<div style="display:flex;gap:2px"><input type="number" placeholder="Min" value="${esc(f.min)}" oninput="updateGridColRangeFilter('${prefix}','${c.key}','min',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"><input type="number" placeholder="Max" value="${esc(f.max)}" oninput="updateGridColRangeFilter('${prefix}','${c.key}','max',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"></div>`;
+            fInp = `<div style="display:flex;gap:2px" onclick="event.stopPropagation()"><input type="number" placeholder="Min" value="${esc(f.min)}" oninput="updateGridColRangeFilter('${prefix}','${c.key}','min',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"><input type="number" placeholder="Max" value="${esc(f.max)}" oninput="updateGridColRangeFilter('${prefix}','${c.key}','max',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"></div>`;
           } else {
             fInp = `<input type="text" data-col="${c.key}" placeholder="Filter..." value="${esc(cVal)}" oninput="updateGridColFilter('${prefix}','${c.key}',this.value)" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondragstart="event.preventDefault(); event.stopPropagation()" style="${cStyle}">`;
           }
@@ -18081,20 +18084,22 @@
             let fInp = '';
             const cVal = P.colFilters[c.key] || '';
             const cStyle = 'width:100%;box-sizing:border-box;font-size:10px;padding:3px 4px;border:1px solid var(--color-border);border-radius:2px;background:var(--color-surface);color:var(--text);font-family:var(--font);outline:none;';
-            if (c.key === 'status' || c.key === 'priority' || c.key === 'assignee' || c.type === 'select' || c.type === 'dropdown') {
+            if (c.key === 'status' || c.key === 'priority' || c.key === 'assignee' || c.type === 'select' || c.type === 'dropdown' || c.key === 'category' || c.key === 'releaseVersion') {
               let opts = c.opts || [];
               if (c.key === 'status') opts = STATUSES;
               else if (c.key === 'priority') opts = PRIORITIES;
               else if (c.key === 'assignee') opts = getTeamNames();
+              else if (c.key === 'category') opts = CATEGORIES;
+              else if (c.key === 'releaseVersion' || c.key === 'version') opts = VERSIONS;
               let optsHtml = '<option value="">All</option>';
               opts.forEach(o => { optsHtml += `<option value="${esc(o)}" ${cVal === o ? 'selected' : ''}>${esc(o)}</option>`; });
               fInp = `<select data-col="${c.key}" onchange="updateColFilter('${c.key}',this.value)" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" style="${cStyle}">${optsHtml}</select>`;
             } else if (c.type === 'date') {
               const f = cVal || {};
-              fInp = `<div style="display:flex;gap:2px"><input type="date" placeholder="Min" value="${esc(f.min)}" oninput="updateColRangeFilter('${c.key}','min',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"><input type="date" placeholder="Max" value="${esc(f.max)}" oninput="updateColRangeFilter('${c.key}','max',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"></div>`;
+              fInp = `<div style="display:flex;gap:2px" onclick="event.stopPropagation()"><input type="date" placeholder="Min" value="${esc(f.min)}" max="9999-12-31" oninput="updateColRangeFilter('${c.key}','min',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"><input type="date" placeholder="Max" value="${esc(f.max)}" max="9999-12-31" oninput="updateColRangeFilter('${c.key}','max',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"></div>`;
             } else if (c.type === 'number' || c.key === 'progress' || c.type === 'progress') {
               const f = cVal || {};
-              fInp = `<div style="display:flex;gap:2px"><input type="number" placeholder="Min" value="${esc(f.min)}" oninput="updateColRangeFilter('${c.key}','min',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"><input type="number" placeholder="Max" value="${esc(f.max)}" oninput="updateColRangeFilter('${c.key}','max',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"></div>`;
+              fInp = `<div style="display:flex;gap:2px" onclick="event.stopPropagation()"><input type="number" placeholder="Min" value="${esc(f.min)}" oninput="updateColRangeFilter('${c.key}','min',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"><input type="number" placeholder="Max" value="${esc(f.max)}" oninput="updateColRangeFilter('${c.key}','max',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"></div>`;
             } else {
               fInp = `<input type="text" data-col="${c.key}" placeholder="Filter..." value="${esc(cVal)}" oninput="updateColFilter('${c.key}',this.value)" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondragstart="event.preventDefault(); event.stopPropagation()" style="${cStyle}">`;
             }
@@ -18909,7 +18914,34 @@
         P.colFilters[key] = '';
       }
     }
-    function toggleMS(e, id) { e.stopPropagation(); const dd = document.querySelector("#" + id + " .ms-dropdown"); const isOpen = dd.style.display === "flex"; document.querySelectorAll(".ms-dropdown").forEach(d => d.style.display = "none"); dd.style.display = isOpen ? "none" : "flex"; if (!isOpen) { const inp = dd.querySelector(".ms-search"); inp.value = ""; filterMS(inp, id); setTimeout(() => inp.focus(), 10); } document.addEventListener("click", () => { dd.style.display = "none"; }, { once: true }); }
+    function toggleMS(e, id) {
+      e.stopPropagation();
+      const dd = document.querySelector("#" + id + " .ms-dropdown");
+      const isOpen = dd.style.display === "flex";
+      document.querySelectorAll(".ms-dropdown").forEach(d => {
+        d.style.display = "none";
+        if (d._closeListener) {
+          document.removeEventListener("click", d._closeListener);
+          d._closeListener = null;
+        }
+      });
+      if (!isOpen) {
+        dd.style.display = "flex";
+        const inp = dd.querySelector(".ms-search");
+        inp.value = "";
+        filterMS(inp, id);
+        setTimeout(() => inp.focus(), 10);
+        const closeDD = (evt) => {
+          if (!dd.contains(evt.target)) {
+            dd.style.display = "none";
+            document.removeEventListener("click", closeDD);
+            dd._closeListener = null;
+          }
+        };
+        dd._closeListener = closeDD;
+        document.addEventListener("click", closeDD);
+      }
+    }
     function filterMS(inp, id) { const q = inp.value.toLowerCase(); document.querySelectorAll("#" + id + " .ms-opt").forEach(opt => { const txt = opt.textContent.toLowerCase(); opt.style.display = txt.includes(q) ? "flex" : "none"; }); }
     function selectMS(key, val) {
       if (P.filters[key].has(val)) P.filters[key].delete(val); else P.filters[key].add(val);
@@ -19464,7 +19496,7 @@
               });
             }
           } else if (c.type === 'date') {
-            fg.innerHTML += `<input type="date" class="finp" id="ff_${c.key}" value="${val}">`;
+            fg.innerHTML += `<input type="date" class="finp" id="ff_${c.key}" value="${val}" max="9999-12-31">`;
           } else if (c.type === 'number' || c.key === 'progress') {
             const roStr = (c.key === 'progress' && t.subtasks && t.subtasks.length) ? 'readonly title="Computed from sub-tasks"' : '';
             const minMax = c.key === 'progress' ? 'min="0" max="100"' : (c.key === 'estEffort' || c.key === 'actEffort' ? 'min="0"' : '');
@@ -20072,9 +20104,9 @@
       plDiv.innerHTML = `<label class="flbl">Planned Leaves</label>
         <div id="mf-leaves-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
           ${existingLeaves.map((lv, i) => `<div style="display:flex;gap:6px;align-items:center; background:var(--color-surface-2); padding:8px; border-radius:8px; border:1px solid var(--color-divider)">
-            <input type="date" class="finp mf-leave-from" value="${lv.from || ''}" style="flex:1; height:32px; font-size:11px">
+            <input type="date" class="finp mf-leave-from" value="${lv.from || ''}" max="9999-12-31" style="flex:1; height:32px; font-size:11px">
             <span style="font-size:10px;color:var(--color-text-muted)">to</span>
-            <input type="date" class="finp mf-leave-to" value="${lv.to || ''}" style="flex:1; height:32px; font-size:11px">
+            <input type="date" class="finp mf-leave-to" value="${lv.to || ''}" max="9999-12-31" style="flex:1; height:32px; font-size:11px">
             <input type="text" class="finp mf-leave-reason" value="${esc(lv.reason || '')}" placeholder="Reason" style="flex:1.5; height:32px; font-size:11px">
             <button class="btn ghost mini danger" onclick="this.parentElement.remove()" title="Remove this leave entry"><i data-lucide="x"></i></button>
           </div>`).join('')}
@@ -20087,7 +20119,7 @@
     function addLeaveRow() {
       const list = $id('mf-leaves-list');
       const row = document.createElement('div'); row.style = 'display:flex;gap:6px;align-items:center';
-      row.innerHTML = `<input type="date" class="finp mf-leave-from" style="flex:1"><span style="font-size:11px;color:var(--color-text-muted)">to</span><input type="date" class="finp mf-leave-to" style="flex:1"><input type="text" class="finp mf-leave-reason" placeholder="Reason" style="flex:1.5"><button class="btn ghost" style="font-size:10px;padding:2px 6px;color:var(--red)" onclick="this.parentElement.remove()"><i data-lucide="x"></i></button>`;
+      row.innerHTML = `<input type="date" class="finp mf-leave-from" max="9999-12-31" style="flex:1"><span style="font-size:11px;color:var(--color-text-muted)">to</span><input type="date" class="finp mf-leave-to" max="9999-12-31" style="flex:1"><input type="text" class="finp mf-leave-reason" placeholder="Reason" style="flex:1.5"><button class="btn ghost" style="font-size:10px;padding:2px 6px;color:var(--red)" onclick="this.parentElement.remove()"><i data-lucide="x"></i></button>`;
       list.appendChild(row);
     }
     function saveMember() {
@@ -22354,8 +22386,8 @@
       f.innerHTML = `
         <div class="fg"><label class="flbl">Report Title</label><input class="finp" id="rf_title" value="" placeholder="Enter report title"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div class="fg"><label class="flbl">Period Start</label><input type="date" class="finp" id="rf_start" value="${weekAgo}"></div>
-          <div class="fg"><label class="flbl">Period End</label><input type="date" class="finp" id="rf_end" value="${today}"></div>
+          <div class="fg"><label class="flbl">Period Start</label><input type="date" class="finp" id="rf_start" value="${weekAgo}" max="9999-12-31"></div>
+          <div class="fg"><label class="flbl">Period End</label><input type="date" class="finp" id="rf_end" value="${today}" max="9999-12-31"></div>
         </div>
         <div class="fg"><label class="flbl">Frequency</label>
           <select class="fsel" id="rf_freq">
@@ -44167,7 +44199,7 @@ Earned Value Management measures project performance and progress by comparing p
                 </div>
               </td>
               <td style="padding:14px 20px">
-                <input type="date" class="inp" value="${r.date || ''}" onchange="updateRelease('${r.id}', 'date', this.value)" style="width:100%; font-size:12px; background:transparent; border-color:transparent; padding:4px 8px; border-radius:6px; color:var(--color-text)" onfocus="this.style.background='var(--color-surface)'; this.style.borderColor='var(--color-divider)'" onblur="this.style.background='transparent'; this.style.borderColor='transparent'">
+                <input type="date" class="inp" value="${r.date || ''}" max="9999-12-31" onchange="updateRelease('${r.id}', 'date', this.value)" style="width:100%; font-size:12px; background:transparent; border-color:transparent; padding:4px 8px; border-radius:6px; color:var(--color-text)" onfocus="this.style.background='var(--color-surface)'; this.style.borderColor='var(--color-divider)'" onblur="this.style.background='transparent'; this.style.borderColor='transparent'">
               </td>
               <td style="padding:14px 20px">
                 <div style="position:relative; display:flex; align-items:center">
