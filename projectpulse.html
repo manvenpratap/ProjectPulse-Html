@@ -36392,6 +36392,18 @@ Earned Value Management measures project performance and progress by comparing p
       overdueTasks.forEach(t => { const m = t.module || 'General'; modCounts[m] = (modCounts[m] || 0) + 1; });
       const sortedMods = Object.entries(modCounts).sort((a, b) => b[1] - a[1]);
 
+      // Project Highlights & Good News Calculations
+      const last14Days = new Date(Date.now() - 14 * 864e5);
+
+      // Helper: parse actCompletionDate from task or fall back to log
+      const getTaskCompletionDate = t => {
+        if (t.actCompletionDate) return new Date(t.actCompletionDate);
+        // Fallback: find the earliest completion log for this task
+        const compLog = (P.log || []).find(l => l.taskId === t.id && isTaskCompletionLog(l));
+        if (compLog) return getLogActivityDate(compLog);
+        return null;
+      };
+
       // Recent Changes Delta — driven by actCompletionDate on tasks/subtasks, not log write timestamp
       const last7Days = new Date(Date.now() - 7 * 864e5);
 
@@ -36425,18 +36437,6 @@ Earned Value Management measures project performance and progress by comparing p
       const recentCompletions = [...recentCompletedTasks7, ...recentCompletedSubtasks7]
         .sort((a, b) => b._completedAt - a._completedAt)
         .slice(0, 6);
-
-      // Project Highlights & Good News Calculations
-      const last14Days = new Date(Date.now() - 14 * 864e5);
-
-      // Helper: parse actCompletionDate from task or fall back to log
-      const getTaskCompletionDate = t => {
-        if (t.actCompletionDate) return new Date(t.actCompletionDate);
-        // Fallback: find the earliest completion log for this task
-        const compLog = (P.log || []).find(l => l.taskId === t.id && isTaskCompletionLog(l));
-        if (compLog) return getLogActivityDate(compLog);
-        return null;
-      };
 
       // All completed tasks (non-subtask) with a resolvable completion date
       const allCompletedTasks = tasks
