@@ -47836,10 +47836,87 @@ Earned Value Management measures project performance and progress by comparing p
         }
       }
 
-      // Convert canvas to image data url
-      const canvasDataUrl = canvasEl.toDataURL('image/png');
-      const canvasWidth = canvasEl.offsetWidth || (canvasEl.width / (window.devicePixelRatio || 1));
-      const canvasHeight = canvasEl.offsetHeight || (canvasEl.height / (window.devicePixelRatio || 1));
+      // Compute feature metrics map if exporting features
+      const dashCache = buildDashCache(P.tasks, P.log);
+      const featMetricsMap = {};
+      if (isFeat) {
+        P.features.forEach((f) => {
+          let fScreens = [];
+          const fMods = new Set();
+          (f.screens || []).forEach(scName => {
+            if (dashCache.subtasksByScreen[scName] && dashCache.subtasksByScreen[scName].length > 0) {
+              fScreens.push(...dashCache.subtasksByScreen[scName]);
+            } else if (dashCache.screenByName[scName] && dashCache.screenByName[scName].parentTasks) {
+              fScreens.push(...dashCache.screenByName[scName].parentTasks);
+            }
+          });
+          const tot = fScreens.length;
+          const done = fScreens.filter(s => s.status === 'Completed').length;
+          const avgP = tot ? Math.round(fScreens.reduce((s, sc) => s + (sc.progress || 0), 0) / tot) : 0;
+          const overdue = fScreens.filter(s => {
+            const dd = daysDiff(s.dueDate);
+            return dd !== null && dd < 0 && s.status !== 'Completed';
+          }).length;
+          featMetricsMap[f.name] = { tot, done, avgP, overdue, fScreens };
+        });
+      }
+
+      // Build data payload to serialize inside the offline HTML file
+      let itemsPayload = [];
+      if (!isFeat) {
+        const tasks = getFiltered().filter(t => t.startDate && t.dueDate).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+        itemsPayload = tasks.map(t => ({
+          id: t.id,
+          name: t.name,
+          status: t.status,
+          assignee: t.assignee || 'Unassigned',
+          startDate: t.startDate,
+          dueDate: t.dueDate,
+          actCompletionDate: t.actCompletionDate || null,
+          progress: t.progress || 0,
+          moduleType: t.moduleType || '',
+          category: t.category || ''
+        }));
+      } else {
+        const filteredFeatures = getFilteredFeatures();
+        itemsPayload = filteredFeatures.map((f, i) => {
+          const mObj = featMetricsMap[f.name] || { avgP: 0, tot: 0, done: 0, overdue: 0, fScreens: [] };
+          let start = null, end = null;
+          mObj.fScreens.forEach(sc => {
+            if (sc.startDate) {
+              const sd = new Date(sc.startDate);
+              if (!start || sd < start) start = sd;
+            }
+            if (sc.dueDate) {
+              const ed = new Date(sc.dueDate);
+              if (!end || ed > end) end = ed;
+            }
+          });
+          return {
+            id: 'feat-' + i,
+            name: f.name,
+            release: f.release || '',
+            progress: mObj.avgP,
+            overdue: mObj.overdue,
+            startDate: start ? start.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            dueDate: end ? end.toISOString().split('T')[0] : new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+            screensCount: mObj.tot,
+            screensDone: mObj.done
+          };
+        });
+      }
+
+      const dataPayload = {
+        isFeat,
+        projectName: P.name || 'ProjectPulse',
+        releases: P.releases || [],
+        theme: P.theme || 'nexus',
+        colorMode: P.colorMode || 'light',
+        showGanttActuals: !!P.showGanttActuals,
+        items: itemsPayload
+      };
+
+      const serializedData = JSON.stringify(dataPayload).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
 
       // Build standalone page HTML
       const htmlContent = `<!DOCTYPE html>
@@ -47874,6 +47951,7 @@ Earned Value Management measures project performance and progress by comparing p
       height: 100vh;
       display: flex;
       flex-direction: column;
+      box-sizing: border-box;
     }
     .export-header {
       margin-bottom: 12px;
@@ -47881,6 +47959,7 @@ Earned Value Management measures project performance and progress by comparing p
       justify-content: space-between;
       align-items: center;
       flex-shrink: 0;
+      gap: 16px;
     }
     .export-title {
       font-size: 18px;
@@ -47891,27 +47970,137 @@ Earned Value Management measures project performance and progress by comparing p
       font-size: 11px;
       color: var(--color-text-muted);
     }
-    .gantt-wrap {
+    .controls-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .search-input {
+      font-size: 13px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
+      color: var(--color-text);
+      height: 32px;
+      box-sizing: border-box;
+      width: 180px;
+    }
+    .search-input:focus {
+      outline: none;
+      border-color: var(--color-primary);
+    }
+    .btn-group {
+      display: flex;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--color-surface);
+    }
+    .btn {
+      background: transparent;
+      border: none;
+      color: var(--color-text-muted);
+      font-size: 12px;
+      padding: 6px 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font-body);
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn.active {
+      background: var(--color-primary);
+      color: #ffffff;
+    }
+    .btn:hover:not(.active) {
+      background: var(--color-surface-2);
+      color: var(--color-text);
+    }
+    .gantt-outer {
       display: flex;
       border: 1px solid var(--color-border);
       border-radius: 12px;
       overflow: hidden;
       background: var(--color-surface);
       flex: 1;
-      height: calc(100vh - 65px);
+      height: calc(100vh - 75px);
+      position: relative;
     }
     .gantt-left {
       width: 280px;
       flex-shrink: 0;
       overflow-y: hidden;
-      border-right: 1px solid var(--color-border);
       background: var(--color-surface);
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+    .gantt-splitter {
+      width: 4px;
+      background: var(--color-divider);
+      cursor: col-resize;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .gantt-splitter:hover, .gantt-splitter.dragging {
+      background: var(--color-primary);
     }
     .gantt-right {
       flex: 1;
       overflow: auto;
-      background: var(--color-bg);
+      background: var(--color-surface-2);
       position: relative;
+    }
+    .gl-head {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      font-weight: 800;
+      font-size: 11px;
+      color: var(--color-text-faint);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      border-bottom: 2px solid var(--color-border);
+      background: var(--color-surface-2);
+      flex-shrink: 0;
+      box-sizing: border-box;
+    }
+    .gl-row {
+      height: 32px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--color-divider);
+      font-size: 12px;
+      color: var(--color-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      box-sizing: border-box;
+      transition: background 0.15s;
+    }
+    .gl-row.feat-row {
+      height: 48px;
+      padding: 0 12px 0 0;
+    }
+    .gantt-tooltip {
+      position: fixed;
+      pointer-events: none;
+      z-index: 9999;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      padding: 10px 14px;
+      border-radius: 8px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      font-size: 11px;
+      min-width: 180px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.2s, transform 0.2s;
+      display: block;
+      color: var(--color-text);
+      font-family: var(--font-body);
     }
     ${stylesBundled}
   </style>
@@ -47919,31 +48108,476 @@ Earned Value Management measures project performance and progress by comparing p
 <body>
   <div class="export-header">
     <div>
-      <div class="export-title">${esc(P.name || 'ProjectPulse')} - ${isFeat ? 'Features Timeline' : 'Tasks Timeline'}</div>
+      <div class="export-title" id="export-title-el">Project Timeline</div>
       <div class="export-meta">Exported on ${new Date().toLocaleString()}</div>
     </div>
-  </div>
-  <div class="gantt-wrap">
-    <div class="gantt-left" id="export-gantt-left">
-      ${leftEl.innerHTML}
+    <div class="controls-wrap">
+      <input type="text" class="search-input" id="search-input" placeholder="Search..." />
+      <div class="btn-group">
+        <button class="btn" id="zoom-day-btn" onclick="setZoom('day')">Day</button>
+        <button class="btn active" id="zoom-week-btn" onclick="setZoom('week')">Week</button>
+        <button class="btn" id="zoom-month-btn" onclick="setZoom('month')">Month</button>
+      </div>
     </div>
+  </div>
+  <div class="gantt-outer">
+    <div class="gantt-left" id="export-gantt-left"></div>
+    <div class="gantt-splitter" id="export-gantt-splitter"></div>
     <div class="gantt-right" id="export-gantt-right">
-      <img src="${canvasDataUrl}" style="display: block; width: ${canvasWidth}px; height: ${canvasHeight}px;" />
+      <canvas id="export-gantt-canvas"></canvas>
     </div>
   </div>
+  <div class="gantt-tooltip" id="export-gantt-tooltip"></div>
+
   ${'<' + 'script' + '>'}
+    const DATA = ${serializedData};
+    let currentZoom = 'week';
+    let searchQuery = '';
+    const items = DATA.items;
+    const isFeat = DATA.isFeat;
+
+    function $id(id) { return document.getElementById(id); }
+    function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    function fmtDate(dStr) {
+      if (!dStr) return '';
+      const d = new Date(dStr);
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    }
+
+    $id('export-title-el').textContent = DATA.projectName + ' - ' + (isFeat ? 'Features Timeline' : 'Tasks Timeline');
+    document.title = DATA.projectName + ' - ' + (isFeat ? 'Features Timeline' : 'Tasks Timeline');
+
+    const splitter = $id('export-gantt-splitter');
+    const leftPanel = $id('export-gantt-left');
+    let isDragging = false;
+
+    splitter.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      splitter.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const newWidth = Math.max(150, Math.min(600, e.clientX));
+      leftPanel.style.width = newWidth + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        splitter.classList.remove('dragging');
+        document.body.style.cursor = '';
+        renderGantt();
+      }
+    });
+
+    window.setZoom = function(z) {
+      currentZoom = z;
+      document.querySelectorAll('.btn-group .btn').forEach(btn => btn.classList.remove('active'));
+      $id('zoom-' + z + '-btn').classList.add('active');
+      renderGantt();
+    };
+
+    const searchInput = $id('search-input');
+    searchInput.addEventListener('input', (e) => {
+      searchQuery = e.target.value.toLowerCase();
+      renderGantt();
+    });
+
+    const cvs = $id('export-gantt-canvas');
+    const tooltip = $id('export-gantt-tooltip');
+    let hitAreas = [];
+
+    cvs.addEventListener('mousemove', (e) => {
+      const rect = cvs.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      let hit = null;
+      hitAreas.forEach(h => {
+        if (mouseX >= h.x && mouseX <= h.x2 && mouseY >= h.y && mouseY <= h.y2) {
+          hit = h;
+        }
+      });
+      cvs.style.cursor = hit ? 'pointer' : 'default';
+
+      document.querySelectorAll('.gl-row').forEach((r, idx) => {
+        r.style.background = (hit && hit.idx === idx) ? 'var(--color-surface-2)' : (idx % 2 === 1 ? 'rgba(0,0,0,0.013)' : 'transparent');
+      });
+
+      if (hit) {
+        const t = hit.item;
+        tooltip.style.opacity = '1';
+        tooltip.style.transform = 'translateY(0)';
+        let tx = e.clientX + 15;
+        let ty = e.clientY + 15;
+        if (tx + 220 > window.innerWidth) tx = e.clientX - 235;
+        if (ty + 130 > window.innerHeight) ty = e.clientY - 145;
+        tooltip.style.left = tx + 'px';
+        tooltip.style.top = ty + 'px';
+
+        if (isFeat) {
+          tooltip.innerHTML = \`
+            <div style="font-weight:700;margin-bottom:8px;font-size:12px">\${esc(t.name)}</div>
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 8px;font-size:10px;color:var(--color-text-muted)">
+              <span>Release:</span> <span style="color:var(--color-text);font-weight:600">\${esc(t.release || 'Unassigned')}</span>
+              <span>Planned:</span> <span style="color:var(--color-text);font-weight:600">\${fmtDate(t.startDate)} &rarr; \${fmtDate(t.dueDate)}</span>
+              <span>Progress:</span> <span style="color:var(--color-text);font-weight:600">\${t.progress || 0}%</span>
+              <span>Screens:</span> <span style="color:var(--color-text);font-weight:600">\${t.screensDone} / \${t.screensCount} completed</span>
+            </div>
+          \`;
+        } else {
+          tooltip.innerHTML = \`
+            <div style="font-weight:700;margin-bottom:8px;font-size:12px">\${esc(t.name)}</div>
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 8px;font-size:10px;color:var(--color-text-muted)">
+              <span>Status:</span> <span style="color:var(--color-text);font-weight:600">\${esc(t.status)}</span>
+              <span>Assignee:</span> <span style="color:var(--color-text);font-weight:600">\${esc(t.assignee)}</span>
+              <span>Planned:</span> <span style="color:var(--color-text);font-weight:600">\${fmtDate(t.startDate)} &rarr; \${fmtDate(t.dueDate)}</span>
+              <span>Progress:</span> <span style="color:var(--color-text);font-weight:600">\${t.progress || 0}%</span>
+            </div>
+          \`;
+        }
+      } else {
+        tooltip.style.opacity = '0';
+        tooltip.style.transform = 'translateY(8px)';
+      }
+    });
+
+    cvs.addEventListener('mouseleave', () => {
+      tooltip.style.opacity = '0';
+      tooltip.style.transform = 'translateY(8px)';
+    });
+
+    function renderGantt() {
+      const filtered = items.filter(t => {
+        return t.name.toLowerCase().includes(searchQuery);
+      });
+
+      leftPanel.innerHTML = '';
+      const lh = document.createElement('div');
+      lh.className = 'gl-head';
+      lh.innerHTML = isFeat ? 'Feature / Release' : 'Task';
+      leftPanel.appendChild(lh);
+
+      const FEAT_PALETTE = ['#6366f1','#8b5cf6','#0ea5e9','#10b981','#f59e0b','#ef4444','#ec4899','#06b6d4'];
+      const RELEASE_STATUS_COLORS = { Released: '#10b981', Active: '#3b82f6', Planned: '#f59e0b' };
+
+      filtered.forEach((t, i) => {
+        const r = document.createElement('div');
+        r.className = 'gl-row';
+        r.onmouseenter = () => r.style.background = 'var(--color-surface-2)';
+        r.onmouseleave = () => r.style.background = i % 2 === 1 ? 'rgba(0,0,0,0.013)' : 'transparent';
+        if (i % 2 === 1) r.style.background = 'rgba(0,0,0,0.013)';
+
+        if (isFeat) {
+          r.className += ' feat-row';
+          const bc = FEAT_PALETTE[i % FEAT_PALETTE.length];
+          const stripe = document.createElement('div');
+          stripe.style.cssText = \`width:3px;height:100%;background:\${bc};flex-shrink:0;border-radius:0 2px 2px 0;margin-right:10px;opacity:0.8;\`;
+          r.appendChild(stripe);
+
+          const info = document.createElement('div');
+          info.style.cssText = 'flex:1;min-width:0;overflow:hidden;';
+
+          const nameEl = document.createElement('div');
+          nameEl.style.cssText = 'font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;';
+          nameEl.textContent = t.name;
+
+          const meta = document.createElement('div');
+          meta.style.cssText = 'display:flex;align-items:center;gap:5px;margin-top:3px;';
+
+          if (t.release) {
+            const relBadge = document.createElement('span');
+            relBadge.style.cssText = \`font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);color:var(--color-primary);white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis;\`;
+            relBadge.textContent = t.release;
+            meta.appendChild(relBadge);
+          }
+
+          const progSpan = document.createElement('span');
+          progSpan.style.cssText = \`font-size:9px;font-weight:700;color:\${bc};opacity:0.85;\`;
+          progSpan.textContent = \`\${t.progress}%\`;
+          meta.appendChild(progSpan);
+
+          if (t.overdue > 0) {
+            const risk = document.createElement('span');
+            risk.style.cssText = 'font-size:9px;color:#ef4444;font-weight:700;';
+            risk.textContent = '⚠ Overdue';
+            meta.appendChild(risk);
+          }
+
+          info.appendChild(nameEl);
+          info.appendChild(meta);
+          r.appendChild(info);
+        } else {
+          let nameHtml = esc(t.name);
+          const modTag = t.moduleType ? \`<span style="opacity:0.5;font-size:9px;margin-right:6px;font-family:monospace;font-weight:700;text-transform:uppercase;color:var(--color-primary)">\${t.moduleType}</span>\` : '';
+          const isMS = t.startDate === t.dueDate || t.category === 'Milestone';
+          if (isMS) {
+            nameHtml = \`<span style="color:var(--color-primary);margin-right:4px">💎</span>\${nameHtml}\`;
+          } else {
+            nameHtml = modTag + nameHtml;
+          }
+          r.innerHTML = \`<span style="overflow:hidden;text-overflow:ellipsis;flex:1;display:flex;align-items:center">\${nameHtml}</span>\`;
+        }
+
+        leftPanel.appendChild(r);
+      });
+
+      if (filtered.length === 0) {
+        cvs.width = 0;
+        cvs.height = 0;
+        return;
+      }
+
+      let allDates = [];
+      filtered.forEach(t => {
+        if (t.startDate) allDates.push(new Date(t.startDate));
+        if (t.dueDate) allDates.push(new Date(t.dueDate));
+      });
+      DATA.releases.forEach(r => { if (r.date) allDates.push(new Date(r.date)); });
+      if (allDates.length === 0) {
+        allDates = [new Date(), new Date(Date.now() + 30 * 864e5)];
+      }
+
+      let minDate = new Date(Math.min(...allDates));
+      let maxDate = new Date(Math.max(...allDates));
+      minDate.setDate(minDate.getDate() - (isFeat ? 5 : 3));
+      maxDate.setDate(maxDate.getDate() + (isFeat ? 10 : 7));
+
+      const ROW_H = isFeat ? 48 : 32;
+      const HEAD_H = isFeat ? 56 : 48;
+      const PAD_L = 4;
+      const BAR_H = isFeat ? 22 : 16;
+      const dayW = currentZoom === 'day' ? (isFeat ? 30 : 28) : currentZoom === 'week' ? (isFeat ? 14 : 12) : 4;
+      const totalDays = Math.ceil((maxDate - minDate) / 864e5);
+
+      const W = totalDays * dayW + PAD_L * 2;
+      const H = HEAD_H + filtered.length * ROW_H;
+
+      const dpr = window.devicePixelRatio || 1;
+      cvs.style.width = W + 'px';
+      cvs.style.height = H + 'px';
+      cvs.width = W * dpr;
+      cvs.height = H * dpr;
+
+      const ctx = cvs.getContext('2d');
+      ctx.scale(dpr, dpr);
+
+      const themeBg = getComputedStyle(document.body).getPropertyValue('--color-surface').trim() || '#ffffff';
+      const themeBg2 = getComputedStyle(document.body).getPropertyValue('--color-surface-2').trim() || '#f8f7f4';
+      const themeBorder = getComputedStyle(document.body).getPropertyValue('--color-border').trim() || '#e8e4dc';
+      const themeDivider = getComputedStyle(document.body).getPropertyValue('--color-divider').trim() || '#f0ede8';
+      const themeMuted = getComputedStyle(document.body).getPropertyValue('--color-text-muted').trim() || '#6b6560';
+      const themeFaint = getComputedStyle(document.body).getPropertyValue('--color-text-faint').trim() || '#a8a29e';
+
+      ctx.fillStyle = themeBg;
+      ctx.fillRect(0, 0, W, H);
+
+      hitAreas = [];
+
+      ctx.fillStyle = themeBg2;
+      ctx.fillRect(0, 0, W, HEAD_H);
+      ctx.strokeStyle = themeBorder;
+      ctx.lineWidth = 1;
+
+      for (let d = 0; d < totalDays; d++) {
+        const dt = new Date(minDate.getTime() + d * 864e5);
+        const x = PAD_L + d * dayW;
+
+        if (dt.getDay() === 1 || currentZoom === 'day') {
+          ctx.strokeStyle = themeDivider;
+          ctx.beginPath();
+          ctx.moveTo(x, HEAD_H);
+          ctx.lineTo(x, H);
+          ctx.stroke();
+        }
+        if (dt.getDay() === 0 || dt.getDay() === 6) {
+          ctx.fillStyle = 'rgba(128,128,128,0.04)';
+          ctx.fillRect(x, HEAD_H, dayW, H - HEAD_H);
+        }
+
+        if (currentZoom === 'day') {
+          ctx.fillStyle = themeFaint;
+          ctx.font = '9px ' + DATA.theme;
+          ctx.textAlign = 'center';
+          ctx.fillText(dt.getDate(), x + dayW / 2, HEAD_H - (isFeat ? 8 : 4));
+          if (dt.getDate() === 1 || d === 0) {
+            ctx.fillStyle = themeMuted;
+            ctx.font = 'bold 9px ' + DATA.theme;
+            ctx.fillText(dt.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), x + dayW / 2, HEAD_H - (isFeat ? 24 : 16));
+          }
+        } else if (currentZoom === 'week' && dt.getDay() === 1) {
+          ctx.fillStyle = themeFaint;
+          ctx.font = '9px ' + DATA.theme;
+          ctx.textAlign = 'left';
+          ctx.fillText(dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), x + 2, HEAD_H - 4);
+        } else if (currentZoom === 'month' && dt.getDate() === 1) {
+          ctx.fillStyle = themeMuted;
+          ctx.font = 'bold 9px ' + DATA.theme;
+          ctx.textAlign = 'left';
+          ctx.fillText(dt.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), x + 2, HEAD_H - 4);
+        }
+      }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (today >= minDate && today <= maxDate) {
+        const tx = PAD_L + Math.floor((today - minDate) / 864e5) * dayW;
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(tx, HEAD_H);
+        ctx.lineTo(tx, H);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#ef4444';
+        ctx.font = 'bold 8px ' + DATA.theme;
+        ctx.textAlign = 'left';
+        ctx.fillText('Today', tx + 2, HEAD_H + 10);
+      }
+
+      DATA.releases.forEach(r => {
+        if (!r.date) return;
+        const rd = new Date(r.date); rd.setHours(0, 0, 0, 0);
+        if (rd >= minDate && rd <= maxDate) {
+          const rx = PAD_L + Math.floor((rd - minDate) / 864e5) * dayW;
+          const rColor = RELEASE_STATUS_COLORS[r.status] || '#8b5cf6';
+          ctx.strokeStyle = rColor;
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(rx, 0); ctx.lineTo(rx, H); ctx.stroke();
+
+          ctx.fillStyle = rColor;
+          ctx.font = 'bold 8px ' + DATA.theme;
+          ctx.textAlign = 'left';
+          ctx.fillText(r.name, rx + 4, 12);
+        }
+      });
+
+      ctx.strokeStyle = themeBorder;
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i <= filtered.length; i++) {
+        const y = HEAD_H + i * ROW_H;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+      }
+
+      const stColors = { 'Not Started': '#94a3b8', 'In Progress': '#3b82f6', 'On Hold': '#f59e0b', 'Under Review': '#8b5cf6', Completed: '#22c55e', Cancelled: '#ef4444' };
+      filtered.forEach((t, i) => {
+        const s = new Date(t.startDate), e = new Date(t.dueDate);
+        s.setHours(0, 0, 0, 0); e.setHours(0, 0, 0, 0);
+        const x1 = PAD_L + Math.max(0, Math.floor((s - minDate) / 864e5)) * dayW;
+        const x2 = PAD_L + Math.floor((e - minDate) / 864e5) * dayW + dayW;
+        const y = HEAD_H + i * ROW_H + (ROW_H - BAR_H) / 2;
+        const bw = Math.max(x2 - x1, dayW);
+
+        hitAreas.push({ x: x1, x2: x1 + bw, y: HEAD_H + i * ROW_H, y2: HEAD_H + (i + 1) * ROW_H, item: t, idx: i });
+
+        if (isFeat) {
+          const bc = FEAT_PALETTE[i % FEAT_PALETTE.length];
+          ctx.fillStyle = bc + '25';
+          if (ctx.roundRect) {
+            ctx.beginPath();
+            ctx.roundRect(x1, y, bw, BAR_H, 6);
+            ctx.fill();
+          } else {
+            ctx.fillRect(x1, y, bw, BAR_H);
+          }
+
+          const pw = bw * ((t.progress || 0) / 100);
+          if (pw > 0) {
+            ctx.fillStyle = bc;
+            if (ctx.roundRect) {
+              ctx.beginPath();
+              ctx.roundRect(x1, y, pw, BAR_H, 6);
+              ctx.fill();
+            } else {
+              ctx.fillRect(x1, y, pw, BAR_H);
+            }
+          }
+
+          ctx.strokeStyle = t.overdue > 0 ? '#ef4444' : bc;
+          ctx.lineWidth = 1;
+          if (ctx.roundRect) {
+            ctx.beginPath();
+            ctx.roundRect(x1, y, bw, BAR_H, 6);
+            ctx.stroke();
+          } else {
+            ctx.strokeRect(x1, y, bw, BAR_H);
+          }
+        } else {
+          const isMS = t.startDate === t.dueDate || t.category === 'Milestone';
+          if (isMS) {
+            const mx = x1 + dayW / 2;
+            const my = y + BAR_H / 2;
+            ctx.fillStyle = stColors[t.status] || '#94a3b8';
+            ctx.beginPath();
+            ctx.moveTo(mx, my - 8);
+            ctx.lineTo(mx + 8, my);
+            ctx.lineTo(mx, my + 8);
+            ctx.lineTo(mx - 8, my);
+            ctx.closePath();
+            ctx.fill();
+          } else {
+            ctx.fillStyle = (stColors[t.status] || '#94a3b8') + '25';
+            if (ctx.roundRect) {
+              ctx.beginPath();
+              ctx.roundRect(x1, y, bw, BAR_H, 4);
+              ctx.fill();
+            } else {
+              ctx.fillRect(x1, y, bw, BAR_H);
+            }
+
+            const pw = bw * ((t.progress || 0) / 100);
+            if (pw > 0) {
+              ctx.fillStyle = stColors[t.status] || '#3b82f6';
+              if (ctx.roundRect) {
+                ctx.beginPath();
+                ctx.roundRect(x1, y, pw, BAR_H, 4);
+                ctx.fill();
+              } else {
+                ctx.fillRect(x1, y, pw, BAR_H);
+              }
+            }
+
+            ctx.strokeStyle = stColors[t.status] || '#94a3b8';
+            ctx.lineWidth = 1;
+            if (ctx.roundRect) {
+              ctx.beginPath();
+              ctx.roundRect(x1, y, bw, BAR_H, 4);
+              ctx.stroke();
+            } else {
+              ctx.strokeRect(x1, y, bw, BAR_H);
+            }
+
+            if (DATA.showGanttActuals && t.actCompletionDate) {
+              const actD = new Date(t.actCompletionDate); actD.setHours(0,0,0,0);
+              const actX = PAD_L + Math.floor((actD - minDate)/864e5) * dayW + dayW/2;
+              ctx.fillStyle = '#22c55e';
+              ctx.beginPath();
+              ctx.arc(actX, y + BAR_H/2, 4, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+        }
+      });
+    }
+
+    const leftScroll = leftPanel;
+    const rightScroll = $id('export-gantt-right');
+    rightScroll.addEventListener('scroll', () => {
+      leftScroll.scrollTop = rightScroll.scrollTop;
+    });
+    leftScroll.addEventListener('wheel', (e) => {
+      rightScroll.scrollTop += e.deltaY;
+    }, { passive: true });
+
+    renderGantt();
     if (window.lucide) {
       lucide.createIcons();
-    }
-    const left = document.getElementById('export-gantt-left');
-    const right = document.getElementById('export-gantt-right');
-    if (left && right) {
-      right.addEventListener('scroll', () => {
-        left.scrollTop = right.scrollTop;
-      });
-      left.addEventListener('wheel', (e) => {
-        right.scrollTop += e.deltaY;
-      }, { passive: true });
     }
   ${'<' + '/script' + '>'}
 </body>
