@@ -20427,7 +20427,11 @@
         { id: 'skills_coverage', t: 'Skills & Role Coverage', on: true },
         { id: 'activity_timeline', t: '30-Day Activity Timeline', on: true },
         { id: 'bdays', t: 'Upcoming Birthdays', on: true },
-        { id: 'leaves', t: 'Upcoming Leaves', on: true }
+        { id: 'leaves', t: 'Upcoming Leaves', on: true },
+        { id: 'team_velocity_leader', t: 'Velocity Leaderboard', on: true, span: 1 },
+        { id: 'team_quality_leader', t: 'Quality Champions', on: true, span: 1 },
+        { id: 'team_growth_leader', t: 'Growth Mindset', on: true, span: 1 },
+        { id: 'team_spirit_pulse', t: 'Collaborative Pulse', on: true, span: 1 }
       ];
 
       let teamLayout = (Array.isArray(P.teamLayout) && P.teamLayout.length) ? P.teamLayout : defTeamLayout;
@@ -20448,11 +20452,17 @@
         widgetWrapper.dataset.index = si;
         widgetWrapper.dataset.title = sec.t;
 
-        if (sec.id === 'capacity_shortfalls' || sec.id === 'burn_rate') {
-          widgetWrapper.style.gridColumn = 'span 2';
-        } else {
-          widgetWrapper.style.gridColumn = 'span 4';
+        let wSpan = 4;
+        if (P.widgetSpans && P.widgetSpans[sec.id]) {
+          wSpan = P.widgetSpans[sec.id];
+        } else if (sec.span) {
+          wSpan = sec.span;
+        } else if (sec.id === 'capacity_shortfalls' || sec.id === 'burn_rate') {
+          wSpan = 2;
+        } else if (['team_velocity_leader', 'team_quality_leader', 'team_growth_leader', 'team_spirit_pulse'].includes(sec.id)) {
+          wSpan = 1;
         }
+        widgetWrapper.style.gridColumn = `span ${wSpan}`;
 
         inner.appendChild(widgetWrapper);
         const cleanId = sec.id;
@@ -26406,7 +26416,11 @@
                       { id: 'skills_coverage', t: 'Skills & Role Coverage', on: true },
                       { id: 'activity_timeline', t: '30-Day Activity Timeline', on: true },
                       { id: 'bdays', t: 'Upcoming Birthdays', on: true },
-                      { id: 'leaves', t: 'Upcoming Leaves', on: true }
+                      { id: 'leaves', t: 'Upcoming Leaves', on: true },
+                      { id: 'team_velocity_leader', t: 'Velocity Leaderboard', on: true, span: 1 },
+                      { id: 'team_quality_leader', t: 'Quality Champions', on: true, span: 1 },
+                      { id: 'team_growth_leader', t: 'Growth Mindset', on: true, span: 1 },
+                      { id: 'team_spirit_pulse', t: 'Collaborative Pulse', on: true, span: 1 }
                     ];
 
                     let layout = (Array.isArray(P.teamLayout) && P.teamLayout.length) ? P.teamLayout : defTeamLayout;
@@ -34528,128 +34542,6 @@ Earned Value Management measures project performance and progress by comparing p
       renderTeamInspiration(inner);
     }
 
-    function renderTeamInspiration(inner) {
-      addST(inner, 'Team Inspiration & Performance');
-      const grid = addGrid(inner);
-      grid.style.gridColumn = '1 / -1';
-
-      // 1. Velocity Leaderboard
-      const velId = 'team-velocity-leader';
-      const velCard = mkCC('Velocity Leaderboard', 'Highest throughput (30d)', velId, '', 'standard', "<b>Delivery Excellence:</b> Recognizes team members who have completed the highest volume of story points/tasks over the last 30 days.", 'Inspiration Detail', 'trophy');
-      velCard.style.gridColumn = 'span 1';
-      grid.appendChild(velCard);
-
-      const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      let velScores = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').map(m => {
-        const count = P.tasks.filter(t => {
-          if (t.assignee !== m.name || t.status !== 'Completed') return false;
-          const cmpDate = t.actCompletionDate || t.updatedAt;
-          return cmpDate && new Date(cmpDate) > thirtyDaysAgo;
-        }).length;
-        return { name: m.name, count };
-      }).sort((a, b) => b.count - a.count).slice(0, 3);
-
-      let velHtml = `<div style="padding:16px;display:flex;flex-direction:column;gap:12px">`;
-      velScores.forEach((s, i) => {
-        const med = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
-        velHtml += `<div style="display:flex;align-items:center;gap:12px;background:var(--color-surface-2);padding:10px 14px;border-radius:12px;border:1px solid var(--color-divider)">
-          <div style="font-size:11px;font-weight:900;color:var(--color-text-faint);width:20px">#${i + 1}</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:800;font-size:15px;line-height:1.2;word-break:break-word">${esc(s.name)}</div>
-            <div style="font-size:11px;color:var(--color-text-faint);font-weight:600;margin-top:2px">${s.count} Tasks Completed</div>
-          </div>
-        </div>`;
-      });
-      velCard.querySelector('.cb').innerHTML = velHtml;
-
-      // 2. Quality Champions
-      const qualId = 'team-quality-leader';
-      const qualCard = mkCC('Quality Champions', 'Highest stability score', qualId, '', 'standard', "<b>Engineering Stability:</b> Highlights contributors with the lowest bug-to-task ratio.", 'Quality Insight', 'award');
-      qualCard.style.gridColumn = 'span 1';
-      grid.appendChild(qualCard);
-
-      const tcCache = buildDashCache(P.tasks, P.log);
-      let qualScores = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').map(m => {
-        const tasks = P.tasks.filter(t => t.assignee === m.name && t.status === 'Completed');
-        const defects = P.defects.filter(d => {
-          let parentT = null;
-          if (tcCache.taskById[d.linkedId]) parentT = tcCache.taskById[d.linkedId];
-          else if (tcCache.subtaskById[d.linkedId]) parentT = tcCache.subtaskById[d.linkedId].parentTask;
-          else if (tcCache.screenByName[d.linkedId] && tcCache.screenByName[d.linkedId].parentTasks.length > 0) parentT = tcCache.screenByName[d.linkedId].parentTasks[0];
-          return parentT && parentT.assignee === m.name && parentT.status === 'Completed';
-        }).length;
-        const score = tasks.length ? (1 - (defects / (tasks.length + defects))) * 100 : 0;
-        return { name: m.name, score: Math.round(score), tasks: tasks.length };
-      }).filter(s => s.tasks > 0).sort((a, b) => b.score - a.score).slice(0, 3);
-
-      let qualHtml = `<div style="padding:16px;display:flex;flex-direction:column;gap:12px">`;
-      qualScores.forEach((s, i) => {
-        const icon = ['💎', '🌟', '✨'][i];
-        qualHtml += `<div style="display:flex;align-items:center;gap:12px;background:var(--color-surface-2);padding:10px 14px;border-radius:12px;border:1px solid var(--color-divider)">
-          <div style="font-size:11px;font-weight:900;color:var(--color-text-faint);width:20px">#${i + 1}</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:800;font-size:15px;line-height:1.2;word-break:break-word">${esc(s.name)}</div>
-            <div style="font-size:11px;color:var(--color-green);font-weight:800;margin-top:2px">${s.score}% Quality Score</div>
-          </div>
-        </div>`;
-      });
-      qualCard.querySelector('.cb').innerHTML = qualHtml;
-
-      // 3. Growth Mindset
-      const growId = 'team-growth-leader';
-      const growCard = mkCC('Growth Mindset', 'Most diverse contributions', growId, '', 'standard', "<b>Cross-Functional Excellence:</b> Highlights team members contributing across the widest variety of project modules.", 'Growth Goal', 'sprout');
-      growCard.style.gridColumn = 'span 1';
-      grid.appendChild(growCard);
-
-      let growScores = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').map(m => {
-        const modules = new Set(P.tasks.filter(t => t.assignee === m.name).map(t => t.module).filter(Boolean));
-        return { name: m.name, count: modules.size };
-      }).sort((a, b) => b.count - a.count).slice(0, 3);
-
-      let growHtml = `<div style="padding:16px;display:flex;flex-direction:column;gap:12px">`;
-      growScores.forEach((s, i) => {
-        const icon = ['flash', 'status-up', 'global'][i];
-        growHtml += `<div style="display:flex;align-items:center;gap:12px;background:var(--color-surface-2);padding:10px 14px;border-radius:12px;border:1px solid var(--color-divider)">
-          <div style="font-size:11px;font-weight:900;color:var(--color-text-faint);width:20px">#${i + 1}</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:800;font-size:15px;line-height:1.2;word-break:break-word">${esc(s.name)}</div>
-            <div style="font-size:11px;color:var(--color-primary);font-weight:800;margin-top:2px">${s.count} Modules Touched</div>
-          </div>
-        </div>`;
-      });
-      growCard.querySelector('.cb').innerHTML = growHtml;
-
-      // 4. Team Spirit / Collaborative Pulse
-      const pulseId = 'team-spirit-pulse';
-      const pulseCard = mkCC('Collaborative Pulse', 'Activity intensity (Last 7 Days)', pulseId, '', 'standard', "A real-time snapshot of team activity. Spikes in activity represent collective momentum and collaborative breakthroughs.", 'Join the Pulse', 'activity');
-      pulseCard.style.gridColumn = 'span 1';
-      grid.appendChild(pulseCard);
-      const pulseCvs = mkCvs(200, 120); pulseCard.querySelector('.cb').appendChild(pulseCvs);
-
-      // Calculate weekly activity data (Last 7 Days in 12h buckets)
-      const now = new Date();
-      const activityData = Array(14).fill(0);
-      P.log.forEach(l => {
-        const logTime = getLogActivityDate(l);
-        const hoursAgo = (now - logTime) / (1000 * 60 * 60);
-        if (hoursAgo >= 0 && hoursAgo < 168) {
-          const bucket = 13 - Math.floor(hoursAgo / 12);
-          if (bucket >= 0 && bucket < 14) activityData[bucket]++;
-        }
-      });
-
-      // Ensure it's never a "flat line" for aesthetic reasons (add tiny variety if empty)
-      if (activityData.every(v => v === 0)) {
-        activityData.forEach((_, i) => activityData[i] = [0.1, 0.3, 0.2, 0.4, 0.2, 0.1, 0.1, 0.5, 0.2, 0.1, 0.2, 0.3, 0.1, 0.1][i]);
-      }
-
-      const pulseLeg = document.createElement('div'); pulseLeg.className = 'cleg';
-      pulseLeg.innerHTML = '<div class="cli"><div class="cdot" style="background:var(--color-primary)"></div>Momentum Intensity</div>';
-      pulseCard.querySelector('.cb').appendChild(pulseLeg);
-
-      setTimeout(() => { drawMiniHistory(pulseCvs, activityData, 'var(--color-primary)', 'Timeline (7 Days)', 'Events'); }, 400);
-    }
-
     function toggleLeaveTaskRow(i) {
       const el = $id(`leave-tasks-${i}`);
       el.style.display = el.style.display === 'none' ? 'table-row' : 'none';
@@ -39363,7 +39255,11 @@ Earned Value Management measures project performance and progress by comparing p
           { id: 'skills_coverage', t: 'Skills & Role Coverage', on: true },
           { id: 'activity_timeline', t: '30-Day Activity Timeline', on: true },
           { id: 'bdays', t: 'Upcoming Birthdays', on: true },
-          { id: 'leaves', t: 'Upcoming Leaves', on: true }
+          { id: 'leaves', t: 'Upcoming Leaves', on: true },
+          { id: 'team_velocity_leader', t: 'Velocity Leaderboard', on: true, span: 1 },
+          { id: 'team_quality_leader', t: 'Quality Champions', on: true, span: 1 },
+          { id: 'team_growth_leader', t: 'Growth Mindset', on: true, span: 1 },
+          { id: 'team_spirit_pulse', t: 'Collaborative Pulse', on: true, span: 1 }
         ];
         addLay('Dashboard', (Array.isArray(P.dashLayout) && P.dashLayout.length) ? P.dashLayout : defDashLay);
         addLay('Report', (Array.isArray(P.reportLayout) && P.reportLayout.length) ? P.reportLayout : defRptLay);
@@ -47358,7 +47254,11 @@ Earned Value Management measures project performance and progress by comparing p
         { id: 'skills_coverage', t: 'Skills & Role Coverage', on: true },
         { id: 'activity_timeline', t: '30-Day Activity Timeline', on: true },
         { id: 'bdays', t: 'Upcoming Birthdays', on: true },
-        { id: 'leaves', t: 'Upcoming Leaves', on: true }
+        { id: 'leaves', t: 'Upcoming Leaves', on: true },
+        { id: 'team_velocity_leader', t: 'Velocity Leaderboard', on: true, span: 1 },
+        { id: 'team_quality_leader', t: 'Quality Champions', on: true, span: 1 },
+        { id: 'team_growth_leader', t: 'Growth Mindset', on: true, span: 1 },
+        { id: 'team_spirit_pulse', t: 'Collaborative Pulse', on: true, span: 1 }
       ];
 
       let teamLayout = (Array.isArray(P.teamLayout) && P.teamLayout.length) ? P.teamLayout : defTeamLayout;
@@ -47452,6 +47352,128 @@ Earned Value Management measures project performance and progress by comparing p
           } else {
             widgetWrapper.style.display = 'none';
           }
+        }
+
+        else if (cleanId === 'team_velocity_leader') {
+          const velId = 'team-velocity-leader';
+          const velCard = mkCC('Velocity Leaderboard', 'Highest throughput (30d)', velId, '', 'standard', "<b>Delivery Excellence:</b> Recognizes team members who have completed the highest volume of story points/tasks over the last 30 days.", 'Inspiration Detail', 'trophy');
+          velCard.style.gridColumn = '1 / -1';
+          widgetWrapper.appendChild(velCard);
+
+          const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          let velScores = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').map(m => {
+            const count = P.tasks.filter(t => {
+              if (t.assignee !== m.name || t.status !== 'Completed') return false;
+              const cmpDate = t.actCompletionDate || t.updatedAt;
+              return cmpDate && new Date(cmpDate) > thirtyDaysAgo;
+            }).length;
+            return { name: m.name, count };
+          }).sort((a, b) => b.count - a.count).slice(0, 3);
+
+          let velHtml = `<div style="padding:16px;display:flex;flex-direction:column;gap:12px">`;
+          velScores.forEach((s, i) => {
+            const med = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
+            velHtml += `<div style="display:flex;align-items:center;gap:12px;background:var(--color-surface-2);padding:10px 14px;border-radius:12px;border:1px solid var(--color-divider)">
+              <div style="font-size:11px;font-weight:900;color:var(--color-text-faint);width:20px">#${i + 1}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:800;font-size:15px;line-height:1.2;word-break:break-word">${esc(s.name)}</div>
+                <div style="font-size:11px;color:var(--color-text-faint);font-weight:600;margin-top:2px">${s.count} Tasks Completed</div>
+              </div>
+            </div>`;
+          });
+          velHtml += `</div>`;
+          velCard.querySelector('.cb').innerHTML = velHtml;
+        }
+
+        else if (cleanId === 'team_quality_leader') {
+          const qualId = 'team-quality-leader';
+          const qualCard = mkCC('Quality Champions', 'Highest stability score', qualId, '', 'standard', "<b>Engineering Stability:</b> Highlights contributors with the lowest bug-to-task ratio.", 'Quality Insight', 'award');
+          qualCard.style.gridColumn = '1 / -1';
+          widgetWrapper.appendChild(qualCard);
+
+          const tcCache = buildDashCache(P.tasks, P.log);
+          let qualScores = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').map(m => {
+            const tasks = P.tasks.filter(t => t.assignee === m.name && t.status === 'Completed');
+            const defects = P.defects.filter(d => {
+              let parentT = null;
+              if (tcCache.taskById[d.linkedId]) parentT = tcCache.taskById[d.linkedId];
+              else if (tcCache.subtaskById[d.linkedId]) parentT = tcCache.subtaskById[d.linkedId].parentTask;
+              else if (tcCache.screenByName[d.linkedId] && tcCache.screenByName[d.linkedId].parentTasks.length > 0) parentT = tcCache.screenByName[d.linkedId].parentTasks[0];
+              return parentT && parentT.assignee === m.name && parentT.status === 'Completed';
+            }).length;
+            const score = tasks.length ? (1 - (defects / (tasks.length + defects))) * 100 : 0;
+            return { name: m.name, score: Math.round(score), tasks: tasks.length };
+          }).filter(s => s.tasks > 0).sort((a, b) => b.score - a.score).slice(0, 3);
+
+          let qualHtml = `<div style="padding:16px;display:flex;flex-direction:column;gap:12px">`;
+          qualScores.forEach((s, i) => {
+            const icon = ['💎', '🌟', '✨'][i];
+            qualHtml += `<div style="display:flex;align-items:center;gap:12px;background:var(--color-surface-2);padding:10px 14px;border-radius:12px;border:1px solid var(--color-divider)">
+              <div style="font-size:11px;font-weight:900;color:var(--color-text-faint);width:20px">#${i + 1}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:800;font-size:15px;line-height:1.2;word-break:break-word">${esc(s.name)}</div>
+                <div style="font-size:11px;color:var(--color-green);font-weight:800;margin-top:2px">${s.score}% Quality Score</div>
+              </div>
+            </div>`;
+          });
+          qualHtml += `</div>`;
+          qualCard.querySelector('.cb').innerHTML = qualHtml;
+        }
+
+        else if (cleanId === 'team_growth_leader') {
+          const growId = 'team-growth-leader';
+          const growCard = mkCC('Growth Mindset', 'Most diverse contributions', growId, '', 'standard', "<b>Cross-Functional Excellence:</b> Highlights team members contributing across the widest variety of project modules.", 'Growth Goal', 'sprout');
+          growCard.style.gridColumn = '1 / -1';
+          widgetWrapper.appendChild(growCard);
+
+          let growScores = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').map(m => {
+            const modules = new Set(P.tasks.filter(t => t.assignee === m.name).map(t => t.module).filter(Boolean));
+            return { name: m.name, count: modules.size };
+          }).sort((a, b) => b.count - a.count).slice(0, 3);
+
+          let growHtml = `<div style="padding:16px;display:flex;flex-direction:column;gap:12px">`;
+          growScores.forEach((s, i) => {
+            const icon = ['flash', 'status-up', 'global'][i];
+            growHtml += `<div style="display:flex;align-items:center;gap:12px;background:var(--color-surface-2);padding:10px 14px;border-radius:12px;border:1px solid var(--color-divider)">
+              <div style="font-size:11px;font-weight:900;color:var(--color-text-faint);width:20px">#${i + 1}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:800;font-size:15px;line-height:1.2;word-break:break-word">${esc(s.name)}</div>
+                <div style="font-size:11px;color:var(--color-primary);font-weight:800;margin-top:2px">${s.count} Modules Touched</div>
+              </div>
+            </div>`;
+          });
+          growHtml += `</div>`;
+          growCard.querySelector('.cb').innerHTML = growHtml;
+        }
+
+        else if (cleanId === 'team_spirit_pulse') {
+          const pulseId = 'team-spirit-pulse';
+          const pulseCard = mkCC('Collaborative Pulse', 'Activity intensity (Last 7 Days)', pulseId, '', 'standard', "A real-time snapshot of team activity. Spikes in activity represent collective momentum and collaborative breakthroughs.", 'Join the Pulse', 'activity');
+          pulseCard.style.gridColumn = '1 / -1';
+          widgetWrapper.appendChild(pulseCard);
+
+          const pulseCvs = mkCvs(200, 120); pulseCard.querySelector('.cb').appendChild(pulseCvs);
+
+          const now = new Date();
+          const activityData = Array(14).fill(0);
+          P.log.forEach(l => {
+            const logTime = getLogActivityDate(l);
+            const hoursAgo = (now - logTime) / (1000 * 60 * 60);
+            if (hoursAgo >= 0 && hoursAgo < 168) {
+              const bucket = 13 - Math.floor(hoursAgo / 12);
+              if (bucket >= 0 && bucket < 14) activityData[bucket]++;
+            }
+          });
+
+          if (activityData.every(v => v === 0)) {
+            activityData.forEach((_, i) => activityData[i] = [0.1, 0.3, 0.2, 0.4, 0.2, 0.1, 0.1, 0.5, 0.2, 0.1, 0.2, 0.3, 0.1, 0.1][i]);
+          }
+
+          const pulseLeg = document.createElement('div'); pulseLeg.className = 'cleg';
+          pulseLeg.innerHTML = '<div class="cli"><div class="cdot" style="background:var(--color-primary)"></div>Momentum Intensity</div>';
+          pulseCard.querySelector('.cb').appendChild(pulseLeg);
+
+          setTimeout(() => { drawMiniHistory(pulseCvs, activityData, 'var(--color-primary)', 'Timeline (7 Days)', 'Events'); }, 400);
         }
 
         else if (cleanId === 'capacity_summary') {
@@ -50064,7 +50086,6 @@ Earned Value Management measures project performance and progress by comparing p
         }
       }
 
-      renderTeamInspiration(inner);
       if (window.lucide) lucide.createIcons(inner);
     }
 
