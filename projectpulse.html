@@ -23104,10 +23104,32 @@
 
       // Resize
       if (id) {
+        let currentSpan = 1;
+        const teamWrapper = card.closest('.team-widget-wrapper');
+        if (teamWrapper && teamWrapper.style.gridColumn && teamWrapper.style.gridColumn.includes('span')) {
+          const match = teamWrapper.style.gridColumn.match(/span\s+(\d+)/);
+          if (match) currentSpan = parseInt(match[1]);
+        } else if (card.style.gridColumn && card.style.gridColumn.includes('span')) {
+          const match = card.style.gridColumn.match(/span\s+(\d+)/);
+          if (match) currentSpan = parseInt(match[1]);
+        } else {
+          if (type === 'custom') {
+            const isReport = P.view === 'reports';
+            const layout = isReport ? (P._rptEdit || P.reportLayout) : (P._dashEdit || P.dashLayout);
+            const w = layout.find(x => x.id === id);
+            currentSpan = w ? (w.span || 2) : 2;
+          } else {
+            currentSpan = (P.widgetSpans && P.widgetSpans[id]) || 1;
+          }
+        }
+
         html += `<div class="ctx-div"></div>`;
         html += `<div style="padding:8px 12px;font-size:10px;font-weight:800;color:var(--color-text-faint);text-transform:uppercase">Resize Widget</div>`;
         [1, 2, 3, 4].forEach(sz => {
-          html += `<div class="ctxitem ctx-resize" onclick="${type === 'custom' ? 'cycleCwSize' : 'cycleStandardSize'}('${id}', ${sz});closeCtx()">${sz} Column${sz > 1 ? 's' : ''}</div>`;
+          const active = sz === currentSpan;
+          const tick = active ? `<i data-lucide="check" style="margin-left:auto;margin-right:0;color:var(--color-primary);width:14px;height:14px;stroke-width:3"></i>` : '';
+          const activeStyle = active ? 'font-weight:800;color:var(--color-primary);background:var(--color-surface-offset);' : '';
+          html += `<div class="ctxitem ctx-resize" style="display:flex;align-items:center;width:100%;${activeStyle}" onclick="${type === 'custom' ? 'cycleCwSize' : 'cycleStandardSize'}('${id}', ${sz});closeCtx()"><span>${sz} Column${sz > 1 ? 's' : ''}</span>${tick}</div>`;
         });
       }
 
