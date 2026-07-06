@@ -29492,28 +29492,43 @@
           const capacityCard = mkCC('Team Capacity Allocation', 'Active load versus capacity constraint', capacityId, '', 'standard', 'Workload allocations compared to member capacities.', 'View Explanation', 'users');
           capacityCard.style.gridColumn = `span ${capacitySpan}`;
           capacityCard.querySelector('.cb').innerHTML = `
-            <div style="display:flex; flex-direction:column; gap:12px; padding:12px; width:100%;">
+            <div style="padding:12px 14px 14px; width:100%;">
               ${teamDetails.length > 0 ? `
-                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px;" class="custom-scroll">
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:10px;">
                   ${teamDetails.map(m => {
             const loadRatio = Math.round((m.effort / capacity) * 100);
             const isOver = m.effort > capacity;
-            const loadColor = isOver ? 'var(--red)' : loadRatio > 80 ? 'var(--amber)' : 'var(--green)';
+            const isWarn = !isOver && loadRatio > 80;
+            const loadColor = isOver ? 'var(--red)' : isWarn ? 'var(--amber)' : 'var(--green)';
+            const loadBg   = isOver ? 'rgba(239,68,68,0.10)' : isWarn ? 'rgba(245,158,11,0.10)' : 'rgba(16,185,129,0.08)';
+            const loadBorder = isOver ? 'rgba(239,68,68,0.22)' : isWarn ? 'rgba(245,158,11,0.22)' : 'rgba(16,185,129,0.18)';
+            const initials = m.name.split(' ').slice(0,2).map(w => w[0]||'').join('').toUpperCase();
+            const badgeLabel = isOver ? 'OVERALLOCATED' : isWarn ? 'HIGH LOAD' : 'OPTIMAL';
+            const badgeIcon  = isOver ? '⚠' : isWarn ? '↑' : '✓';
             return `
-                      <div style="display:flex; flex-direction:column; gap:3px; padding:8px; background:var(--color-surface-3); border-radius:8px;">
-                        <div style="display:flex; justify-content:space-between; align-items:baseline; font-size:11px;">
-                          <span style="font-weight:700; color:var(--color-text);">${esc(m.name)} <span style="font-size:9px; color:var(--color-text-faint); font-weight:600;">(${esc(m.role)})</span></span>
-                          <span style="font-weight:800; color:${loadColor};">${m.effort.toFixed(1)}d / ${capacity}d (${loadRatio}%)</span>
-                        </div>
-                        <div style="height:5px; background:var(--color-divider); border-radius:2.5px; overflow:hidden;">
-                          <div style="width:${Math.min(100, loadRatio)}%; height:100%; background:${loadColor}; border-radius:2.5px;"></div>
-                        </div>
-                        <div style="font-size:9px; color:var(--color-text-faint); display:flex; justify-content:space-between;">
-                          <span>Active scope: ${m.count} tasks</span>
-                          <span>${isOver ? '⚠️ OVERALLOCATED' : 'Optimal load'}</span>
-                        </div>
-                      </div>
-                    `;
+              <div style="display:flex;flex-direction:column;gap:0;background:var(--color-surface-3);border:1px solid var(--color-border-faint);border-radius:12px;overflow:hidden;">
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 12px 8px;">
+                  <div style="flex-shrink:0;width:34px;height:34px;border-radius:50%;background:${loadBg};border:2px solid ${loadColor};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:${loadColor};letter-spacing:0.5px;">${initials}</div>
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;">
+                    <div style="font-size:12px;font-weight:700;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(m.name)}</div>
+                    <div style="font-size:10px;font-weight:500;color:var(--color-text-faint);">${esc(m.role)}</div>
+                  </div>
+                  <div style="flex-shrink:0;text-align:right;">
+                    <div style="font-size:12px;font-weight:800;color:${loadColor};line-height:1.2;">${m.effort.toFixed(1)}d <span style="font-size:10px;font-weight:600;color:var(--color-text-faint);">/ ${capacity}d</span></div>
+                    <div style="font-size:11px;font-weight:700;color:${loadColor};">${loadRatio}%</div>
+                  </div>
+                </div>
+                <div style="padding:0 12px;">
+                  <div style="height:5px;background:var(--color-divider);border-radius:99px;overflow:hidden;">
+                    <div style="width:${Math.min(100, loadRatio)}%;height:100%;background:${loadColor};border-radius:99px;transition:width 500ms cubic-bezier(0.34,1.2,0.64,1);${isOver ? 'box-shadow:0 0 6px '+loadColor+'88;' : ''}"></div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px 10px;margin-top:2px;">
+                  <div style="font-size:10px;color:var(--color-text-faint);"><span style="font-weight:600;color:var(--color-text-muted);">${m.count}</span> active task${m.count !== 1 ? 's' : ''}</div>
+                  <div style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:99px;background:${loadBg};border:1px solid ${loadBorder};color:${loadColor};letter-spacing:0.4px;">${badgeIcon} ${badgeLabel}</div>
+                </div>
+              </div>
+            `;
           }).join('')}
                 </div>
               ` : `
