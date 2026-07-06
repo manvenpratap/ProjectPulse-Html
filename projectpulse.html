@@ -36392,9 +36392,39 @@ Earned Value Management measures project performance and progress by comparing p
       overdueTasks.forEach(t => { const m = t.module || 'General'; modCounts[m] = (modCounts[m] || 0) + 1; });
       const sortedMods = Object.entries(modCounts).sort((a, b) => b[1] - a[1]);
 
-      // Recent Changes Delta (last 7 days logs)
+      // Recent Changes Delta — driven by actCompletionDate on tasks/subtasks, not log write timestamp
       const last7Days = new Date(Date.now() - 7 * 864e5);
-      const recentLogs = (P.log || []).filter(l => new Date(l.ts.split('T')[0]) >= last7Days).slice(0, 6);
+
+      // Collect completed tasks within last 7 days by actual completion date
+      const recentCompletedTasks7 = tasks
+        .filter(t => t.status === 'Completed')
+        .map(t => ({ ...t, _completedAt: getTaskCompletionDate(t), _type: 'Task' }))
+        .filter(t => t._completedAt && t._completedAt >= last7Days)
+        .sort((a, b) => b._completedAt - a._completedAt);
+
+      // Collect completed subtasks within last 7 days
+      const recentCompletedSubtasks7 = [];
+      tasks.forEach(t => {
+        (t.subtasks || []).forEach(st => {
+          if (st.status !== 'Completed') return;
+          const stDate = st.actCompletionDate ? new Date(st.actCompletionDate) : null;
+          if (stDate && stDate >= last7Days) {
+            recentCompletedSubtasks7.push({
+              name: st.name || st.title || 'Subtask',
+              _completedAt: stDate,
+              _type: 'Subtask',
+              _parentTask: t.name,
+              assignee: st.assignee || t.assignee,
+              module: t.module,
+            });
+          }
+        });
+      });
+
+      // Merge, sort by actual completion date descending, cap at 6
+      const recentCompletions = [...recentCompletedTasks7, ...recentCompletedSubtasks7]
+        .sort((a, b) => b._completedAt - a._completedAt)
+        .slice(0, 6);
 
       // Project Highlights & Good News Calculations
       const last14Days = new Date(Date.now() - 14 * 864e5);
@@ -36680,20 +36710,31 @@ Earned Value Management measures project performance and progress by comparing p
                  <span style="font-size:11px; padding:2px 8px; background:rgba(34,197,94,0.1); color:var(--color-green); border-radius:12px; font-weight:700">Last 7 Days Stream</span>
                </div>
                <div class="changes-list" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px">
-                 ${recentLogs.length ? recentLogs.map(l => `
-                   <div style="padding:16px; background:var(--color-bg); border-radius:12px; border:1px solid var(--color-border-faint); display:flex; align-items:flex-start; gap:12px">
-                     <div style="width:32px; height:32px; border-radius:8px; background:var(--color-surface-2); display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--color-primary)">
-                       <i data-lucide="${l.action === 'Created' ? 'plus-circle' : l.action === 'Status Changed' ? 'check-circle' : 'edit-2'}" style="width:18px; height:18px"></i>
+                 ${recentCompletions.length ? recentCompletions.map(item => {
+                   const daysAgo = Math.round((Date.now() - item._completedAt.getTime()) / 864e5);
+                   const daysLabel = daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : daysAgo + 'd ago';
+                   const isSubtask = item._type === 'Subtask';
+                   const iconName = isSubtask ? 'git-branch' : 'check-circle-2';
+                   const accentColor = isSubtask ? 'var(--color-primary)' : 'var(--color-green)';
+                   const accentBg   = isSubtask ? 'rgba(99,102,241,0.1)' : 'rgba(34,197,94,0.1)';
+                   const completedDateStr = item._completedAt.toISOString().split('T')[0];
+                   return `
+                   <div style="padding:14px 16px; background:var(--color-bg); border-radius:12px; border:1px solid var(--color-border-faint); display:flex; align-items:flex-start; gap:12px">
+                     <div style="width:32px; height:32px; border-radius:8px; background:${accentBg}; display:flex; align-items:center; justify-content:center; flex-shrink:0; color:${accentColor}">
+                       <i data-lucide="${iconName}" style="width:16px; height:16px"></i>
                      </div>
                      <div style="flex:1; min-width:0">
-                       <div style="font-size:13px; font-weight:700; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(l.taskName || l.taskId)}</div>
-                       <div style="font-size:12px; color:var(--color-text-muted); margin-top:2px">${l.action}: ${l.field ? esc(l.field) + ' → ' + esc(l.newVal) : esc(l.newVal || '')}</div>
-                       <div style="font-size:10px; color:var(--color-text-faint); margin-top:4px">${esc(l.ts)}</div>
+                       <div style="font-size:12px; font-weight:700; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(item.name)}</div>
+                       ${isSubtask ? '<div style="font-size:10px; color:var(--color-text-faint); margin-top:1px">Subtask of: ' + esc(item._parentTask) + '</div>' : ''}
+                       <div style="font-size:10px; color:var(--color-text-muted); margin-top:2px">${item.module ? esc(item.module) + ' · ' : ''}${item.assignee ? esc(item.assignee) : 'Unassigned'}</div>
                      </div>
-                   </div>
-                 `).join('') : `<div style="grid-column:1/-1; text-align:center; padding:32px; color:var(--color-text-faint); font-size:13px">No recent changes logged in the last 7 days.</div>`}
+                     <div style="flex-shrink:0; text-align:right">
+                       <div style="font-size:9px; font-weight:700; padding:2px 7px; border-radius:99px; background:rgba(34,197,94,0.08); color:var(--color-green); border:1px solid rgba(34,197,94,0.18); white-space:nowrap">${daysLabel}</div>
+                       <div style="font-size:9px; color:var(--color-text-faint); margin-top:3px">${fmtDate(completedDateStr)}</div>
+                     </div>
+                   </div>`;
+                 }).join('') : `<div style="grid-column:1/-1; text-align:center; padding:32px; color:var(--color-text-faint); font-size:13px">No tasks or subtasks completed in the last 7 days.</div>`}
                </div>
-            </div>
           </div>
         `;
 
