@@ -12700,6 +12700,13 @@
           </select>
         </div>
 
+        <div class="fg" style="margin-bottom:24px">
+          <label class="flbl">Feature Category</label>
+          <select class="finp" id="feat-new-category" style="height:44px; font-size:14px">
+            <option value="">-- No specific category --</option>
+          </select>
+        </div>
+
         <div class="fg">
           <label class="flbl">Architectural Screens (Mapping)</label>
           <div id="feat-screen-chips"
@@ -15850,7 +15857,8 @@
           raidProbability: ['High', 'Medium', 'Low'],
           raidSeverity: ['S1 - Critical', 'S2 - Major', 'S3 - Moderate', 'S4 - Minor'],
           raidStatus: ['Identified', 'Active', 'Mitigated', 'Closed', 'Realized'],
-          decisionStatus: ['Pending Sign-off', 'Approved', 'Rejected', 'Appealed']
+          decisionStatus: ['Pending Sign-off', 'Approved', 'Rejected', 'Appealed'],
+          featureCategory: ['Product Roadmap', 'One GSP Value Addition']
         };
         P.search = '';
         P.filters = {
@@ -16262,6 +16270,9 @@
             if (!P.dropdowns.complexity) {
               P.dropdowns.complexity = ['Easy', 'Medium', 'Complex'];
             }
+            if (!P.dropdowns.featureCategory) {
+              P.dropdowns.featureCategory = ['Product Roadmap', 'One GSP Value Addition'];
+            }
             if (!P.complexityFactors) {
               P.complexityFactors = { Easy: 0.5, Medium: 1.0, Complex: 1.5 };
             }
@@ -16306,7 +16317,8 @@
               raidProbability: ['High', 'Medium', 'Low'],
               raidSeverity: ['S1 - Critical', 'S2 - Major', 'S3 - Moderate', 'S4 - Minor'],
               raidStatus: ['Identified', 'Active', 'Mitigated', 'Closed', 'Realized'],
-              decisionStatus: ['Pending Sign-off', 'Approved', 'Rejected', 'Appealed']
+              decisionStatus: ['Pending Sign-off', 'Approved', 'Rejected', 'Appealed'],
+              featureCategory: ['Product Roadmap', 'One GSP Value Addition']
             };
             for (let k in defDrops) { if (!P.dropdowns[k]) P.dropdowns[k] = defDrops[k]; }
 
@@ -24382,6 +24394,11 @@
       const relSelect = $id('feat-new-release');
       relSelect.innerHTML = '<option value="">-- No specific release --</option>' + (P.releases || []).map(r => `<option value="${r.name}">${r.name}</option>`).join('');
       relSelect.value = '';
+
+      const catSelect = $id('feat-new-category');
+      catSelect.innerHTML = '<option value="">-- No specific category --</option>' + (P.dropdowns.featureCategory || []).map(c => `<option value="${c}">${c}</option>`).join('');
+      catSelect.value = '';
+
       $id('feat-form-title').innerText = 'Create New Feature';
       $id('feat-add-btn').innerText = 'Save Feature';
       renderFeatScreenChips();
@@ -24395,12 +24412,13 @@
       const name = $id('feat-new-name').value.trim();
       const desc = $id('feat-new-desc').value.trim();
       const release = $id('feat-new-release').value;
+      const category = $id('feat-new-category').value;
       const screens = [...(P._featSelectedScreens || [])];
 
       if (!name) return notify('Feature name is required', 'err');
       if (!screens.length) return notify('Add at least one screen', 'err');
 
-      const feat = { name, desc, release, screens };
+      const feat = { name, desc, release, category, screens };
       if (P._editingFeatureIdx !== undefined && P._editingFeatureIdx !== null) {
         P.features[P._editingFeatureIdx] = feat;
       } else {
@@ -24423,6 +24441,11 @@
       const relSelect = $id('feat-new-release');
       relSelect.innerHTML = '<option value="">-- No specific release --</option>' + (P.releases || []).map(r => `<option value="${r.name}">${r.name}</option>`).join('');
       relSelect.value = feat.release || '';
+
+      const catSelect = $id('feat-new-category');
+      catSelect.innerHTML = '<option value="">-- No specific category --</option>' + (P.dropdowns.featureCategory || []).map(c => `<option value="${c}">${c}</option>`).join('');
+      catSelect.value = feat.category || '';
+
       renderFeatScreenChips();
       $id('feat-form-title').innerText = 'Edit Feature Mapping';
       $id('feat-add-btn').innerText = 'Update Feature';
@@ -26343,7 +26366,7 @@
                   <div style="width:8px; height:8px; border-radius:50%; background:var(--color-primary)"></div>
                   <div style="min-width:0; flex:1">
                     <div style="font-size:12px; font-weight:700; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(f.name)}</div>
-                    <div style="font-size:10px; color:var(--color-text-muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(f.release || 'No Release')}</div>
+                    <div style="font-size:10px; color:var(--color-text-muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(f.release || 'No Release')}${f.category ? ' • ' + esc(f.category) : ''}</div>
                   </div>
                   <i data-lucide="chevron-right" style="width:12px; height:12px; color:var(--color-text-faint)"></i>
                 </div>
@@ -44973,6 +44996,7 @@ Earned Value Management measures project performance and progress by comparing p
                     <h4 style="font-size:14px; font-weight:800; color:var(--color-text); margin:0; letter-spacing:-0.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px">${esc(f.name)}</h4>
                     ${stBadge}
                     ${f.release ? `<span style="background:rgba(var(--color-text-rgb),0.05); color:var(--color-slate); padding:1px 7px; border-radius:10px; font-size:9px; font-weight:700; border:1px solid var(--color-divider); display:flex; align-items:center; gap:3px; flex-shrink:0"><i data-lucide="flag" style="width:9px; height:9px"></i> ${esc(f.release)}</span>` : ''}
+                    ${f.category ? `<span style="background:rgba(124,58,237,0.07); color:#7c3aed; padding:1px 7px; border-radius:10px; font-size:9px; font-weight:700; border:1px solid rgba(124,58,237,0.2); display:flex; align-items:center; gap:3px; flex-shrink:0"><i data-lucide="tag" style="width:9px; height:9px"></i> ${esc(f.category)}</span>` : ''}
                   </div>
                   <div style="display:flex; gap:2px; flex-shrink:0; margin-left:4px">
                     <button class="btn ghost mini" onclick="event.stopPropagation(); startEditFeature(${actualIdx})" title="Edit"><i data-lucide="edit-2"></i></button>
@@ -45190,6 +45214,15 @@ Earned Value Management measures project performance and progress by comparing p
               white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis;`;
             relBadge.textContent = f.release;
             meta.appendChild(relBadge);
+          }
+
+          if (f.category) {
+            const catBadge = document.createElement('span');
+            catBadge.style.cssText = `font-size:9px;font-weight:700;padding:1px 6px;
+              border-radius:10px;background:rgba(124,58,237,0.07);border:1px solid rgba(124,58,237,0.2);color:#7c3aed;
+              white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis;`;
+            catBadge.textContent = f.category;
+            meta.appendChild(catBadge);
           }
 
           const progSpan = document.createElement('span');
@@ -45634,6 +45667,10 @@ Earned Value Management measures project performance and progress by comparing p
                   ${relStatusTxt ? `<span style="color:var(--color-text-faint)">(${relStatusTxt})</span>` : ''}
                 </span>
                 ${relDateTxt ? `<span>Target:</span><span style="color:var(--color-text);font-weight:600">${relDateTxt}</span>` : ''}
+              ` : ''}
+              ${f.category ? `
+                <span>Category:</span>
+                <span style="color:#7c3aed;font-weight:700">${esc(f.category)}</span>
               ` : ''}
             </div>
             ${f.desc ? `<div style="padding:6px 14px 10px;border-top:1px solid var(--color-divider);font-size:10px;color:var(--color-text-muted);line-height:1.4;font-style:italic">${esc(f.desc)}</div>` : ''}
@@ -49071,6 +49108,7 @@ Earned Value Management measures project performance and progress by comparing p
             <div style="font-weight:700;margin-bottom:8px;font-size:12px">\${esc(t.name)}</div>
             <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 8px;font-size:10px;color:var(--color-text-muted)">
               <span>Release:</span> <span style="color:var(--color-text);font-weight:600">\${esc(t.release || 'Unassigned')}</span>
+              \${t.category ? \`<span>Category:</span> <span style="color:#7c3aed;font-weight:600">\${esc(t.category)}</span>\` : ''}
               <span>Planned:</span> <span style="color:var(--color-text);font-weight:600">\${fmtDate(t.startDate)} &rarr; \${fmtDate(t.dueDate)}</span>
               <span>Progress:</span> <span style="color:var(--color-text);font-weight:600">\${t.progress || 0}%</span>
               <span>Screens:</span> <span style="color:var(--color-text);font-weight:600">\${t.screensDone} / \${t.screensCount} completed</span>
@@ -49578,6 +49616,7 @@ Earned Value Management measures project performance and progress by comparing p
               <div style="font-weight:700;margin-bottom:8px;font-size:12px">\${esc(t.name)}</div>
               <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 8px;font-size:10px;color:var(--color-text-muted)">
                 <span>Release:</span> <span style="color:var(--color-text);font-weight:600">\${esc(t.release||'Unassigned')}</span>
+                \${t.category ? \`<span>Category:</span> <span style="color:#7c3aed;font-weight:600">\${esc(t.category)}</span>\` : ''}
                 <span>Planned:</span> <span style="color:var(--color-text);font-weight:600">\${fmtDateFull(t.startDate)} &rarr; \${fmtDateFull(t.dueDate)}</span>
                 <span>Progress:</span> <span style="color:var(--color-text);font-weight:600">\${t.progress||0}%</span>
                 <span>Screens:</span> <span style="color:var(--color-text);font-weight:600">\${t.screensDone||0} / \${t.screensCount||0} done</span>
