@@ -47384,19 +47384,46 @@ Earned Value Management measures project performance and progress by comparing p
             return { name: m.name, count };
           }).sort((a, b) => b.count - a.count).slice(0, 3);
 
-          let velHtml = `<div style="padding:16px;display:flex;flex-direction:column;gap:12px">`;
-          velScores.forEach((s, i) => {
-            const med = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
-            velHtml += `<div style="display:flex;align-items:center;gap:12px;background:var(--color-surface-2);padding:10px 14px;border-radius:12px;border:1px solid var(--color-divider)">
-              <div style="font-size:11px;font-weight:900;color:var(--color-text-faint);width:20px">#${i + 1}</div>
-              <div style="flex:1;min-width:0">
-                <div style="font-weight:800;font-size:15px;line-height:1.2;word-break:break-word">${esc(s.name)}</div>
-                <div style="font-size:11px;color:var(--color-text-faint);font-weight:600;margin-top:2px">${s.count} Tasks Completed</div>
-              </div>
+          const maxVelCount = velScores[0]?.count || 1;
+          const velMedals = [
+            { emoji: '🥇', gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', glow: 'rgba(245,158,11,0.25)', badge: 'rgba(245,158,11,0.12)', badgeBorder: 'rgba(245,158,11,0.35)', rank: '1st', barColor: 'linear-gradient(90deg, #f59e0b, #fbbf24)' },
+            { emoji: '🥈', gradient: 'linear-gradient(135deg, #94a3b8, #64748b)', glow: 'rgba(148,163,184,0.2)', badge: 'rgba(148,163,184,0.1)', badgeBorder: 'rgba(148,163,184,0.3)', rank: '2nd', barColor: 'linear-gradient(90deg, #94a3b8, #cbd5e1)' },
+            { emoji: '🥉', gradient: 'linear-gradient(135deg, #cd7c54, #b45309)', glow: 'rgba(205,124,84,0.2)', badge: 'rgba(205,124,84,0.1)', badgeBorder: 'rgba(205,124,84,0.3)', rank: '3rd', barColor: 'linear-gradient(90deg, #cd7c54, #f4a261)' }
+          ];
+
+          const velBody = velCard.querySelector('.cb');
+          velBody.style.padding = '16px';
+
+          if (!velScores.length || velScores.every(s => s.count === 0)) {
+            velBody.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;gap:10px">
+              <div style="font-size:36px">🏁</div>
+              <div style="font-weight:800;color:var(--color-text)">No completions yet</div>
+              <div style="font-size:12px;color:var(--color-text-muted)">Complete tasks in the last 30 days to appear here.</div>
             </div>`;
-          });
-          velHtml += `</div>`;
-          velCard.querySelector('.cb').innerHTML = velHtml;
+          } else {
+            let velHtml = `<div style="display:flex;flex-direction:column;gap:10px">`;
+            velScores.forEach((s, i) => {
+              const m = velMedals[i];
+              const initials = s.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
+              const pct = Math.round((s.count / maxVelCount) * 100);
+              velHtml += `
+                <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:${m.badge};border:1px solid ${m.badgeBorder};box-shadow:0 0 0 0 ${m.glow};transition:all 0.25s ease;position:relative;overflow:hidden" class="card-glow-hover">
+                  <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:${m.gradient};border-radius:14px 0 0 14px"></div>
+                  <div style="width:40px;height:40px;border-radius:12px;background:${m.gradient};display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;box-shadow:0 4px 12px ${m.glow}">${m.emoji}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                      <div style="font-weight:900;font-size:14px;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.name)}</div>
+                      <div style="font-size:18px;font-weight:900;color:var(--color-text);flex-shrink:0;margin-left:8px">${s.count}<span style="font-size:10px;font-weight:700;color:var(--color-text-muted);margin-left:3px">tasks</span></div>
+                    </div>
+                    <div style="height:5px;background:var(--color-surface-3);border-radius:4px;overflow:hidden">
+                      <div style="width:${pct}%;height:100%;background:${m.barColor};border-radius:4px;transition:width 0.8s cubic-bezier(0.34,1.56,0.64,1)"></div>
+                    </div>
+                  </div>
+                </div>`;
+            });
+            velHtml += `</div>`;
+            velBody.innerHTML = velHtml;
+          }
         }
 
         else if (cleanId === 'team_quality_leader') {
@@ -47419,19 +47446,49 @@ Earned Value Management measures project performance and progress by comparing p
             return { name: m.name, score: Math.round(score), tasks: tasks.length };
           }).filter(s => s.tasks > 0).sort((a, b) => b.score - a.score).slice(0, 3);
 
-          let qualHtml = `<div style="padding:16px;display:flex;flex-direction:column;gap:12px">`;
-          qualScores.forEach((s, i) => {
-            const icon = ['💎', '🌟', '✨'][i];
-            qualHtml += `<div style="display:flex;align-items:center;gap:12px;background:var(--color-surface-2);padding:10px 14px;border-radius:12px;border:1px solid var(--color-divider)">
-              <div style="font-size:11px;font-weight:900;color:var(--color-text-faint);width:20px">#${i + 1}</div>
-              <div style="flex:1;min-width:0">
-                <div style="font-weight:800;font-size:15px;line-height:1.2;word-break:break-word">${esc(s.name)}</div>
-                <div style="font-size:11px;color:var(--color-green);font-weight:800;margin-top:2px">${s.score}% Quality Score</div>
-              </div>
+          const qualBody = qualCard.querySelector('.cb');
+          qualBody.style.padding = '16px';
+
+          const qualThemes = [
+            { icon: '💎', label: 'Diamond', gradient: 'linear-gradient(135deg, #06b6d4, #0891b2)', glow: 'rgba(6,182,212,0.2)', bg: 'rgba(6,182,212,0.08)', border: 'rgba(6,182,212,0.3)', scoreColor: '#06b6d4' },
+            { icon: '🌟', label: 'Gold',    gradient: 'linear-gradient(135deg, #22c55e, #16a34a)', glow: 'rgba(34,197,94,0.2)',  bg: 'rgba(34,197,94,0.08)',  border: 'rgba(34,197,94,0.3)',  scoreColor: '#22c55e' },
+            { icon: '✨', label: 'Silver',  gradient: 'linear-gradient(135deg, #a78bfa, #7c3aed)', glow: 'rgba(167,139,250,0.2)',bg: 'rgba(167,139,250,0.08)',border: 'rgba(167,139,250,0.3)', scoreColor: '#a78bfa' }
+          ];
+
+          if (!qualScores.length) {
+            qualBody.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;gap:10px">
+              <div style="font-size:36px">🛡️</div>
+              <div style="font-weight:800;color:var(--color-text)">No quality data yet</div>
+              <div style="font-size:12px;color:var(--color-text-muted)">Complete tasks with linked defect tracking to see champions.</div>
             </div>`;
-          });
-          qualHtml += `</div>`;
-          qualCard.querySelector('.cb').innerHTML = qualHtml;
+          } else {
+            let qualHtml = `<div style="display:flex;flex-direction:column;gap:10px">`;
+            qualScores.forEach((s, i) => {
+              const qt = qualThemes[i];
+              const scoreWidth = s.score;
+              const scoreLabel = s.score >= 95 ? 'Flawless' : s.score >= 80 ? 'Excellent' : s.score >= 60 ? 'Good' : 'Improving';
+              qualHtml += `
+                <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:${qt.bg};border:1px solid ${qt.border};transition:all 0.25s ease;position:relative;overflow:hidden" class="card-glow-hover">
+                  <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:${qt.gradient};border-radius:14px 0 0 14px"></div>
+                  <div style="width:42px;height:42px;border-radius:12px;background:${qt.gradient};display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;box-shadow:0 4px 12px ${qt.glow}">${qt.icon}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+                      <div style="font-weight:900;font-size:14px;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.name)}</div>
+                      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:8px">
+                        <span style="font-size:9px;font-weight:800;color:${qt.scoreColor};background:${qt.bg};border:1px solid ${qt.border};padding:2px 6px;border-radius:8px">${scoreLabel}</span>
+                        <span style="font-size:18px;font-weight:900;color:${qt.scoreColor}">${s.score}<span style="font-size:10px">%</span></span>
+                      </div>
+                    </div>
+                    <div style="height:5px;background:var(--color-surface-3);border-radius:4px;overflow:hidden">
+                      <div style="width:${scoreWidth}%;height:100%;background:${qt.gradient};border-radius:4px;transition:width 0.9s cubic-bezier(0.34,1.56,0.64,1)"></div>
+                    </div>
+                    <div style="font-size:10px;color:var(--color-text-faint);margin-top:4px;font-weight:600">${s.tasks} completed task${s.tasks !== 1 ? 's' : ''}</div>
+                  </div>
+                </div>`;
+            });
+            qualHtml += `</div>`;
+            qualBody.innerHTML = qualHtml;
+          }
         }
 
         else if (cleanId === 'team_growth_leader') {
@@ -47442,22 +47499,51 @@ Earned Value Management measures project performance and progress by comparing p
 
           let growScores = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').map(m => {
             const modules = new Set(P.tasks.filter(t => t.assignee === m.name).map(t => t.module).filter(Boolean));
-            return { name: m.name, count: modules.size };
+            const categories = new Set(P.tasks.filter(t => t.assignee === m.name).map(t => t.category).filter(Boolean));
+            return { name: m.name, count: modules.size, cats: categories.size, moduleList: [...modules].slice(0, 3) };
           }).sort((a, b) => b.count - a.count).slice(0, 3);
 
-          let growHtml = `<div style="padding:16px;display:flex;flex-direction:column;gap:12px">`;
-          growScores.forEach((s, i) => {
-            const icon = ['flash', 'status-up', 'global'][i];
-            growHtml += `<div style="display:flex;align-items:center;gap:12px;background:var(--color-surface-2);padding:10px 14px;border-radius:12px;border:1px solid var(--color-divider)">
-              <div style="font-size:11px;font-weight:900;color:var(--color-text-faint);width:20px">#${i + 1}</div>
-              <div style="flex:1;min-width:0">
-                <div style="font-weight:800;font-size:15px;line-height:1.2;word-break:break-word">${esc(s.name)}</div>
-                <div style="font-size:11px;color:var(--color-primary);font-weight:800;margin-top:2px">${s.count} Modules Touched</div>
-              </div>
+          const growBody = growCard.querySelector('.cb');
+          growBody.style.padding = '16px';
+
+          const growThemes = [
+            { icon: '🌱', gradient: 'linear-gradient(135deg, #10b981, #059669)', glow: 'rgba(16,185,129,0.25)', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.3)', dotColor: '#10b981' },
+            { icon: '🌿', gradient: 'linear-gradient(135deg, #3b82f6, #2563eb)', glow: 'rgba(59,130,246,0.2)',  bg: 'rgba(59,130,246,0.08)', border: 'rgba(59,130,246,0.3)', dotColor: '#3b82f6' },
+            { icon: '🍀', gradient: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', glow: 'rgba(139,92,246,0.2)',  bg: 'rgba(139,92,246,0.08)', border: 'rgba(139,92,246,0.3)', dotColor: '#8b5cf6' }
+          ];
+
+          const maxGrowCount = growScores[0]?.count || 1;
+
+          if (!growScores.length || growScores.every(s => s.count === 0)) {
+            growBody.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;gap:10px">
+              <div style="font-size:36px">🌱</div>
+              <div style="font-weight:800;color:var(--color-text)">No module data yet</div>
+              <div style="font-size:12px;color:var(--color-text-muted)">Assign tasks across modules to see growth leaders.</div>
             </div>`;
-          });
-          growHtml += `</div>`;
-          growCard.querySelector('.cb').innerHTML = growHtml;
+          } else {
+            let growHtml = `<div style="display:flex;flex-direction:column;gap:10px">`;
+            growScores.forEach((s, i) => {
+              const gt = growThemes[i];
+              const pct = Math.round((s.count / maxGrowCount) * 100);
+              growHtml += `
+                <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:${gt.bg};border:1px solid ${gt.border};transition:all 0.25s ease;position:relative;overflow:hidden" class="card-glow-hover">
+                  <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:${gt.gradient};border-radius:14px 0 0 14px"></div>
+                  <div style="width:42px;height:42px;border-radius:12px;background:${gt.gradient};display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;box-shadow:0 4px 12px ${gt.glow}">${gt.icon}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                      <div style="font-weight:900;font-size:14px;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.name)}</div>
+                      <div style="font-size:18px;font-weight:900;color:${gt.dotColor};flex-shrink:0;margin-left:8px">${s.count}<span style="font-size:10px;font-weight:700;color:var(--color-text-muted);margin-left:3px">modules</span></div>
+                    </div>
+                    <div style="height:5px;background:var(--color-surface-3);border-radius:4px;overflow:hidden;margin-bottom:5px">
+                      <div style="width:${pct}%;height:100%;background:${gt.gradient};border-radius:4px;transition:width 0.9s cubic-bezier(0.34,1.56,0.64,1)"></div>
+                    </div>
+                    ${s.moduleList.length ? `<div style="display:flex;flex-wrap:wrap;gap:3px">${s.moduleList.map(mod => `<span style="font-size:9px;font-weight:700;color:${gt.dotColor};background:${gt.bg};border:1px solid ${gt.border};padding:1px 5px;border-radius:6px">${esc(mod)}</span>`).join('')}${s.count > 3 ? `<span style="font-size:9px;color:var(--color-text-faint);padding:1px 5px">+${s.count-3} more</span>` : ''}</div>` : ''}
+                  </div>
+                </div>`;
+            });
+            growHtml += `</div>`;
+            growBody.innerHTML = growHtml;
+          }
         }
 
         else if (cleanId === 'team_spirit_pulse') {
@@ -47466,28 +47552,102 @@ Earned Value Management measures project performance and progress by comparing p
           pulseCard.style.gridColumn = '1 / -1';
           widgetWrapper.appendChild(pulseCard);
 
-          const pulseCvs = mkCvs(200, 120); pulseCard.querySelector('.cb').appendChild(pulseCvs);
+          const pulseBody = pulseCard.querySelector('.cb');
+          pulseBody.style.padding = '16px';
 
           const now = new Date();
           const activityData = Array(14).fill(0);
+          const actByMember = {};
           P.log.forEach(l => {
             const logTime = getLogActivityDate(l);
             const hoursAgo = (now - logTime) / (1000 * 60 * 60);
             if (hoursAgo >= 0 && hoursAgo < 168) {
               const bucket = 13 - Math.floor(hoursAgo / 12);
               if (bucket >= 0 && bucket < 14) activityData[bucket]++;
+              const who = l.user || l.by || l.assignee || '';
+              if (who) actByMember[who] = (actByMember[who] || 0) + 1;
             }
           });
 
-          if (activityData.every(v => v === 0)) {
-            activityData.forEach((_, i) => activityData[i] = [0.1, 0.3, 0.2, 0.4, 0.2, 0.1, 0.1, 0.5, 0.2, 0.1, 0.2, 0.3, 0.1, 0.1][i]);
+          const hasRealData = activityData.some(v => v > 0);
+          if (!hasRealData) {
+            activityData.forEach((_, i) => activityData[i] = [1, 3, 2, 4, 2, 1, 1, 5, 2, 1, 2, 3, 1, 1][i]);
           }
 
-          const pulseLeg = document.createElement('div'); pulseLeg.className = 'cleg';
-          pulseLeg.innerHTML = '<div class="cli"><div class="cdot" style="background:var(--color-primary)"></div>Momentum Intensity</div>';
-          pulseCard.querySelector('.cb').appendChild(pulseLeg);
+          const totalEvents = activityData.reduce((a, b) => a + b, 0);
+          const peakIdx = activityData.indexOf(Math.max(...activityData));
+          const peakLabel = (() => {
+            const hoursBack = (13 - peakIdx) * 12;
+            if (hoursBack < 24) return 'Today';
+            if (hoursBack < 48) return 'Yesterday';
+            return `${Math.floor(hoursBack/24)}d ago`;
+          })();
+          const topContributors = Object.entries(actByMember).sort((a,b) => b[1]-a[1]).slice(0,3);
+          const maxBar = Math.max(...activityData, 1);
 
-          setTimeout(() => { drawMiniHistory(pulseCvs, activityData, 'var(--color-primary)', 'Timeline (7 Days)', 'Events'); }, 400);
+          // Build mini sparkline
+          const sparkW = 100, sparkH = 40;
+          const bw = sparkW / activityData.length;
+          const sparkBars = activityData.map((v, i) => {
+            const bh = Math.max(2, (v / maxBar) * sparkH);
+            const alpha = 0.3 + (v / maxBar) * 0.7;
+            return `<rect x="${i * bw + 1}" y="${sparkH - bh}" width="${bw - 2}" height="${bh}" rx="2" fill="var(--color-primary)" opacity="${alpha.toFixed(2)}"/>`;
+          }).join('');
+
+          const pulseIntensity = totalEvents === 0 ? 0 : Math.min(100, Math.round((totalEvents / 30) * 100));
+          const intensityLabel = pulseIntensity >= 80 ? '🔥 High Momentum' : pulseIntensity >= 40 ? '⚡ Active' : pulseIntensity >= 10 ? '💫 Steady' : '😴 Quiet';
+          const intensityColor = pulseIntensity >= 80 ? '#ef4444' : pulseIntensity >= 40 ? '#f59e0b' : pulseIntensity >= 10 ? '#6366f1' : '#94a3b8';
+          const intensityBg = pulseIntensity >= 80 ? 'rgba(239,68,68,0.1)' : pulseIntensity >= 40 ? 'rgba(245,158,11,0.1)' : pulseIntensity >= 10 ? 'rgba(99,102,241,0.1)' : 'rgba(148,163,184,0.1)';
+
+          pulseBody.innerHTML = `
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <!-- Header row -->
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:12px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2)">
+                <div>
+                  <div style="font-size:11px;color:var(--color-text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Pulse Intensity</div>
+                  <div style="font-size:22px;font-weight:900;color:${intensityColor};margin-top:2px">${intensityLabel}</div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-size:11px;color:var(--color-text-muted);font-weight:700">Peak</div>
+                  <div style="font-size:13px;font-weight:900;color:var(--color-text)">${peakLabel}</div>
+                  <div style="font-size:10px;color:var(--color-text-faint)">${Math.max(...activityData)} events</div>
+                </div>
+              </div>
+
+              <!-- Sparkline bar chart -->
+              <div style="background:var(--color-surface-2);border-radius:12px;border:1px solid var(--color-border-faint);padding:12px 14px">
+                <div style="font-size:10px;font-weight:700;color:var(--color-text-muted);margin-bottom:8px;display:flex;justify-content:space-between"><span>Activity (Last 7 Days · 12h buckets)</span><span style="color:var(--color-text-faint)">${totalEvents} events</span></div>
+                <div style="display:flex;align-items:flex-end;gap:3px;height:44px">
+                  ${activityData.map((v, i) => {
+                    const bh = Math.max(4, Math.round((v / maxBar) * 40));
+                    const alpha = 0.2 + (v / maxBar) * 0.8;
+                    const isLast = i === activityData.length - 1;
+                    return `<div style="flex:1;height:${bh}px;border-radius:3px 3px 0 0;background:linear-gradient(180deg, var(--color-primary), #818cf8);opacity:${alpha.toFixed(2)};transition:all 0.3s ease;${isLast ? 'box-shadow:0 0 8px rgba(99,102,241,0.4);' : ''}"></div>`;
+                  }).join('')}
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--color-text-faint);font-weight:600;margin-top:4px">
+                  <span>7d ago</span><span>3d ago</span><span>Now</span>
+                </div>
+              </div>
+
+              <!-- Top contributors -->
+              ${topContributors.length ? `
+              <div style="background:var(--color-surface-2);border-radius:12px;border:1px solid var(--color-border-faint);padding:12px 14px">
+                <div style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Most Active This Week</div>
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  ${topContributors.map(([who, cnt], ci) => {
+                    const initials = who.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
+                    const avatarColors = ['linear-gradient(135deg,#6366f1,#8b5cf6)', 'linear-gradient(135deg,#06b6d4,#0891b2)', 'linear-gradient(135deg,#10b981,#059669)'];
+                    return `<div style="display:flex;align-items:center;gap:8px">
+                      <div style="width:26px;height:26px;border-radius:8px;background:${avatarColors[ci]};color:white;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;flex-shrink:0">${initials}</div>
+                      <div style="flex:1;font-size:12px;font-weight:700;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(who)}</div>
+                      <span style="font-size:10px;font-weight:800;color:var(--color-primary)">${cnt} event${cnt !== 1 ? 's' : ''}</span>
+                    </div>`;
+                  }).join('')}
+                </div>
+              </div>` : ''}
+            </div>
+          `;
         }
 
         else if (cleanId === 'capacity_summary') {
