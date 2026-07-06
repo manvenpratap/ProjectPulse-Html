@@ -7370,6 +7370,167 @@
       background: var(--color-surface)
     }
 
+    /* ── SWIMLANES VIEW ── */
+    .swimlane-outer {
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      flex: 1;
+      height: 100%;
+      background: var(--color-bg);
+      padding: 16px 24px;
+      gap: 16px;
+    }
+
+    .sl-lane {
+      display: flex;
+      flex-direction: column;
+      border-radius: var(--radius-lg, 12px);
+      overflow: hidden;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.2s;
+    }
+
+    .sl-lane:hover {
+      box-shadow: var(--shadow-md);
+    }
+
+    .sl-lane-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      cursor: pointer;
+      user-select: none;
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+      position: relative;
+    }
+
+    .sl-lane-accent {
+      width: 4px;
+      height: 24px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .sl-lane-title {
+      font-weight: var(--fw-bold, 700);
+      font-size: 13px;
+      color: var(--color-text);
+      flex: 1;
+    }
+
+    .sl-lane-count {
+      font-size: 10px;
+      font-weight: var(--fw-bold, 700);
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(139, 92, 246, 0.1);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      color: var(--color-primary);
+    }
+
+    .sl-lane-date-range {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .sl-lane-progress-bar {
+      height: 3px;
+      background: var(--color-border-faint);
+    }
+
+    .sl-lane-progress-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.5s ease;
+    }
+
+    .sl-lane-body {
+      display: flex;
+      overflow: hidden;
+      background: var(--color-bg);
+      max-height: 1200px;
+      transition: max-height 0.3s ease;
+    }
+
+    .sl-lane.collapsed .sl-lane-body {
+      max-height: 0 !important;
+    }
+
+    .sl-lane-left {
+      width: 220px;
+      min-width: 220px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--color-border);
+      background: var(--color-surface);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sl-lane-right {
+      flex: 1;
+      overflow-x: auto;
+      overflow-y: hidden;
+      background: var(--color-bg);
+      position: relative;
+    }
+
+    .sl-lane-right canvas {
+      display: block;
+    }
+
+    .sl-row-head {
+      height: 48px;
+      display: flex;
+      align-items: flex-end;
+      padding: 0 10px 4px;
+      font-size: 9px;
+      color: var(--color-text-faint);
+      font-weight: var(--fw-bold);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      border-bottom: 2px solid var(--color-border);
+      background: var(--color-surface);
+    }
+
+    .sl-row {
+      display: flex;
+      align-items: center;
+      height: 32px;
+      padding: 0 10px;
+      border-bottom: 1px solid var(--color-divider);
+      font-size: 11px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      box-sizing: border-box;
+      background: var(--color-surface);
+    }
+
+    .sl-row:hover {
+      background: var(--color-surface-2);
+    }
+
+    .sl-row:last-child {
+      border-bottom: none;
+    }
+
+    .sl-collapse-icon {
+      font-size: 12px;
+      color: var(--color-text-faint);
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+
+    .sl-lane.collapsed .sl-collapse-icon {
+      transform: rotate(-90deg);
+    }
 
     .gantt-today {
       position: absolute;
@@ -17711,7 +17872,7 @@
 
     // ══════ RENDER TABLE ══════
     function setTaskViewMode(m) {
-      if (m === 'timeline' && P.taskViewMode !== 'timeline') P._forceGanttCenter = true;
+      if ((m === 'timeline' || m === 'swimlane') && P.taskViewMode !== 'timeline' && P.taskViewMode !== 'swimlane') P._forceGanttCenter = true;
       P.taskViewMode = m;
       renderTasksView();
       if (window.lucide) lucide.createIcons();
@@ -17729,7 +17890,7 @@
       `;
 
       let extraActions = '';
-      if (P.taskViewMode === 'timeline') {
+      if (P.taskViewMode === 'timeline' || P.taskViewMode === 'swimlane') {
         extraActions = `
           <div style="width:1px;height:16px;background:var(--color-divider);margin:0 8px"></div>
           <div class="gantt-zoom" style="display:flex;gap:4px;">
@@ -17747,10 +17908,7 @@
           <button class="btn mini ${P.showGanttActuals ? 'active' : ''}" onclick="toggleGanttActuals()" title="Show or hide actual completion dates">
             <i data-lucide="check-circle-2"></i> Actuals
           </button>
-          <div style="width:1px;height:16px;background:var(--color-divider);margin:0 4px"></div>
-          <button class="btn mini" onclick="triggerGlobalExport('gantt-html')" title="Download Standalone Interactive Gantt HTML">
-            <i data-lucide="download"></i> Export HTML
-          </button>
+
         `;
       }
 
@@ -17762,7 +17920,7 @@
       $id('view-actions').innerHTML = `
         <div style="display:flex;align-items:center;gap:8px">
           <div class="btn-group mini" style="display:flex;align-items:center">
-            <button class="btn mini ${P.taskViewMode !== 'kanban' && P.taskViewMode !== 'timeline' ? 'active' : ''}" onclick="setTaskViewMode('table')" title="View as Table">
+            <button class="btn mini ${P.taskViewMode !== 'kanban' && P.taskViewMode !== 'timeline' && P.taskViewMode !== 'swimlane' ? 'active' : ''}" onclick="setTaskViewMode('table')" title="View as Table">
               <i data-lucide="table"></i> Table
             </button>
             <button class="btn mini ${P.taskViewMode === 'kanban' ? 'active' : ''}" onclick="setTaskViewMode('kanban')" title="View as Kanban Board">
@@ -17770,6 +17928,9 @@
             </button>
             <button class="btn mini ${P.taskViewMode === 'timeline' ? 'active' : ''}" onclick="setTaskViewMode('timeline')" title="View as Timeline">
               <i data-lucide="gantt-chart"></i> Timeline
+            </button>
+            <button class="btn mini ${P.taskViewMode === 'swimlane' ? 'active' : ''}" onclick="setTaskViewMode('swimlane')" title="View as Swimlane">
+              <i data-lucide="columns"></i> Swimlane
             </button>
           </div>
           ${extraActions}
@@ -17797,6 +17958,13 @@
         renderModuleRollups();
         renderGantt();
         initGanttResizer();
+      } else if (P.taskViewMode === 'swimlane') {
+        panel.innerHTML = `
+          <div id="module-rollups" class="module-rollup-container" style="flex-shrink:0"></div>
+          <div class="swimlane-outer active" id="task-swimlane-outer" style="flex:1; overflow-y:auto; padding:12px 0;"></div>
+        `;
+        renderModuleRollups();
+        renderTaskSwimlane();
       } else {
         panel.innerHTML = `
           <div id="module-rollups" class="module-rollup-container" style="flex-shrink:0"></div>
@@ -46076,7 +46244,7 @@ Earned Value Management measures project performance and progress by comparing p
     }
 
     // ══════ GANTT / TIMELINE ══════
-    function setGanttZoom(z) { P.ganttZoom = z; document.querySelectorAll('.gantt-zoom .btn').forEach(b => b.classList.toggle('active', b.dataset.z === z)); renderGantt(); }
+    function setGanttZoom(z) { P.ganttZoom = z; document.querySelectorAll('.gantt-zoom .btn').forEach(b => b.classList.toggle('active', b.dataset.z === z)); if (P.taskViewMode === 'swimlane') renderTaskSwimlane(); else renderGantt(); }
     function toggleGanttDeps() { P.showGanttDeps = !P.showGanttDeps; renderTasksView(); }
     function toggleGanttActuals() { P.showGanttActuals = !P.showGanttActuals; renderTasksView(); }
     function toggleMonteCarlo() { P.showMonteCarlo = !P.showMonteCarlo; renderTasksView(); }
@@ -46123,6 +46291,511 @@ Earned Value Management measures project performance and progress by comparing p
 
     function renderTimeline() {
       setTaskViewMode('timeline');
+    }
+
+    // ══════ SWIMLANES / MODULE TRACKS ══════
+    let slHitAreas = [];
+
+    function renderTaskSwimlane() {
+      const swimOuter = $id('task-swimlane-outer');
+      if (!swimOuter) return;
+      swimOuter.innerHTML = '';
+      slHitAreas = [];
+
+      const tasks = getFiltered().filter(t => t.startDate && t.dueDate).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+      if (!tasks.length) {
+        swimOuter.innerHTML = '<div style="padding:40px 16px;text-align:center;color:var(--color-text-muted)"><div style="font-size:24px;margin-bottom:6px">📅</div>No tasks with dates</div>';
+        return;
+      }
+
+      if (!P._collapsedLanes) P._collapsedLanes = new Set();
+
+      // Group tasks by moduleType
+      const groupMap = new Map();
+      tasks.forEach(t => {
+        const key = t.moduleType || 'General';
+        if (!groupMap.has(key)) groupMap.set(key, []);
+        groupMap.get(key).push(t);
+      });
+
+      // Compute general date bounds
+      const allDates = tasks.flatMap(t => [new Date(t.startDate), new Date(t.dueDate), ...(P.showGanttActuals && t.actCompletionDate ? [new Date(t.actCompletionDate)] : [])]);
+      let minDate = new Date(Math.min(...allDates));
+      let maxDate = new Date(Math.max(...allDates));
+
+      // Buffer
+      minDate.setDate(minDate.getDate() - 3);
+      maxDate.setDate(maxDate.getDate() + 7);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const zoom = P.ganttZoom;
+      const dayW = zoom === 'day' ? 28 : zoom === 'week' ? 12 : 4;
+      const totalDays = Math.ceil((maxDate - minDate) / 864e5);
+      const ROW_H = 32;
+      const HEAD_H = 48;
+      const PAD_L = 4;
+      const BAR_H = 16;
+      const W = totalDays * dayW + PAD_L * 2;
+
+      // Color palette
+      const FEAT_PALETTE = ['#6366f1', '#8b5cf6', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4'];
+      const stColors = { 'Not Started': '#94a3b8', 'In Progress': '#3b82f6', 'On Hold': '#f59e0b', 'Under Review': '#8b5cf6', Completed: '#22c55e', Cancelled: '#ef4444' };
+
+      const mcResults = P.showMonteCarlo ? runMonteCarloSimulation(tasks, 100) : null;
+
+      let laneIdx = 0;
+      groupMap.forEach((laneItems, laneKey) => {
+        const lc = FEAT_PALETTE[laneIdx % FEAT_PALETTE.length];
+        const avgProgress = laneItems.length > 0 ? Math.round(laneItems.reduce((s, t) => s + (t.progress || 0), 0) / laneItems.length) : 0;
+
+        // Find date range for this specific lane
+        const laneDates = laneItems.flatMap(t => [new Date(t.startDate), new Date(t.dueDate)]);
+        const laneMin = new Date(Math.min(...laneDates));
+        const laneMax = new Date(Math.max(...laneDates));
+
+        const isCollapsed = P._collapsedLanes.has(laneKey);
+
+        const lane = document.createElement('div');
+        lane.className = 'sl-lane' + (isCollapsed ? ' collapsed' : '');
+        lane.setAttribute('data-lane-key', laneKey);
+
+        // Header
+        const header = document.createElement('div');
+        header.className = 'sl-lane-header';
+        header.onclick = () => {
+          if (P._collapsedLanes.has(laneKey)) {
+            P._collapsedLanes.delete(laneKey);
+            lane.classList.remove('collapsed');
+          } else {
+            P._collapsedLanes.add(laneKey);
+            lane.classList.add('collapsed');
+          }
+        };
+
+        const dateRangeStr = `${fmtDate(laneMin.toISOString().slice(0, 10))} &ndash; ${fmtDate(laneMax.toISOString().slice(0, 10))}`;
+
+        header.innerHTML = `
+          <span class="sl-collapse-icon">&#9660;</span>
+          <div class="sl-lane-accent" style="background:${lc}"></div>
+          <div class="sl-lane-title">${esc(laneKey)}</div>
+          <div class="sl-lane-count">${laneItems.length} task${laneItems.length !== 1 ? 's' : ''}</div>
+          <div class="sl-lane-date-range">${dateRangeStr}</div>
+          <div style="width:1px;height:14px;background:var(--color-border);margin:0 4px"></div>
+          <div class="sl-progress-wrap" style="display:flex;align-items:center;gap:6px;">
+            <div class="sl-progress-bar-bg" style="width:60px;height:4px;background:var(--color-border-faint);border-radius:2px;overflow:hidden">
+              <div class="sl-progress-bar-fill" style="width:${avgProgress}%;height:100%;background:${lc};border-radius:2px"></div>
+            </div>
+            <span class="sl-progress-pct" style="font-size:10px;font-weight:700;color:var(--color-text-muted);min-width:24px;text-align:right">${avgProgress}%</span>
+          </div>
+        `;
+
+        lane.appendChild(header);
+
+        // Body containing Left panel & Right canvas wrapper
+        const body = document.createElement('div');
+        body.className = 'sl-lane-body';
+
+        // Left Panel (Task List)
+        const left = document.createElement('div');
+        left.className = 'sl-lane-left';
+
+        const rowHead = document.createElement('div');
+        rowHead.className = 'sl-row-head';
+        rowHead.textContent = 'Task Name';
+        left.appendChild(rowHead);
+
+        laneItems.forEach((t, i) => {
+          const row = document.createElement('div');
+          row.className = 'sl-row';
+          row.setAttribute('data-id', t.id);
+          row.style.height = `${ROW_H}px`;
+          
+          let nameHtml = esc(t.name);
+          const isMS = t.startDate === t.dueDate || t.category === 'Milestone';
+          if (isMS) {
+            nameHtml = `<span style="color:var(--color-primary);margin-right:4px">💎</span>${nameHtml}`;
+          }
+          
+          row.innerHTML = `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center">${nameHtml}</span>`;
+          
+          row.onmouseenter = () => {
+            row.style.background = 'var(--color-surface-2)';
+          };
+          row.onmouseleave = () => {
+            row.style.background = 'var(--color-surface)';
+          };
+          row.onclick = () => openFlyout(t.id);
+          left.appendChild(row);
+        });
+
+        body.appendChild(left);
+
+        // Right Panel (Canvas Scrollable)
+        const right = document.createElement('div');
+        right.className = 'sl-lane-right';
+
+        const canvas = document.createElement('canvas');
+        right.appendChild(canvas);
+        body.appendChild(right);
+        lane.appendChild(body);
+        swimOuter.appendChild(lane);
+
+        // Draw this lane's canvas
+        const H = HEAD_H + laneItems.length * ROW_H;
+        const dpr = window.devicePixelRatio || 1;
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+
+        const themeBg = getComputedStyle(document.body).getPropertyValue('--color-surface').trim() || '#ffffff';
+        const themeBg2 = getComputedStyle(document.body).getPropertyValue('--color-surface-2').trim() || '#f8f7f4';
+        const themeBorder = getComputedStyle(document.body).getPropertyValue('--color-border').trim() || '#e8e4dc';
+        const themeDivider = getComputedStyle(document.body).getPropertyValue('--color-divider').trim() || '#f0ede8';
+        const themeMuted = getComputedStyle(document.body).getPropertyValue('--color-text-muted').trim() || '#6b6560';
+        const themeFaint = getComputedStyle(document.body).getPropertyValue('--color-text-faint').trim() || '#a8a29e';
+
+        ctx.fillStyle = themeBg;
+        ctx.fillRect(0, 0, W, H);
+
+        // Draw date header grid & background
+        ctx.fillStyle = themeBg2;
+        ctx.fillRect(0, 0, W, HEAD_H);
+        ctx.strokeStyle = themeBorder;
+        ctx.lineWidth = 1;
+
+        for (let d = 0; d < totalDays; d++) {
+          const dt = new Date(minDate.getTime() + d * 864e5);
+          const x = PAD_L + d * dayW;
+          if (dt.getDay() === 1 || zoom === 'day') {
+            ctx.strokeStyle = themeDivider;
+            ctx.beginPath();
+            ctx.moveTo(x, HEAD_H);
+            ctx.lineTo(x, H);
+            ctx.stroke();
+          }
+          if (dt.getDay() === 0 || dt.getDay() === 6) {
+            ctx.fillStyle = 'rgba(128,128,128,0.03)';
+            ctx.fillRect(x, HEAD_H, dayW, H - HEAD_H);
+          }
+
+          // Header labels
+          if (zoom === 'day') {
+            ctx.fillStyle = themeFaint;
+            ctx.font = '9px ' + window.bodyFont;
+            ctx.textAlign = 'center';
+            ctx.fillText(dt.getDate(), x + dayW / 2, HEAD_H - 4);
+            if (dt.getDate() === 1 || d === 0) {
+              ctx.fillStyle = themeMuted;
+              ctx.font = 'bold 9px ' + window.bodyFont;
+              ctx.fillText(dt.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), x + dayW / 2, HEAD_H - 16);
+            }
+          } else if (zoom === 'week' && dt.getDay() === 1) {
+            ctx.fillStyle = themeFaint;
+            ctx.font = '9px ' + window.bodyFont;
+            ctx.textAlign = 'left';
+            ctx.fillText(dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), x + 2, HEAD_H - 4);
+          } else if (zoom === 'month' && dt.getDate() === 1) {
+            ctx.fillStyle = themeMuted;
+            ctx.font = 'bold 9px ' + window.bodyFont;
+            ctx.textAlign = 'left';
+            ctx.fillText(dt.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), x + 2, HEAD_H - 4);
+          }
+        }
+
+        // Today line
+        if (today >= minDate && today <= maxDate) {
+          const tx = PAD_L + Math.floor((today - minDate) / 864e5) * dayW;
+          ctx.strokeStyle = '#ef4444';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 3]);
+          ctx.beginPath();
+          ctx.moveTo(tx, HEAD_H);
+          ctx.lineTo(tx, H);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = '#ef4444';
+          ctx.font = 'bold 8px ' + window.bodyFont;
+          ctx.textAlign = 'left';
+          ctx.fillText('Today', tx + 2, HEAD_H + 10);
+        }
+
+        // Row dividers
+        ctx.strokeStyle = themeBorder;
+        ctx.lineWidth = 0.5;
+        for (let i = 0; i <= laneItems.length; i++) {
+          const y = HEAD_H + i * ROW_H;
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(W, y);
+          ctx.stroke();
+        }
+
+        // Helper roundRect fallback
+        const drawRoundedRect = (cContext, rx, ry, rw, rh, rad) => {
+          if (cContext.roundRect) {
+            cContext.roundRect(rx, ry, rw, rh, rad);
+          } else {
+            cContext.rect(rx, ry, rw, rh);
+          }
+        };
+
+        // Draw task bars
+        laneItems.forEach((t, i) => {
+          const s = new Date(t.startDate);
+          const e = new Date(t.dueDate);
+          s.setHours(0, 0, 0, 0);
+          e.setHours(0, 0, 0, 0);
+
+          const x1 = PAD_L + Math.max(0, Math.floor((s - minDate) / 864e5)) * dayW;
+          const x2 = PAD_L + Math.floor((e - minDate) / 864e5) * dayW + dayW;
+          const y = HEAD_H + i * ROW_H + (ROW_H - BAR_H) / 2;
+          const bw = Math.max(x2 - x1, dayW);
+
+          // Add hit area for interaction
+          slHitAreas.push({
+            x: x1,
+            x2: x1 + bw,
+            y: HEAD_H + i * ROW_H,
+            y2: HEAD_H + (i + 1) * ROW_H,
+            cvs: canvas,
+            item: t,
+            idx: i,
+            laneKey: laneKey
+          });
+
+          const isMilestone = (t.startDate && t.startDate === t.dueDate) || t.category === 'Milestone';
+
+          let actX = null;
+          if (P.showGanttActuals && t.actCompletionDate) {
+            const actD = new Date(t.actCompletionDate);
+            actD.setHours(0, 0, 0, 0);
+            actX = PAD_L + Math.floor((actD - minDate) / 864e5) * dayW + dayW / 2;
+          }
+
+          // Monte Carlo
+          if (P.showMonteCarlo && mcResults && mcResults[t.id]) {
+            const p10X = PAD_L + Math.floor((mcResults[t.id].p10 - minDate) / 864e5) * dayW;
+            const p90X = PAD_L + Math.floor((mcResults[t.id].p90 - minDate) / 864e5) * dayW + dayW;
+
+            ctx.fillStyle = 'rgba(139, 92, 246, 0.15)';
+            ctx.beginPath();
+            drawRoundedRect(ctx, p10X, y - 2, Math.max(4, p90X - p10X), BAR_H + 4, 4);
+            ctx.fill();
+
+            ctx.strokeStyle = '#8b5cf6';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([2, 2]);
+            ctx.beginPath();
+            ctx.moveTo(p90X, y - 4);
+            ctx.lineTo(p90X, y + BAR_H + 4);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+
+          if (isMilestone) {
+            ctx.globalAlpha = (P.showGanttActuals && t.actCompletionDate) ? 0.4 : 1;
+            ctx.fillStyle = stColors[t.status] || '#94a3b8';
+            ctx.beginPath();
+            ctx.moveTo(x1, y + BAR_H / 2);
+            ctx.lineTo(x1 + BAR_H / 2, y);
+            ctx.lineTo(x1 + BAR_H, y + BAR_H / 2);
+            ctx.lineTo(x1 + BAR_H / 2, y + BAR_H);
+            ctx.closePath();
+            ctx.fill();
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#ffffff';
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+
+            if (actX !== null) {
+              ctx.beginPath();
+              ctx.strokeStyle = '#10b981';
+              ctx.setLineDash([2, 2]);
+              ctx.moveTo(x1 + BAR_H / 2, y + BAR_H / 2);
+              ctx.lineTo(actX, y + BAR_H / 2);
+              ctx.stroke();
+              ctx.setLineDash([]);
+
+              ctx.fillStyle = '#10b981';
+              ctx.beginPath();
+              ctx.moveTo(actX, y + BAR_H / 2 - BAR_H / 2);
+              ctx.lineTo(actX + BAR_H / 2, y + BAR_H / 2);
+              ctx.lineTo(actX, y + BAR_H / 2 + BAR_H / 2);
+              ctx.lineTo(actX - BAR_H / 2, y + BAR_H / 2);
+              ctx.closePath();
+              ctx.fill();
+              ctx.lineWidth = 1.5;
+              ctx.strokeStyle = '#ffffff';
+              ctx.stroke();
+            }
+          } else {
+            // Task Bar
+            // Bar background
+            ctx.fillStyle = lc;
+            ctx.globalAlpha = 0.18;
+            ctx.beginPath();
+            drawRoundedRect(ctx, x1, y, bw, BAR_H, 4);
+            ctx.fill();
+
+            // Progress fill
+            const pw = bw * (parseInt(t.progress) || 0) / 100;
+            ctx.globalAlpha = (P.showGanttActuals && t.actCompletionDate) ? 0.6 : 1;
+            ctx.fillStyle = lc;
+            ctx.beginPath();
+            drawRoundedRect(ctx, x1, y, Math.max(pw, 0), BAR_H, 4);
+            ctx.fill();
+
+            // Subtle border
+            ctx.strokeStyle = lc;
+            ctx.globalAlpha = 0.5;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            drawRoundedRect(ctx, x1, y, bw, BAR_H, 4);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+
+            if (actX !== null) {
+              ctx.beginPath();
+              ctx.strokeStyle = '#10b981';
+              ctx.lineWidth = 1.5;
+              ctx.setLineDash([2, 2]);
+              ctx.moveTo(x1 + bw, y + BAR_H / 2);
+              ctx.lineTo(actX, y + BAR_H / 2);
+              ctx.stroke();
+              ctx.setLineDash([]);
+
+              ctx.fillStyle = '#10b981';
+              ctx.beginPath();
+              ctx.arc(actX, y + BAR_H / 2, 4, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 1;
+              ctx.stroke();
+            }
+          }
+        });
+
+        laneIdx++;
+      });
+
+      // Synchronize horizontal scrolling
+      const rightScrolls = swimOuter.querySelectorAll('.sl-lane-right');
+      rightScrolls.forEach(el => {
+        el.addEventListener('scroll', () => {
+          rightScrolls.forEach(other => {
+            if (other !== el && other.scrollLeft !== el.scrollLeft) {
+              other.scrollLeft = el.scrollLeft;
+            }
+          });
+        });
+      });
+
+      // Center Gantt/Timeline if force flag is set
+      if (P._forceGanttCenter && rightScrolls.length > 0) {
+        P._forceGanttCenter = false;
+        setTimeout(() => {
+          const today = new Date();
+          if (today >= minDate && today <= maxDate) {
+            const tx = PAD_L + Math.floor((today - minDate) / 864e5) * dayW;
+            const containerW = rightScrolls[0].clientWidth;
+            rightScrolls.forEach(el => {
+              el.scrollLeft = tx - containerW / 2;
+            });
+          }
+        }, 50);
+      }
+
+      // Interaction Tooltip State
+      let tooltip = $id('gantt-tooltip');
+      if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.id = 'gantt-tooltip';
+        tooltip.style = 'position:fixed;pointer-events:none;z-index:9999;background:var(--color-surface);border:1px solid var(--color-border);padding:10px 14px;border-radius:var(--radius-md);box-shadow:var(--shadow-lg);font-size:11px;min-width:180px;opacity:0;transform:translateY(8px);transition:opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);display:block';
+        document.body.appendChild(tooltip);
+      }
+
+      swimOuter.onmousemove = (e) => {
+        let hit = null;
+        for (const h of slHitAreas) {
+          if (P._collapsedLanes.has(h.laneKey)) continue;
+
+          const rect = h.cvs.getBoundingClientRect();
+          const mouseX = e.clientX - rect.left;
+          const mouseY = e.clientY - rect.top;
+          if (mouseX >= h.x && mouseX <= h.x2 && mouseY >= h.y && mouseY <= h.y2) {
+            hit = h;
+            break;
+          }
+        }
+
+        document.querySelectorAll('.sl-row').forEach(row => {
+          row.style.background = 'var(--color-surface)';
+        });
+
+        if (hit) {
+          const t = hit.item;
+          const leftRow = swimOuter.querySelector(`.sl-row[data-id="${t.id}"]`);
+          if (leftRow) leftRow.style.background = 'var(--color-surface-2)';
+
+          tooltip.style.opacity = '1';
+          tooltip.style.transform = 'translateY(0)';
+
+          let tx = e.clientX + 15;
+          let ty = e.clientY + 15;
+
+          if (tx + 220 > window.innerWidth) tx = e.clientX - 235;
+          if (ty + 130 > window.innerHeight) ty = e.clientY - 145;
+
+          tooltip.style.left = tx + 'px';
+          tooltip.style.top = ty + 'px';
+
+          const actStr = (P.showGanttActuals && t.actCompletionDate) ? `<span>Actual Done:</span> <span style="color:var(--color-success);font-weight:700">${fmtDate(t.actCompletionDate)}</span>` : '';
+          const mcStr = (P.showMonteCarlo && mcResults && mcResults[t.id]) ? `<span>Monte Carlo P90:</span> <span style="color:#8b5cf6;font-weight:700">${fmtDate(mcResults[t.id].p90)}</span>` : '';
+
+          tooltip.innerHTML = `
+            <div style="font-weight:700;margin-bottom:8px;font-size:12px">${esc(t.name)}</div>
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 8px;font-size:10px;color:var(--color-text-muted)">
+              <span>Status:</span> <span style="color:var(--color-text);font-weight:600">${esc(t.status)}</span>
+              <span>Assignee:</span> <span style="color:var(--color-text);font-weight:600">${esc(t.assignee || 'Unassigned')}</span>
+              <span>Planned:</span> <span style="color:var(--color-text);font-weight:600">${fmtDate(t.startDate)} &rarr; ${fmtDate(t.dueDate)}</span>
+              ${actStr}
+              ${mcStr}
+              <span>Progress:</span> <span style="color:var(--color-text);font-weight:600">${t.progress || 0}%</span>
+            </div>
+          `;
+        } else {
+          tooltip.style.opacity = '0';
+          tooltip.style.transform = 'translateY(8px)';
+        }
+      };
+
+      swimOuter.onmouseleave = () => {
+        tooltip.style.opacity = '0';
+        tooltip.style.transform = 'translateY(8px)';
+        document.querySelectorAll('.sl-row').forEach(row => {
+          row.style.background = 'var(--color-surface)';
+        });
+      };
+
+      swimOuter.onclick = (e) => {
+        for (const h of slHitAreas) {
+          if (P._collapsedLanes.has(h.laneKey)) continue;
+
+          const rect = h.cvs.getBoundingClientRect();
+          const mouseX = e.clientX - rect.left;
+          const mouseY = e.clientY - rect.top;
+          if (mouseX >= h.x && mouseX <= h.x2 && mouseY >= h.y && mouseY <= h.y2) {
+            openFlyout(h.item.id);
+            break;
+          }
+        }
+      };
     }
 
     function renderGantt() {
@@ -47878,7 +48551,7 @@ Earned Value Management measures project performance and progress by comparing p
           category: t.category || ''
         }));
       } else {
-        const filteredFeatures = getFilteredFeatures();
+        const filteredFeatures = (P.features || []).filter(f => f.name);
         itemsPayload = filteredFeatures.map((f, i) => {
           const mObj = featMetricsMap[f.name] || { avgP: 0, tot: 0, done: 0, overdue: 0, fScreens: [] };
           let start = null, end = null;
@@ -48094,13 +48767,152 @@ Earned Value Management measures project performance and progress by comparing p
       border-radius: 8px;
       box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
       font-size: 11px;
-      min-width: 180px;
+      min-width: 200px;
+      max-width: 280px;
       opacity: 0;
       transform: translateY(8px);
       transition: opacity 0.2s, transform 0.2s;
       display: block;
       color: var(--color-text);
       font-family: var(--font-body);
+    }
+    /* ── Swimlane View ── */
+    .swimlane-outer {
+      display: none;
+      flex-direction: column;
+      overflow-y: auto;
+      overflow-x: hidden;
+      flex: 1;
+      height: calc(100vh - 75px);
+      background: var(--color-surface-2);
+    }
+    .swimlane-outer.active { display: flex; }
+    .gantt-outer.sl-hidden { display: none; }
+    .sl-lane {
+      display: flex;
+      flex-direction: column;
+      border-bottom: 1px solid var(--color-border);
+      background: var(--color-surface);
+    }
+    .sl-lane:last-child { border-bottom: none; }
+    .sl-lane-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 18px;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid var(--color-divider);
+      background: var(--color-surface);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    .sl-lane-header:hover { background: var(--color-surface-2); }
+    .sl-collapse-icon {
+      font-size: 12px;
+      color: var(--color-text-faint);
+      transition: transform 0.2s;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .sl-lane.collapsed .sl-collapse-icon { transform: rotate(-90deg); }
+    .sl-lane-color-dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .sl-lane-name {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--color-text);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sl-lane-stats {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .sl-stat-chip {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 10px;
+      white-space: nowrap;
+    }
+    .sl-progress-wrap {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-shrink: 0;
+    }
+    .sl-progress-bar-bg {
+      width: 72px; height: 5px;
+      background: var(--color-divider);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .sl-progress-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.6s ease;
+    }
+    .sl-progress-pct {
+      font-size: 10px;
+      font-weight: 700;
+      min-width: 28px;
+      text-align: right;
+    }
+    .sl-lane-body {
+      display: flex;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+    .sl-lane.collapsed .sl-lane-body { max-height: 0 !important; }
+    .sl-lane-left {
+      width: 220px;
+      min-width: 220px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--color-divider);
+      overflow-y: auto;
+      overflow-x: hidden;
+      background: var(--color-surface);
+    }
+    .sl-lane-right {
+      flex: 1;
+      overflow-x: auto;
+      overflow-y: hidden;
+      background: var(--color-surface-2);
+      position: relative;
+    }
+    .sl-row {
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      border-bottom: 1px solid var(--color-divider);
+      font-size: 11px;
+      color: var(--color-text);
+      white-space: nowrap;
+      overflow: hidden;
+      box-sizing: border-box;
+      cursor: default;
+      gap: 5px;
+    }
+    .sl-row:hover { background: var(--color-surface-2) !important; }
+    .sl-row:last-child { border-bottom: none; }
+    .sl-summary-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 9px 18px;
+      background: var(--color-surface);
+      border-bottom: 2px solid var(--color-border);
+      flex-shrink: 0;
+      flex-wrap: wrap;
     }
     ${stylesBundled}
   </style>
@@ -48113,6 +48925,10 @@ Earned Value Management measures project performance and progress by comparing p
     </div>
     <div class="controls-wrap">
       <input type="text" class="search-input" id="search-input" placeholder="Search..." />
+      <div class="btn-group" id="view-mode-group">
+        <button class="btn active" id="view-timeline-btn" onclick="setViewMode('timeline')">&#9776; Timeline</button>
+        <button class="btn" id="view-swimlane-btn" onclick="setViewMode('swimlane')">&#9638; Swimlane</button>
+      </div>
       <div class="btn-group">
         <button class="btn" id="zoom-day-btn" onclick="setZoom('day')">Day</button>
         <button class="btn active" id="zoom-week-btn" onclick="setZoom('week')">Week</button>
@@ -48120,32 +48936,62 @@ Earned Value Management measures project performance and progress by comparing p
       </div>
     </div>
   </div>
-  <div class="gantt-outer">
+  <div class="gantt-outer" id="export-gantt-outer">
     <div class="gantt-left" id="export-gantt-left"></div>
     <div class="gantt-splitter" id="export-gantt-splitter"></div>
     <div class="gantt-right" id="export-gantt-right">
       <canvas id="export-gantt-canvas"></canvas>
     </div>
   </div>
+  <div class="swimlane-outer" id="export-swimlane-outer"></div>
   <div class="gantt-tooltip" id="export-gantt-tooltip"></div>
 
   ${'<' + 'script' + '>'}
     const DATA = ${serializedData};
     let currentZoom = 'week';
+    let currentViewMode = 'timeline';
     let searchQuery = '';
     const items = DATA.items;
     const isFeat = DATA.isFeat;
+
+    const FEAT_PALETTE = ['#6366f1','#8b5cf6','#0ea5e9','#10b981','#f59e0b','#ef4444','#ec4899','#06b6d4'];
+    const RELEASE_STATUS_COLORS = { Released: '#10b981', Active: '#3b82f6', Planned: '#f59e0b' };
+    const ST_COLORS = { 'Not Started': '#94a3b8', 'In Progress': '#3b82f6', 'On Hold': '#f59e0b', 'Under Review': '#8b5cf6', Completed: '#22c55e', Cancelled: '#ef4444' };
 
     function $id(id) { return document.getElementById(id); }
     function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
     function fmtDate(dStr) {
       if (!dStr) return '';
-      const d = new Date(dStr);
+      const d = new Date(dStr + 'T00:00:00');
       return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
     }
+    function fmtDateFull(dStr) {
+      if (!dStr) return '';
+      const d = new Date(dStr + 'T00:00:00');
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+    function laneColorForIdx(idx) { return FEAT_PALETTE[idx % FEAT_PALETTE.length]; }
+    function getGroupKey(t) { return isFeat ? (t.release || 'No Release') : (t.moduleType || 'General'); }
 
     $id('export-title-el').textContent = DATA.projectName + ' - ' + (isFeat ? 'Features Timeline' : 'Tasks Timeline');
     document.title = DATA.projectName + ' - ' + (isFeat ? 'Features Timeline' : 'Tasks Timeline');
+
+    window.setViewMode = function(mode) {
+      currentViewMode = mode;
+      $id('view-timeline-btn').classList.toggle('active', mode === 'timeline');
+      $id('view-swimlane-btn').classList.toggle('active', mode === 'swimlane');
+      const ganttOuter = $id('export-gantt-outer');
+      const swimOuter = $id('export-swimlane-outer');
+      if (mode === 'swimlane') {
+        ganttOuter.classList.add('sl-hidden');
+        swimOuter.classList.add('active');
+        renderSwimlane();
+      } else {
+        ganttOuter.classList.remove('sl-hidden');
+        swimOuter.classList.remove('active');
+        renderGantt();
+      }
+    };
 
     const splitter = $id('export-gantt-splitter');
     const leftPanel = $id('export-gantt-left');
@@ -48175,16 +49021,19 @@ Earned Value Management measures project performance and progress by comparing p
 
     window.setZoom = function(z) {
       currentZoom = z;
-      document.querySelectorAll('.btn-group .btn').forEach(btn => btn.classList.remove('active'));
+      [$id('zoom-day-btn'), $id('zoom-week-btn'), $id('zoom-month-btn')].forEach(b => b && b.classList.remove('active'));
       $id('zoom-' + z + '-btn').classList.add('active');
-      renderGantt();
+      if (currentViewMode === 'swimlane') renderSwimlane();
+      else renderGantt();
     };
 
     const searchInput = $id('search-input');
     searchInput.addEventListener('input', (e) => {
       searchQuery = e.target.value.toLowerCase();
-      renderGantt();
+      if (currentViewMode === 'swimlane') renderSwimlane();
+      else renderGantt();
     });
+
 
     const cvs = $id('export-gantt-canvas');
     const tooltip = $id('export-gantt-tooltip');
@@ -48260,8 +49109,6 @@ Earned Value Management measures project performance and progress by comparing p
       lh.innerHTML = isFeat ? 'Feature / Release' : 'Task';
       leftPanel.appendChild(lh);
 
-      const FEAT_PALETTE = ['#6366f1','#8b5cf6','#0ea5e9','#10b981','#f59e0b','#ef4444','#ec4899','#06b6d4'];
-      const RELEASE_STATUS_COLORS = { Released: '#10b981', Active: '#3b82f6', Planned: '#f59e0b' };
 
       filtered.forEach((t, i) => {
         const r = document.createElement('div');
@@ -48574,6 +49421,324 @@ Earned Value Management measures project performance and progress by comparing p
     leftScroll.addEventListener('wheel', (e) => {
       rightScroll.scrollTop += e.deltaY;
     }, { passive: true });
+
+
+    // ─── Inject swimlane CSS (only once) ────────────────────────────────────
+    (function injectSwimlaneCSS() {
+      const existing = document.getElementById('_sl_style');
+      if (existing) return;
+      const s = document.createElement('style');
+      s.id = '_sl_style';
+      s.textContent = \`
+        .swimlane-outer { display:none; flex-direction:column; gap:0; flex:1; overflow-y:auto; background:var(--color-bg); padding:12px 0; }
+        .swimlane-outer.active { display:flex; }
+        .sl-hidden { display:none !important; }
+        .sl-lane { display:flex; flex-direction:column; border-radius:12px; overflow:hidden; margin:0 16px 14px; background:var(--color-surface); border:1px solid var(--color-border); box-shadow:0 2px 8px rgba(0,0,0,0.07); }
+        .sl-lane-header { display:flex; align-items:center; gap:10px; padding:10px 16px; min-height:46px; cursor:default; user-select:none; position:relative; }
+        .sl-lane-accent { width:4px; height:36px; border-radius:3px; flex-shrink:0; }
+        .sl-lane-title { font-weight:700; font-size:13px; letter-spacing:0.01em; flex:1; }
+        .sl-lane-count { font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.2); color:var(--color-primary); }
+        .sl-lane-date-range { font-size:10px; color:var(--color-text-muted); font-weight:500; white-space:nowrap; }
+        .sl-lane-progress-bar { height:3px; background:var(--color-border); }
+        .sl-lane-progress-fill { height:3px; border-radius:2px; transition:width 0.5s ease; }
+        .sl-lane-canvas-wrap { position:relative; }
+        .sl-lane-canvas-wrap canvas { display:block; width:100%; }
+        .sl-canvas-head { position:absolute; top:0; left:0; pointer-events:none; }
+        .sl-no-items { padding:24px; font-size:12px; color:var(--color-text-muted); text-align:center; }
+      \`;
+      document.head.appendChild(s);
+    })();
+
+    // ─── Swimlane renderer ───────────────────────────────────────────────────
+    let slHitAreas = [];
+
+    function renderSwimlane() {
+      const swimOuter = $id('export-swimlane-outer');
+      swimOuter.innerHTML = '';
+      slHitAreas = [];
+
+      const q = searchQuery;
+      const filtered = items.filter(t => !q || t.name.toLowerCase().includes(q) || (t.release || '').toLowerCase().includes(q) || (t.moduleType || '').toLowerCase().includes(q));
+
+      // ── Compute date range ─────────────────────────────────────────────────
+      const allDates = filtered.flatMap(t => [t.startDate, t.dueDate]).filter(Boolean).map(d => new Date(d + 'T00:00:00'));
+      if (allDates.length === 0) {
+        swimOuter.innerHTML = '<div class="sl-no-items">No items to display.</div>';
+        return;
+      }
+
+      let minDate = new Date(Math.min(...allDates));
+      let maxDate = new Date(Math.max(...allDates));
+
+      // snap to zoom unit boundaries
+      const z = currentZoom;
+      if (z === 'week') {
+        const dow = minDate.getDay(); minDate.setDate(minDate.getDate() - (dow === 0 ? 6 : dow - 1));
+        const dowE = maxDate.getDay(); maxDate.setDate(maxDate.getDate() + (dowE === 0 ? 0 : 7 - dowE));
+      } else if (z === 'month') {
+        minDate = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+        maxDate = new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0);
+      }
+
+      const totalMs = maxDate - minDate;
+
+      // ── Group items ────────────────────────────────────────────────────────
+      const groupMap = new Map();
+      filtered.forEach(t => {
+        const key = getGroupKey(t);
+        if (!groupMap.has(key)) groupMap.set(key, []);
+        groupMap.get(key).push(t);
+      });
+
+      let laneIdx = 0;
+      groupMap.forEach((laneItems, laneKey) => {
+        const lc = laneColorForIdx(laneIdx);
+        const progress = laneItems.length > 0 ? Math.round(laneItems.reduce((s, t) => s + (t.progress || 0), 0) / laneItems.length) : 0;
+        const laneMin = new Date(Math.min(...laneItems.map(t => t.startDate ? new Date(t.startDate + 'T00:00:00') : Infinity)));
+        const laneMax = new Date(Math.max(...laneItems.map(t => t.dueDate ? new Date(t.dueDate + 'T00:00:00') : -Infinity)));
+
+        // ── Lane wrapper ───────────────────────────────────────────────────
+        const lane = document.createElement('div');
+        lane.className = 'sl-lane';
+
+        // header
+        const header = document.createElement('div');
+        header.className = 'sl-lane-header';
+        header.style.background = \`linear-gradient(135deg,\${lc}14 0%,\${lc}05 100%)\`;
+        header.innerHTML = \`
+          <div class="sl-lane-accent" style="background:\${lc}"></div>
+          <div class="sl-lane-title">\${esc(laneKey)}</div>
+          <div class="sl-lane-count">\${laneItems.length} item\${laneItems.length!==1?'s':''}</div>
+          <div class="sl-lane-date-range">\${fmtDate(laneMin.toISOString().slice(0,10))} &ndash; \${fmtDate(laneMax.toISOString().slice(0,10))}</div>
+        \`;
+
+        // progress bar
+        const progBar = document.createElement('div');
+        progBar.className = 'sl-lane-progress-bar';
+        const progFill = document.createElement('div');
+        progFill.className = 'sl-lane-progress-fill';
+        progFill.style.width = progress + '%';
+        progFill.style.background = lc;
+        progBar.appendChild(progFill);
+
+        // canvas wrap
+        const canvasWrap = document.createElement('div');
+        canvasWrap.className = 'sl-lane-canvas-wrap';
+
+        // canvas
+        const HEAD_H = 36;
+        const ROW_H = isFeat ? 48 : 36;
+        const BAR_H = isFeat ? 22 : 16;
+        const slW = swimOuter.clientWidth || window.innerWidth - 48;
+        const canvasH = HEAD_H + laneItems.length * ROW_H + 8;
+
+        const cvs = document.createElement('canvas');
+        const dpr = window.devicePixelRatio || 1;
+        cvs.width = slW * dpr;
+        cvs.height = canvasH * dpr;
+        cvs.style.width = slW + 'px';
+        cvs.style.height = canvasH + 'px';
+        cvs.style.cursor = 'default';
+
+        canvasWrap.appendChild(cvs);
+
+        // assemble
+        lane.appendChild(header);
+        lane.appendChild(progBar);
+        lane.appendChild(canvasWrap);
+        swimOuter.appendChild(lane);
+
+        // ── Draw canvas ────────────────────────────────────────────────────
+        drawSwimlaneCanvas(cvs, dpr, laneItems, laneKey, lc, minDate, maxDate, slW, canvasH, HEAD_H, ROW_H, BAR_H, laneIdx);
+
+        laneIdx++;
+      });
+
+      // ── Global swimlane tooltip ────────────────────────────────────────────
+      const slTooltip = $id('export-gantt-tooltip');
+      swimOuter.addEventListener('mousemove', (e) => {
+        let hit = null;
+        for (const h of slHitAreas) {
+          const rect = h.cvs.getBoundingClientRect();
+          const mx = e.clientX - rect.left;
+          const my = e.clientY - rect.top;
+          if (mx >= h.x && mx <= h.x2 && my >= h.y && my <= h.y2) { hit = h; break; }
+        }
+        if (hit) {
+          const t = hit.item;
+          slTooltip.style.opacity = '1';
+          slTooltip.style.transform = 'translateY(0)';
+          let tx = e.clientX + 15, ty = e.clientY + 15;
+          if (tx + 240 > window.innerWidth) tx = e.clientX - 255;
+          if (ty + 160 > window.innerHeight) ty = e.clientY - 175;
+          slTooltip.style.left = tx + 'px';
+          slTooltip.style.top = ty + 'px';
+          if (isFeat) {
+            slTooltip.innerHTML = \`
+              <div style="font-weight:700;margin-bottom:8px;font-size:12px">\${esc(t.name)}</div>
+              <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 8px;font-size:10px;color:var(--color-text-muted)">
+                <span>Release:</span> <span style="color:var(--color-text);font-weight:600">\${esc(t.release||'Unassigned')}</span>
+                <span>Planned:</span> <span style="color:var(--color-text);font-weight:600">\${fmtDateFull(t.startDate)} &rarr; \${fmtDateFull(t.dueDate)}</span>
+                <span>Progress:</span> <span style="color:var(--color-text);font-weight:600">\${t.progress||0}%</span>
+                <span>Screens:</span> <span style="color:var(--color-text);font-weight:600">\${t.screensDone||0} / \${t.screensCount||0} done</span>
+              </div>
+            \`;
+          } else {
+            slTooltip.innerHTML = \`
+              <div style="font-weight:700;margin-bottom:8px;font-size:12px">\${esc(t.name)}</div>
+              <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 8px;font-size:10px;color:var(--color-text-muted)">
+                <span>Status:</span> <span style="color:var(--color-text);font-weight:600">\${esc(t.status)}</span>
+                <span>Assignee:</span> <span style="color:var(--color-text);font-weight:600">\${esc(t.assignee||'—')}</span>
+                <span>Planned:</span> <span style="color:var(--color-text);font-weight:600">\${fmtDateFull(t.startDate)} &rarr; \${fmtDateFull(t.dueDate)}</span>
+                <span>Progress:</span> <span style="color:var(--color-text);font-weight:600">\${t.progress||0}%</span>
+              </div>
+            \`;
+          }
+          hit.cvs.style.cursor = 'pointer';
+        } else {
+          slTooltip.style.opacity = '0';
+          slTooltip.style.transform = 'translateY(8px)';
+          document.querySelectorAll('.sl-lane-canvas-wrap canvas').forEach(c => c.style.cursor = 'default');
+        }
+      });
+      swimOuter.addEventListener('mouseleave', () => {
+        slTooltip.style.opacity = '0';
+        slTooltip.style.transform = 'translateY(8px)';
+      });
+    }
+
+    function drawSwimlaneCanvas(cvs, dpr, laneItems, laneKey, lc, minDate, maxDate, W, H, HEAD_H, ROW_H, BAR_H, laneIdx) {
+      const ctx = cvs.getContext('2d');
+      ctx.scale(dpr, dpr);
+
+      const totalMs = maxDate - minDate;
+      const PAD = 12;
+      const drawW = W - PAD * 2;
+
+      function dateToX(d) {
+        if (!d) return PAD;
+        const dt = new Date(d + 'T00:00:00');
+        return PAD + Math.max(0, Math.min(drawW, ((dt - minDate) / totalMs) * drawW));
+      }
+
+      // ── Background ──────────────────────────────────────────────────────────
+      ctx.clearRect(0, 0, W, H);
+
+      // ── Header axis ─────────────────────────────────────────────────────────
+      ctx.fillStyle = 'rgba(0,0,0,0.035)';
+      ctx.fillRect(0, 0, W, HEAD_H);
+
+      // Today line
+      const todayX = dateToX(new Date().toISOString().slice(0, 10));
+      ctx.save();
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(todayX, 0); ctx.lineTo(todayX, H); ctx.stroke();
+      ctx.restore();
+
+      // Draw axis ticks
+      ctx.fillStyle = 'rgba(120,120,140,0.7)';
+      ctx.font = '9px Inter,system-ui,sans-serif';
+      ctx.textAlign = 'center';
+
+      const z = currentZoom;
+      let tickCursor = new Date(minDate);
+      while (tickCursor <= maxDate) {
+        const tx = dateToX(tickCursor.toISOString().slice(0, 10));
+        ctx.fillStyle = 'rgba(120,120,140,0.18)';
+        ctx.fillRect(tx, 0, 1, H);
+
+        ctx.fillStyle = 'rgba(120,120,140,0.7)';
+        let label = '';
+        if (z === 'day') {
+          label = tickCursor.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+          tickCursor.setDate(tickCursor.getDate() + 1);
+        } else if (z === 'week') {
+          label = tickCursor.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+          tickCursor.setDate(tickCursor.getDate() + 7);
+        } else {
+          label = tickCursor.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
+          tickCursor.setMonth(tickCursor.getMonth() + 1);
+        }
+        ctx.fillText(label, tx + 2, HEAD_H - 8);
+      }
+
+      // ── Rows ──────────────────────────────────────────────────────────────
+      laneItems.forEach((t, i) => {
+        const ry = HEAD_H + i * ROW_H;
+
+        // zebra
+        if (i % 2 === 1) {
+          ctx.fillStyle = 'rgba(0,0,0,0.018)';
+          ctx.fillRect(0, ry, W, ROW_H);
+        }
+
+        // row separator
+        ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, ry + ROW_H); ctx.lineTo(W, ry + ROW_H); ctx.stroke();
+
+        if (!t.startDate || !t.dueDate) return;
+
+        const x1 = dateToX(t.startDate);
+        const x2 = dateToX(t.dueDate);
+        const bw = Math.max(4, x2 - x1);
+        const by = ry + (ROW_H - BAR_H) / 2;
+
+        const pct = (t.progress || 0) / 100;
+
+        // bar shadow
+        ctx.shadowColor = lc + '55';
+        ctx.shadowBlur = 4;
+
+        // bar base
+        ctx.fillStyle = lc + '33';
+        roundRect(ctx, x1, by, bw, BAR_H, 5);
+        ctx.fill();
+
+        // progress fill
+        ctx.shadowBlur = 0;
+        if (pct > 0) {
+          ctx.fillStyle = lc;
+          roundRect(ctx, x1, by, Math.max(bw * pct, BAR_H * 0.8), BAR_H, 5);
+          ctx.fill();
+        }
+
+        ctx.shadowBlur = 0;
+
+        // bar label inside bar (if wide enough)
+        if (bw > 50) {
+          ctx.fillStyle = '#fff';
+          ctx.font = \`bold \${isFeat ? 10 : 9}px Inter,system-ui,sans-serif\`;
+          ctx.textAlign = 'left';
+          const label = t.name.length > 20 ? t.name.slice(0, 19) + '…' : t.name;
+          ctx.fillText(label, x1 + 6, by + BAR_H / 2 + 3.5);
+        }
+
+        // register hit area
+        slHitAreas.push({ cvs, x: x1, x2: x1 + bw, y: by, y2: by + BAR_H, item: t, laneIdx, rowIdx: i });
+      });
+
+      // ── Lane label on left ─────────────────────────────────────────────────
+      ctx.save();
+      ctx.fillStyle = lc;
+      ctx.font = \`bold 10px Inter,system-ui,sans-serif\`;
+      ctx.textAlign = 'left';
+      ctx.restore();
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+      if (w < 2 * r) r = w / 2;
+      if (h < 2 * r) r = h / 2;
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
 
     renderGantt();
     if (window.lucide) {
