@@ -34532,112 +34532,34 @@ Earned Value Management measures project performance and progress by comparing p
       addST(inner, 'Team Inspiration & Performance');
       const grid = addGrid(inner);
 
-      // 1. Team Velocity (chart from Insights view)
-      const velId = 'team-velocity-chart';
-      let weeksCount = parseInt(P.velocityWeeks) || 12;
-      if (weeksCount < 8) weeksCount = 8;
-      if (weeksCount > 100) weeksCount = 100;
-      const velCard = mkCC('Team Velocity', `Completed effort vs 3-week rolling average (${weeksCount} weeks)`, velId, '', 'standard', 'Historical performance tracking. Measures the volume of work successfully delivered each week.', 'View Explanation', 'trending-up');
-      velCard.style.gridColumn = 'span 4';
+      // 1. Velocity Leaderboard
+      const velId = 'team-velocity-leader';
+      const velCard = mkCC('Velocity Leaderboard', 'Highest throughput (30d)', velId, '', 'standard', "<b>Delivery Excellence:</b> Recognizes team members who have completed the highest volume of story points/tasks over the last 30 days.", 'Inspiration Detail', 'trophy');
+      velCard.style.gridColumn = 'span 1';
       grid.appendChild(velCard);
 
-      const optWeeks = [8, 12, 16, 20, 24, 32, 40, 48, 52, 64, 76, 88, 100];
-      if (!optWeeks.includes(weeksCount)) { optWeeks.push(weeksCount); optWeeks.sort((a, b) => a - b); }
-      const modeVal = (P.settings && P.settings.velocityMode) || 'weighted';
-      let modeSelectHtml = `<select onchange="updateVelocityMode(this.value)" style="border:none; background:transparent; color:var(--color-text-muted); font-size:11px; font-weight:700; cursor:pointer; outline:none; padding:2px 4px; margin-right:8px; border-right:1px solid var(--color-border);">
-        <option value="weighted" ${modeVal === 'weighted' ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">Subtask-Weighted</option>
-        <option value="binary" ${modeVal === 'binary' ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">Binary Completed</option>
-      </select>`;
-      let selectHtml = `<select onchange="updateVelocityWeeks(this.value)" style="border:none; background:transparent; color:var(--color-text-muted); font-size:11px; font-weight:700; cursor:pointer; outline:none; padding:2px 4px;">`;
-      optWeeks.forEach(w => {
-        const isYear = w === 52 ? ' (1 Year)' : '';
-        const isMax  = w === 100 ? ' (Max)' : '';
-        selectHtml += `<option value="${w}" ${weeksCount === w ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">${w} Weeks${isYear}${isMax}</option>`;
+      const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      let velScores = P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').map(m => {
+        const count = P.tasks.filter(t => {
+          if (t.assignee !== m.name || t.status !== 'Completed') return false;
+          const cmpDate = t.actCompletionDate || t.updatedAt;
+          return cmpDate && new Date(cmpDate) > thirtyDaysAgo;
+        }).length;
+        return { name: m.name, count };
+      }).sort((a, b) => b.count - a.count).slice(0, 3);
+
+      let velHtml = `<div style="padding:16px;display:flex;flex-direction:column;gap:12px">`;
+      velScores.forEach((s, i) => {
+        const med = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
+        velHtml += `<div style="display:flex;align-items:center;gap:12px;background:var(--color-surface-2);padding:10px 14px;border-radius:12px;border:1px solid var(--color-divider)">
+          <div style="font-size:11px;font-weight:900;color:var(--color-text-faint);width:20px">#${i + 1}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:800;font-size:15px;line-height:1.2;word-break:break-word">${esc(s.name)}</div>
+            <div style="font-size:11px;color:var(--color-text-faint);font-weight:600;margin-top:2px">${s.count} Tasks Completed</div>
+          </div>
+        </div>`;
       });
-      selectHtml += `</select>`;
-      const weeksToggle = document.createElement('div');
-      weeksToggle.style = 'display:inline-flex; background:var(--color-surface-offset); padding:2px 6px; border-radius:7px; border:1px solid var(--color-border); align-items:center; flex-shrink:0; height:fit-content; margin-left:auto;';
-      weeksToggle.innerHTML = modeSelectHtml + selectHtml;
-      velCard.querySelector('.ch').appendChild(weeksToggle);
-
-      const velCvs = mkCvs(1000, 200);
-      velCard.querySelector('.cb').appendChild(velCvs);
-      const velLeg = document.createElement('div');
-      velLeg.className = 'cleg';
-      velLeg.innerHTML = `
-        <div class="cli"><div class="cdot" style="background:var(--color-primary)"></div>Weekly Velocity</div>
-        <div class="cli"><div style="width:16px;border-top:2px dashed var(--amber)"></div>3-Week Rolling Avg</div>
-      `;
-      velCard.appendChild(velLeg);
-
-      setTimeout(() => {
-        const lastWeeks = [];
-        for (let i = weeksCount - 1; i >= 0; i--) {
-          const d = new Date();
-          d.setDate(d.getDate() - i * 7);
-          d.setHours(23, 59, 59, 999);
-          lastWeeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d), date: new Date(d) });
-        }
-        const isWeighted = ((P.settings && P.settings.velocityMode) || 'weighted') === 'weighted';
-        const velocity = lastWeeks.map(w => {
-          if (isWeighted) {
-            const startLimit = new Date(w.date.getTime() - 7 * 24 * 60 * 60 * 1000);
-            const endLimit = w.date;
-            return P.tasks.reduce((s, t) => {
-              const effort = parseFloat(t.estEffort) || 0;
-              if (effort <= 0) return s;
-              const pStart = getTaskProgressAt(t, startLimit, P.log || []);
-              const pEnd   = getTaskProgressAt(t, endLimit,   P.log || []);
-              const gained = Math.max(0, (pEnd !== null ? pEnd : 0) - (pStart !== null ? pStart : 0));
-              return s + effort * (gained / 100);
-            }, 0);
-          } else {
-            return P.tasks.filter(t => {
-              if (t.status !== 'Completed' || !t.actCompletionDate) return false;
-              const d = new Date(t.actCompletionDate);
-              return getWeekNumber(d) === w.w && d.getFullYear() === w.y;
-            }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
-          }
-        });
-        const rolling = velocity.map((v, i) => {
-          if (i < 2) return v;
-          return (velocity[i] + velocity[i - 1] + velocity[i - 2]) / 3;
-        });
-        const maxVal = Math.max(...velocity, ...rolling, 10);
-        const latestVel     = velocity[velocity.length - 1].toFixed(1);
-        const peakVel       = Math.max(...velocity).toFixed(1);
-        const latestRolling = rolling[rolling.length - 1].toFixed(1);
-        const isUp = parseFloat(latestVel) >= parseFloat(latestRolling);
-
-        const summaryBar = document.createElement('div');
-        summaryBar.style = 'display:flex; flex-wrap:wrap; gap:16px; padding:16px 20px; background:var(--color-surface-2); border-radius:16px; margin:0 0 20px 0; justify-content:space-between; align-items:center; border:1px solid var(--color-border-faint); box-shadow:0 4px 20px rgba(0,0,0,0.03)';
-        summaryBar.innerHTML = `
-          <div style="display:flex; gap:28px; flex-wrap:wrap">
-            <div>
-              <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:600">Latest Velocity</div>
-              <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--color-text)">${latestVel}d</div>
-            </div>
-            <div>
-              <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:600">Rolling Avg</div>
-              <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--color-text)">${latestRolling}d</div>
-            </div>
-            <div>
-              <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:600">Peak Velocity</div>
-              <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--color-text)">${peakVel}d</div>
-            </div>
-          </div>
-          <div>
-            ${isUp
-              ? `<span style="background:rgba(34,197,94,0.15); color:#16a34a; padding:6px 16px; border-radius:20px; font-weight:700; font-size:12px; display:flex; align-items:center; gap:6px; box-shadow:0 2px 12px rgba(34,197,94,0.15)"><i data-lucide="trending-up" style="width:16px;height:16px"></i> Velocity Trending Up</span>`
-              : `<span style="background:rgba(245,158,11,0.15); color:#d97706; padding:6px 16px; border-radius:20px; font-weight:700; font-size:12px; display:flex; align-items:center; gap:6px; box-shadow:0 2px 12px rgba(245,158,11,0.15)"><i data-lucide="trending-down" style="width:16px;height:16px"></i> Velocity Adjusting</span>`
-            }
-          </div>
-        `;
-        const cb = velCard.querySelector('.cb');
-        cb.insertBefore(summaryBar, velCvs);
-        if (window.lucide) lucide.createIcons(summaryBar);
-        drawVBar(velCvs, lastWeeks.map((w, i) => [w.l, velocity[i]]), ['var(--color-primary)'], maxVal, false, rolling);
-      }, 350);
+      velCard.querySelector('.cb').innerHTML = velHtml;
 
       // 2. Quality Champions
       const qualId = 'team-quality-leader';
@@ -48795,9 +48717,35 @@ Earned Value Management measures project performance and progress by comparing p
           velGrid.className = 'grid';
           velGrid.style = 'grid-template-columns:1fr;gap:0px;margin-bottom:0px';
 
-          const velCard = mkCC('Team Velocity', 'Completed effort vs 3-week rolling average (12 weeks)', 'team-velocity', '', 'standard', "Historical performance tracking. Measures the volume of work successfully delivered each week.", 'View Explanation', 'trending-up');
+          let weeksCount = parseInt(P.velocityWeeks) || 12;
+          if (weeksCount < 8) weeksCount = 8;
+          if (weeksCount > 100) weeksCount = 100;
+          const velCard = mkCC('Team Velocity', `Completed effort vs 3-week rolling average (${weeksCount} weeks)`, 'team-velocity', '', 'standard', "Historical performance tracking. Measures the volume of work successfully delivered each week.", 'View Explanation', 'trending-up');
           velCard.style.gridColumn = '1 / -1';
           velGrid.appendChild(velCard);
+
+          const optWeeks = [8, 12, 16, 20, 24, 32, 40, 48, 52, 64, 76, 88, 100];
+          if (!optWeeks.includes(weeksCount)) {
+            optWeeks.push(weeksCount);
+            optWeeks.sort((a, b) => a - b);
+          }
+          const modeVal = (P.settings && P.settings.velocityMode) || 'weighted';
+          let modeSelectHtml = `<select onchange="updateVelocityMode(this.value)" style="border:none; background:transparent; color:var(--color-text-muted); font-size:11px; font-weight:700; cursor:pointer; outline:none; padding:2px 4px; margin-right:8px; border-right:1px solid var(--color-border);">
+            <option value="weighted" ${modeVal === 'weighted' ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">Subtask-Weighted</option>
+            <option value="binary" ${modeVal === 'binary' ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">Binary Completed</option>
+          </select>`;
+
+          let selectHtml = `<select onchange="updateVelocityWeeks(this.value)" style="border:none; background:transparent; color:var(--color-text-muted); font-size:11px; font-weight:700; cursor:pointer; outline:none; padding:2px 4px;">`;
+          optWeeks.forEach(w => {
+            const isYear = w === 52 ? ' (1 Year)' : '';
+            const isMax = w === 100 ? ' (Max)' : '';
+            selectHtml += `<option value="${w}" ${weeksCount === w ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">${w} Weeks${isYear}${isMax}</option>`;
+          });
+          selectHtml += `</select>`;
+          const weeksToggle = document.createElement('div');
+          weeksToggle.style = "display:inline-flex; background:var(--color-surface-offset); padding:2px 6px; border-radius:7px; border:1px solid var(--color-border); align-items:center; flex-shrink:0; height:fit-content; margin-left:auto;";
+          weeksToggle.innerHTML = modeSelectHtml + selectHtml;
+          velCard.querySelector('.ch').appendChild(weeksToggle);
 
           const velCvs = mkCvs(1000, 200);
           velCard.querySelector('.cb').appendChild(velCvs);
@@ -48810,18 +48758,39 @@ Earned Value Management measures project performance and progress by comparing p
           velCard.appendChild(velLeg);
 
           setTimeout(() => {
-            const last12Weeks = [];
-            for (let i = 11; i >= 0; i--) {
-              const d = new Date(); d.setDate(d.getDate() - i * 7);
-              last12Weeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) });
+            const lastWeeks = [];
+            for (let i = weeksCount - 1; i >= 0; i--) {
+              const d = new Date();
+              d.setDate(d.getDate() - i * 7);
+              d.setHours(23, 59, 59, 999);
+              lastWeeks.push({
+                w: getWeekNumber(d),
+                y: d.getFullYear(),
+                l: 'W' + getWeekNumber(d),
+                date: new Date(d)
+              });
             }
 
-            const velocity = last12Weeks.map(w => {
-              return P.tasks.filter(t => {
-                if (t.status !== 'Completed' || !t.dueDate) return false;
-                const d = new Date(t.dueDate);
-                return getWeekNumber(d) === w.w && d.getFullYear() === w.y;
-              }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+            const isWeighted = ((P.settings && P.settings.velocityMode) || 'weighted') === 'weighted';
+            const velocity = lastWeeks.map(w => {
+              if (isWeighted) {
+                const startLimit = new Date(w.date.getTime() - 7 * 24 * 60 * 60 * 1000);
+                const endLimit = w.date;
+                return P.tasks.reduce((s, t) => {
+                  const effort = parseFloat(t.estEffort) || 0;
+                  if (effort <= 0) return s;
+                  const pStart = getTaskProgressAt(t, startLimit, P.log || []);
+                  const pEnd = getTaskProgressAt(t, endLimit, P.log || []);
+                  const gained = Math.max(0, (pEnd !== null ? pEnd : 0) - (pStart !== null ? pStart : 0));
+                  return s + effort * (gained / 100);
+                }, 0);
+              } else {
+                return P.tasks.filter(t => {
+                  if (t.status !== 'Completed' || !t.dueDate) return false;
+                  const d = new Date(t.dueDate);
+                  return getWeekNumber(d) === w.w && d.getFullYear() === w.y;
+                }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
+              }
             });
 
             const rolling = velocity.map((v, i) => {
@@ -48864,7 +48833,7 @@ Earned Value Management measures project performance and progress by comparing p
             cb.insertBefore(summaryBar, velCvs);
             lucide.createIcons(summaryBar);
 
-            drawVBar(velCvs, last12Weeks.map((w, i) => [w.l, velocity[i]]), ['var(--color-primary)'], maxVal, false, rolling);
+            drawVBar(velCvs, lastWeeks.map((w, i) => [w.l, velocity[i]]), ['var(--color-primary)'], maxVal, false, rolling);
           }, 350);
 
           widgetWrapper.appendChild(velGrid);
@@ -50094,6 +50063,7 @@ Earned Value Management measures project performance and progress by comparing p
         }
       }
 
+      renderTeamInspiration(inner);
       if (window.lucide) lucide.createIcons(inner);
     }
 
