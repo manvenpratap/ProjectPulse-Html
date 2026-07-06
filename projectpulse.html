@@ -7090,33 +7090,33 @@
 
     /* ── Premium Donut Legend ──────────────────────────────── */
     .cleg {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 2px 4px;
       margin-top: 8px;
-      padding: 0 10px 10px;
+      padding: 0 8px 8px;
     }
 
     .cli {
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 3px 6px;
+      gap: 5px;
+      padding: 2px 6px;
       border-radius: 6px;
       background: transparent;
       border: 1px solid transparent;
       font-size: 11px;
       font-weight: 600;
       color: var(--color-text);
-      transition: background 160ms ease, border-color 160ms ease, transform 120ms ease;
+      transition: background 160ms ease, border-color 160ms ease;
       cursor: pointer;
       position: relative;
+      min-width: 0;
     }
 
     .cli:hover {
       background: var(--color-surface-2);
       border-color: var(--color-divider);
-      transform: translateX(2px);
     }
 
     /* colour swatch — thick pill on left edge */
@@ -7146,7 +7146,8 @@
       border-radius: 99px;
       overflow: hidden;
       width: 35px;
-      flex-shrink: 0;
+      min-width: 20px;
+      flex-shrink: 1;
       margin: 0 4px;
     }
 
@@ -23613,7 +23614,7 @@
     function drawHBar(cvs, entries, colors) {
       const { ctx, W, H } = gCtx(cvs); if (!entries.length) return;
       const maxV = Math.max(...entries.map(([, v]) => v)) || 1;
-      const pL = 90, pR = 50, pT = 6, pB = 6, aW = W - pL - pR, aH = H - pT - pB;
+      const pL = 145, pR = 50, pT = 6, pB = 6, aW = W - pL - pR, aH = H - pT - pB;
       const bH = Math.min(aH / entries.length - 3, 22), rowH = aH / entries.length;
 
       function addOp(colorStr, alpha) {
@@ -23644,12 +23645,37 @@
         ctx.fillStyle = window.resolveColor('var(--color-text-muted)'); ctx.font = '11px ' + window.bodyFont; ctx.textAlign = 'right';
 
         let dispLbl = String(lbl);
-        if (dispLbl.length > 13) dispLbl = dispLbl.slice(0, 11) + '…';
+        if (dispLbl.length > 22) dispLbl = dispLbl.slice(0, 20) + '…';
         ctx.fillText(dispLbl, pL - 6, y + bH / 2 + 4);
 
         ctx.fillStyle = window.resolveColor('var(--color-text)'); ctx.font = '500 11px ' + window.monoFont; ctx.textAlign = 'left';
         ctx.fillText(val, pL + bW + 6, y + bH / 2 + 4);
       });
+
+      // Show the complete task/category name on hover by tracking mouse coordinates on the canvas
+      cvs.onmousemove = (evt) => {
+        const rect = cvs.getBoundingClientRect();
+        const H_logical = cvs.clientHeight || parseInt(cvs.getAttribute('height')) || 150;
+        const mouseY = (evt.clientY - rect.top) * (H_logical / (rect.height || 1));
+        
+        let hoveredEntry = null;
+        entries.forEach(([lbl, val], i) => {
+          const y = pT + i * rowH + (rowH - bH) / 2;
+          if (mouseY >= y && mouseY <= y + bH) {
+            hoveredEntry = `${lbl} (${val})`;
+          }
+        });
+        
+        if (hoveredEntry) {
+          if (cvs.title !== hoveredEntry) cvs.title = hoveredEntry;
+        } else {
+          if (cvs.title !== '') cvs.title = '';
+        }
+      };
+
+      cvs.onmouseleave = () => {
+        cvs.title = '';
+      };
     }
     function drawStackedBar(cvs, labels, stacks, stackLabels, colors) {
       const { ctx, W, H } = gCtx(cvs); const pL = 80, pR = 16, pT = 8, pB = 26, aW = W - pL - pR, aH = H - pT - pB;
@@ -46817,6 +46843,7 @@ Earned Value Management measures project performance and progress by comparing p
     table{border-collapse:collapse;width:100%}
     th,td{padding:6px;text-align:left}
     .card{border:1px solid #eee;padding:12px;background:#f9f9f9;border-radius:6px}
+    .cleg{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:2px 4px;margin-top:8px;padding:0 8px 8px;font-size:11px;color:#555}
     .dash-toolbar,.copy-btn{display:none!important}
     .sc-val{font-size:24px;font-weight:bold;margin:8px 0}
     .sc-sub{font-size:11px;color:#666}
