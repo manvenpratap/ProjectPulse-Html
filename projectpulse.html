@@ -36398,18 +36398,34 @@ Earned Value Management measures project performance and progress by comparing p
 
       // Project Highlights & Good News Calculations
       const last14Days = new Date(Date.now() - 14 * 864e5);
-      const completedRecentCount = (P.log || []).filter(l => {
-        if (!isTaskCompletionLog(l)) return false;
-        const aD = getLogActivityDate(l);
-        return aD && aD >= last14Days;
-      }).length;
 
-      const completedMilestones = tasks.filter(t => 
-        (t.name.includes('Milestone') || t.confidence) && t.status === 'Completed'
+      // Helper: parse actCompletionDate from task or fall back to log
+      const getTaskCompletionDate = t => {
+        if (t.actCompletionDate) return new Date(t.actCompletionDate);
+        // Fallback: find the earliest completion log for this task
+        const compLog = (P.log || []).find(l => l.taskId === t.id && isTaskCompletionLog(l));
+        if (compLog) return getLogActivityDate(compLog);
+        return null;
+      };
+
+      // All completed tasks (non-subtask) with a resolvable completion date
+      const allCompletedTasks = tasks
+        .filter(t => t.status === 'Completed')
+        .map(t => ({ ...t, _completedAt: getTaskCompletionDate(t) }))
+        .filter(t => t._completedAt !== null)
+        .sort((a, b) => b._completedAt - a._completedAt);
+
+      // Count completed in last 14 days from tasks table
+      const completedRecentCount = allCompletedTasks.filter(t => t._completedAt >= last14Days).length;
+
+      // Recently completed milestones — tasks with Milestone in name OR confidence field, sorted by actual completion date
+      const completedMilestones = allCompletedTasks.filter(t =>
+        (t.name && t.name.toLowerCase().includes('milestone')) || t.confidence
       );
-      const recentMetMilestones = [...completedMilestones]
-        .sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate))
-        .slice(0, 3);
+      const recentMetMilestones = completedMilestones.slice(0, 3);
+
+      // Recently delivered tasks (last 5, for the new delivery feed)
+      const recentlyCompletedTasks = allCompletedTasks.slice(0, 5);
 
       const mitigatedRaidsCount = raids.filter(r => r.status === 'Closed' || r.status === 'Mitigated').length;
 
@@ -36528,10 +36544,31 @@ Earned Value Management measures project performance and progress by comparing p
                  <div style="font-size:12px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px; display:flex; align-items:center; gap:6px"><i data-lucide="check-circle" style="width:14px; height:14px; color:var(--color-green)"></i> Recently Achieved Milestones & Targets</div>
                  <div style="display:flex; flex-wrap:wrap; gap:10px">
                    ${recentMetMilestones.length ? recentMetMilestones.map(m => `
-                     <span style="font-size:11.5px; font-weight:700; padding:6px 12px; background:rgba(34,197,94,0.08); border-radius:8px; border:1px solid rgba(34,197,94,0.15); color:var(--color-green); display:flex; align-items:center; gap:6px"><i data-lucide="check" style="width:12px; height:12px"></i> ${esc(m.name)} <span style="font-size:9.5px; color:var(--color-text-muted); font-weight:600">(${fmtDate(m.dueDate)})</span></span>
+                     <span style="font-size:11.5px; font-weight:700; padding:6px 12px; background:rgba(34,197,94,0.08); border-radius:8px; border:1px solid rgba(34,197,94,0.15); color:var(--color-green); display:flex; align-items:center; gap:6px"><i data-lucide="check" style="width:12px; height:12px"></i> ${esc(m.name)} <span style="font-size:9.5px; color:var(--color-text-muted); font-weight:600">(completed ${fmtDate(m._completedAt.toISOString().split('T')[0])})</span></span>
                    `).join('') : '<span style="font-size:11.5px; color:var(--color-text-faint); font-style:italic">No milestones completed yet. Keep pushing towards delivery targets!</span>'}
                  </div>
                </div>
+
+               <!-- Recently Delivered Tasks Feed -->
+               ${recentlyCompletedTasks.length ? `
+               <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--color-divider)">
+                 <div style="font-size:12px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px; display:flex; align-items:center; gap:6px"><i data-lucide="package-check" style="width:14px; height:14px; color:var(--color-green)"></i> Recently Delivered Tasks</div>
+                 <div style="display:flex; flex-direction:column; gap:6px">
+                   ${recentlyCompletedTasks.map(t => {
+                     const daysAgo = Math.round((Date.now() - t._completedAt.getTime()) / 864e5);
+                     const daysLabel = daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : daysAgo + 'd ago';
+                     const isRecent = daysAgo <= 14;
+                     return '<div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:var(--color-bg); border-radius:8px; border:1px solid var(--color-border-faint);">'
+                       + '<div style="width:7px; height:7px; border-radius:50%; background:var(--color-green); flex-shrink:0;"></div>'
+                       + '<div style="flex:1; min-width:0;">'
+                       + '<div style="font-size:12px; font-weight:600; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + esc(t.name) + '</div>'
+                       + '<div style="font-size:10px; color:var(--color-text-faint); margin-top:1px;">' + (t.module ? esc(t.module) + ' · ' : '') + (t.assignee ? esc(t.assignee) : 'Unassigned') + '</div>'
+                       + '</div>'
+                       + '<div style="flex-shrink:0; font-size:10px; font-weight:700; padding:2px 8px; border-radius:99px; background:' + (isRecent ? 'rgba(34,197,94,0.08)' : 'var(--color-surface-3)') + '; color:' + (isRecent ? 'var(--color-green)' : 'var(--color-text-muted)') + '; border:1px solid ' + (isRecent ? 'rgba(34,197,94,0.18)' : 'var(--color-border-faint)') + ';">' + daysLabel + '</div>'
+                       + '</div>';
+                   }).join('')}
+                 </div>
+               </div>` : ''}
             </div>
 
             <!-- Milestones at Risk (Span 6) -->
