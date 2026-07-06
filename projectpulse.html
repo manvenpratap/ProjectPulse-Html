@@ -20835,19 +20835,17 @@
 
           let shortHtml = `<div style="padding:16px;display:flex;flex-direction:column;gap:12px">`;
           let shortfallFound = false;
-          const standardCap = 5;
 
           weeks.forEach(w => {
             const weekStart = new Date(w.date), weekEnd = new Date(w.date); weekEnd.setDate(weekEnd.getDate() + 6);
-            let totalEffortDays = 0;
-            let totalCapDays = 0;
+            let weekDeficit = 0;
             let bottleneckTasks = [];
+            let overloadedMembers = [];
 
+            const standardCap = 5;
             P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').forEach(m => {
               const tks = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) >= weekStart && new Date(t.dueDate) <= weekEnd);
               const effort = tks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
-              totalEffortDays += effort;
-              if (effort > 0) bottleneckTasks.push(...tks);
 
               let leaveDays = 0;
               (m.plannedLeaves || []).forEach(l => {
@@ -20856,24 +20854,36 @@
                 const overlapE = new Date(Math.min(weekEnd, le));
                 if (overlapS <= overlapE) leaveDays += (Math.ceil((overlapE - overlapS) / 864e5) + 1);
               });
-              totalCapDays += Math.max(0, standardCap - leaveDays);
+              const individualCap = Math.max(0, standardCap - leaveDays);
+
+              if (effort > individualCap) {
+                const memberDeficit = effort - individualCap;
+                weekDeficit += memberDeficit;
+                overloadedMembers.push({ name: m.name, effort, capacity: individualCap, deficit: memberDeficit });
+                bottleneckTasks.push(...tks);
+              }
             });
 
-            if (totalEffortDays > totalCapDays && totalCapDays > 0) {
+            if (weekDeficit > 0) {
               shortfallFound = true;
-              const deficit = totalEffortDays - totalCapDays;
               shortHtml += `
-                <div style="padding:16px;background:var(--color-surface-2);border-radius:12px;border:1px solid var(--color-border-faint);border-left:4px solid var(--red);display:flex;flex-direction:column;gap:8px;transition:all var(--tr-spring)" class="card-glow-hover">
-                  <div style="display:flex;justify-content:space-between;align-items:flex-start">
-                    <div style="font-weight:800;font-size:14px;color:var(--color-text)">${w.label.replace('\n', ' · ')}</div>
-                    <span style="padding:2px 8px;background:rgba(239,68,68,0.1);color:var(--red);border-radius:12px;font-size:10px;font-weight:800">Deficit: ${deficit.toFixed(1)}d</span>
+                <div style="padding:16px;background:var(--color-surface-2);border-radius:12px;border:1px solid var(--color-border-faint);border-left:4px solid var(--red);box-shadow:var(--shadow-sm), 0 4px 12px rgba(239,68,68,0.04);display:flex;flex-direction:column;gap:10px;transition:all var(--tr-spring)" class="card-glow-hover">
+                  <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div style="font-weight:900;font-size:13px;color:var(--color-text);background:var(--color-surface-3);padding:3px 8px;border-radius:6px">${w.label.replace('\n', ' · ')}</div>
+                    <span style="padding:3px 10px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.2);color:var(--red);border-radius:12px;font-size:10px;font-weight:900">Deficit: ${weekDeficit.toFixed(1)}d</span>
                   </div>
-                  <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--color-text-muted)">
-                    <div>Required Effort: <b>${totalEffortDays.toFixed(1)}d</b></div>
-                    <div>Available Capacity: <b>${totalCapDays.toFixed(1)}d</b></div>
+                  
+                  <div style="display:flex;flex-direction:column;gap:6px;border-top:1px dashed var(--color-divider);padding-top:8px">
+                    ${overloadedMembers.map(om => `
+                      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--color-text-muted)">
+                        <span>👤 <b>${esc(om.name)}</b></span>
+                        <span style="color:var(--red);font-weight:700">${om.effort.toFixed(1)}d vs ${om.capacity.toFixed(1)}d cap (+${om.deficit.toFixed(1)}d)</span>
+                      </div>
+                    `).join('')}
                   </div>
-                  <div style="font-size:11px;color:var(--color-text-faint);margin-top:4px">
-                    <b>Key Bottleneck Tasks:</b> ${bottleneckTasks.slice(0, 3).map(t => esc(t.name)).join(', ')}${bottleneckTasks.length > 3 ? ` (+${bottleneckTasks.length - 3} more)` : ''}
+
+                  <div style="font-size:11px;color:var(--color-text-faint);background:var(--color-surface-offset);padding:6px 10px;border-radius:6px;margin-top:2px">
+                    <b>Bottleneck Tasks:</b> ${bottleneckTasks.slice(0, 3).map(t => esc(t.name)).join(', ')}${bottleneckTasks.length > 3 ? ` (+${bottleneckTasks.length - 3} more)` : ''}
                   </div>
                 </div>
               `;
@@ -44956,7 +44966,7 @@ Earned Value Management measures project performance and progress by comparing p
             { name: 'Onboarding Flow', module: 'User Interface', moduleType: 'GUI', category: 'GUI Module', assignee: 'Meera', status: 'Completed', priority: 'High', startDate: '2026-02-15', dueDate: '2026-02-20', progress: 100, dependsOn: ['TASK-001'], guiScreens: ['Splash Screen', 'Login', 'Tutorial'], complexity: 'Medium', baselineEffort: 5, estEffort: 5 },
             { name: 'Settings Module', module: 'User Interface', moduleType: 'GUI', category: 'GUI Module', assignee: 'Meera', status: 'In Progress', priority: 'Medium', startDate: '2026-04-10', dueDate: '2026-05-15', progress: 30, dependsOn: ['TASK-004'], guiScreens: ['Profile Settings', 'Notification Config'], complexity: 'Easy', baselineEffort: 4, estEffort: 4 },
             { name: '💎 Milestone: App Store Beta Submission', module: 'User Interface', moduleType: 'GUI', category: 'Feature', assignee: 'Meera', status: 'Not Started', priority: 'High', startDate: '2026-05-15', dueDate: '2026-05-25', progress: 0, complexity: 'Medium', confidence: 'Low', baselineDueDate: '2026-05-15', forecastDueDate: '2026-05-25' },
-            { name: 'Memory Diagnostics', module: 'Core Engine', moduleType: 'Server', category: 'Testing', assignee: 'Vikram', status: 'In Progress', priority: 'Critical', startDate: '2026-04-20', dueDate: '2026-05-22', progress: 50, dependsOn: ['TASK-002'], baselineEffort: 2, estEffort: 3, complexity: 'Complex' }
+            { name: 'Memory Diagnostics', module: 'Core Engine', moduleType: 'Server', category: 'Testing', assignee: 'Vikram', status: 'In Progress', priority: 'Critical', startDate: '2026-04-20', dueDate: '2026-05-22', progress: 50, dependsOn: ['TASK-002'], baselineEffort: 2, estEffort: 8, complexity: 'Complex' }
           ]
         },
         hierarchical: {
@@ -46871,7 +46881,84 @@ Earned Value Management measures project performance and progress by comparing p
   </style></head><body>${node.innerHTML}</body></html>`;
     }
 
+    async function captureFullGanttChart() {
+      const ganttLeftEl = document.getElementById('gantt-left');
+      const ganttCvs = document.getElementById('gantt-canvas');
+      if (!ganttLeftEl || !ganttCvs) return null;
+
+      const leftWidth = ganttLeftEl.offsetWidth;
+      const canvasWidth = ganttCvs.offsetWidth || (ganttCvs.width / (window.devicePixelRatio || 1));
+      const H = ganttCvs.offsetHeight || (ganttCvs.height / (window.devicePixelRatio || 1));
+
+      const dpr = window.devicePixelRatio || 2;
+      const tbg = window.resolveColor ? (window.resolveColor('var(--color-bg)') || window.resolveColor('var(--bg)') || '#ffffff') : '#ffffff';
+      const themeBorder = getComputedStyle(document.body).getPropertyValue('--color-border').trim() || '#e8e4dc';
+
+      try {
+        // Capture left side task list using html2canvas
+        const leftCvs = await html2canvas(ganttLeftEl, {
+          backgroundColor: tbg,
+          scale: dpr,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          scrollX: 0,
+          scrollY: 0,
+          height: H,
+          width: leftWidth,
+          onclone: (clonedDoc) => {
+            const el = clonedDoc.getElementById('gantt-left');
+            if (el) {
+              el.scrollTop = 0;
+              el.style.height = 'auto';
+              el.style.maxHeight = 'none';
+              el.style.overflow = 'visible';
+            }
+          }
+        });
+
+        if (!leftCvs) return null;
+
+        // Create merged canvas
+        const mergedCvs = document.createElement('canvas');
+        mergedCvs.width = (leftWidth + canvasWidth) * dpr;
+        mergedCvs.height = H * dpr;
+        mergedCvs.style.width = (leftWidth + canvasWidth) + 'px';
+        mergedCvs.style.height = H + 'px';
+
+        const mCtx = mergedCvs.getContext('2d');
+        mCtx.scale(dpr, dpr);
+
+        // Fill background
+        mCtx.fillStyle = tbg;
+        mCtx.fillRect(0, 0, leftWidth + canvasWidth, H);
+
+        // Draw left task list
+        mCtx.drawImage(leftCvs, 0, 0, leftWidth, H);
+
+        // Draw right gantt timeline canvas
+        mCtx.drawImage(ganttCvs, leftWidth, 0, canvasWidth, H);
+
+        // Draw vertical separator line between task list and timeline
+        mCtx.strokeStyle = themeBorder;
+        mCtx.lineWidth = 1;
+        mCtx.beginPath();
+        mCtx.moveTo(leftWidth, 0);
+        mCtx.lineTo(leftWidth, H);
+        mCtx.stroke();
+
+        return mergedCvs;
+      } catch (err) {
+        PP.error('Gantt capture error', err);
+        return null;
+      }
+    }
+
     async function captureAreaAsCanvas(containerId) {
+      if (containerId === 'vw-tasks' && P.taskViewMode === 'timeline') {
+        const fullGantt = await captureFullGanttChart();
+        if (fullGantt) return fullGantt;
+      }
       const container = document.getElementById(containerId);
       if (!container) return null;
 
@@ -48809,16 +48896,14 @@ Earned Value Management measures project performance and progress by comparing p
 
           weeks.forEach(w => {
             const weekStart = new Date(w.date), weekEnd = new Date(w.date); weekEnd.setDate(weekEnd.getDate() + 6);
-            let totalEffortDays = 0;
-            let totalCapDays = 0;
+            let weekDeficit = 0;
             let bottleneckTasks = [];
+            let overloadedMembers = [];
 
             const standardCap = 5;
             P.members.filter(m => m.status !== 'Other Assignment' && m.status !== 'Departed').forEach(m => {
               const tks = P.tasks.filter(t => t.assignee === m.name && t.status !== 'Completed' && t.status !== 'Cancelled' && t.dueDate && new Date(t.dueDate) >= weekStart && new Date(t.dueDate) <= weekEnd);
               const effort = tks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
-              totalEffortDays += effort;
-              if (effort > 0) bottleneckTasks.push(...tks);
 
               let leaveDays = 0;
               (m.plannedLeaves || []).forEach(l => {
@@ -48827,24 +48912,36 @@ Earned Value Management measures project performance and progress by comparing p
                 const overlapE = new Date(Math.min(weekEnd, le));
                 if (overlapS <= overlapE) leaveDays += (Math.ceil((overlapE - overlapS) / 864e5) + 1);
               });
-              totalCapDays += Math.max(0, standardCap - leaveDays);
+              const individualCap = Math.max(0, standardCap - leaveDays);
+
+              if (effort > individualCap) {
+                const memberDeficit = effort - individualCap;
+                weekDeficit += memberDeficit;
+                overloadedMembers.push({ name: m.name, effort, capacity: individualCap, deficit: memberDeficit });
+                bottleneckTasks.push(...tks);
+              }
             });
 
-            if (totalEffortDays > totalCapDays && totalCapDays > 0) {
+            if (weekDeficit > 0) {
               shortfallFound = true;
-              const deficit = totalEffortDays - totalCapDays;
               shortHtml += `
-                <div style="padding:16px;background:var(--color-surface-2);border-radius:12px;border:1px solid var(--color-border-faint);border-left:4px solid var(--red);box-shadow:var(--shadow-sm), 0 4px 12px rgba(239,68,68,0.04);display:flex;flex-direction:column;gap:8px;transition:all var(--tr-spring)" class="card-glow-hover">
-                  <div style="display:flex;justify-content:space-between;align-items:flex-start">
-                    <div style="font-weight:800;font-size:14px;color:var(--color-text)">${w.label.replace('\n', ' · ')}</div>
-                    <span style="padding:2px 8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.2);color:var(--red);border-radius:12px;font-size:10px;font-weight:800">Deficit: ${deficit.toFixed(1)}d</span>
+                <div style="padding:16px;background:var(--color-surface-2);border-radius:12px;border:1px solid var(--color-border-faint);border-left:4px solid var(--red);box-shadow:var(--shadow-sm), 0 4px 12px rgba(239,68,68,0.04);display:flex;flex-direction:column;gap:10px;transition:all var(--tr-spring)" class="card-glow-hover">
+                  <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div style="font-weight:900;font-size:13px;color:var(--color-text);background:var(--color-surface-3);padding:3px 8px;border-radius:6px">${w.label.replace('\n', ' · ')}</div>
+                    <span style="padding:3px 10px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.2);color:var(--red);border-radius:12px;font-size:10px;font-weight:900">Deficit: ${weekDeficit.toFixed(1)}d</span>
                   </div>
-                  <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--color-text-muted)">
-                    <div>Required Effort: <b>${totalEffortDays.toFixed(1)}d</b></div>
-                    <div>Available Capacity: <b>${totalCapDays.toFixed(1)}d</b></div>
+                  
+                  <div style="display:flex;flex-direction:column;gap:6px;border-top:1px dashed var(--color-divider);padding-top:8px">
+                    ${overloadedMembers.map(om => `
+                      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--color-text-muted)">
+                        <span>👤 <b>${esc(om.name)}</b></span>
+                        <span style="color:var(--red);font-weight:700">${om.effort.toFixed(1)}d vs ${om.capacity.toFixed(1)}d cap (+${om.deficit.toFixed(1)}d)</span>
+                      </div>
+                    `).join('')}
                   </div>
-                  <div style="font-size:11px;color:var(--color-text-faint);margin-top:4px">
-                    <b>Key Bottleneck Tasks:</b> ${bottleneckTasks.slice(0, 3).map(t => esc(t.name)).join(', ')}${bottleneckTasks.length > 3 ? ` (+${bottleneckTasks.length - 3} more)` : ''}
+
+                  <div style="font-size:11px;color:var(--color-text-faint);background:var(--color-surface-offset);padding:6px 10px;border-radius:6px;margin-top:2px">
+                    <b>Bottleneck Tasks:</b> ${bottleneckTasks.slice(0, 3).map(t => esc(t.name)).join(', ')}${bottleneckTasks.length > 3 ? ` (+${bottleneckTasks.length - 3} more)` : ''}
                   </div>
                 </div>
               `;
