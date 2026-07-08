@@ -23369,7 +23369,18 @@
         P.widgetSpans[id] = fixedSz;
       } else {
         const spans = [1, 2, 3, 4];
-        const cur = P.widgetSpans[id] || 1;
+        let cur = P.widgetSpans[id];
+        if (cur === undefined) {
+          const el = document.getElementById('wc-' + id);
+          if (el) {
+            const wrapper = el.closest('.team-widget-wrapper') || el;
+            if (wrapper.style.gridColumn && wrapper.style.gridColumn.includes('span')) {
+              const match = wrapper.style.gridColumn.match(/span\s+(\d+)/);
+              if (match) cur = parseInt(match[1]);
+            }
+          }
+        }
+        if (cur === undefined) cur = 1;
         P.widgetSpans[id] = spans[(spans.indexOf(cur) + 1) % spans.length];
       }
       save();
@@ -50661,6 +50672,19 @@ Earned Value Management measures project performance and progress by comparing p
           wSpan = 1;
         }
         widgetWrapper.style.gridColumn = `span ${wSpan}`;
+
+        if (['team_directory', 'org_chart', 'bdays', 'leaves'].includes(sec.id)) {
+          widgetWrapper.id = 'wc-' + sec.id;
+          widgetWrapper.dataset.type = 'standard';
+          widgetWrapper.oncontextmenu = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showWidgetCtx(e, widgetWrapper);
+          };
+          widgetWrapper.ondblclick = (e) => {
+            cycleStandardSize(sec.id);
+          };
+        }
 
         inner.appendChild(widgetWrapper);
         const cleanId = sec.id;
