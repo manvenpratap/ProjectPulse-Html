@@ -15281,8 +15281,8 @@
                 status: isDone ? 'Completed' : 'Not Started',
                 actCompletionDate: isDone ? (task.actCompletionDate || todayStr()) : ''
               })),
-              priority: task.priority || 'Medium',
-              complexity: task.complexity || 'Medium',
+              priority: task.priority || (stateP.dropdownDefaults && stateP.dropdownDefaults.priority) || 'Medium',
+              complexity: task.complexity || (stateP.dropdownDefaults && stateP.dropdownDefaults.complexity) || 'Medium',
               assignee: task.assignee || '',
               startDate: task.startDate || todayStr(),
               dueDate: task.dueDate || todayStr()
@@ -15587,7 +15587,8 @@
         const parts = inputStr.split(':');
         const name = parts[0].trim();
         const effort = parts.length > 1 ? parseFloat(parts[1]) || 1 : 1;
-        const st = { id: 'ST-' + stateP.nextSubId++, name, status: 'Not Started', priority: priority || 'Medium', assignee: '', notes: '', effort };
+        const defPriority = (stateP.dropdownDefaults && stateP.dropdownDefaults.priority) || 'Medium';
+        const st = { id: 'ST-' + stateP.nextSubId++, name, status: 'Not Started', priority: priority || defPriority, assignee: '', notes: '', effort };
         t.subtasks.push(st);
         PulseState.addLog('Updated', taskId, t.name, 'subtask', '', 'Added: ' + name);
         recalcDatesAndStatus(t);
@@ -15908,6 +15909,7 @@
         P.defects = []; P.features = []; P.releases = [];
         P.raids = []; P.decisions = []; P.baselines = []; P.healthHistory = []; P.reportSnapshots = [];
         P.customFields = []; P.defCustomFields = []; P.stepTemplates = JSON.parse(JSON.stringify(STEP_TEMPLATES));
+        P.dropdownDefaults = {};
         P.dropdowns = {
           status: ['Not Started', 'In Progress', 'On Hold', 'Under Review', 'Completed', 'Cancelled'],
           priority: ['Critical', 'High', 'Medium', 'Low'],
@@ -16191,6 +16193,7 @@
             localStorage.setItem('pp-data', JSON.stringify({
               name: P.name, desc: P.desc, tasks: P.tasks, defects: P.defects, log: P.log,
               members: P.members, reports: P.reports, features: P.features, releases: P.releases, dropdowns: P.dropdowns,
+              dropdownDefaults: P.dropdownDefaults,
               raids: P.raids, decisions: P.decisions, baselines: P.baselines, healthHistory: P.healthHistory, reportSnapshots: P.reportSnapshots,
               complexityFactors: P.complexityFactors,
               customFields: P.customFields, defCustomFields: P.defCustomFields,
@@ -16366,6 +16369,8 @@
             if (!P.reportSnapshots) P.reportSnapshots = [];
 
             if (!P.dropdowns) P.dropdowns = {};
+            if (d.dropdownDefaults !== undefined) P.dropdownDefaults = d.dropdownDefaults;
+            if (!P.dropdownDefaults) P.dropdownDefaults = {};
             const defDrops = {
               status: ['Not Started', 'In Progress', 'On Hold', 'Under Review', 'Completed', 'Cancelled'],
               priority: ['Critical', 'High', 'Medium', 'Low'],
@@ -20022,7 +20027,17 @@
           return;
         }
         const fg = document.createElement('div'); fg.className = 'fg'; fg.id = 'fg_' + c.key;
-        const val = t[c.key] || (c.key === 'progress' ? 0 : '');
+        let val = t[c.key] || (c.key === 'progress' ? 0 : '');
+        if (!id && !val && P.dropdownDefaults) {
+          if (P.dropdownDefaults[c.key]) {
+            val = P.dropdownDefaults[c.key];
+          } else {
+            const cf = P.customFields && P.customFields.find(f => f.name === c.key);
+            if (cf && cf.type === 'dropdown' && cf.source === 'global' && cf.globalKey && P.dropdownDefaults[cf.globalKey]) {
+              val = P.dropdownDefaults[cf.globalKey];
+            }
+          }
+        }
 
         // Disabled fields for derived data
         const isDerived = (String(t.moduleType || '').trim() === 'GUI') && ['progress', 'status', 'estEffort', 'startDate', 'dueDate'].includes(c.key);
@@ -35554,10 +35569,10 @@ Earned Value Management measures project performance and progress by comparing p
 
       const pop = (id, opts, val) => { const el = $id(id); el.innerHTML = opts.map(o => `<option value="${o}">${o}</option>`).join(''); el.value = val || opts[0]; };
 
-      pop('def-type', P.dropdowns.defectType, d?.type);
-      pop('def-status', P.dropdowns.defectStatus, d?.status);
-      pop('def-severity', P.dropdowns.defectSeverity, d?.severity);
-      pop('def-priority', P.dropdowns.defectPriority, d?.priority);
+      pop('def-type', P.dropdowns.defectType, d?.type || (P.dropdownDefaults && P.dropdownDefaults.defectType));
+      pop('def-status', P.dropdowns.defectStatus, d?.status || (P.dropdownDefaults && P.dropdownDefaults.defectStatus));
+      pop('def-severity', P.dropdowns.defectSeverity, d?.severity || (P.dropdownDefaults && P.dropdownDefaults.defectSeverity));
+      pop('def-priority', P.dropdowns.defectPriority, d?.priority || (P.dropdownDefaults && P.dropdownDefaults.defectPriority));
 
       const members = P.members.map(m => m.name);
       $id('def-assignee').innerHTML = '<option value="">Unassigned</option>' + members.map(m => `<option value="${m}">${m}</option>`).join('');
@@ -35576,7 +35591,12 @@ Earned Value Management measures project performance and progress by comparing p
       const cfCont = $id('def-custom-fields-cont');
       if (cfCont) {
         cfCont.innerHTML = (P.defCustomFields || []).map(cf => {
-          const val = d ? d[cf.name] : '';
+          let val = d ? d[cf.name] : '';
+          if (!d && cf.type === 'dropdown') {
+            if (cf.source === 'global' && cf.globalKey && P.dropdownDefaults && P.dropdownDefaults[cf.globalKey]) {
+              val = P.dropdownDefaults[cf.globalKey];
+            }
+          }
           let inputHtml = '';
           if (cf.type === 'dropdown') {
             let opts = cf.options || [];
@@ -39694,7 +39714,8 @@ Earned Value Management measures project performance and progress by comparing p
           { key: 'Velocity Weeks', val: P.velocityWeeks || 8 },
           { key: 'CFD Weeks', val: P.cfdWeeks || 8 },
           { key: 'Defect Inflow Weeks', val: P.defectInflowWeeks || 7 },
-          { key: 'Admin Active Tab', val: P._adminActiveTab || '' }
+          { key: 'Admin Active Tab', val: P._adminActiveTab || '' },
+          { key: 'Dropdown Defaults', val: JSON.stringify(P.dropdownDefaults || {}) }
         ];
         projMeta.forEach((r, i) => {
           r.val = S(r.val);
@@ -42326,6 +42347,11 @@ Earned Value Management measures project performance and progress by comparing p
         P.cfdWeeks = parseInt(stateMap['CFD Weeks']) || 8;
         P.defectInflowWeeks = parseInt(stateMap['Defect Inflow Weeks']) || 7;
         P._adminActiveTab = stateMap['Admin Active Tab'] || '';
+        try {
+          P.dropdownDefaults = stateMap['Dropdown Defaults'] ? JSON.parse(stateMap['Dropdown Defaults']) : {};
+        } catch (e) {
+          P.dropdownDefaults = {};
+        }
 
         setTheme(P.theme); setView(P.view, true);
 
@@ -42598,6 +42624,11 @@ Earned Value Management measures project performance and progress by comparing p
           if (t.subtasks) {
             t.subtasks.forEach(s => {
               if (!s.id) s.id = 'ST-' + String(P.nextSubId++).padStart(3, '0');
+              if ((s.type || '').toLowerCase() === 'screen') {
+                if (!s.windowName || String(s.windowName).trim() === '' || s.windowName === '—' || s.windowName === '-') {
+                  s.windowName = s.name || '';
+                }
+              }
               s.progress = parseInt(s.progress); if (isNaN(s.progress) || s.progress < 0) s.progress = 0; if (s.progress > 100) s.progress = 100;
               s.effort = parseFloat(s.effort); if (isNaN(s.effort) || s.effort <= 0) s.effort = 1;
               s.actEffort = parseFloat(s.actEffort); if (isNaN(s.actEffort) || s.actEffort < 0) s.actEffort = 0;
@@ -44448,10 +44479,16 @@ Earned Value Management measures project performance and progress by comparing p
             <div style="border: 1px solid var(--color-divider); border-radius: 10px; overflow: hidden">
               ${values.map((v, i) => `
                 <div class="registry-value-row" style="display:flex; align-items:center; gap:12px; padding:10px 16px; background:${i % 2 === 0 ? 'rgba(var(--color-text-rgb),0.02)' : 'transparent'}; transition:background 0.15s; border-bottom:${i < values.length - 1 ? '1px solid var(--color-divider)' : 'none'}; group"
-                     onmouseenter="this.style.background='rgba(var(--color-primary-rgb),0.05)'; this.querySelector('.del-btn').style.opacity='1'"
-                     onmouseleave="this.style.background='${i % 2 === 0 ? 'rgba(var(--color-text-rgb),0.02)' : 'transparent'}'; this.querySelector('.del-btn').style.opacity='0'">
+                     onmouseenter="this.style.background='rgba(var(--color-primary-rgb),0.05)'; this.querySelector('.del-btn').style.opacity='1'; this.querySelector('.star-btn').style.opacity='1'"
+                     onmouseleave="this.style.background='${i % 2 === 0 ? 'rgba(var(--color-text-rgb),0.02)' : 'transparent'}'; this.querySelector('.del-btn').style.opacity='0'; this.querySelector('.star-btn').style.opacity='${P.dropdownDefaults[key] === v ? '1' : '0'}'">
                   <span style="font-size:11px; font-weight:800; font-family:var(--font-mono); color:var(--color-text-faint); width:22px; flex-shrink:0; text-align:center">${String(i + 1).padStart(2, '0')}</span>
-                  <span style="font-size:14px; font-weight:600; color:var(--color-text); flex:1">${esc(v)}</span>
+                  <span style="font-size:14px; font-weight:600; color:var(--color-text); flex:1; display:flex; align-items:center; gap:8px">
+                    ${esc(v)}
+                    ${P.dropdownDefaults[key] === v ? '<span style="font-size:9px; font-weight:800; padding:1px 5px; background:rgba(var(--color-amber-rgb),0.12); color:var(--color-amber); border-radius:4px; text-transform:uppercase; letter-spacing:0.05em">Default</span>' : ''}
+                  </span>
+                  <button class="star-btn" onclick="toggleDDDefaultValue('${key}', '${esc(v)}')" title="${P.dropdownDefaults[key] === v ? 'Clear default' : 'Set as default'}" style="width:26px; height:26px; border:none; border-radius:6px; background:${P.dropdownDefaults[key] === v ? 'rgba(var(--color-amber-rgb), 0.12)' : 'transparent'}; color:${P.dropdownDefaults[key] === v ? 'var(--color-amber)' : 'var(--color-text-faint)'}; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:${P.dropdownDefaults[key] === v ? '1' : '0'}; transition:opacity 0.15s; flex-shrink:0">
+                    <i data-lucide="star" style="width:13px; height:13px; fill:${P.dropdownDefaults[key] === v ? 'var(--color-amber)' : 'none'}"></i>
+                  </button>
                   <button class="del-btn" onclick="removeDDValueV('${key}', ${i})" title="Remove" style="width:26px; height:26px; border:none; border-radius:6px; background:rgba(239,68,68,0.08); color:rgba(239,68,68,0.7); cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.15s; flex-shrink:0">
                     <i data-lucide="x" style="width:13px; height:13px"></i>
                   </button>
@@ -44522,9 +44559,26 @@ Earned Value Management measures project performance and progress by comparing p
 
     function removeDDValueV(key, idx) {
       if (!confirm('Remove this value from ' + key + '?')) return;
+      const removedVal = P.dropdowns[key][idx];
       P.dropdowns[key].splice(idx, 1);
+      if (P.dropdownDefaults && P.dropdownDefaults[key] === removedVal) {
+        delete P.dropdownDefaults[key];
+      }
       syncDropdowns();
       renderDropdownsView();
+      save();
+    }
+
+    function toggleDDDefaultValue(key, val) {
+      if (!P.dropdownDefaults) P.dropdownDefaults = {};
+      if (P.dropdownDefaults[key] === val) {
+        delete P.dropdownDefaults[key];
+        notify('Cleared default value for ' + key);
+      } else {
+        P.dropdownDefaults[key] = val;
+        notify('Set "' + val + '" as default value for ' + key, 'ok');
+      }
+      renderRegistryWorkshop();
       save();
     }
 
