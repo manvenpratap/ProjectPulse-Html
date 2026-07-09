@@ -54320,6 +54320,22 @@ Earned Value Management measures project performance and progress by comparing p
           if (!P._org) P._org = { panX: 200, panY: 60, zoom: 0.6, drag: false, lastX: 0, lastY: 0 };
           P._org.isCentered = false;
 
+          const DIST_X = 145;
+          const gap = 36;
+
+          const getNodeEffectiveWidth = (n) => {
+            let maxW = n.nodeW || 145;
+            if (n.children && n.children.length > 0 && !n.isCollapsed) {
+              n.children.forEach(c => {
+                if (c.isVerticalLeaf) {
+                  const leafW = 36.25 + getNodeEffectiveWidth(c);
+                  if (leafW > maxW) maxW = leafW;
+                }
+              });
+            }
+            return maxW;
+          };
+
           class ONode {
             constructor(m, depth = 0, number = 0) {
               this.m = m; this.id = m.id; this.name = m.name; this.role = m.role || 'Member';
@@ -54368,14 +54384,15 @@ Earned Value Management measures project performance and progress by comparing p
 
           const firstWalk = (v, distance) => {
             if (v.isVerticalLeaf) {
-              // Vertical leaves do not take up horizontal sibling spacing in the walk
               v.prelim = 0;
               return;
             }
 
             if (v.children.length === 0 || v.isCollapsed) {
               const left = v.getLeftSibling();
-              v.prelim = left ? left.prelim + distance : 0;
+              const leftNodeWidth = left ? getNodeEffectiveWidth(left) : 0;
+              const dist = left ? (leftNodeWidth + gap) / DIST_X : 0;
+              v.prelim = left ? left.prelim + dist : 0;
             } else {
               let defaultAncestor = v.children[0];
               const activeChildren = v.children.filter(c => !c.isVerticalLeaf);
@@ -54384,26 +54401,29 @@ Earned Value Management measures project performance and progress by comparing p
                 activeChildren.forEach(c => {
                   c.depth = v.depth + 1;
                   firstWalk(c, distance);
-                  defaultAncestor = apportion(c, defaultAncestor, distance);
+                  defaultAncestor = apportion(c, defaultAncestor, gap);
                 });
                 executeShifts(v);
                 const mid = (activeChildren[0].prelim + activeChildren[activeChildren.length - 1].prelim) / 2;
                 const left = v.getLeftSibling();
                 if (left) {
-                  v.prelim = left.prelim + distance;
+                  const leftNodeWidth = getNodeEffectiveWidth(left);
+                  const dist = (leftNodeWidth + gap) / DIST_X;
+                  v.prelim = left.prelim + dist;
                   v.mod = v.prelim - mid;
                 } else {
                   v.prelim = mid;
                 }
               } else {
-                // If it has children but all are vertical leaves, it behaves like a leaf horizontally
                 const left = v.getLeftSibling();
-                v.prelim = left ? left.prelim + distance : 0;
+                const leftNodeWidth = left ? getNodeEffectiveWidth(left) : 0;
+                const dist = left ? (leftNodeWidth + gap) / DIST_X : 0;
+                v.prelim = left ? left.prelim + dist : 0;
               }
             }
           };
 
-          const apportion = (v, defaultAncestor, distance) => {
+          const apportion = (v, defaultAncestor, gap) => {
             const w = v.getLeftSibling();
             if (w) {
               let v_i_p = v, v_o_p = v, v_i_m = w, v_o_m = v_i_p.getLeftMostSibling();
@@ -54412,7 +54432,9 @@ Earned Value Management measures project performance and progress by comparing p
                 v_i_m = nextRight(v_i_m); v_i_p = nextLeft(v_i_p);
                 v_o_m = nextLeft(v_o_m); v_o_p = nextRight(v_o_p);
                 v_o_p.ancestor = v;
-                const shift = (v_i_m.prelim + s_i_m) - (v_i_p.prelim + s_i_p) + distance;
+                const leftNodeWidth = getNodeEffectiveWidth(v_i_m);
+                const currentDist = (leftNodeWidth + gap) / DIST_X;
+                const shift = (v_i_m.prelim + s_i_m) - (v_i_p.prelim + s_i_p) + currentDist;
                 if (shift > 0) {
                   moveSubtree(ancestor(v_i_m, v, defaultAncestor), v, shift);
                   s_i_p += shift; s_o_p += shift;
@@ -54459,11 +54481,6 @@ Earned Value Management measures project performance and progress by comparing p
 
           const secondWalk = (v, m) => {
             if (v.isVerticalLeaf) {
-              // Stacked nodes are placed vertically below each other:
-              // X-axis (width coordinate v.x) = parent's X position. We can offset slightly to the right to show hierarchy (e.g. parent.x + 0.25)
-              // Y-axis (depth coordinate v.y) = parent's Y position + 1 + offset based on index
-              // We need each node to be separated by at least 1 full card height (40px) plus vertical gap.
-              // Since py = v.y * DIST_Y (75px), each vertical step corresponds to ~48px separation if step is 0.65.
               v.x = v.parent.x + 0.25;
               v.y = v.parent.y + 1 + v.verticalIndex * 0.65;
             } else {
@@ -54538,7 +54555,39 @@ Earned Value Management measures project performance and progress by comparing p
             // Find horizontal positions (relative layout widths based on dynamic node width metrics)
             finalMainRoots.forEach((root, i) => {
               firstWalk(root, 1.25);
-              secondWalk(root, i * 2.5);
+              if (i === 0) {
+                secondWalk(root, 0);
+              } else {
+                let maxPhysicalRight = 0;
+                for (let j = 0; j < i; j++) {
+                  const prevNodes = [];
+                  const collect = (n) => {
+                    prevNodes.push(n);
+                    if (!n.isCollapsed) n.children.forEach(collect);
+                  };
+                  collect(finalMainRoots[j]);
+                  prevNodes.forEach(n => {
+                    const right = n.x * DIST_X + getNodeEffectiveWidth(n);
+                    if (right > maxPhysicalRight) maxPhysicalRight = right;
+                  });
+                }
+                
+                secondWalk(root, 0);
+                const currentNodes = [];
+                const collectCurr = (n) => {
+                  currentNodes.push(n);
+                  if (!n.isCollapsed) n.children.forEach(collectCurr);
+                };
+                collectCurr(root);
+                
+                let requiredM = 0;
+                currentNodes.forEach(n => {
+                  const mNeeded = (maxPhysicalRight + gap) / DIST_X - n.x;
+                  if (mNeeded > requiredM) requiredM = mNeeded;
+                });
+                
+                secondWalk(root, requiredM);
+              }
             });
 
             // Bounding box of the main tree to place dangling nodes below it
@@ -54559,14 +54608,17 @@ Earned Value Management measures project performance and progress by comparing p
             if (finalDangling.length > 0) {
               const cols = Math.min(4, Math.ceil(finalDangling.length / 2) || 1);
               const midX = mainNodes.length > 0 ? (minX + maxX) / 2 : 0;
-              const startGridX_coord = midX - (cols - 1) * 0.65;
+              const maxDanglingW = Math.max(...finalDangling.map(n => getNodeEffectiveWidth(n)));
+              const colWidthCoord = (maxDanglingW + gap) / DIST_X;
+              const rowHeightCoord = 0.9;
+              const startGridX_coord = midX - (cols - 1) * colWidthCoord / 2;
               const startGridY = mainNodes.length > 0 ? maxY + 1.6 : 0.5;
 
               finalDangling.forEach((node, idx) => {
                 const col = idx % cols;
                 const row = Math.floor(idx / cols);
-                node.x = startGridX_coord + col * 1.35;
-                node.y = startGridY + row * 0.85;
+                node.x = startGridX_coord + col * colWidthCoord;
+                node.y = startGridY + row * rowHeightCoord;
                 node.depth = 1;
               });
             }
@@ -54583,8 +54635,6 @@ Earned Value Management measures project performance and progress by comparing p
 
             // Save to state for clicks
             P._org.renderedNodes = allNodesList;
-
-            const DIST_X = 145;
 
             ctx.save();
             ctx.translate(P._org.panX, P._org.panY);
