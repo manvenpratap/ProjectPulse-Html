@@ -19438,24 +19438,168 @@
       }
 
       if (checkContent) {
-        span.style.fontWeight = '500';
+        const moduleMilestones = typeof getModuleMilestones === 'function' ? getModuleMilestones() : new Set();
         const rows = prefix === 'def' ? getGridFiltered('def', P.defects, baseCols) : getFiltered();
         rows.forEach(item => {
+          // --- 1. Measure main item (Task or Defect) ---
           let val = item[col];
           if (val === undefined || val === null) val = '';
 
-          if (col === 'progress') val = val + '%';
+          let widthAdjustment = 0;
+          let measureText = String(val);
+
+          if (prefix !== 'def') {
+            // Task-specific rendering decorators
+            if (col === 'name') {
+              // Main task name formatting
+              const hasMilestoneSubtask = (item.subtasks || []).some(st => moduleMilestones.has(st.id));
+              const isMilestone = (item.startDate && item.startDate === item.dueDate) || moduleMilestones.has(item.id) || hasMilestoneSubtask;
+              const hasSubs = item.subtasks && item.subtasks.length > 0;
+              let suffix = '';
+              if (hasSubs) {
+                suffix = ` (${item.subtasks.length})`;
+              }
+              measureText = (isMilestone ? '💎 ' : '') + String(val) + suffix;
+
+              // Check if we also have screenName subtitle
+              if (item.screenName) {
+                const screenText = item.screenName + (item.isNewWindow ? ' NEW' : '');
+                // Measure name and screenName (sub-line) and pick the maximum width
+                span.style.fontWeight = '700';
+                span.textContent = measureText;
+                const mainNameW = span.offsetWidth;
+
+                span.style.fontWeight = '500';
+                span.style.fontSize = '10px';
+                span.style.fontFamily = 'var(--mono), monospace';
+                span.textContent = screenText;
+                const screenNameW = span.offsetWidth;
+
+                // Reset span styles
+                span.style.fontSize = '12px';
+                span.style.fontFamily = 'Inter, -apple-system, sans-serif';
+
+                widthAdjustment = Math.max(0, screenNameW - mainNameW);
+              }
+            } else if (col === 'progress') {
+              measureText = measureText + '%';
+            }
+          } else {
+            // Defect-specific formatting
+            if (col === 'progress') measureText = measureText + '%';
+          }
+
           if (col === 'subtasks' || col === 'screens') {
             const arr = Array.isArray(val) ? val : [];
-            val = arr.length + ' item' + (arr.length !== 1 ? 's' : '');
+            measureText = arr.length + ' item' + (arr.length !== 1 ? 's' : '');
           }
           if (col === 'owner' || col === 'assignee') {
             const u = P.users.find(x => x.username === val);
-            val = u ? (u.fullName || u.username) : val;
+            measureText = u ? (u.fullName || u.username) : val;
           }
 
-          span.textContent = String(val);
-          calculatedWidth = Math.max(calculatedWidth, span.offsetWidth + contentPadding);
+          span.style.fontWeight = (col === 'name' && prefix !== 'def') ? '600' : '500'; // main task titles are styled bolder
+          span.textContent = String(measureText);
+          calculatedWidth = Math.max(calculatedWidth, span.offsetWidth + contentPadding + widthAdjustment);
+
+          // --- 2. For Tasks, also measure subtasks & workflow steps ---
+          if (prefix !== 'def' && item.subtasks && item.subtasks.length > 0) {
+            item.subtasks.forEach(st => {
+              let stVal = st[col];
+              if (stVal === undefined || stVal === null) stVal = '';
+
+              let stMeasureText = String(stVal);
+              let stWidthAdj = 0;
+              let stFontWeight = '500';
+
+              if (col === 'name') {
+                const isScreen = st.type === 'screen';
+                const sPrefix = isScreen ? '📺 ' : '↳ ';
+                stMeasureText = sPrefix + st.name;
+
+                // Indentation: padding-left (16px)
+                stWidthAdj += 16;
+
+                // Chevron: 12px + 4px margin = 16px (if screen and has workflow)
+                if (isScreen && st.workflow && st.workflow.length) {
+                  stWidthAdj += 16;
+                }
+
+                // New badge: ~30px (if screen and isNewWindow)
+                if (isScreen && st.isNewWindow) {
+                  stWidthAdj += 30;
+                }
+
+                if (isScreen) stFontWeight = '700'; // screen row titles are bold
+              } else if (col === 'estEffort') {
+                stMeasureText = (st.effort || '—') + 'd';
+              } else if (col === 'actEffort') {
+                stMeasureText = (st.actEffort || '—') + 'd';
+              } else if (col === 'startDate' || col === 'dueDate' || col === 'actCompletionDate') {
+                stMeasureText = stVal ? fmtDate(stVal) : '—';
+              } else if (col === 'windowName') {
+                // Functional screen name + technical name sub-line
+                const funcName = st.windowName || '—';
+                const techName = st.technicalWindowName || '';
+
+                span.style.fontWeight = '500';
+                span.style.fontSize = '11px';
+                span.textContent = funcName;
+                const funcW = span.offsetWidth;
+
+                let techW = 0;
+                if (techName) {
+                  span.style.fontSize = '9.5px';
+                  span.style.fontFamily = 'var(--mono), monospace';
+                  span.textContent = techName;
+                  techW = span.offsetWidth;
+                }
+
+                // Reset span styles
+                span.style.fontSize = '12px';
+                span.style.fontFamily = 'Inter, -apple-system, sans-serif';
+
+                stMeasureText = funcName;
+                stWidthAdj = Math.max(0, techW - funcW);
+              }
+
+              span.style.fontWeight = stFontWeight;
+              span.textContent = String(stMeasureText);
+              calculatedWidth = Math.max(calculatedWidth, span.offsetWidth + contentPadding + stWidthAdj);
+
+              // --- 3. Measure workflow steps under screen subtasks ---
+              const isScreen = st.type === 'screen';
+              if (isScreen && st.workflow && st.workflow.length && !st.collapsed) {
+                st.workflow.forEach(step => {
+                  let stepVal = step[col];
+                  if (stepVal === undefined || stepVal === null) stepVal = '';
+
+                  let stepMeasureText = String(stepVal);
+                  let stepWidthAdj = 0;
+
+                  if (col === 'name') {
+                    stepMeasureText = '┈ ' + step.name;
+                    // Indentation: padding-left (32px)
+                    stepWidthAdj += 32;
+                  } else if (col === 'estEffort') {
+                    stepMeasureText = String(step.effort || 1);
+                  } else if (col === 'actEffort') {
+                    stepMeasureText = String(step.actEffort || 0);
+                  } else if (col === 'status') {
+                    stepMeasureText = step.status || (step.done ? 'Completed' : 'Not Started');
+                  } else if (col === 'progress') {
+                    // Checkbox has fixed width
+                    stepMeasureText = '';
+                    stepWidthAdj += 16;
+                  }
+
+                  span.style.fontWeight = '500';
+                  span.textContent = String(stepMeasureText);
+                  calculatedWidth = Math.max(calculatedWidth, span.offsetWidth + contentPadding + stepWidthAdj);
+                });
+              }
+            });
+          }
         });
       }
 
