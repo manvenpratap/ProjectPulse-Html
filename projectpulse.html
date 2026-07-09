@@ -11828,11 +11828,51 @@
                 </div>
               </div>
 
-              <button class="btn ghost outline" id="autofit-cols-btn"
-                onclick="autoFitAllCols(P.view === 'defects' ? 'def' : '')" title="Auto-fit Columns"
-                style="height:32px;padding:0 8px;display:inline-flex;align-items:center;justify-content:center">
-                <i data-lucide="expand"></i>
-              </button>
+              <div class="dd-wrap" id="autofit-cols-wrap" style="display:inline-flex">
+                <button class="btn ghost outline" id="autofit-cols-btn"
+                  onclick="toggleAutofitDD(event)" title="Auto-fit Columns"
+                  style="height:32px;padding:0 8px;display:inline-flex;align-items:center;justify-content:center">
+                  <i data-lucide="expand"></i>
+                </button>
+                <div class="dd-menu" id="autofit-dd-menu" style="width:230px;padding:6px;max-height:400px;overflow-y:auto">
+                  <div style="font-size:10px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;padding:6px 8px 4px 8px">Autofit Options</div>
+                  <button class="dd-item" data-strategy="all" onclick="executeAutofit('all', event)" style="display:flex;align-items:center;gap:10px;width:100%;border:none;background:transparent;text-align:left;padding:8px;border-radius:8px;cursor:pointer;font-size:12px;color:var(--color-text);transition:all 0.2s">
+                    <i data-lucide="expand" style="width:14px;height:14px;flex-shrink:0"></i>
+                    <div>
+                      <div style="font-weight:700">Fit Content & Headers</div>
+                      <div style="font-size:10px;color:var(--color-text-muted)">Default balanced layout width</div>
+                    </div>
+                  </button>
+                  <button class="dd-item" data-strategy="content-only" onclick="executeAutofit('content-only', event)" style="display:flex;align-items:center;gap:10px;width:100%;border:none;background:transparent;text-align:left;padding:8px;border-radius:8px;cursor:pointer;font-size:12px;color:var(--color-text);transition:all 0.2s">
+                    <i data-lucide="align-justify" style="width:14px;height:14px;flex-shrink:0"></i>
+                    <div>
+                      <div style="font-weight:700">Fit Content Only</div>
+                      <div style="font-size:10px;color:var(--color-text-muted)">Size strictly by cells (ignores headers)</div>
+                    </div>
+                  </button>
+                  <button class="dd-item" data-strategy="header-only" onclick="executeAutofit('header-only', event)" style="display:flex;align-items:center;gap:10px;width:100%;border:none;background:transparent;text-align:left;padding:8px;border-radius:8px;cursor:pointer;font-size:12px;color:var(--color-text);transition:all 0.2s">
+                    <i data-lucide="type" style="width:14px;height:14px;flex-shrink:0"></i>
+                    <div>
+                      <div style="font-weight:700">Fit Header Only</div>
+                      <div style="font-size:10px;color:var(--color-text-muted)">Size strictly to fit column names</div>
+                    </div>
+                  </button>
+                  <button class="dd-item" data-strategy="compact" onclick="executeAutofit('compact', event)" style="display:flex;align-items:center;gap:10px;width:100%;border:none;background:transparent;text-align:left;padding:8px;border-radius:8px;cursor:pointer;font-size:12px;color:var(--color-text);transition:all 0.2s">
+                    <i data-lucide="minimize-2" style="width:14px;height:14px;flex-shrink:0"></i>
+                    <div>
+                      <div style="font-weight:700">Compact Widths</div>
+                      <div style="font-size:10px;color:var(--color-text-muted)">Denser spacing with minimal margins</div>
+                    </div>
+                  </button>
+                  <button class="dd-item" data-strategy="comfortable" onclick="executeAutofit('comfortable', event)" style="display:flex;align-items:center;gap:10px;width:100%;border:none;background:transparent;text-align:left;padding:8px;border-radius:8px;cursor:pointer;font-size:12px;color:var(--color-text);transition:all 0.2s">
+                    <i data-lucide="maximize-2" style="width:14px;height:14px;flex-shrink:0"></i>
+                    <div>
+                      <div style="font-weight:700">Comfortable Widths</div>
+                      <div style="font-size:10px;color:var(--color-text-muted)">Spacious columns with wide padding</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
 
               <div style="width:1px;height:20px;background:var(--color-divider);margin:0 4px"></div>
             </div>
@@ -17929,9 +17969,9 @@
         `;
       }
 
-      const afBtn = $id('autofit-cols-btn');
-      if (afBtn) {
-        afBtn.style.display = (P.taskViewMode === 'table') ? 'inline-flex' : 'none';
+      const afWrap = $id('autofit-cols-wrap');
+      if (afWrap) {
+        afWrap.style.display = (P.taskViewMode === 'table') ? 'inline-flex' : 'none';
       }
 
       $id('view-actions').innerHTML = `
@@ -19347,7 +19387,7 @@
       save(); renderTable();
     }
 
-    function autoFitCol(prefix, col) {
+    function autoFitCol(prefix, col, strategy = 'all') {
       const widthsKey = getGridPK(prefix, 'colWidths');
       if (!P[widthsKey]) P[widthsKey] = {};
 
@@ -19360,54 +19400,80 @@
       span.style.fontWeight = '500';
       document.body.appendChild(span);
 
-      let maxW = 80;
+      // Determine metrics based on selected strategy
+      let minW = 80;
+      let maxW = 350;
+      let headerPadding = 64;
+      let contentPadding = 28;
+      let checkHeader = true;
+      let checkContent = true;
+
+      if (strategy === 'content-only') {
+        checkHeader = false;
+      } else if (strategy === 'header-only') {
+        checkContent = false;
+      } else if (strategy === 'compact') {
+        minW = 60;
+        maxW = 220;
+        headerPadding = 40;
+        contentPadding = 16;
+      } else if (strategy === 'comfortable') {
+        minW = 120;
+        maxW = 500;
+        headerPadding = 80;
+        contentPadding = 44;
+      }
+
+      let calculatedWidth = minW;
 
       const baseCols = prefix === 'def'
         ? [...P.defCols, ...(P.defCustomFields || []).map(cf => ({ key: cf.name, label: cf.name, type: cf.type }))]
         : [...P.cols, ...P.customFields.map(cf => ({ key: cf.name, label: cf.name, type: cf.type }))];
 
       const colObj = baseCols.find(c => c.key === col);
-      if (colObj) {
+      if (checkHeader && colObj) {
         span.style.fontWeight = '700';
         span.textContent = colObj.label || colObj.key;
-        maxW = Math.max(maxW, span.offsetWidth + 64);
+        calculatedWidth = Math.max(calculatedWidth, span.offsetWidth + headerPadding);
       }
 
-      span.style.fontWeight = '500';
-      const rows = prefix === 'def' ? getGridFiltered('def', P.defects, baseCols) : getFiltered();
-      rows.forEach(item => {
-        let val = item[col];
-        if (val === undefined || val === null) val = '';
+      if (checkContent) {
+        span.style.fontWeight = '500';
+        const rows = prefix === 'def' ? getGridFiltered('def', P.defects, baseCols) : getFiltered();
+        rows.forEach(item => {
+          let val = item[col];
+          if (val === undefined || val === null) val = '';
 
-        if (col === 'progress') val = val + '%';
-        if (col === 'subtasks' || col === 'screens') {
-          const arr = Array.isArray(val) ? val : [];
-          val = arr.length + ' item' + (arr.length !== 1 ? 's' : '');
-        }
-        if (col === 'owner' || col === 'assignee') {
-          const u = P.users.find(x => x.username === val);
-          val = u ? (u.fullName || u.username) : val;
-        }
+          if (col === 'progress') val = val + '%';
+          if (col === 'subtasks' || col === 'screens') {
+            const arr = Array.isArray(val) ? val : [];
+            val = arr.length + ' item' + (arr.length !== 1 ? 's' : '');
+          }
+          if (col === 'owner' || col === 'assignee') {
+            const u = P.users.find(x => x.username === val);
+            val = u ? (u.fullName || u.username) : val;
+          }
 
-        span.textContent = String(val);
-        maxW = Math.max(maxW, span.offsetWidth + 28);
-      });
+          span.textContent = String(val);
+          calculatedWidth = Math.max(calculatedWidth, span.offsetWidth + contentPadding);
+        });
+      }
 
-      if (maxW > 350) maxW = 350;
+      if (calculatedWidth > maxW) calculatedWidth = maxW;
       document.body.removeChild(span);
 
-      P[widthsKey][col] = maxW;
+      P[widthsKey][col] = calculatedWidth;
       save();
       if (prefix === 'def') renderDefectsTable(); else renderTable();
     }
 
-    function autoFitAllCols(prefix) {
+    function autoFitAllCols(prefix, strategy = 'all') {
       const baseCols = prefix === 'def'
         ? getGridCols('def', [...P.defCols, ...(P.defCustomFields || []).map(cf => ({ key: cf.name, label: cf.name, w: 120, type: cf.type === 'dropdown' ? 'select' : cf.type, opts: cf.options || [], edit: true }))])
         : [...P.cols, ...P.customFields.map(cf => ({ key: cf.name, label: cf.name, w: 100, type: cf.type === 'dropdown' ? 'select' : 'text', opts: cf.options || [], edit: true }))];
 
       baseCols.forEach(c => {
-        autoFitCol(prefix, c.key);
+        autoFitCol(prefix, c.key, strategy);
       });
     }
     function updateColRangeFilter(col, part, val) {
@@ -35170,9 +35236,9 @@ Earned Value Management measures project performance and progress by comparing p
       $id('v-title').innerHTML = `<i data-lucide="bug" style="margin-right:10px"></i> Defects Tracker`;
       $id('view-actions').innerHTML = ``;
 
-      const afBtn = $id('autofit-cols-btn');
-      if (afBtn) {
-        afBtn.style.display = 'inline-flex';
+      const afWrap = $id('autofit-cols-wrap');
+      if (afWrap) {
+        afWrap.style.display = 'inline-flex';
       }
       renderDefectsTable();
     }
@@ -41939,6 +42005,7 @@ Earned Value Management measures project performance and progress by comparing p
           'Project': ['System State'], 'App_State': ['System State'], 'App_Layouts': ['Config_Layouts'], 'App_Filters': ['State_Filters'],
           'Settings': ['Config_Settings'], 'Dropdowns': ['Config_Dropdowns'], 'StepTemplates': ['Config_Templates'],
           'CustomFields': ['Config_CustomFields'], 'CustomFieldOptions': ['Config_CustomFieldOptions'], 'Defects': ['Defects Registry'],
+          'Config_GridState': ['GridState', 'App_GridState'],
           'TaskDependencies': ['Data_TaskDependencies'], 'TaskGUIScreens': ['Data_TaskGUIScreens'], 'TaskWorkflows': ['Data_TaskWorkflows'],
           'SubTaskWorkflows': ['Data_SubTaskWorkflows'], 'MemberLeaves': ['Data_MemberLeaves'], 'FeatureScreens': ['Data_FeatureScreens'],
           'Health History': ['Health History'], 'Report Snapshots': ['Report Snapshots']
@@ -42155,6 +42222,73 @@ Earned Value Management measures project performance and progress by comparing p
             }
           }
         });
+
+        // Parse Config_GridState to restore grid configurations (widths, order, hidden cols, filters)
+        const gridStateRaw = rawData.getTable('Config_GridState');
+        if (gridStateRaw && gridStateRaw.length) {
+          gridStateRaw.forEach(r => {
+            const workshop = (r.workshop || '').trim().toLowerCase();
+            const orderStr = r.order || '';
+            const hiddenStr = r.hidden || '';
+            const widthsStr = r.widths || '';
+            const filtersStr = r.filters || '';
+
+            const isDefect = (workshop === 'defect' || workshop === 'defects');
+            const prefix = isDefect ? 'def' : '';
+
+            // Restore Column Order
+            if (orderStr) {
+              const orderArr = orderStr.split(',').map(s => s.trim()).filter(Boolean);
+              if (orderArr.length) {
+                if (isDefect) P.defColOrder = orderArr;
+                else P.colOrder = orderArr;
+              }
+            }
+
+            // Restore Hidden Columns
+            if (hiddenStr !== undefined) {
+              const hiddenArr = hiddenStr.split(',').map(s => s.trim()).filter(Boolean);
+              if (isDefect) P.defHiddenCols = hiddenArr;
+              else P.hiddenCols = hiddenArr;
+            }
+
+            // Restore Column Widths
+            if (widthsStr) {
+              try {
+                const widthsObj = typeof widthsStr === 'string' ? JSON.parse(widthsStr) : widthsStr;
+                if (widthsObj && typeof widthsObj === 'object') {
+                  const widthsKey = getGridPK(prefix, 'colWidths');
+                  P[widthsKey] = widthsObj;
+                }
+              } catch (e) {
+                console.error('Failed to parse grid widths:', e);
+              }
+            }
+
+            // Restore Column Filters
+            if (filtersStr) {
+              try {
+                const filtersObj = typeof filtersStr === 'string' ? JSON.parse(filtersStr) : filtersStr;
+                if (filtersObj && typeof filtersObj === 'object') {
+                  const filtersKey = getGridPK(prefix, 'colFilters');
+                  P[filtersKey] = filtersObj;
+                }
+              } catch (e) {
+                console.error('Failed to parse grid filters:', e);
+              }
+            }
+          });
+
+          // Sync localStorage
+          if (P.colWidths) localStorage.setItem('pp-col-widths', JSON.stringify(P.colWidths));
+          if (P.defColWidths) localStorage.setItem('pp-def-col-widths', JSON.stringify(P.defColWidths));
+          if (P.colOrder) localStorage.setItem('pp-col-order', JSON.stringify(P.colOrder));
+          if (P.defColOrder) localStorage.setItem('pp-def-col-order', JSON.stringify(P.defColOrder));
+          if (P.hiddenCols) localStorage.setItem('pp-hidden-cols', JSON.stringify(P.hiddenCols));
+          if (P.defHiddenCols) localStorage.setItem('pp-def-hidden-cols', JSON.stringify(P.defHiddenCols));
+          if (P.colFilters) localStorage.setItem('pp-col-filters', JSON.stringify(P.colFilters));
+          if (P.defColFilters) localStorage.setItem('pp-def-col-filters', JSON.stringify(P.defColFilters));
+        }
       },
 
       parseConfigSheets(wb, rawData) {
@@ -48618,6 +48752,52 @@ Earned Value Management measures project performance and progress by comparing p
         }
       };
       setTimeout(() => document.addEventListener('click', closer), 10);
+    }
+
+    function toggleAutofitDD(event) {
+      if (event) { event.stopPropagation(); event.preventDefault(); }
+      const wrap = $id('autofit-cols-wrap');
+      if (!wrap) return;
+      if (wrap.classList.contains('open')) {
+        wrap.classList.remove('open');
+        return;
+      }
+
+      const currentStrategy = P.autofitStrategy || 'all';
+      const menu = $id('autofit-dd-menu');
+      if (menu) {
+        menu.querySelectorAll('.dd-item').forEach(btn => {
+          const strat = btn.dataset.strategy;
+          if (strat === currentStrategy) {
+            btn.classList.add('active');
+            btn.style.background = 'var(--color-primary-highlight)';
+            btn.style.color = 'var(--color-primary)';
+          } else {
+            btn.classList.remove('active');
+            btn.style.background = 'transparent';
+            btn.style.color = 'var(--color-text)';
+          }
+        });
+        if (window.lucide) lucide.createIcons({ target: menu });
+      }
+
+      wrap.classList.add('open');
+      const closer = (e) => {
+        if (!wrap.contains(e.target)) {
+          wrap.classList.remove('open');
+          document.removeEventListener('click', closer);
+        }
+      };
+      setTimeout(() => document.addEventListener('click', closer), 10);
+    }
+
+    function executeAutofit(strategy, event) {
+      if (event) { event.stopPropagation(); event.preventDefault(); }
+      P.autofitStrategy = strategy;
+      const prefix = P.view === 'defects' ? 'def' : '';
+      autoFitAllCols(prefix, strategy);
+      closeDD();
+      save();
     }
 
     function getGridPK(prefix, key) {
