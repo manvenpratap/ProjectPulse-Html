@@ -54882,26 +54882,74 @@ Earned Value Management measures project performance and progress by comparing p
 
                   if (angleSpan > 0.08) {
                     ctx.save();
-                    ctx.rotate(tAngle);
-
-                    const normalAngle = (tAngle + 2 * Math.PI) % (2 * Math.PI);
+                    const maxArcLength = rMid * angleSpan * 0.95;
+                    const charWidths = [];
+                    const label = n.name;
                     ctx.font = 'bold 8.5px var(--font-display), sans-serif';
-                    ctx.textAlign = 'center';
-                    
-                    const maxTextW = n.outerRadius - n.innerRadius - 12;
-                    let label = n.name;
-                    if (ctx.measureText(label).width > maxTextW) {
-                      while (label.length > 3 && ctx.measureText(label + '...').width > maxTextW) {
-                        label = label.slice(0, -1);
-                      }
-                      label += '...';
+                    for (let i = 0; i < label.length; i++) {
+                      charWidths.push(ctx.measureText(label[i]).width);
                     }
+                    const totalTextWidth = charWidths.reduce((a, b) => a + b, 0);
 
-                    if (normalAngle > Math.PI / 2 && normalAngle < 3 * Math.PI / 2) {
-                      ctx.rotate(Math.PI);
-                      ctx.fillText(label, -rMid, 0);
+                    if (totalTextWidth < maxArcLength) {
+                      // Draw curved text along the circle arc
+                      const totalAngle = totalTextWidth / rMid;
+                      const normAngle = (tAngle + 2 * Math.PI) % (2 * Math.PI);
+                      const isLower = (normAngle > 0 && normAngle < Math.PI);
+
+                      ctx.textAlign = 'center';
+                      ctx.textBaseline = 'middle';
+
+                      if (isLower) {
+                        // Draw counter-clockwise (left to right at bottom)
+                        let currentAngle = tAngle + totalAngle / 2;
+                        for (let i = 0; i < label.length; i++) {
+                          const charAngle = charWidths[i] / rMid;
+                          const angle = currentAngle - charAngle / 2;
+                          ctx.save();
+                          ctx.rotate(angle);
+                          ctx.translate(rMid, 0);
+                          ctx.rotate(-Math.PI / 2);
+                          ctx.fillText(label[i], 0, 0);
+                          ctx.restore();
+                          currentAngle -= charAngle;
+                        }
+                      } else {
+                        // Draw clockwise (left to right at top)
+                        let currentAngle = tAngle - totalAngle / 2;
+                        for (let i = 0; i < label.length; i++) {
+                          const charAngle = charWidths[i] / rMid;
+                          const angle = currentAngle + charAngle / 2;
+                          ctx.save();
+                          ctx.rotate(angle);
+                          ctx.translate(rMid, 0);
+                          ctx.rotate(Math.PI / 2);
+                          ctx.fillText(label[i], 0, 0);
+                          ctx.restore();
+                          currentAngle += charAngle;
+                        }
+                      }
                     } else {
-                      ctx.fillText(label, rMid, 0);
+                      // Fallback to radial text alignment
+                      ctx.rotate(tAngle);
+                      const normalAngle = (tAngle + 2 * Math.PI) % (2 * Math.PI);
+                      ctx.textAlign = 'center';
+                      
+                      const maxTextW = n.outerRadius - n.innerRadius - 12;
+                      let truncatedLabel = n.name;
+                      if (ctx.measureText(truncatedLabel).width > maxTextW) {
+                        while (truncatedLabel.length > 3 && ctx.measureText(truncatedLabel + '...').width > maxTextW) {
+                          truncatedLabel = truncatedLabel.slice(0, -1);
+                        }
+                        truncatedLabel += '...';
+                      }
+
+                      if (normalAngle > Math.PI / 2 && normalAngle < 3 * Math.PI / 2) {
+                        ctx.rotate(Math.PI);
+                        ctx.fillText(truncatedLabel, -rMid, 0);
+                      } else {
+                        ctx.fillText(truncatedLabel, rMid, 0);
+                      }
                     }
                     ctx.restore();
                   }
