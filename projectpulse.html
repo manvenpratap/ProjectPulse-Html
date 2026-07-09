@@ -15144,7 +15144,7 @@
         sort: { col: 'id', dir: 'asc' }, view: 'tasks', sbOpen: true,
         theme: localStorage.getItem('pp-theme') || 'paper',
         colorMode: localStorage.getItem('pp-color-mode') || 'default',
-        expanded: new Set(), fsHandle: null, fsDirHandle: null, fsDirName: '',
+        expanded: new Set(), fsHandle: null, fsDirHandle: null, fsDirName: '', fsDirPath: '',
         lastSynced: null, lastBackup: null, ganttZoom: 'week', lastImportedFile: null,
         _pendingComment: null, _editingTaskId: null, _editingMemberId: null, _editingReportId: null,
         _editingCfIdx: null, _editingDashWidgetIdx: null, _editingRptWidgetIdx: null,
@@ -15984,6 +15984,8 @@
         P.fsHandle = null;
         P.fsDirHandle = null;
         P.fsDirName = '';
+        P.fsDirPath = '';
+        P.dropdownDefaults = {};
         P.sbOpen = true;
         P.view = 'tasks';
         P.lastImportedFile = null;
@@ -16226,6 +16228,7 @@
               defColWidths: P.defColWidths, defColOrder: P.defColOrder, defHiddenCols: P.defHiddenCols, defColFilters: P.defColFilters,
               showInlineFilters: P.showInlineFilters, hiddenCols: P.hiddenCols, settings: P.settings,
               lastSynced: P.lastSynced, lastBackup: P.lastBackup,
+              fsDirName: P.fsDirName, fsDirPath: P.fsDirPath,
               theme: P.theme, view: P.view, ganttZoom: P.ganttZoom, sort: P.sort, defSort: P.defSort,
               displayLevel: P.displayLevel, dashLayout: P.dashLayout, reportLayout: P.reportLayout,
               widgetSpans: P.widgetSpans,
@@ -16296,6 +16299,8 @@
             if (d.showInlineFilters !== undefined) P.showInlineFilters = d.showInlineFilters;
             if (d.lastSynced) P.lastSynced = d.lastSynced;
             if (d.lastBackup) P.lastBackup = d.lastBackup;
+            if (d.fsDirName !== undefined) P.fsDirName = d.fsDirName;
+            if (d.fsDirPath !== undefined) P.fsDirPath = d.fsDirPath;
 
             P.dismissedAlerts = new Set(d.dismissedAlerts || []);
             P.expanded = new Set(d.expanded || []);
@@ -16819,9 +16824,19 @@
           P.fsDirHandle = handle;
           P.fsDirName = handle.name;
           await saveHandle(handle.name + '_dir', handle); // Save for persistence
+          save();
           notify('Project directory connected: ' + handle.name, 'ok');
           updateFsInd();
           PulsePersistence.compileUserManualToDirectory(handle);
+
+          // Force immediate UI updates for back-up connection statuses
+          const modal = document.getElementById('settings-modal');
+          if (modal && modal.classList.contains('open') && P._adminTab === 'backups') {
+            renderAdminContent();
+          }
+          if (document.getElementById('backups-container')) {
+            renderSettingsBackups();
+          }
         } catch (e) { if (e.name !== 'AbortError') notify('Could not open directory', 'err'); }
       },
       async createProjectFile() {
@@ -17218,6 +17233,36 @@
     function updateFsInd() { return PulsePersistence.updateFsInd(); }
     function syncFromFile() { return PulsePersistence.syncFromFile(); }
     function reconnectFolder() { return PulsePersistence.reconnectFolder(); }
+    function updateFsDirPath(val) {
+      P.fsDirPath = val;
+      save();
+      // Keep inputs in sync if there are multiple on screen
+      const inps = [document.getElementById('settings-fs-dir-path'), document.getElementById('settings-fs-dir-path-admin')];
+      inps.forEach(i => { if (i && i.value !== val) i.value = val; });
+    }
+    async function syncFsDirectory() {
+      if (!P.fsDirHandle) {
+        notify('No backup directory connected. Please connect a folder first.', 'amber');
+        return;
+      }
+      try {
+        notify('Syncing backup directory...', 'ok');
+        const wb = await generateProjectWorkbook();
+        const buf = await wb.xlsx.writeBuffer();
+        await PulsePersistence.createFileBackup(buf);
+        await PulsePersistence.compileUserManualToDirectory(P.fsDirHandle);
+        notify('Directory sync completed successfully!', 'ok');
+        // Force refresh backups list if open
+        if ($id('backup-list-container-inline')) {
+          renderSettingsBackups();
+        } else if ($id('backup-list-container')) {
+          renderAdminContent();
+        }
+      } catch (e) {
+        notify('Directory sync failed: ' + e.message, 'err');
+        PP.error('Sync failed', e);
+      }
+    }
 
     // --- BULK OPERATIONS STATE ---
     let bulkSelectedTasks = new Set();
@@ -24439,6 +24484,16 @@
                 No directory connected. Backups are currently restricted to IndexedDB.
               </div>
             `}
+
+            <div style="margin-top:16px; border-top:1px solid var(--color-divider); padding-top:16px">
+              <label class="flbl" style="font-size:11px; font-weight:600; color:var(--color-text-muted); margin-bottom:6px; display:block">Folder Path</label>
+              <div style="display:flex; gap:8px; align-items:center">
+                <input class="finp" type="text" id="settings-fs-dir-path-admin" placeholder="e.g. /Users/username/PulseBackups" value="${esc(P.fsDirPath || '')}" oninput="updateFsDirPath(this.value)" style="flex:1; margin-bottom:0; height:36px; font-size:12px" />
+                <button class="btn secondary" onclick="syncFsDirectory()" style="height:36px; padding:0 16px; font-size:12px; display:flex; align-items:center; gap:6px">
+                  <i data-lucide="refresh-cw" style="width:14px; height:14px"></i> Sync Now
+                </button>
+              </div>
+            </div>
           </div>
 
           <div style="font-weight:800; font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px">Historical Snapshots</div>
@@ -37740,6 +37795,16 @@ Earned Value Management measures project performance and progress by comparing p
                   No directory connected. Backups are currently restricted to IndexedDB.
                 </div>
               `}
+
+              <div style="margin-top:16px; border-top:1px solid var(--color-divider); padding-top:16px">
+                <label class="flbl" style="font-size:11px; font-weight:600; color:var(--color-text-muted); margin-bottom:6px; display:block">Folder Path</label>
+                <div style="display:flex; gap:8px; align-items:center">
+                  <input class="finp" type="text" id="settings-fs-dir-path" placeholder="e.g. /Users/username/PulseBackups" value="${esc(P.fsDirPath || '')}" oninput="updateFsDirPath(this.value)" style="flex:1; margin-bottom:0; height:36px; font-size:12px" />
+                  <button class="btn secondary" onclick="syncFsDirectory()" style="height:36px; padding:0 16px; font-size:12px; display:flex; align-items:center; gap:6px">
+                    <i data-lucide="refresh-cw" style="width:14px; height:14px"></i> Sync Now
+                  </button>
+                </div>
+              </div>
             </div>
             <div style="font-weight:800; font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px">Historical Snapshots</div>
             <div id="backup-list-container-inline">
@@ -39856,7 +39921,8 @@ Earned Value Management measures project performance and progress by comparing p
           { key: 'Show Explanations', val: P.showExplanations ? 'true' : 'false' },
           { key: 'Sidebar Collapsed', val: JSON.stringify(P.sidebarCollapsed || {}) },
           { key: 'Pivot State', val: JSON.stringify(P._pvS || {}) },
-          { key: 'Local Folder Sync Path', val: P.fsDirName || '' },
+          { key: 'Local Folder Sync Path', val: P.fsDirPath || '' },
+          { key: 'Local Folder Sync Name', val: P.fsDirName || '' },
           { key: 'Search Query', val: P.search || '' },
           { key: 'sbOpen', val: P.sbOpen ? 'true' : 'false' },
           { key: 'Active Report ID', val: P.activeReportId || '' },
@@ -42472,7 +42538,8 @@ Earned Value Management measures project performance and progress by comparing p
         if (stateMap['Show Explanations']) P.showExplanations = stateMap['Show Explanations'] === 'true';
         if (stateMap['Sidebar Collapsed']) { try { P.sidebarCollapsed = JSON.parse(stateMap['Sidebar Collapsed']); } catch (e) { } }
         if (stateMap['Pivot State']) { try { P._pvS = JSON.parse(stateMap['Pivot State']); } catch (e) { } }
-        P.fsDirName = stateMap['Local Folder Sync Path'] || '';
+        P.fsDirPath = stateMap['Local Folder Sync Path'] || '';
+        P.fsDirName = stateMap['Local Folder Sync Name'] || stateMap['Local Folder Sync Path'] || '';
         if (P.fsDirName) {
           getHandle(P.fsDirName + '_dir').then(h => {
             if (h) {
@@ -42882,11 +42949,13 @@ Earned Value Management measures project performance and progress by comparing p
           const _savedFsHandle = P.fsHandle;
           const _savedFsDirHandle = P.fsDirHandle;
           const _savedFsDirName = P.fsDirName;
+          const _savedFsDirPath = P.fsDirPath;
           clearProjectState();
           // Restore file handle references
           P.fsHandle = _savedFsHandle;
           P.fsDirHandle = _savedFsDirHandle;
           P.fsDirName = _savedFsDirName;
+          P.fsDirPath = _savedFsDirPath;
           // Set workbook mode if no fsHandle (e.g. imported via <input>)
           if (!P.fsHandle && fileName) P.lastImportedFile = fileName;
           parseAppStateSheets(wb, rawData); parseConfigSheets(wb, rawData); parseCanonicalSheets(wb, rawData); parseRelationSheets(wb, rawData); parseHelperAwareCanonicalSheets(wb, rawData); normalizeImportedData(rawData); collectImportIssues(rawData); rebuildDerivedState(rawData);
