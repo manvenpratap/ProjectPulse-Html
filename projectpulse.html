@@ -54750,9 +54750,32 @@ Earned Value Management measures project performance and progress by comparing p
               }
             }
 
+            // Helper to get sub-team color based on reportsTo manager
+            const getMemberColor = (node) => {
+              const manager = node.m ? node.m.reportsTo : null;
+              if (!manager) {
+                // If it is a top-level root, hash their own name
+                let hash = 0;
+                const name = node.name || '';
+                for (let i = 0; i < name.length; i++) {
+                  hash = name.charCodeAt(i) + ((hash << 5) - hash);
+                }
+                const idx = Math.abs(hash) % CC.length;
+                return CC[idx];
+              }
+              // Hash the manager's name so all peers reporting to the same manager get the same color!
+              let hash = 0;
+              for (let i = 0; i < manager.length; i++) {
+                hash = manager.charCodeAt(i) + ((hash << 5) - hash);
+              }
+              const idx = Math.abs(hash) % CC.length;
+              return CC[idx];
+            };
+
             // Draw Cards
             const drawNodes = (n) => {
               const px = n.x * DIST_X, py = n.y * DIST_Y;
+              const teamColor = getMemberColor(n);
               
               ctx.shadowColor = 'rgba(0, 0, 0, 0.06)';
               ctx.shadowBlur = 12;
@@ -54766,7 +54789,7 @@ Earned Value Management measures project performance and progress by comparing p
 
               // Focused node colored outer ring/border
               if (P._org.mode === 'neighborhood' && n.id === P._org.focusId) {
-                ctx.strokeStyle = CC[n.depth % CC.length];
+                ctx.strokeStyle = teamColor;
                 ctx.lineWidth = 2.2;
               } else {
                 ctx.strokeStyle = cBorder;
@@ -54777,7 +54800,7 @@ Earned Value Management measures project performance and progress by comparing p
               ctx.stroke();
 
               // Left colored accent border
-              ctx.fillStyle = CC[n.depth % CC.length];
+              ctx.fillStyle = teamColor;
               ctx.beginPath();
               ctx.roundRect(px, py, 3.5, n.nodeH, { tl: 6, bl: 6, tr: 0, br: 0 });
               ctx.fill();
@@ -54796,13 +54819,13 @@ Earned Value Management measures project performance and progress by comparing p
               ctx.save();
               ctx.beginPath();
               ctx.arc(px + n.nodeW - 22, py + n.nodeH / 2, 10, 0, Math.PI * 2);
-              ctx.fillStyle = CC[n.depth % CC.length] + '18';
+              ctx.fillStyle = teamColor + '18';
               ctx.fill();
-              ctx.strokeStyle = CC[n.depth % CC.length] + '55';
+              ctx.strokeStyle = teamColor + '55';
               ctx.lineWidth = 1;
               ctx.stroke();
 
-              ctx.fillStyle = CC[n.depth % CC.length];
+              ctx.fillStyle = teamColor;
               ctx.font = 'bold 8px var(--font-mono), monospace';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
@@ -54814,7 +54837,7 @@ Earned Value Management measures project performance and progress by comparing p
                 const reportsCount = P.members.filter(m => m.reportsTo === n.name).length;
                 if (reportsCount > 0) {
                   ctx.save();
-                  ctx.fillStyle = CC[n.depth % CC.length];
+                  ctx.fillStyle = teamColor;
                   ctx.font = 'bold 7.5px var(--font-body), sans-serif';
                   ctx.fillText(`👁 ${reportsCount} REPORTS`, px + 12, py + n.nodeH - 6);
                   ctx.restore();
@@ -54912,7 +54935,7 @@ Earned Value Management measures project performance and progress by comparing p
             for (const n of P._org.renderedNodes) {
               const px = n.x * DIST_X, py = n.y * DIST_Y;
               // Toggle hit
-              if (n.children.length > 0) {
+              if (P._org.mode === 'radial' && n.children.length > 0) {
                 const toggleX = px + n.nodeW / 2;
                 const toggleY = py + n.nodeH;
                 if (Math.hypot(mx - toggleX, my - toggleY) < 16) {
@@ -54922,7 +54945,13 @@ Earned Value Management measures project performance and progress by comparing p
               }
               // Card hit
               if (mx >= px && mx <= px + n.nodeW && my >= py && my <= py + n.nodeH) {
-                openAddMember(n.id);
+                if (P._org.mode === 'neighborhood' && n.id !== P._org.focusId) {
+                  P._org.focusId = n.id;
+                  P._org.isCentered = false;
+                  renderCanvas();
+                } else {
+                  openAddMember(n.id);
+                }
                 return;
               }
             }
