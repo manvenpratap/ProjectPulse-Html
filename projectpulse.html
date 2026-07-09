@@ -38118,7 +38118,6 @@ Earned Value Management measures project performance and progress by comparing p
           { header: `Actual ${effortUnitLabel('col')}`, key: 'actEffort', width: 15 },
           { header: 'Complexity', key: 'complexity', width: 15 },
           { header: 'Window Name (Functional)', key: 'windowName', width: 30 },
-          { header: 'Technical Window Name', key: 'technicalWindowName', width: 28 },
           { header: 'Notes', key: 'notes', width: 40 }
         ];
 
@@ -38254,6 +38253,7 @@ Earned Value Management measures project performance and progress by comparing p
 
             if (colIdx === 3) c.font = nameFont;
             else c.font = otherFont;
+            c.alignment = { vertical: 'middle', wrapText: false, horizontal: 'left' };
           });
 
           const idCell = row.getCell('id');
@@ -38277,6 +38277,11 @@ Earned Value Management measures project performance and progress by comparing p
               cell.numFmt = '#,##0.0';
             }
           });
+
+          const notesCell = row.getCell('notes');
+          if (notesCell) {
+            notesCell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+          }
 
           const progCell = row.getCell('progress');
           if (progCell) {
@@ -38398,7 +38403,6 @@ Earned Value Management measures project performance and progress by comparing p
               actEffort: s.actEffort || 0,
               complexity: '',
               windowName: S(s.windowName || ''),
-              technicalWindowName: S(s.technicalWindowName || ''),
               notes: S(s.notes)
             };
             (P.customFields || []).forEach(f => { subRowVals[f.name] = ''; });
@@ -38517,6 +38521,8 @@ Earned Value Management measures project performance and progress by comparing p
           { header: 'ID / Release', key: 'id', width: 18 },
           { header: 'Feature / Screen Name', key: 'name', width: 45 },
           { header: 'Type', key: 'type', width: 15 },
+          { header: 'Feature Category', key: 'featureCategory', width: 20 },
+          { header: 'Planned Release Date', key: 'plannedReleaseDate', width: 22 },
           { header: 'Module', key: 'module', width: 18 },
           { header: 'Assignee', key: 'assignee', width: 25 },
           { header: 'Status', key: 'status', width: 18 },
@@ -38674,7 +38680,7 @@ Earned Value Management measures project performance and progress by comparing p
 
             if (colIdx === 3) c.font = nameFont;
             else c.font = otherFont;
-            c.alignment = { vertical: 'middle', wrapText: false };
+            c.alignment = { vertical: 'middle', wrapText: false, horizontal: 'left' };
           });
 
           const idCell = row.getCell('id');
@@ -38682,7 +38688,12 @@ Earned Value Management measures project performance and progress by comparing p
           idCell.font = { name: 'Consolas', size: level === 0 ? 10 : 9, color: { argb: idColors[level] || 'FF64748B' }, bold: level <= 1 };
           idCell.alignment = { horizontal: 'center', vertical: 'middle' };
 
-          ['type', 'module'].forEach(k => {
+          ['type'].forEach(k => {
+            const cell = row.getCell(k);
+            if (cell) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          });
+
+          ['featureCategory', 'plannedReleaseDate'].forEach(k => {
             const cell = row.getCell(k);
             if (cell) cell.alignment = { horizontal: 'center', vertical: 'middle' };
           });
@@ -38882,11 +38893,14 @@ Earned Value Management measures project performance and progress by comparing p
           else if (relStatuses.has('In Progress') || relStatuses.has('Under Review')) relStatus = 'In Progress';
           else if (relStatuses.size === 1 && relStatuses.has('Completed')) relStatus = 'Completed';
 
+          const relObj = (P.releases || []).find(r => r.name === relName);
           const relRow = ws.addRow({
             _spacer: '',
             id: S(relName),
             name: `🚀  Release: ${S(relName)}`,
             type: 'Release',
+            featureCategory: '',
+            plannedReleaseDate: relObj ? cleanFmtDate(relObj.date) : '',
             module: '',
             assignee: '',
             status: S(relStatus),
@@ -38920,11 +38934,14 @@ Earned Value Management measures project performance and progress by comparing p
             else if (featStatuses.has('In Progress') || featStatuses.has('Under Review')) featStatus = 'In Progress';
             else if (featStatuses.size === 1 && featStatuses.has('Completed')) featStatus = 'Completed';
 
+            const featRelObj = feat.release ? (P.releases || []).find(r => r.name === feat.release) : null;
             const featRow = ws.addRow({
               _spacer: '',
               id: '',
               name: '    ◆  ' + S(feat.name),
               type: 'Feature',
+              featureCategory: S(feat.category || ''),
+              plannedReleaseDate: featRelObj ? cleanFmtDate(featRelObj.date) : '',
               module: '',
               assignee: S(Array.from(featAssignees).join(', ') || '-'),
               status: S(featStatus),
@@ -38945,6 +38962,8 @@ Earned Value Management measures project performance and progress by comparing p
                 id: '',
                 name: '        ▸  ' + S(sc.name),
                 type: 'GUI Screen',
+                featureCategory: S(feat.category || ''),
+                plannedReleaseDate: '',
                 module: S(scInfo.module),
                 assignee: S(scInfo.assignee),
                 status: S(scInfo.status),
@@ -38972,6 +38991,8 @@ Earned Value Management measures project performance and progress by comparing p
                     id: '',
                     name: '            ·  ' + S(step.name),
                     type: 'Workflow Step',
+                    featureCategory: S(feat.category || ''),
+                    plannedReleaseDate: '',
                     module: S(scInfo.module),
                     assignee: S(scInfo.assignee),
                     status: S(step.status || (step.done ? 'Completed' : 'Not Started')),
