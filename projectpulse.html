@@ -156,6 +156,30 @@
       background: var(--color-text-faint);
     }
 
+    .status-pulse-dot {
+      position: relative;
+      display: inline-block;
+    }
+    .status-pulse-dot.pulse::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      border-radius: 50%;
+      background: inherit;
+      animation: pulse-dot-anim 1.6s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes pulse-dot-anim {
+      0% {
+        transform: scale(1);
+        opacity: 0.8;
+      }
+      100% {
+        transform: scale(2.8);
+        opacity: 0;
+      }
+    }
+
     html {
       transition: background-color 0.3s ease, color 0.3s ease;
     }
@@ -44859,6 +44883,274 @@ Earned Value Management measures project performance and progress by comparing p
       }
     }
 
+    function toggleReleaseFeatureCollapsible(el) {
+      const card = el.closest('.release-feat-card');
+      if (!card) return;
+      const body = card.querySelector('.feat-collapse-body');
+      const icon = card.querySelector('.chevron-icon');
+      if (card.classList.contains('expanded')) {
+        card.classList.remove('expanded');
+        if (body) {
+          body.style.maxHeight = '0px';
+          body.style.opacity = '0';
+        }
+        if (icon) icon.style.transform = 'rotate(0deg)';
+      } else {
+        card.classList.add('expanded');
+        if (body) {
+          body.style.maxHeight = '2000px';
+          body.style.opacity = '1';
+        }
+        if (icon) icon.style.transform = 'rotate(90deg)';
+      }
+    }
+    window.toggleReleaseFeatureCollapsible = toggleReleaseFeatureCollapsible;
+
+    function openReleaseAssetsFlyout(releaseId) {
+      const r = P.releases.find(x => x.id === releaseId);
+      if (!r) return;
+      const versionKey = String(r.release || r.name).trim().toLowerCase();
+      const relFeats = P.features.filter(f => String(f.release || '').trim().toLowerCase() === versionKey);
+
+      let flyout = $id('release-assets-flyout');
+      if (!flyout) {
+        flyout = document.createElement('div');
+        flyout.id = 'release-assets-flyout';
+        flyout.className = 'view-flyout';
+        document.body.appendChild(flyout);
+      }
+
+      // Calculate totals for progress
+      let totalScreens = 0;
+      let overdueScreens = 0;
+      let atRiskScreens = 0;
+      let onTrackScreens = 0;
+
+      const ST_CLS = PulseConstants.ST_CLS;
+
+      const featuresData = relFeats.map(f => {
+        const fScreens = new Set(f.screens || []);
+        let maxDelayForFeat = 0;
+        const screensList = [];
+
+        P.tasks.forEach(t => {
+          if (t.subtasks) {
+            t.subtasks.forEach(s => {
+              if (s.type === 'screen' && fScreens.has(s.name)) {
+                totalScreens++;
+                const isCompleted = s.status === 'Completed' || s.done;
+                let statusClass = 'not-started';
+                let overdueDays = 0;
+                let relativeStatus = 'On Track';
+
+                if (isCompleted) {
+                  onTrackScreens++;
+                  statusClass = 'completed';
+                } else if (s.dueDate && r.date) {
+                  overdueDays = Math.ceil((new Date(s.dueDate) - new Date(r.date)) / 86400000);
+                  if (overdueDays > 0) {
+                    overdueScreens++;
+                    statusClass = 'overdue';
+                    relativeStatus = `Overdue (+${overdueDays}d)`;
+                    if (overdueDays > maxDelayForFeat) {
+                      maxDelayForFeat = overdueDays;
+                    }
+                  } else {
+                    const gap = Math.ceil((new Date(r.date) - new Date(s.dueDate)) / 86400000);
+                    if (gap >= 0 && gap <= 5) {
+                      atRiskScreens++;
+                      statusClass = 'at-risk';
+                      relativeStatus = 'At Risk';
+                    } else {
+                      onTrackScreens++;
+                      statusClass = 'in-progress';
+                    }
+                  }
+                } else {
+                  onTrackScreens++;
+                  statusClass = 'not-started';
+                }
+
+                screensList.push({
+                  name: s.name,
+                  dueDate: s.dueDate || 'No Date',
+                  status: s.status || 'Not Started',
+                  assignee: s.assignee || 'Unassigned',
+                  statusClass,
+                  relativeStatus,
+                  taskId: t.id,
+                  screenId: s.id
+                });
+              }
+            });
+          }
+        });
+
+        // Determine feature status badge
+        let featStatus = 'On Track';
+        let featBadgeClass = 'status-green';
+        if (maxDelayForFeat > 0) {
+          featStatus = `At Risk (+${maxDelayForFeat}d)`;
+          featBadgeClass = 'status-red';
+        } else if (screensList.some(s => s.statusClass === 'at-risk')) {
+          featStatus = 'At Risk';
+          featBadgeClass = 'status-amber';
+        }
+
+        return {
+          feature: f,
+          screens: screensList,
+          status: featStatus,
+          badgeClass: featBadgeClass
+        };
+      });
+
+      // Compute percentages
+      const integrityPct = totalScreens > 0 ? Math.round((onTrackScreens / totalScreens) * 100) : 100;
+      const atRiskPct = totalScreens > 0 ? Math.round((atRiskScreens / totalScreens) * 100) : 0;
+      const overduePct = totalScreens > 0 ? Math.round((overdueScreens / totalScreens) * 100) : 0;
+
+      let featuresHtml = '';
+      if (featuresData.length === 0) {
+        featuresHtml = `
+          <div style="padding:40px 20px; text-align:center; color:var(--color-text-faint)">
+            <i data-lucide="package-open" style="width:32px; height:32px; margin-bottom:12px; stroke-width:1.5"></i>
+            <p style="margin:0; font-size:13px; font-weight:600">No Features mapped to this release</p>
+          </div>
+        `;
+      } else {
+        featuresData.forEach(fd => {
+          const { feature, screens, status, badgeClass } = fd;
+
+          let screensListHtml = '';
+          if (screens.length === 0) {
+            screensListHtml = `
+              <div style="padding:16px; text-align:center; color:var(--color-text-faint); font-size:11.5px">
+                No screen sub-tasks defined for this feature.
+              </div>
+            `;
+          } else {
+            screens.forEach(s => {
+              const statusCls = ST_CLS[s.status] || 'not-started';
+              
+              // Pulsing colors for status dots
+              let dotColor = 'var(--color-text-faint)';
+              if (s.statusClass === 'completed') dotColor = 'var(--green)';
+              else if (s.statusClass === 'in-progress') dotColor = '#3b82f6';
+              else if (s.statusClass === 'at-risk') dotColor = 'var(--amber)';
+              else if (s.statusClass === 'overdue') dotColor = 'var(--red)';
+
+              // Compute Assignee Initials Avatar color
+              const memberIdx = P.members.findIndex(m => m.name === s.assignee);
+              const avatarBg = PulseConstants.CC[memberIdx >= 0 ? memberIdx % PulseConstants.CC.length : 0];
+              const initials = s.assignee && s.assignee !== 'Unassigned' ? s.assignee.split(/\s+/).filter(Boolean).map(p => p[0]).join('').slice(0, 2).toUpperCase() : '??';
+
+              const relativeBadge = s.statusClass === 'overdue' 
+                ? `<span style="font-size:9px; font-weight:700; color:var(--red); background:rgba(239,68,68,0.1); padding:1px 4px; border-radius:3px; margin-left:6px">${s.relativeStatus}</span>`
+                : s.statusClass === 'at-risk'
+                  ? `<span style="font-size:9px; font-weight:700; color:var(--amber); background:rgba(245,158,11,0.1); padding:1px 4px; border-radius:3px; margin-left:6px">At Risk</span>`
+                  : '';
+
+              screensListHtml += `
+                <div class="screen-detail-row" onclick="closeAllFlyouts(); setTimeout(() => openScreenFlyout('${s.taskId}', '${s.screenId}', 'view'), 120)" style="display:grid; grid-template-columns: 1fr 100px 90px 24px; align-items:center; gap:12px; padding:8px 12px; border-bottom:1px solid var(--color-divider); font-size:12px; border-radius:6px; margin:2px 0; transition:background 0.15s ease, transform 0.15s ease; cursor:pointer;">
+                  <div style="display:flex; align-items:center; gap:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    <span class="status-pulse-dot ${s.statusClass === 'completed' ? '' : 'pulse'}" style="background:${dotColor}; width:6px; height:6px; border-radius:50%; position:relative; display:inline-block; flex-shrink:0;"></span>
+                    <span style="font-weight:600; color:var(--color-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(s.name)}">${esc(s.name)}</span>
+                    ${relativeBadge}
+                  </div>
+                  <div style="display:flex; align-items:center; gap:4px; color:var(--color-text-muted); font-size:11px; font-family:var(--font-mono); justify-self:start;">
+                    <i data-lucide="calendar" style="width:10px; height:10px; color:var(--color-text-faint)"></i>
+                    <span>${s.dueDate}</span>
+                  </div>
+                  <div style="justify-self:start;">
+                    <span class="badge ${statusCls}" style="font-size:9.5px; padding:2px 6px; border-radius:4px; display:inline-block; text-align:center; min-width:70px;">${s.status}</span>
+                  </div>
+                  <div class="avatar-badge" style="width:22px; height:22px; border-radius:50%; background:${avatarBg}22; color:${avatarBg}; display:flex; align-items:center; justify-content:center; font-size:8.5px; font-weight:800; border:1px solid ${avatarBg}44; flex-shrink:0; justify-self:end;" title="Assignee: ${esc(s.assignee)}">${initials}</div>
+                </div>
+              `;
+            });
+          }
+
+          featuresHtml += `
+            <div class="release-feat-card expanded" style="background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:8px; overflow:hidden; margin-bottom:12px; transition:border-color 0.2s ease;">
+              <div class="feat-collapse-header" onclick="window.toggleReleaseFeatureCollapsible(this)" style="background:rgba(var(--color-text-rgb), 0.01); padding:10px 14px; border-bottom:1px solid var(--color-divider); display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none">
+                <div style="display:flex; align-items:center; gap:8px">
+                  <i class="chevron-icon" data-lucide="chevron-right" style="width:14px; height:14px; color:var(--color-text-muted); transform:rotate(90deg); transition:transform 0.2s ease;"></i>
+                  <i data-lucide="box" style="width:13px; height:13px; color:var(--color-primary)"></i>
+                  <span style="font-weight:700; color:var(--color-text); font-size:12.5px">${esc(feature.name)}</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px">
+                  <span style="font-size:10px; color:var(--color-text-muted); font-family:var(--font-mono); font-weight:600">${screens.length} Screens</span>
+                  <span class="badge ${badgeClass}" style="font-size:9.5px; padding:1px 6px">${status}</span>
+                </div>
+              </div>
+              <div class="feat-collapse-body" style="max-height:2000px; opacity:1; overflow:hidden; transition:max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s linear; padding:6px;">
+                ${screensListHtml}
+              </div>
+            </div>
+          `;
+        });
+      }
+
+      flyout.innerHTML = `
+        <div style="padding:16px 20px; border-bottom:1px solid var(--color-divider); display:flex; justify-content:space-between; align-items:center">
+          <div>
+            <h3 style="margin:0; font-size:15px; font-weight:800; color:var(--color-text)">Mapped Assets</h3>
+            <div style="font-size:11.5px; color:var(--color-text-muted); margin-top:2px">Release: <span style="font-family:var(--font-mono); font-weight:700">${esc(r.name)}</span></div>
+          </div>
+          <button class="icon-btn close-btn" onclick="closeAllFlyouts()" style="border-radius:50%"><i data-lucide="x"></i></button>
+        </div>
+
+        <div style="padding:20px; display:flex; flex-direction:column; gap:20px; height:calc(100% - 64px); overflow-y:auto; box-sizing:border-box">
+          <!-- Overall Integrity Status Widget -->
+          <div style="background:var(--color-surface); border:1px solid var(--color-border); border-radius:10px; padding:14px; box-shadow:var(--shadow-sm)">
+            <h4 style="margin:0 0 10px 0; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--color-text-muted)">Schedule Integrity</h4>
+            
+            <div style="display:flex; align-items:baseline; gap:6px; margin-bottom:8px">
+              <span style="font-size:24px; font-weight:900; color:var(--color-text); font-family:var(--font-mono)">${integrityPct}%</span>
+              <span style="font-size:11px; color:var(--color-text-muted)">On Track</span>
+            </div>
+
+            <!-- Segmented Health bar -->
+            <div style="height:6px; background:var(--color-surface-3); border-radius:3px; overflow:hidden; display:flex; margin-bottom:14px">
+              <div style="width:${integrityPct}%; height:100%; background:var(--color-green)" title="On Track: ${integrityPct}%"></div>
+              <div style="width:${atRiskPct}%; height:100%; background:var(--color-amber)" title="At Risk: ${atRiskPct}%"></div>
+              <div style="width:${overduePct}%; height:100%; background:var(--color-red)" title="Overdue: ${overduePct}%"></div>
+            </div>
+
+            <!-- Stats grid -->
+            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px">
+              <div style="background:rgba(var(--color-text-rgb), 0.02); border:1px solid var(--color-border); border-radius:6px; padding:6px; text-align:center">
+                <div style="font-size:9.5px; color:var(--color-text-muted); font-weight:600">On Track</div>
+                <div style="font-size:14px; font-weight:800; color:var(--color-green); margin-top:2px">${onTrackScreens}</div>
+              </div>
+              <div style="background:rgba(var(--color-text-rgb), 0.02); border:1px solid var(--color-border); border-radius:6px; padding:6px; text-align:center">
+                <div style="font-size:9.5px; color:var(--color-text-muted); font-weight:600">At Risk</div>
+                <div style="font-size:14px; font-weight:800; color:var(--color-amber); margin-top:2px">${atRiskScreens}</div>
+              </div>
+              <div style="background:rgba(var(--color-text-rgb), 0.02); border:1px solid var(--color-border); border-radius:6px; padding:6px; text-align:center">
+                <div style="font-size:9.5px; color:var(--color-text-muted); font-weight:600">Overdue</div>
+                <div style="font-size:14px; font-weight:800; color:var(--color-red); margin-top:2px">${overdueScreens}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mapped Features list -->
+          <div>
+            <h4 style="margin:0 0 10px 0; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--color-text-muted)">Mapped Features &amp; Screens</h4>
+            ${featuresHtml}
+          </div>
+        </div>
+      `;
+
+      // Open Flyout
+      $id('flyout-overlay').classList.add('on');
+      flyout.classList.add('open');
+
+      if (window.lucide) lucide.createIcons(flyout);
+    }
+    window.openReleaseAssetsFlyout = openReleaseAssetsFlyout;
+
     function renderReleases() {
       const cont = $id('releases-container');
       if (!cont) return;
@@ -44876,73 +45168,73 @@ Earned Value Management measures project performance and progress by comparing p
       const unmappedFeatures = P.features.filter(f => !f.release).length;
 
       let html = `
-        <div style="width: 100%; padding: 24px; box-sizing: border-box;">
+        <div style="width: 100%; padding: 12px 16px; box-sizing: border-box;">
           
           <!-- Header block (no duplicate action buttons) -->
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
             <div>
-              <h2 style="margin:0; font-size:24px; font-weight:800; letter-spacing:-0.02em; color:var(--color-text)">Release Roadmap</h2>
-              <div style="color:var(--color-text-muted); font-size:14px; margin-top:4px">Define delivery cycles, track completion rates, and manage target dates.</div>
+              <h2 style="margin:0; font-size:20px; font-weight:800; letter-spacing:-0.02em; color:var(--color-text)">Release Roadmap</h2>
+              <div style="color:var(--color-text-muted); font-size:12.5px; margin-top:2px">Define delivery cycles, track completion rates, and manage target dates.</div>
             </div>
           </div>
 
           <!-- Compact Summary KPI Dashboard -->
-          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:24px">
-            <div class="card sc glass" style="padding:12px 16px; border-radius:10px; background:var(--color-surface); border:1px solid var(--color-border); box-shadow:var(--shadow-sm); display:flex; flex-direction:column; justify-content:space-between; min-height:82px">
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px; margin-bottom:14px">
+            <div class="card sc glass" style="padding:8px 12px; border-radius:8px; background:var(--color-surface); border:1px solid var(--color-border); box-shadow:var(--shadow-sm); display:flex; flex-direction:column; justify-content:space-between; min-height:64px">
               <div style="display:flex; align-items:center; justify-content:space-between">
-                <span style="font-size:11px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px">Total Cycles</span>
-                <div style="width:26px; height:26px; border-radius:6px; background:rgba(var(--color-primary-rgb), 0.08); color:var(--color-primary); display:flex; align-items:center; justify-content:center"><i data-lucide="flag" style="width:13px; height:13px"></i></div>
+                <span style="font-size:10px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px">Total Cycles</span>
+                <div style="width:22px; height:22px; border-radius:5px; background:rgba(var(--color-primary-rgb), 0.08); color:var(--color-primary); display:flex; align-items:center; justify-content:center"><i data-lucide="flag" style="width:11px; height:11px"></i></div>
               </div>
-              <div style="display:flex; align-items:baseline; gap:6px; margin-top:6px">
-                <div style="font-size:22px; font-weight:800; color:var(--color-text); font-family:var(--font-display); line-height:1">${totalR}</div>
-                <div style="font-size:10px; color:var(--color-text-faint)">milestones</div>
+              <div style="display:flex; align-items:baseline; gap:4px; margin-top:4px">
+                <div style="font-size:18px; font-weight:800; color:var(--color-text); font-family:var(--font-mono); line-height:1">${totalR}</div>
+                <div style="font-size:9.5px; color:var(--color-text-faint)">milestones</div>
               </div>
             </div>
             
-            <div class="card sc glass" style="padding:12px 16px; border-radius:10px; background:var(--color-surface); border:1px solid var(--color-border); box-shadow:var(--shadow-sm); display:flex; flex-direction:column; justify-content:space-between; min-height:82px">
+            <div class="card sc glass" style="padding:8px 12px; border-radius:8px; background:var(--color-surface); border:1px solid var(--color-border); box-shadow:var(--shadow-sm); display:flex; flex-direction:column; justify-content:space-between; min-height:64px">
               <div style="display:flex; align-items:center; justify-content:space-between">
-                <span style="font-size:11px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px">Active Cycles</span>
-                <div style="width:26px; height:26px; border-radius:6px; background:rgba(59, 130, 246, 0.08); color:#3b82f6; display:flex; align-items:center; justify-content:center"><i data-lucide="activity" style="width:13px; height:13px"></i></div>
+                <span style="font-size:10px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px">Active Cycles</span>
+                <div style="width:22px; height:22px; border-radius:5px; background:rgba(59, 130, 246, 0.08); color:#3b82f6; display:flex; align-items:center; justify-content:center"><i data-lucide="activity" style="width:11px; height:11px"></i></div>
               </div>
-              <div style="display:flex; align-items:baseline; gap:6px; margin-top:6px">
-                <div style="font-size:22px; font-weight:800; color:#3b82f6; font-family:var(--font-display); line-height:1">${activeR}</div>
-                <div style="font-size:10px; color:var(--color-text-faint)">active development</div>
+              <div style="display:flex; align-items:baseline; gap:4px; margin-top:4px">
+                <div style="font-size:18px; font-weight:800; color:#3b82f6; font-family:var(--font-mono); line-height:1">${activeR}</div>
+                <div style="font-size:9.5px; color:var(--color-text-faint)">active development</div>
               </div>
             </div>
 
-            <div class="card sc glass" style="padding:12px 16px; border-radius:10px; background:var(--color-surface); border:1px solid var(--color-border); box-shadow:var(--shadow-sm); display:flex; flex-direction:column; justify-content:space-between; min-height:82px">
+            <div class="card sc glass" style="padding:8px 12px; border-radius:8px; background:var(--color-surface); border:1px solid var(--color-border); box-shadow:var(--shadow-sm); display:flex; flex-direction:column; justify-content:space-between; min-height:64px">
               <div style="display:flex; align-items:center; justify-content:space-between">
-                <span style="font-size:11px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px">Released</span>
-                <div style="width:26px; height:26px; border-radius:6px; background:rgba(16, 185, 129, 0.08); color:var(--green); display:flex; align-items:center; justify-content:center"><i data-lucide="check-circle" style="width:13px; height:13px"></i></div>
+                <span style="font-size:10px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px">Released</span>
+                <div style="width:22px; height:22px; border-radius:5px; background:rgba(16, 185, 129, 0.08); color:var(--green); display:flex; align-items:center; justify-content:center"><i data-lucide="check-circle" style="width:11px; height:11px"></i></div>
               </div>
-              <div style="display:flex; align-items:baseline; gap:6px; margin-top:6px">
-                <div style="font-size:22px; font-weight:800; color:var(--green); font-family:var(--font-display); line-height:1">${releasedR}</div>
-                <div style="font-size:10px; color:var(--color-text-faint)">shipped cycles</div>
+              <div style="display:flex; align-items:baseline; gap:4px; margin-top:4px">
+                <div style="font-size:18px; font-weight:800; color:var(--green); font-family:var(--font-mono); line-height:1">${releasedR}</div>
+                <div style="font-size:9.5px; color:var(--color-text-faint)">shipped cycles</div>
               </div>
             </div>
 
-            <div class="card sc glass" style="padding:12px 16px; border-radius:10px; background:var(--color-surface); border:1px solid var(--color-border); box-shadow:var(--shadow-sm); display:flex; flex-direction:column; justify-content:space-between; min-height:82px">
+            <div class="card sc glass" style="padding:8px 12px; border-radius:8px; background:var(--color-surface); border:1px solid var(--color-border); box-shadow:var(--shadow-sm); display:flex; flex-direction:column; justify-content:space-between; min-height:64px">
               <div style="display:flex; align-items:center; justify-content:space-between">
-                <span style="font-size:11px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px">Backlog Features</span>
-                <div style="width:26px; height:26px; border-radius:6px; background:rgba(245, 158, 11, 0.08); color:var(--amber); display:flex; align-items:center; justify-content:center"><i data-lucide="alert-triangle" style="width:13px; height:13px"></i></div>
+                <span style="font-size:10px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px">Backlog Features</span>
+                <div style="width:22px; height:22px; border-radius:5px; background:rgba(245, 158, 11, 0.08); color:var(--amber); display:flex; align-items:center; justify-content:center"><i data-lucide="alert-triangle" style="width:11px; height:11px"></i></div>
               </div>
-              <div style="display:flex; align-items:baseline; gap:6px; margin-top:6px">
-                <div style="font-size:22px; font-weight:800; color:var(--amber); font-family:var(--font-display); line-height:1">${unmappedFeatures}</div>
-                <div style="font-size:10px; color:var(--color-text-faint)">unmapped items</div>
+              <div style="display:flex; align-items:baseline; gap:4px; margin-top:4px">
+                <div style="font-size:18px; font-weight:800; color:var(--amber); font-family:var(--font-mono); line-height:1">${unmappedFeatures}</div>
+                <div style="font-size:9.5px; color:var(--color-text-faint)">unmapped items</div>
               </div>
             </div>
           </div>
           
           <!-- Roadmap High-Density Grid Table -->
-          <div style="background:var(--color-surface-2); border:1px solid var(--color-divider); border-radius:16px; overflow:hidden; box-shadow:var(--shadow-sm)">
+          <div style="background:var(--color-surface-2); border:1px solid var(--color-divider); border-radius:8px; overflow:hidden; box-shadow:var(--shadow-sm)">
             <table class="grid-table" style="width:100%; border-collapse:collapse; text-align:left">
               <thead>
                 <tr style="background:rgba(var(--color-text-rgb), 0.02); border-bottom:1px solid var(--color-divider)">
-                  <th style="padding:16px 20px; font-size:12px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:30%">Release Version</th>
-                  <th style="padding:16px 20px; font-size:12px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:25%">Target Date</th>
-                  <th style="padding:16px 20px; font-size:12px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:20%">Status State</th>
-                  <th style="padding:16px 20px; font-size:12px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:15%">Mapped Assets</th>
-                  <th style="padding:16px 20px; font-size:12px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:10%; text-align:right">Actions</th>
+                  <th style="padding:8px 12px; font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:30%">Release Version</th>
+                  <th style="padding:8px 12px; font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:25%">Target Date</th>
+                  <th style="padding:8px 12px; font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:20%">Status State</th>
+                  <th style="padding:8px 12px; font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:15%">Mapped Assets</th>
+                  <th style="padding:8px 12px; font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:10%; text-align:right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -44951,12 +45243,12 @@ Earned Value Management measures project performance and progress by comparing p
       if (P.releases.length === 0) {
         html += `
           <tr>
-            <td colspan="5" style="padding:60px 20px; text-align:center; color:var(--color-text-muted)">
-              <div style="display:flex; flex-direction:column; align-items:center; gap:12px">
-                <div style="width:48px; height:48px; border-radius:50%; background:rgba(var(--color-text-rgb), 0.03); display:flex; align-items:center; justify-content:center; color:var(--color-text-faint)"><i data-lucide="flag" style="width:24px; height:24px"></i></div>
-                <div style="font-weight:700; font-size:15px; color:var(--color-text)">No Release Versions Defined</div>
-                <div style="font-size:12px; max-width:320px; line-height:1.5">Launch a release cycle to establish milestones and synchronize with the roadmap.</div>
-                <button onclick="addRelease()" class="btn primary mini" style="height:32px; font-weight:700; margin-top:8px">Create Initial Release</button>
+            <td colspan="5" style="padding:40px 12px; text-align:center; color:var(--color-text-muted)">
+              <div style="display:flex; flex-direction:column; align-items:center; gap:10px">
+                <div style="width:40px; height:40px; border-radius:50%; background:rgba(var(--color-text-rgb), 0.03); display:flex; align-items:center; justify-content:center; color:var(--color-text-faint)"><i data-lucide="flag" style="width:20px; height:20px"></i></div>
+                <div style="font-weight:700; font-size:14px; color:var(--color-text)">No Release Versions Defined</div>
+                <div style="font-size:11.5px; max-width:320px; line-height:1.5">Launch a release cycle to establish milestones and synchronize with the roadmap.</div>
+                <button onclick="addRelease()" class="btn primary mini" style="height:28px; font-weight:700; margin-top:6px">Create Initial Release</button>
               </div>
             </td>
           </tr>`;
@@ -44976,34 +45268,88 @@ Earned Value Management measures project performance and progress by comparing p
             statusBg = 'rgba(16, 185, 129, 0.1)';
           }
 
+          // Calculate schedule integrity metrics for the release
+          let totalScr = 0;
+          let onTimeScr = 0;
+          let atRiskScr = 0;
+          let overdueScr = 0;
+
+          const fList = P.features.filter(f => String(f.release || '').trim().toLowerCase() === versionKey);
+          fList.forEach(f => {
+            const fScreens = new Set(f.screens || []);
+            P.tasks.forEach(t => {
+              if (t.subtasks) {
+                t.subtasks.forEach(s => {
+                  if (s.type === 'screen' && fScreens.has(s.name)) {
+                    totalScr++;
+                    if (s.status === 'Completed' || s.done) {
+                      onTimeScr++;
+                    } else if (s.dueDate && r.date) {
+                      const delay = Math.ceil((new Date(s.dueDate) - new Date(r.date)) / 86400000);
+                      if (delay > 0) {
+                        overdueScr++;
+                      } else {
+                        const gap = Math.ceil((new Date(r.date) - new Date(s.dueDate)) / 86400000);
+                        if (gap >= 0 && gap <= 5) {
+                          atRiskScr++;
+                        } else {
+                          onTimeScr++;
+                        }
+                      }
+                    } else {
+                      onTimeScr++;
+                    }
+                  }
+                });
+              }
+            });
+          });
+
+          let scheduleIntegrityHtml = '';
+          if (totalScr > 0) {
+            const onTimePct = (onTimeScr / totalScr) * 100;
+            const atRiskPct = (atRiskScr / totalScr) * 100;
+            const overduePct = (overdueScr / totalScr) * 100;
+            scheduleIntegrityHtml = `
+              <div style="width:70px; height:3px; background:var(--color-surface-3); border-radius:1.5px; overflow:hidden; display:flex">
+                <div style="width:${onTimePct}%; height:100%; background:var(--color-green)"></div>
+                <div style="width:${atRiskPct}%; height:100%; background:var(--color-amber)"></div>
+                <div style="width:${overduePct}%; height:100%; background:var(--color-red)"></div>
+              </div>
+            `;
+          }
+
           html += `
             <tr class="zebra-row" style="border-bottom:1px solid var(--color-divider); transition:background 0.2s">
-              <td style="padding:14px 20px">
-                <div style="display:flex; align-items:center; gap:8px">
+              <td style="padding:6px 10px">
+                <div style="display:flex; align-items:center; gap:6px">
                   <span style="font-family:var(--font-mono); font-size:12px; color:var(--color-text-muted)">•</span>
-                  <input type="text" class="inp" value="${esc(r.name)}" onchange="updateRelease('${r.id}', 'name', this.value)" style="width:100%; font-weight:700; font-family:var(--font-mono); font-size:13px; background:transparent; border-color:transparent; padding:4px 8px; border-radius:6px; color:var(--color-text)" onfocus="this.style.background='var(--color-surface)'; this.style.borderColor='var(--color-divider)'" onblur="this.style.background='transparent'; this.style.borderColor='transparent'">
+                  <input type="text" class="inp" value="${esc(r.name)}" onchange="updateRelease('${r.id}', 'name', this.value)" style="width:100%; font-weight:700; font-family:var(--font-mono); font-size:12px; background:transparent; border-color:transparent; padding:2px 4px; border-radius:4px; color:var(--color-text)" onfocus="this.style.background='var(--color-surface)'; this.style.borderColor='var(--color-divider)'" onblur="this.style.background='transparent'; this.style.borderColor='transparent'">
                 </div>
               </td>
-              <td style="padding:14px 20px">
-                <input type="date" class="inp" value="${r.date || ''}" max="9999-12-31" onchange="updateRelease('${r.id}', 'date', this.value)" style="width:100%; font-size:12px; background:transparent; border-color:transparent; padding:4px 8px; border-radius:6px; color:var(--color-text)" onfocus="this.style.background='var(--color-surface)'; this.style.borderColor='var(--color-divider)'" onblur="this.style.background='transparent'; this.style.borderColor='transparent'">
+              <td style="padding:6px 10px">
+                <input type="date" class="inp" value="${r.date || ''}" max="9999-12-31" onchange="updateRelease('${r.id}', 'date', this.value)" style="width:100%; font-size:11px; background:transparent; border-color:transparent; padding:2px 4px; border-radius:4px; color:var(--color-text)" onfocus="this.style.background='var(--color-surface)'; this.style.borderColor='var(--color-divider)'" onblur="this.style.background='transparent'; this.style.borderColor='transparent'">
               </td>
-              <td style="padding:14px 20px">
+              <td style="padding:6px 10px">
                 <div style="position:relative; display:flex; align-items:center">
-                  <div style="width:6px; height:6px; border-radius:50%; background:${statusColor}; position:absolute; left:12px; pointer-events:none"></div>
-                  <select class="inp" onchange="updateRelease('${r.id}', 'status', this.value)" style="width:100%; font-size:12px; font-weight:700; padding:4px 8px 4px 26px; border-radius:6px; background:${statusBg}; color:${statusColor}; border:1px solid transparent; cursor:pointer" onfocus="this.style.borderColor='var(--color-divider)'" onblur="this.style.borderColor='transparent'">
+                  <div style="width:5px; height:5px; border-radius:50%; background:${statusColor}; position:absolute; left:8px; pointer-events:none"></div>
+                  <select class="inp" onchange="updateRelease('${r.id}', 'status', this.value)" style="width:100%; font-size:11px; font-weight:700; padding:2px 4px 2px 20px; border-radius:4px; background:${statusBg}; color:${statusColor}; border:1px solid transparent; cursor:pointer" onfocus="this.style.borderColor='var(--color-divider)'" onblur="this.style.borderColor='transparent'">
                     <option value="Planned" ${r.status === 'Planned' ? 'selected' : ''}>Planned</option>
                     <option value="Active" ${r.status === 'Active' ? 'selected' : ''}>Active</option>
                     <option value="Released" ${r.status === 'Released' ? 'selected' : ''}>Released</option>
                   </select>
                 </div>
               </td>
-              <td style="padding:14px 20px">
-                <span class="chip" style="font-size:11px; font-weight:700; background:rgba(var(--color-primary-rgb), 0.05); color:var(--color-primary); border:1px solid rgba(var(--color-primary-rgb), 0.1); padding:4px 8px; border-radius:6px">
-                  <i data-lucide="map" style="width:10px; height:10px; display:inline-block; margin-right:4px; vertical-align:-1px"></i> ${mappedCount} Features
-                </span>
+              <td style="padding:6px 10px">
+                <div style="display:flex; flex-direction:column; gap:4px">
+                  <button class="chip primary clickable" onclick="openReleaseAssetsFlyout('${r.id}')" style="font-size:10px; font-weight:700; background:rgba(var(--color-primary-rgb), 0.08); color:var(--color-primary); border:1px solid rgba(var(--color-primary-rgb), 0.15); padding:3px 6px; border-radius:4px; width:fit-content; cursor:pointer; display:inline-flex; align-items:center; gap:4px">
+                    <i data-lucide="map" style="width:10px; height:10px"></i> [${mappedCount} Features]
+                  </button>
+                  ${scheduleIntegrityHtml}
+                </div>
               </td>
-              <td style="padding:14px 20px; text-align:right">
-                <button class="mini-btn danger" onclick="deleteRelease('${r.id}')" title="Delete Release" style="border-radius:6px; width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center"><i data-lucide="trash-2" style="width:14px; height:14px"></i></button>
+              <td style="padding:6px 10px; text-align:right">
+                <button class="mini-btn danger" onclick="deleteRelease('${r.id}')" title="Delete Release" style="border-radius:4px; width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center"><i data-lucide="trash-2" style="width:12px; height:12px"></i></button>
               </td>
             </tr>
           `;
