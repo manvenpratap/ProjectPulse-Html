@@ -12172,11 +12172,12 @@
               <span id="def-link-id-label" style="font-size:14px; color:var(--color-text-faint)">Select target...</span>
               <i data-lucide="chevron-down" style="width:16px; height:16px; color:var(--color-text-faint)"></i>
             </div>
-            <div id="def-link-id-dropdown" class="search-select-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:6px; box-shadow:0 10px 25px rgba(0,0,0,0.15); z-index:1000; margin-top:4px; max-height:260px; display:flex; flex-direction:column; overflow:hidden">
-              <div style="padding:8px; border-bottom:1px solid var(--color-border); background:var(--color-surface-3)">
-                <input type="text" id="def-link-id-search" class="finp" placeholder="Search entity..." oninput="filterDefectLinkOptions()" style="width:100%; font-size:13px; height:32px; box-sizing:border-box">
+            <div id="def-link-id-dropdown" class="search-select-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:12px; box-shadow:var(--shadow-2xl); z-index:1000; margin-top:6px; max-height:280px; display:flex; flex-direction:column; overflow:hidden">
+              <div style="padding:10px; border-bottom:1px solid var(--color-border); background:var(--color-surface-3); display:flex; align-items:center; position:relative">
+                <i data-lucide="search" style="position:absolute; left:20px; width:14px; height:14px; color:var(--color-text-faint); pointer-events:none"></i>
+                <input type="text" id="def-link-id-search" class="finp" placeholder="Search entity..." oninput="filterDefectLinkOptions()" style="width:100%; font-size:13px; padding:8px 12px 8px 34px; border-radius:10px; border:1px solid var(--color-divider); background:var(--color-surface-2); color:var(--color-text); height:36px; box-sizing:border-box; outline:none; transition:border-color 0.2s" onfocus="this.style.borderColor='var(--color-primary)'; this.style.background='var(--color-surface)'" onblur="this.style.borderColor='var(--color-divider)'; this.style.background='var(--color-surface-2)'">
               </div>
-              <div id="def-link-id-options" style="overflow-y:auto; flex:1; max-height:200px"></div>
+              <div id="def-link-id-options" style="overflow-y:auto; flex:1; max-height:220px"></div>
             </div>
           </div>
         </div>
@@ -35578,19 +35579,30 @@ Earned Value Management measures project performance and progress by comparing p
       defectLinkOptionsData = [];
       if (type === 'Task') {
         P.tasks.forEach(t => {
-          defectLinkOptionsData.push({ val: t.id, label: `${t.id}: ${t.name.slice(0, 30)}` });
+          if (t) {
+            const tId = t.id ? String(t.id) : '';
+            const tName = t.name ? String(t.name) : '';
+            defectLinkOptionsData.push({ val: tId, label: `${tId}: ${tName.slice(0, 30)}` });
+          }
         });
       } else if (type === 'Subtask') {
         P.tasks.forEach(t => {
-          if (t.subtasks) {
+          if (t && t.subtasks) {
             t.subtasks.forEach(st => {
-              defectLinkOptionsData.push({ val: st.id, label: `${st.id}: ${st.name.slice(0, 30)}` });
+              if (st) {
+                const stId = st.id ? String(st.id) : '';
+                const stName = st.name ? String(st.name) : '';
+                defectLinkOptionsData.push({ val: stId, label: `${stId}: ${stName.slice(0, 30)}` });
+              }
             });
           }
         });
       } else if (type === 'Screen') {
         getAllScreens().forEach(s => {
-          defectLinkOptionsData.push({ val: s, label: s });
+          if (s) {
+            const sVal = String(s);
+            defectLinkOptionsData.push({ val: sVal, label: sVal });
+          }
         });
       }
 
@@ -35626,7 +35638,9 @@ Earned Value Management measures project performance and progress by comparing p
     function filterDefectLinkOptions() {
       const query = $id('def-link-id-search').value.toLowerCase().trim();
       const filtered = defectLinkOptionsData.filter(opt => {
-        return opt.val.toLowerCase().includes(query) || opt.label.toLowerCase().includes(query);
+        const valStr = opt.val ? String(opt.val).toLowerCase() : '';
+        const labelStr = opt.label ? String(opt.label).toLowerCase() : '';
+        return valStr.includes(query) || labelStr.includes(query);
       });
       renderDefectLinkOptionsList(filtered);
     }
@@ -35640,6 +35654,7 @@ Earned Value Management measures project performance and progress by comparing p
 
       if (!isVisible) {
         dd.style.setProperty('display', 'flex', 'important');
+        if (window.lucide) lucide.createIcons(dd);
         $id('def-link-id-search').focus();
         setTimeout(() => {
           document.addEventListener('click', handleDefectLinkClickOutside);
@@ -35667,25 +35682,26 @@ Earned Value Management measures project performance and progress by comparing p
       $id('def-link-id').value = val;
       const type = $id('def-link-type').value;
       let labelText = 'Select target...';
-      if (val) {
+      if (val !== undefined && val !== null && val !== '') {
+        const valStr = String(val);
         if (type === 'Task') {
-          const t = P.tasks.find(x => x.id === val);
-          if (t) labelText = `${t.id}: ${t.name.slice(0, 30)}`;
+          const t = P.tasks.find(x => x && String(x.id) === valStr);
+          if (t) labelText = `${t.id}: ${(t.name || '').slice(0, 30)}`;
         } else if (type === 'Subtask') {
           let found = null;
           P.tasks.forEach(t => {
-            if (t.subtasks) {
-              const st = t.subtasks.find(x => x.id === val);
+            if (t && t.subtasks) {
+              const st = t.subtasks.find(x => x && String(x.id) === valStr);
               if (st) found = st;
             }
           });
-          if (found) labelText = `${found.id}: ${found.name.slice(0, 30)}`;
+          if (found) labelText = `${found.id}: ${(found.name || '').slice(0, 30)}`;
         } else if (type === 'Screen') {
-          labelText = val;
+          labelText = valStr;
         }
       }
       $id('def-link-id-label').innerText = labelText;
-      if (val && labelText !== 'Select target...') {
+      if (val !== undefined && val !== null && val !== '' && labelText !== 'Select target...') {
         $id('def-link-id-label').style.color = 'var(--color-text)';
       } else {
         $id('def-link-id-label').style.color = 'var(--color-text-faint)';
