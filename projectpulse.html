@@ -12168,16 +12168,12 @@
           <div class="fg" style="position:relative">
             <label class="flbl">Target Entity</label>
             <input type="hidden" id="def-link-id">
-            <div id="def-link-id-trigger" class="finp search-select-trigger" onclick="toggleDefectLinkDropdown(event)" style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; background:var(--color-surface); min-height:36px; padding:6px 12px; border:1px solid var(--color-border); border-radius:6px; box-sizing:border-box">
-              <span id="def-link-id-label" style="font-size:14px; color:var(--color-text-faint)">Select target...</span>
-              <i data-lucide="chevron-down" style="width:16px; height:16px; color:var(--color-text-faint)"></i>
+            <div style="position:relative; display:flex; align-items:center; width:100%">
+              <i data-lucide="search" style="position:absolute; left:12px; width:14px; height:14px; color:var(--color-text-faint); pointer-events:none"></i>
+              <input type="text" id="def-link-id-search" class="finp" placeholder="Search target entity..." oninput="filterDefectLinkOptions()" onfocus="toggleDefectLinkDropdown(event); this.style.borderColor='var(--color-primary)'; this.style.background='var(--color-surface)'" onblur="this.style.borderColor='var(--color-divider)'; this.style.background='var(--color-surface-2)'" onclick="toggleDefectLinkDropdown(event)" autocomplete="off" style="width:100%; font-size:13px; padding:8px 12px 8px 34px; border-radius:10px; border:1px solid var(--color-divider); background:var(--color-surface-2); color:var(--color-text); height:36px; box-sizing:border-box; outline:none; transition:border-color 0.2s, background 0.2s">
             </div>
-            <div id="def-link-id-dropdown" class="search-select-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:12px; box-shadow:var(--shadow-2xl); z-index:1000; margin-top:6px; max-height:280px; display:flex; flex-direction:column; overflow:hidden">
-              <div style="padding:10px; border-bottom:1px solid var(--color-border); background:var(--color-surface-3); display:flex; align-items:center; position:relative">
-                <i data-lucide="search" style="position:absolute; left:20px; width:14px; height:14px; color:var(--color-text-faint); pointer-events:none"></i>
-                <input type="text" id="def-link-id-search" class="finp" placeholder="Search entity..." oninput="filterDefectLinkOptions()" style="width:100%; font-size:13px; padding:8px 12px 8px 34px; border-radius:10px; border:1px solid var(--color-divider); background:var(--color-surface-2); color:var(--color-text); height:36px; box-sizing:border-box; outline:none; transition:border-color 0.2s" onfocus="this.style.borderColor='var(--color-primary)'; this.style.background='var(--color-surface)'" onblur="this.style.borderColor='var(--color-divider)'; this.style.background='var(--color-surface-2)'">
-              </div>
-              <div id="def-link-id-options" style="overflow-y:auto; flex:1; max-height:220px"></div>
+            <div id="def-link-id-dropdown" class="search-select-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:12px; box-shadow:var(--shadow-2xl); z-index:1000; margin-top:6px; max-height:220px; overflow-y:auto">
+              <div id="def-link-id-options"></div>
             </div>
           </div>
         </div>
@@ -35648,14 +35644,14 @@ Earned Value Management measures project performance and progress by comparing p
     function toggleDefectLinkDropdown(event) {
       if (event) event.stopPropagation();
       const dd = $id('def-link-id-dropdown');
-      const isVisible = dd.style.display === 'flex';
-
-      closeDefectLinkDropdown();
+      if (!dd) return;
+      const isVisible = dd.style.display === 'block';
 
       if (!isVisible) {
-        dd.style.setProperty('display', 'flex', 'important');
+        dd.style.setProperty('display', 'block', 'important');
         if (window.lucide) lucide.createIcons(dd);
-        $id('def-link-id-search').focus();
+        $id('def-link-id-search').value = '';
+        renderDefectLinkOptionsList(defectLinkOptionsData);
         setTimeout(() => {
           document.addEventListener('click', handleDefectLinkClickOutside);
         }, 10);
@@ -35672,16 +35668,17 @@ Earned Value Management measures project performance and progress by comparing p
 
     function handleDefectLinkClickOutside(e) {
       const container = $id('def-link-id-dropdown');
-      const trigger = $id('def-link-id-trigger');
-      if (container && !container.contains(e.target) && !trigger.contains(e.target)) {
+      const searchInput = $id('def-link-id-search');
+      if (container && !container.contains(e.target) && !searchInput.contains(e.target)) {
         closeDefectLinkDropdown();
+        setDefectLinkValue($id('def-link-id').value);
       }
     }
 
     function setDefectLinkValue(val) {
       $id('def-link-id').value = val;
       const type = $id('def-link-type').value;
-      let labelText = 'Select target...';
+      let labelText = '';
       if (val !== undefined && val !== null && val !== '') {
         const valStr = String(val);
         if (type === 'Task') {
@@ -35700,12 +35697,7 @@ Earned Value Management measures project performance and progress by comparing p
           labelText = valStr;
         }
       }
-      $id('def-link-id-label').innerText = labelText;
-      if (val !== undefined && val !== null && val !== '' && labelText !== 'Select target...') {
-        $id('def-link-id-label').style.color = 'var(--color-text)';
-      } else {
-        $id('def-link-id-label').style.color = 'var(--color-text-faint)';
-      }
+      $id('def-link-id-search').value = labelText;
     }
 
     function selectDefectLinkOption(val, labelText) {
