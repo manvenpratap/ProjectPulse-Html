@@ -54309,16 +54309,96 @@ Earned Value Management measures project performance and progress by comparing p
           controls.style.right = '12px';
           controls.style.display = 'flex';
           controls.style.gap = '8px';
+          controls.style.zIndex = '10';
           controls.innerHTML = `
-            <button class="btn ghost outline mini" onclick="orgResetView()" title="Reset Pan & Zoom">⟲</button>
-            <button class="btn ghost outline mini" onclick="orgZoom(0.9)" title="Zoom Out">−</button>
-            <button class="btn ghost outline mini" onclick="orgZoom(1.1)" title="Zoom In">+</button>
+            <div style="display:flex;gap:4px;margin-right:8px;" class="org-mode-toggle">
+              <button class="btn ghost outline mini ${P._org?.mode !== 'radial' ? 'active' : ''}" id="btn_org_neighborhood" onclick="setOrgMode('neighborhood')" title="Focused Neighborhood" style="padding:2px 8px;font-size:10.5px">Neighborhood</button>
+              <button class="btn ghost outline mini ${P._org?.mode === 'radial' ? 'active' : ''}" id="btn_org_radial" onclick="setOrgMode('radial')" title="Radial Layout" style="padding:2px 8px;font-size:10.5px">Radial</button>
+            </div>
+            <button class="btn ghost outline mini" onclick="orgResetView()" title="Reset Pan & Zoom" style="padding:2px 6px">⟲</button>
+            <button class="btn ghost outline mini" onclick="orgZoom(0.9)" title="Zoom Out" style="padding:2px 6px">−</button>
+            <button class="btn ghost outline mini" onclick="orgZoom(1.1)" title="Zoom In" style="padding:2px 6px">+</button>
           `;
           canvasWrap.appendChild(controls);
+
+          const searchContainer = document.createElement('div');
+          searchContainer.style.position = 'absolute';
+          searchContainer.style.top = '12px';
+          searchContainer.style.left = '12px';
+          searchContainer.style.display = 'flex';
+          searchContainer.style.flexDirection = 'column';
+          searchContainer.style.zIndex = '10';
+          searchContainer.innerHTML = `
+            <div style="position:relative">
+              <input type="text" placeholder="Search member..." class="inp mini" style="width:160px;background:var(--color-surface);color:var(--color-text);border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:4px 8px;font-size:11px" id="org_member_search" oninput="onOrgSearchInput(this.value)">
+              <div id="org_search_results" class="glass" style="position:absolute;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-sm);display:none;z-index:20;margin-top:4px;box-shadow:var(--shadow-lg)"></div>
+            </div>
+          `;
+          canvasWrap.appendChild(searchContainer);
+
           orgBody.appendChild(canvasWrap);
 
-          if (!P._org) P._org = { panX: 200, panY: 60, zoom: 0.6, drag: false, lastX: 0, lastY: 0 };
+          if (!P._org) P._org = { panX: 200, panY: 60, zoom: 0.6, drag: false, lastX: 0, lastY: 0, mode: 'neighborhood', focusId: '' };
+          if (!P._org.mode) P._org.mode = 'neighborhood';
+          if (!P._org.focusId && roots.length > 0) P._org.focusId = roots[0].id;
           P._org.isCentered = false;
+
+          window.setOrgMode = (mode) => {
+            P._org.mode = mode;
+            P._org.isCentered = false;
+            const btnNeigh = canvasWrap.querySelector('#btn_org_neighborhood');
+            const btnRadial = canvasWrap.querySelector('#btn_org_radial');
+            if (btnNeigh && btnRadial) {
+              if (mode === 'neighborhood') {
+                btnNeigh.classList.add('active');
+                btnRadial.classList.remove('active');
+              } else {
+                btnNeigh.classList.remove('active');
+                btnRadial.classList.add('active');
+              }
+            }
+            if (window.orgResetView) window.orgResetView();
+          };
+
+          window.onOrgSearchInput = (val) => {
+            const resultsDiv = canvasWrap.querySelector('#org_search_results');
+            if (!resultsDiv) return;
+            if (!val.trim()) {
+              resultsDiv.style.display = 'none';
+              return;
+            }
+            const query = val.toLowerCase().trim();
+            const matches = P.members.filter(m => 
+              m.name.toLowerCase().includes(query) || 
+              (m.role && m.role.toLowerCase().includes(query))
+            );
+            if (matches.length === 0) {
+              resultsDiv.innerHTML = '<div style="padding:6px 10px;font-size:10px;color:var(--color-text-muted)">No matches</div>';
+            } else {
+              resultsDiv.innerHTML = matches.map(m => `
+                <div class="search-item" onclick="onSelectOrgSearchMember('${m.id}')" style="padding:6px 10px;font-size:11px;cursor:pointer;border-bottom:1px solid var(--color-border);color:var(--color-text);transition:background 0.15s ease" onmouseover="this.style.background='var(--color-surface-hover)'" onmouseout="this.style.background='transparent'">
+                  <div style="font-weight:600">${esc(m.name)}</div>
+                  <div style="font-size:9px;color:var(--color-text-muted)">${esc(m.role || 'Member')}</div>
+                </div>
+              `).join('');
+            }
+            resultsDiv.style.display = 'block';
+          };
+
+          window.onSelectOrgSearchMember = (id) => {
+            const resultsDiv = canvasWrap.querySelector('#org_search_results');
+            const searchInp = canvasWrap.querySelector('#org_member_search');
+            if (resultsDiv) resultsDiv.style.display = 'none';
+            if (searchInp) searchInp.value = '';
+            
+            P._org.focusId = id;
+            if (P._org.mode === 'neighborhood') {
+              P._org.isCentered = false;
+            } else {
+              P._org.isCentered = false; 
+            }
+            renderCanvas();
+          };
 
           const DIST_X = 145;
           const gap = 36;
@@ -54470,182 +54550,239 @@ Earned Value Management measures project performance and progress by comparing p
             const treeRoots = buildTree();
             const DIST_Y = 80;
 
-            // Separate main roots from isolated/dangling roots
-            const mainRoots = [];
-            const danglingNodes = [];
-            treeRoots.forEach(r => {
-              if (r.children.length > 0) {
-                mainRoots.push(r);
-              } else {
-                danglingNodes.push(r);
-              }
-            });
+            let allNodesList = [];
 
-            let finalMainRoots = mainRoots;
-            let finalDangling = danglingNodes;
-            if (mainRoots.length === 0) {
-              finalMainRoots = treeRoots;
-              finalDangling = [];
+            // Set up all node widths dynamically first
+            const measureNodeWidths = (rootsList) => {
+              const list = [];
+              const collect = (n) => {
+                list.push(n);
+                n.children.forEach(collect);
+              };
+              rootsList.forEach(collect);
+              
+              ctx.font = 'bold 11px var(--font-display)';
+              list.forEach(n => {
+                const nameW = ctx.measureText(n.name).width;
+                ctx.font = '600 8px var(--font-body)';
+                const roleW = ctx.measureText(n.role.toUpperCase()).width;
+                ctx.font = 'bold 11px var(--font-display)';
+                n.nodeW = Math.max(145, Math.ceil(Math.max(nameW, roleW) + 40));
+                n.nodeH = 46;
+              });
+            };
+
+            measureNodeWidths(treeRoots);
+
+            let focusedNode = null;
+            if (P._org.mode === 'neighborhood') {
+              const findNode = (n) => {
+                if (n.id === P._org.focusId) { focusedNode = n; return; }
+                n.children.forEach(findNode);
+              };
+              treeRoots.forEach(findNode);
+              if (!focusedNode && treeRoots.length > 0) {
+                focusedNode = treeRoots[0];
+                P._org.focusId = focusedNode.id;
+              }
             }
 
-            // Measure all node text lengths dynamically first so we can allocate proper widths
-            ctx.font = 'bold 11px var(--font-display)';
-            const allNodesList = [];
-            const collectNodes = (node) => {
-              allNodesList.push(node);
-              if (!node.isCollapsed) node.children.forEach(collectNodes);
-            };
-            finalMainRoots.forEach(collectNodes);
-            finalDangling.forEach(node => {
-              allNodesList.push(node);
-            });
+            if (P._org.mode === 'radial') {
+              // Radial layout setup
+              const countSubtree = (n) => {
+                let cnt = 1;
+                n.children.forEach(c => { cnt += countSubtree(c); });
+                return cnt;
+              };
 
-            allNodesList.forEach(n => {
-              const nameW = ctx.measureText(n.name).width;
-              ctx.font = '600 8px var(--font-body)';
-              const roleW = ctx.measureText(n.role.toUpperCase()).width;
-              ctx.font = 'bold 11px var(--font-display)'; // restore standard node font
-              n.nodeW = Math.max(145, Math.ceil(Math.max(nameW, roleW) + 40));
-              n.nodeH = 46;
-            });
+              const radialLayout = (n, startAngle, endAngle, depth) => {
+                const RADIUS_STEP = 150;
+                const r = depth * RADIUS_STEP;
+                const theta = (startAngle + endAngle) / 2;
+                n.x = (r * Math.cos(theta)) / DIST_X;
+                n.y = (r * Math.sin(theta)) / DIST_Y;
 
-            // Find horizontal positions (relative layout widths based on dynamic node width metrics)
-            finalMainRoots.forEach((root, i) => {
-              firstWalk(root, 1.25);
-              if (i === 0) {
-                secondWalk(root, 0);
-              } else {
-                let maxPhysicalRight = 0;
-                for (let j = 0; j < i; j++) {
-                  const prevNodes = [];
-                  const collect = (n) => {
-                    prevNodes.push(n);
-                    if (!n.isCollapsed) n.children.forEach(collect);
-                  };
-                  collect(finalMainRoots[j]);
-                  prevNodes.forEach(n => {
-                    const right = n.x * DIST_X + getNodeEffectiveWidth(n);
-                    if (right > maxPhysicalRight) maxPhysicalRight = right;
+                if (n.children.length > 0 && !n.isCollapsed) {
+                  const totalWeight = n.children.reduce((acc, curr) => acc + countSubtree(curr), 0);
+                  let currentAngle = startAngle;
+                  n.children.forEach(c => {
+                    const w = countSubtree(c);
+                    const angleSpan = (endAngle - startAngle) * (w / totalWeight);
+                    radialLayout(c, currentAngle, currentAngle + angleSpan, depth + 1);
+                    currentAngle += angleSpan;
                   });
                 }
-                
-                secondWalk(root, 0);
-                const currentNodes = [];
-                const collectCurr = (n) => {
-                  currentNodes.push(n);
-                  if (!n.isCollapsed) n.children.forEach(collectCurr);
-                };
-                collectCurr(root);
-                
-                let requiredM = 0;
-                currentNodes.forEach(n => {
-                  const mNeeded = (maxPhysicalRight + gap) / DIST_X - n.x;
-                  if (mNeeded > requiredM) requiredM = mNeeded;
-                });
-                
-                secondWalk(root, requiredM);
-              }
-            });
+              };
 
-            // Bounding box of the main tree to place dangling nodes below it
-            let minX = 0, maxX = 0, maxY = 0;
-            const mainNodes = [];
-            const collectMain = (node) => {
-              mainNodes.push(node);
-              if (!node.isCollapsed) node.children.forEach(collectMain);
-            };
-            finalMainRoots.forEach(collectMain);
-
-            if (mainNodes.length > 0) {
-              minX = Math.min(...mainNodes.map(n => n.x));
-              maxX = Math.max(...mainNodes.map(n => n.x));
-              maxY = Math.max(...mainNodes.map(n => n.y));
-            }
-
-            if (finalDangling.length > 0) {
-              const cols = Math.min(4, Math.ceil(finalDangling.length / 2) || 1);
-              const midX = mainNodes.length > 0 ? (minX + maxX) / 2 : 0;
-              const maxDanglingW = Math.max(...finalDangling.map(n => getNodeEffectiveWidth(n)));
-              const colWidthCoord = (maxDanglingW + gap) / DIST_X;
-              const rowHeightCoord = 0.9;
-              const startGridX_coord = midX - (cols - 1) * colWidthCoord / 2;
-              const startGridY = mainNodes.length > 0 ? maxY + 1.6 : 0.5;
-
-              finalDangling.forEach((node, idx) => {
-                const col = idx % cols;
-                const row = Math.floor(idx / cols);
-                node.x = startGridX_coord + col * colWidthCoord;
-                node.y = startGridY + row * rowHeightCoord;
-                node.depth = 1;
+              const totalWeight = treeRoots.reduce((acc, curr) => acc + countSubtree(curr), 0);
+              let currentAngle = 0;
+              treeRoots.forEach(r => {
+                const w = countSubtree(r);
+                const angleSpan = 2 * Math.PI * (w / totalWeight);
+                if (treeRoots.length === 1) {
+                  r.x = 0; r.y = 0;
+                  radialLayout(r, 0, 2 * Math.PI, 1);
+                } else {
+                  const rDist = 70;
+                  const theta = (currentAngle + currentAngle + angleSpan) / 2;
+                  r.x = (rDist * Math.cos(theta)) / DIST_X;
+                  r.y = (rDist * Math.sin(theta)) / DIST_Y;
+                  radialLayout(r, currentAngle, currentAngle + angleSpan, 1.5);
+                }
+                currentAngle += angleSpan;
               });
+
+              const collectAll = (n) => {
+                allNodesList.push(n);
+                if (!n.isCollapsed) n.children.forEach(collectAll);
+              };
+              treeRoots.forEach(collectAll);
+
+            } else {
+              // Focused Neighborhood layout setup
+              if (focusedNode) {
+                const parentNode = focusedNode.parent;
+                const siblings = parentNode ? parentNode.children.filter(c => c.id !== focusedNode.id) : [];
+                const children = focusedNode.children;
+
+                focusedNode.x = 0;
+                focusedNode.y = 1;
+                focusedNode.depth = 1;
+                allNodesList.push(focusedNode);
+
+                if (parentNode) {
+                  parentNode.x = 0;
+                  parentNode.y = 0;
+                  parentNode.depth = 0;
+                  allNodesList.push(parentNode);
+                }
+
+                const spacing = 1.35;
+                siblings.forEach((sib, idx) => {
+                  sib.y = 1;
+                  sib.depth = 1;
+                  if (idx % 2 === 0) {
+                    sib.x = -(Math.floor(idx / 2) + 1) * spacing;
+                  } else {
+                    sib.x = (Math.floor(idx / 2) + 1) * spacing;
+                  }
+                  allNodesList.push(sib);
+                });
+
+                const K = children.length;
+                const startX = -((K - 1) * spacing) / 2;
+                children.forEach((c, idx) => {
+                  c.x = startX + idx * spacing;
+                  c.y = 2;
+                  c.depth = 2;
+                  allNodesList.push(c);
+                });
+              }
             }
 
-            // Find node with the lowest numeric ID for centering
-            let minIdNode = null;
-            if (allNodesList.length > 0) {
-              minIdNode = allNodesList.reduce((acc, curr) => {
-                const accId = parseInt(acc.id) || 0;
-                const currId = parseInt(curr.id) || 0;
-                return currId < accId ? curr : acc;
-              }, allNodesList[0]);
-            }
-
-            // Save to state for clicks
             P._org.renderedNodes = allNodesList;
 
             ctx.save();
             ctx.translate(P._org.panX, P._org.panY);
             ctx.scale(P._org.zoom, P._org.zoom);
 
-            const drawLines = (n) => {
-              if (n.isCollapsed) return;
-              n.children.forEach(c => {
-                const x1 = n.x * DIST_X + n.nodeW / 2;
-                const y1 = n.y * DIST_Y + n.nodeH;
-                const x2 = c.x * DIST_X + c.nodeW / 2;
-                const y2 = c.y * DIST_Y;
+            // Draw Connection Lines
+            if (P._org.mode === 'radial') {
+              const drawLinesRadial = (n) => {
+                if (n.isCollapsed) return;
+                n.children.forEach(c => {
+                  const x1 = n.x * DIST_X + n.nodeW / 2;
+                  const y1 = n.y * DIST_Y + n.nodeH / 2;
+                  const x2 = c.x * DIST_X + c.nodeW / 2;
+                  const y2 = c.y * DIST_Y + c.nodeH / 2;
 
-                ctx.beginPath();
-                ctx.moveTo(x1, y1);
-                const midY = (y1 + y2) / 2;
-                ctx.lineTo(x1, midY);
-                ctx.lineTo(x2, midY);
-                ctx.lineTo(x2, y2);
-                ctx.strokeStyle = cBorder; ctx.lineWidth = 1.2;
-                ctx.stroke();
-                drawLines(c);
-              });
-            };
+                  ctx.beginPath();
+                  ctx.moveTo(x1, y1);
+                  ctx.lineTo(x2, y2);
+                  ctx.strokeStyle = cBorder; ctx.lineWidth = 1.2;
+                  ctx.stroke();
+                  drawLinesRadial(c);
+                });
+              };
+              treeRoots.forEach(drawLinesRadial);
+            } else {
+              // Neighborhood mode orthogonal lines
+              if (focusedNode) {
+                const parentNode = focusedNode.parent;
+                const children = focusedNode.children;
 
+                if (parentNode) {
+                  const x1 = parentNode.x * DIST_X + parentNode.nodeW / 2;
+                  const y1 = parentNode.y * DIST_Y + parentNode.nodeH;
+                  const siblings = parentNode.children.filter(c => c.id !== focusedNode.id);
+
+                  [focusedNode, ...siblings].forEach(c => {
+                    const x2 = c.x * DIST_X + c.nodeW / 2;
+                    const y2 = c.y * DIST_Y;
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    const midY = (y1 + y2) / 2;
+                    ctx.lineTo(x1, midY);
+                    ctx.lineTo(x2, midY);
+                    ctx.lineTo(x2, y2);
+                    ctx.strokeStyle = cBorder; ctx.lineWidth = 1.2;
+                    ctx.stroke();
+                  });
+                }
+
+                if (children.length > 0) {
+                  const x1 = focusedNode.x * DIST_X + focusedNode.nodeW / 2;
+                  const y1 = focusedNode.y * DIST_Y + focusedNode.nodeH;
+
+                  children.forEach(c => {
+                    const x2 = c.x * DIST_X + c.nodeW / 2;
+                    const y2 = c.y * DIST_Y;
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    const midY = (y1 + y2) / 2;
+                    ctx.lineTo(x1, midY);
+                    ctx.lineTo(x2, midY);
+                    ctx.lineTo(x2, y2);
+                    ctx.strokeStyle = cBorder; ctx.lineWidth = 1.2;
+                    ctx.stroke();
+                  });
+                }
+              }
+            }
+
+            // Draw Cards
             const drawNodes = (n) => {
               const px = n.x * DIST_X, py = n.y * DIST_Y;
               
-              // Soft premium shadow
               ctx.shadowColor = 'rgba(0, 0, 0, 0.06)';
               ctx.shadowBlur = 12;
               ctx.shadowOffsetY = 4;
               
-              // Card fill
               ctx.beginPath();
               ctx.roundRect(px, py, n.nodeW, n.nodeH, 6);
               ctx.fillStyle = cSurf;
               ctx.fill();
               ctx.shadowBlur = 0; // reset shadow
 
-              // Left colored accent border (using level color)
+              // Focused node colored outer ring/border
+              if (P._org.mode === 'neighborhood' && n.id === P._org.focusId) {
+                ctx.strokeStyle = CC[n.depth % CC.length];
+                ctx.lineWidth = 2.2;
+              } else {
+                ctx.strokeStyle = cBorder;
+                ctx.lineWidth = 1;
+              }
+              ctx.beginPath();
+              ctx.roundRect(px, py, n.nodeW, n.nodeH, 6);
+              ctx.stroke();
+
+              // Left colored accent border
               ctx.fillStyle = CC[n.depth % CC.length];
               ctx.beginPath();
               ctx.roundRect(px, py, 3.5, n.nodeH, { tl: 6, bl: 6, tr: 0, br: 0 });
               ctx.fill();
 
-              // Card subtle border
-              ctx.strokeStyle = cBorder;
-              ctx.lineWidth = 1;
-              ctx.beginPath();
-              ctx.roundRect(px, py, n.nodeW, n.nodeH, 6);
-              ctx.stroke();
-
-              // Render text (Name & Role)
+              // Render text
               ctx.fillStyle = cText;
               ctx.font = 'bold 11px var(--font-display), sans-serif';
               ctx.fillText(n.name, px + 12, py + 18);
@@ -54654,14 +54791,14 @@ Earned Value Management measures project performance and progress by comparing p
               ctx.font = '600 7.5px var(--font-body), sans-serif';
               ctx.fillText(n.role.toUpperCase(), px + 12, py + 31);
 
-              // Circular User Initials Avatar on the right side
+              // Circular avatar
               const initials = n.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
               ctx.save();
               ctx.beginPath();
               ctx.arc(px + n.nodeW - 22, py + n.nodeH / 2, 10, 0, Math.PI * 2);
-              ctx.fillStyle = CC[n.depth % CC.length] + '18'; // 9% opacity background
+              ctx.fillStyle = CC[n.depth % CC.length] + '18';
               ctx.fill();
-              ctx.strokeStyle = CC[n.depth % CC.length] + '55'; // border
+              ctx.strokeStyle = CC[n.depth % CC.length] + '55';
               ctx.lineWidth = 1;
               ctx.stroke();
 
@@ -54672,8 +54809,20 @@ Earned Value Management measures project performance and progress by comparing p
               ctx.fillText(initials, px + n.nodeW - 22, py + n.nodeH / 2);
               ctx.restore();
 
-              // Collapsed state toggler (centered bottom)
-              if (n.children.length > 0) {
+              // +X reports indicator in neighborhood mode
+              if (P._org.mode === 'neighborhood' && n.id !== P._org.focusId) {
+                const reportsCount = P.members.filter(m => m.reportsTo === n.name).length;
+                if (reportsCount > 0) {
+                  ctx.save();
+                  ctx.fillStyle = CC[n.depth % CC.length];
+                  ctx.font = 'bold 7.5px var(--font-body), sans-serif';
+                  ctx.fillText(`👁 ${reportsCount} REPORTS`, px + 12, py + n.nodeH - 6);
+                  ctx.restore();
+                }
+              }
+
+              // Collapsed state toggler (centered bottom) - only in radial mode
+              if (P._org.mode === 'radial' && n.children.length > 0) {
                 const toggleX = px + n.nodeW / 2;
                 const toggleY = py + n.nodeH;
 
@@ -54693,55 +54842,35 @@ Earned Value Management measures project performance and progress by comparing p
                 ctx.fillText(n.isCollapsed ? '+' : '−', toggleX, toggleY + 0.5);
                 ctx.restore();
               }
-
-              if (!n.isCollapsed) n.children.forEach(drawNodes);
             };
 
-            // Draw lines and nodes for main roots
-            finalMainRoots.forEach(r => { drawLines(r); drawNodes(r); });
-
-            // Draw divider and title if dangling nodes exist
-            if (finalDangling.length > 0 && finalMainRoots.length > 0) {
-              const lineY = (maxY + 0.9) * DIST_Y;
-              const midX = (minX + maxX) / 2;
-              
-              ctx.save();
-              ctx.strokeStyle = cBorder;
-              ctx.lineWidth = 1.2;
-              ctx.setLineDash([4, 4]);
-              ctx.beginPath();
-              ctx.moveTo((minX - 1.5) * DIST_X, lineY);
-              ctx.lineTo((maxX + 2.5) * DIST_X, lineY);
-              ctx.stroke();
-              ctx.restore();
-
-              ctx.save();
-              ctx.fillStyle = cMuted;
-              ctx.font = 'bold 8px var(--font-display), sans-serif';
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              ctx.fillText('INDEPENDENT / UNCONNECTED MEMBERS', midX * DIST_X + 60, lineY + 16);
-              ctx.restore();
-            }
-
-            // Draw dangling nodes
-            finalDangling.forEach(r => { drawNodes(r); });
+            allNodesList.forEach(drawNodes);
 
             ctx.restore();
 
-            // Set up dynamic reset view centering the minIdNode at the top center
+            // Set up dynamic reset view
             window.orgResetView = () => {
               const canvasWrapWidth = canvasWrap.clientWidth;
               const canvasWrapHeight = canvasWrap.clientHeight;
-              const targetZoom = 0.85;
-              let targetX = 0;
-              let targetY = 0;
-              if (minIdNode) {
-                targetX = (canvasWrapWidth / 2) - (minIdNode.x * DIST_X + minIdNode.nodeW / 2) * targetZoom;
-                targetY = 40;
+              const targetZoom = P._org.mode === 'radial' ? 0.75 : 0.85;
+              let targetX = 0, targetY = 0;
+              
+              if (P._org.mode === 'radial') {
+                targetX = canvasWrapWidth / 2;
+                targetY = canvasWrapHeight / 2;
               } else {
-                targetX = (canvasWrapWidth - 140 * targetZoom) / 2;
-                targetY = 40;
+                let currentFocusNode = null;
+                const findNode = (n) => {
+                  if (n.id === P._org.focusId) { currentFocusNode = n; return; }
+                  n.children.forEach(findNode);
+                };
+                treeRoots.forEach(findNode);
+                if (!currentFocusNode && treeRoots.length > 0) currentFocusNode = treeRoots[0];
+
+                const nodeW = currentFocusNode ? currentFocusNode.nodeW : 145;
+                const nodeH = currentFocusNode ? currentFocusNode.nodeH : 46;
+                targetX = canvasWrapWidth / 2 - (0 * DIST_X + nodeW / 2) * targetZoom;
+                targetY = canvasWrapHeight / 2 - (1 * DIST_Y + nodeH / 2) * targetZoom;
               }
               P._org.panX = targetX;
               P._org.panY = targetY;
