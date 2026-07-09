@@ -54324,16 +54324,7 @@ Earned Value Management measures project performance and progress by comparing p
           const gap = 36;
 
           const getNodeEffectiveWidth = (n) => {
-            let maxW = n.nodeW || 145;
-            if (n.children && n.children.length > 0 && !n.isCollapsed) {
-              n.children.forEach(c => {
-                if (c.isVerticalLeaf) {
-                  const leafW = 36.25 + getNodeEffectiveWidth(c);
-                  if (leafW > maxW) maxW = leafW;
-                }
-              });
-            }
-            return maxW;
+            return n.nodeW || 145;
           };
 
           class ONode {
@@ -54345,8 +54336,6 @@ Earned Value Management measures project performance and progress by comparing p
               this.ancestor = this; this.thread = null;
               this.change = 0; this.shift = 0;
               this.isCollapsed = P.collapsedNodes.has(m.id);
-              this.isVerticalLeaf = false;
-              this.verticalIndex = 0;
             }
             getLeftSibling() { return (this.parent && this.number > 0) ? this.parent.children[this.number - 1] : null; }
             getLeftMostSibling() { return (this.parent && this.number > 0) ? this.parent.children[0] : null; }
@@ -54366,28 +54355,10 @@ Earned Value Management measures project performance and progress by comparing p
                 treeRoots.push(node);
               }
             });
-
-            // Tag vertical flag early
-            const checkVertical = (node) => {
-              if (node.children.length > 3 && !node.isCollapsed) {
-                node.children.forEach((c, idx) => {
-                  c.isVerticalLeaf = true;
-                  c.verticalIndex = idx;
-                });
-              }
-              node.children.forEach(checkVertical);
-            };
-            treeRoots.forEach(checkVertical);
-
             return treeRoots;
           };
 
           const firstWalk = (v, distance) => {
-            if (v.isVerticalLeaf) {
-              v.prelim = 0;
-              return;
-            }
-
             if (v.children.length === 0 || v.isCollapsed) {
               const left = v.getLeftSibling();
               const leftNodeWidth = left ? getNodeEffectiveWidth(left) : 0;
@@ -54395,30 +54366,23 @@ Earned Value Management measures project performance and progress by comparing p
               v.prelim = left ? left.prelim + dist : 0;
             } else {
               let defaultAncestor = v.children[0];
-              const activeChildren = v.children.filter(c => !c.isVerticalLeaf);
+              const activeChildren = v.children;
 
-              if (activeChildren.length > 0) {
-                activeChildren.forEach(c => {
-                  c.depth = v.depth + 1;
-                  firstWalk(c, distance);
-                  defaultAncestor = apportion(c, defaultAncestor, gap);
-                });
-                executeShifts(v);
-                const mid = (activeChildren[0].prelim + activeChildren[activeChildren.length - 1].prelim) / 2;
-                const left = v.getLeftSibling();
-                if (left) {
-                  const leftNodeWidth = getNodeEffectiveWidth(left);
-                  const dist = (leftNodeWidth + gap) / DIST_X;
-                  v.prelim = left.prelim + dist;
-                  v.mod = v.prelim - mid;
-                } else {
-                  v.prelim = mid;
-                }
+              activeChildren.forEach(c => {
+                c.depth = v.depth + 1;
+                firstWalk(c, distance);
+                defaultAncestor = apportion(c, defaultAncestor, gap);
+              });
+              executeShifts(v);
+              const mid = (activeChildren[0].prelim + activeChildren[activeChildren.length - 1].prelim) / 2;
+              const left = v.getLeftSibling();
+              if (left) {
+                const leftNodeWidth = getNodeEffectiveWidth(left);
+                const dist = (leftNodeWidth + gap) / DIST_X;
+                v.prelim = left.prelim + dist;
+                v.mod = v.prelim - mid;
               } else {
-                const left = v.getLeftSibling();
-                const leftNodeWidth = left ? getNodeEffectiveWidth(left) : 0;
-                const dist = left ? (leftNodeWidth + gap) / DIST_X : 0;
-                v.prelim = left ? left.prelim + dist : 0;
+                v.prelim = mid;
               }
             }
           };
@@ -54461,7 +54425,7 @@ Earned Value Management measures project performance and progress by comparing p
 
           const executeShifts = (v) => {
             let shift = 0, change = 0;
-            const activeChildren = v.children.filter(c => !c.isVerticalLeaf);
+            const activeChildren = v.children;
             for (let i = activeChildren.length - 1; i >= 0; i--) {
               const c = activeChildren[i];
               c.prelim += shift; c.mod += shift;
@@ -54470,23 +54434,16 @@ Earned Value Management measures project performance and progress by comparing p
           };
 
           const nextLeft = (v) => {
-            const activeChildren = v.children.filter(c => !c.isVerticalLeaf);
-            return activeChildren.length > 0 && !v.isCollapsed ? activeChildren[0] : v.thread;
+            return (v.children.length > 0 && !v.isCollapsed) ? v.children[0] : v.thread;
           };
           const nextRight = (v) => {
-            const activeChildren = v.children.filter(c => !c.isVerticalLeaf);
-            return activeChildren.length > 0 && !v.isCollapsed ? activeChildren[activeChildren.length - 1] : v.thread;
+            return (v.children.length > 0 && !v.isCollapsed) ? v.children[v.children.length - 1] : v.thread;
           };
           const ancestor = (v_i_m, v, defaultAncestor) => v_i_m.ancestor.parent === v.parent ? v_i_m.ancestor : defaultAncestor;
 
           const secondWalk = (v, m) => {
-            if (v.isVerticalLeaf) {
-              v.x = v.parent.x + 0.25;
-              v.y = v.parent.y + 1 + v.verticalIndex * 0.65;
-            } else {
-              v.x = v.prelim + m;
-              v.y = v.depth;
-            }
+            v.x = v.prelim + m;
+            v.y = v.depth;
 
             v.children.forEach(c => {
               secondWalk(c, m + v.mod);
@@ -54643,36 +54600,19 @@ Earned Value Management measures project performance and progress by comparing p
             const drawLines = (n) => {
               if (n.isCollapsed) return;
               n.children.forEach(c => {
-                let x1, y1, x2, y2;
-                if (c.isVerticalLeaf) {
-                  // Connect stacked branch elements (stacked vertically under each other)
-                  x1 = n.x * DIST_X + n.nodeW / 2;
-                  y1 = n.y * DIST_Y + n.nodeH;
-                  x2 = c.x * DIST_X;
-                  y2 = c.y * DIST_Y + c.nodeH / 2;
+                const x1 = n.x * DIST_X + n.nodeW / 2;
+                const y1 = n.y * DIST_Y + n.nodeH;
+                const x2 = c.x * DIST_X + c.nodeW / 2;
+                const y2 = c.y * DIST_Y;
 
-                  ctx.beginPath();
-                  ctx.moveTo(x1, y1);
-                  ctx.lineTo(x1, y2);
-                  ctx.lineTo(x2, y2);
-                  ctx.strokeStyle = cBorder; ctx.lineWidth = 1.2;
-                  ctx.stroke();
-                } else {
-                  // Connect standard vertical node (top-to-bottom lines)
-                  x1 = n.x * DIST_X + n.nodeW / 2;
-                  y1 = n.y * DIST_Y + n.nodeH;
-                  x2 = c.x * DIST_X + c.nodeW / 2;
-                  y2 = c.y * DIST_Y;
-
-                  ctx.beginPath();
-                  ctx.moveTo(x1, y1);
-                  const midY = (y1 + y2) / 2;
-                  ctx.lineTo(x1, midY);
-                  ctx.lineTo(x2, midY);
-                  ctx.lineTo(x2, y2);
-                  ctx.strokeStyle = cBorder; ctx.lineWidth = 1.2;
-                  ctx.stroke();
-                }
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                const midY = (y1 + y2) / 2;
+                ctx.lineTo(x1, midY);
+                ctx.lineTo(x2, midY);
+                ctx.lineTo(x2, y2);
+                ctx.strokeStyle = cBorder; ctx.lineWidth = 1.2;
+                ctx.stroke();
                 drawLines(c);
               });
             };
