@@ -54548,29 +54548,34 @@ Earned Value Management measures project performance and progress by comparing p
             ctx.clearRect(0, 0, w, h);
 
             const treeRoots = buildTree();
-            const DIST_Y = 80;
+            const DIST_Y = P._org.mode === 'neighborhood' ? 115 : 80;
 
             let allNodesList = [];
 
-            // Set up all node widths dynamically first
-            const measureNodeWidths = (rootsList) => {
-              const list = [];
-              const collect = (n) => {
-                list.push(n);
-                n.children.forEach(collect);
-              };
-              rootsList.forEach(collect);
-              
-              ctx.font = 'bold 11px var(--font-display)';
-              list.forEach(n => {
-                const nameW = ctx.measureText(n.name).width;
-                ctx.font = '600 8px var(--font-body)';
-                const roleW = ctx.measureText(n.role.toUpperCase()).width;
-                ctx.font = 'bold 11px var(--font-display)';
-                n.nodeW = Math.max(145, Math.ceil(Math.max(nameW, roleW) + 40));
-                n.nodeH = 46;
-              });
-            };
+             const measureNodeWidths = (rootsList) => {
+               const list = [];
+               const collect = (n) => {
+                 list.push(n);
+                 n.children.forEach(collect);
+               };
+               rootsList.forEach(collect);
+               
+               ctx.font = 'bold 11px var(--font-display)';
+               const isNeigh = P._org.mode === 'neighborhood';
+               list.forEach(n => {
+                 const nameW = ctx.measureText(n.name).width;
+                 ctx.font = '600 8.5px var(--font-body)';
+                 const roleW = ctx.measureText(n.role.toUpperCase()).width;
+                 ctx.font = 'bold 11px var(--font-display)';
+                 if (isNeigh) {
+                   n.nodeW = Math.max(185, Math.ceil(Math.max(nameW, roleW) + 55));
+                   n.nodeH = 74;
+                 } else {
+                   n.nodeW = Math.max(145, Math.ceil(Math.max(nameW, roleW) + 40));
+                   n.nodeH = 64;
+                 }
+               });
+             };
 
             measureNodeWidths(treeRoots);
 
@@ -54605,6 +54610,7 @@ Earned Value Management measures project performance and progress by comparing p
                 n.innerRadius = R_ROOT + (depth - 1) * R_STEP;
                 n.outerRadius = R_ROOT + depth * R_STEP;
                 n.isCenterCircle = false;
+                n.depth = depth;
 
                 const theta = (startAngle + endAngle) / 2;
                 const rMid = (n.innerRadius + n.outerRadius) / 2;
@@ -54634,6 +54640,7 @@ Earned Value Management measures project performance and progress by comparing p
                 r.innerRadius = 0;
                 r.outerRadius = R_ROOT;
                 r.isCenterCircle = true;
+                r.depth = 0;
                 r.x = 0;
                 r.y = 0;
                 r.nodeW = 0;
@@ -54987,13 +54994,13 @@ Earned Value Management measures project performance and progress by comparing p
                 
                 // Draw top section background
                 ctx.beginPath();
-                ctx.roundRect(px, py, n.nodeW, 44, { tl: 8, tr: 8, bl: 0, br: 0 });
+                ctx.roundRect(px, py, n.nodeW, n.nodeH - 20, { tl: 8, tr: 8, bl: 0, br: 0 });
                 ctx.fillStyle = style.bg;
                 ctx.fill();
                 
                 // Draw bottom banner background
                 ctx.beginPath();
-                ctx.roundRect(px, py + 44, n.nodeW, 20, { tl: 0, tr: 0, bl: 8, br: 8 });
+                ctx.roundRect(px, py + n.nodeH - 20, n.nodeW, 20, { tl: 0, tr: 0, bl: 8, br: 8 });
                 ctx.fillStyle = style.banner;
                 ctx.fill();
                 
@@ -55045,7 +55052,7 @@ Earned Value Management measures project performance and progress by comparing p
                 ctx.font = 'bold 7px var(--font-body), sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(dept.toUpperCase(), px + n.nodeW / 2, py + 54);
+                ctx.fillText(dept.toUpperCase(), px + n.nodeW / 2, py + n.nodeH - 10);
                 ctx.restore();
 
                 // +X reports indicator in neighborhood mode (pill badge in top-right corner)
