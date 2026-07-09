@@ -11647,6 +11647,21 @@
       transform: translateY(-1px);
       box-shadow: var(--shadow-sm);
     }
+
+    /* Searchable Dropdown Styling */
+    .search-select-trigger {
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .search-select-trigger:hover {
+      border-color: var(--color-primary) !important;
+    }
+    .search-select-trigger:focus-within {
+      border-color: var(--color-primary) !important;
+      box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.15);
+    }
+    .search-select-option-row {
+      transition: background 0.15s ease, color 0.15s ease;
+    }
   </style>
 </head>
 
@@ -12150,9 +12165,19 @@
               <option value="Screen">GUI Screen</option>
             </select>
           </div>
-          <div class="fg">
+          <div class="fg" style="position:relative">
             <label class="flbl">Target Entity</label>
-            <select id="def-link-id" class="finp"></select>
+            <input type="hidden" id="def-link-id">
+            <div id="def-link-id-trigger" class="finp search-select-trigger" onclick="toggleDefectLinkDropdown(event)" style="display:flex; align-items:center; justify-content:space-between; cursor:pointer; background:var(--color-surface); min-height:36px; padding:6px 12px; border:1px solid var(--color-border); border-radius:6px; box-sizing:border-box">
+              <span id="def-link-id-label" style="font-size:14px; color:var(--color-text-faint)">Select target...</span>
+              <i data-lucide="chevron-down" style="width:16px; height:16px; color:var(--color-text-faint)"></i>
+            </div>
+            <div id="def-link-id-dropdown" class="search-select-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; background:var(--color-surface-2); border:1px solid var(--color-border); border-radius:6px; box-shadow:0 10px 25px rgba(0,0,0,0.15); z-index:1000; margin-top:4px; max-height:260px; display:flex; flex-direction:column; overflow:hidden">
+              <div style="padding:8px; border-bottom:1px solid var(--color-border); background:var(--color-surface-3)">
+                <input type="text" id="def-link-id-search" class="finp" placeholder="Search entity..." oninput="filterDefectLinkOptions()" style="width:100%; font-size:13px; height:32px; box-sizing:border-box">
+              </div>
+              <div id="def-link-id-options" style="overflow-y:auto; flex:1; max-height:200px"></div>
+            </div>
           </div>
         </div>
 
@@ -35544,20 +35569,138 @@ Earned Value Management measures project performance and progress by comparing p
       input.focus();
     }
 
-    function updateDefectLinkOptions() {
+    let defectLinkOptionsData = [];
+
+    function updateDefectLinkOptions(valToSelect = '') {
       const type = $id('def-link-type').value;
-      const target = $id('def-link-id');
-      target.innerHTML = '<option value="">Select target...</option>';
+      $id('def-link-id-search').value = '';
+
+      defectLinkOptionsData = [];
       if (type === 'Task') {
-        P.tasks.forEach(t => { target.innerHTML += `<option value="${t.id}">${t.id}: ${t.name.slice(0, 30)}</option>`; });
+        P.tasks.forEach(t => {
+          defectLinkOptionsData.push({ val: t.id, label: `${t.id}: ${t.name.slice(0, 30)}` });
+        });
       } else if (type === 'Subtask') {
-        P.tasks.forEach(t => { if (t.subtasks) t.subtasks.forEach(st => { target.innerHTML += `<option value="${st.id}">${st.id}: ${st.name.slice(0, 30)}</option>`; }); });
+        P.tasks.forEach(t => {
+          if (t.subtasks) {
+            t.subtasks.forEach(st => {
+              defectLinkOptionsData.push({ val: st.id, label: `${st.id}: ${st.name.slice(0, 30)}` });
+            });
+          }
+        });
       } else if (type === 'Screen') {
-        getAllScreens().forEach(s => { target.innerHTML += `<option value="${s}">${s}</option>`; });
+        getAllScreens().forEach(s => {
+          defectLinkOptionsData.push({ val: s, label: s });
+        });
+      }
+
+      renderDefectLinkOptionsList(defectLinkOptionsData);
+      setDefectLinkValue(valToSelect);
+    }
+
+    function renderDefectLinkOptionsList(options) {
+      const cont = $id('def-link-id-options');
+      if (!cont) return;
+      if (options.length === 0) {
+        cont.innerHTML = `<div style="padding:12px; font-size:13px; color:var(--color-text-faint); text-align:center">No options found</div>`;
+        return;
+      }
+
+      const currentVal = $id('def-link-id').value;
+      cont.innerHTML = options.map(opt => {
+        const isSelected = currentVal === opt.val;
+        return `
+          <div class="search-select-option-row" 
+               onclick="selectDefectLinkOption('${esc(opt.val)}', '${esc(opt.label)}')" 
+               style="padding:10px 12px; font-size:13px; color:${isSelected ? 'var(--color-primary)' : 'var(--color-text)'}; background:${isSelected ? 'rgba(var(--color-primary-rgb), 0.1)' : 'transparent'}; cursor:pointer; display:flex; align-items:center; transition:background 0.15s; border-bottom:1px solid rgba(var(--color-text-rgb), 0.03)"
+               onmouseenter="this.style.background='rgba(var(--color-primary-rgb), 0.05)'"
+               onmouseleave="this.style.background='${isSelected ? 'rgba(var(--color-primary-rgb), 0.1)' : 'transparent'}'">
+            <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${esc(opt.label)}</span>
+            ${isSelected ? '<i data-lucide="check" style="width:14px; height:14px; color:var(--color-primary); flex-shrink:0"></i>' : ''}
+          </div>
+        `;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    function filterDefectLinkOptions() {
+      const query = $id('def-link-id-search').value.toLowerCase().trim();
+      const filtered = defectLinkOptionsData.filter(opt => {
+        return opt.val.toLowerCase().includes(query) || opt.label.toLowerCase().includes(query);
+      });
+      renderDefectLinkOptionsList(filtered);
+    }
+
+    function toggleDefectLinkDropdown(event) {
+      if (event) event.stopPropagation();
+      const dd = $id('def-link-id-dropdown');
+      const isVisible = dd.style.display === 'flex';
+
+      closeDefectLinkDropdown();
+
+      if (!isVisible) {
+        dd.style.setProperty('display', 'flex', 'important');
+        $id('def-link-id-search').focus();
+        setTimeout(() => {
+          document.addEventListener('click', handleDefectLinkClickOutside);
+        }, 10);
       }
     }
 
-    function closeDefectFlyout() { $id('defect-flyout').classList.remove('open'); }
+    function closeDefectLinkDropdown() {
+      const dd = $id('def-link-id-dropdown');
+      if (dd) {
+        dd.style.setProperty('display', 'none', 'important');
+      }
+      document.removeEventListener('click', handleDefectLinkClickOutside);
+    }
+
+    function handleDefectLinkClickOutside(e) {
+      const container = $id('def-link-id-dropdown');
+      const trigger = $id('def-link-id-trigger');
+      if (container && !container.contains(e.target) && !trigger.contains(e.target)) {
+        closeDefectLinkDropdown();
+      }
+    }
+
+    function setDefectLinkValue(val) {
+      $id('def-link-id').value = val;
+      const type = $id('def-link-type').value;
+      let labelText = 'Select target...';
+      if (val) {
+        if (type === 'Task') {
+          const t = P.tasks.find(x => x.id === val);
+          if (t) labelText = `${t.id}: ${t.name.slice(0, 30)}`;
+        } else if (type === 'Subtask') {
+          let found = null;
+          P.tasks.forEach(t => {
+            if (t.subtasks) {
+              const st = t.subtasks.find(x => x.id === val);
+              if (st) found = st;
+            }
+          });
+          if (found) labelText = `${found.id}: ${found.name.slice(0, 30)}`;
+        } else if (type === 'Screen') {
+          labelText = val;
+        }
+      }
+      $id('def-link-id-label').innerText = labelText;
+      if (val && labelText !== 'Select target...') {
+        $id('def-link-id-label').style.color = 'var(--color-text)';
+      } else {
+        $id('def-link-id-label').style.color = 'var(--color-text-faint)';
+      }
+    }
+
+    function selectDefectLinkOption(val, labelText) {
+      setDefectLinkValue(val);
+      closeDefectLinkDropdown();
+    }
+
+    function closeDefectFlyout() {
+      closeDefectLinkDropdown();
+      $id('defect-flyout').classList.remove('open');
+    }
 
     function openDefectModal(defId = null) {
       closeAllFlyouts();
@@ -35584,8 +35727,7 @@ Earned Value Management measures project performance and progress by comparing p
       $id('def-desc').value = d?.desc || '';
       $id('def-steps').value = d?.steps || '';
       $id('def-link-type').value = d?.linkedType || '';
-      updateDefectLinkOptions();
-      $id('def-link-id').value = d?.linkedId || '';
+      updateDefectLinkOptions(d?.linkedId || '');
 
       // Render Custom Fields
       const cfCont = $id('def-custom-fields-cont');
@@ -35683,8 +35825,7 @@ Earned Value Management measures project performance and progress by comparing p
     function raiseDefectForEntity(type, id) {
       openDefectModal();
       $id('def-link-type').value = type;
-      updateDefectLinkOptions();
-      $id('def-link-id').value = id;
+      updateDefectLinkOptions(id);
       $id('def-title').focus();
     }
 
