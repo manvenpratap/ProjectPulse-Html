@@ -54706,7 +54706,28 @@ Earned Value Management measures project performance and progress by comparing p
               };
               treeRoots.forEach(drawLinesRadial);
             } else {
-              // Neighborhood mode orthogonal lines
+              // Neighborhood mode orthogonal rounded lines
+              const drawRoundedOrtho = (x1, y1, x2, y2, r = 10) => {
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                const midY = (y1 + y2) / 2;
+                if (Math.abs(x1 - x2) < 2 * r) {
+                  ctx.lineTo(x1, midY);
+                  ctx.lineTo(x2, midY);
+                  ctx.lineTo(x2, y2);
+                } else {
+                  const dirX = x2 > x1 ? 1 : -1;
+                  ctx.lineTo(x1, midY - r);
+                  ctx.quadraticCurveTo(x1, midY, x1 + dirX * r, midY);
+                  ctx.lineTo(x2 - dirX * r, midY);
+                  ctx.quadraticCurveTo(x2, midY, x2, midY + r);
+                  ctx.lineTo(x2, y2);
+                }
+                ctx.strokeStyle = '#cbd5e1';
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+              };
+
               if (focusedNode) {
                 const parentNode = focusedNode.parent;
                 const children = focusedNode.children;
@@ -54716,17 +54737,18 @@ Earned Value Management measures project performance and progress by comparing p
                   const y1 = parentNode.y * DIST_Y + parentNode.nodeH;
                   const siblings = parentNode.children.filter(c => c.id !== focusedNode.id);
 
-                  [focusedNode, ...siblings].forEach(c => {
+                  // Straight line for focused node from parent
+                  ctx.beginPath();
+                  ctx.moveTo(x1, y1);
+                  ctx.lineTo(focusedNode.x * DIST_X + focusedNode.nodeW / 2, focusedNode.y * DIST_Y);
+                  ctx.strokeStyle = '#cbd5e1';
+                  ctx.lineWidth = 1.2;
+                  ctx.stroke();
+
+                  siblings.forEach(c => {
                     const x2 = c.x * DIST_X + c.nodeW / 2;
                     const y2 = c.y * DIST_Y;
-                    ctx.beginPath();
-                    ctx.moveTo(x1, y1);
-                    const midY = (y1 + y2) / 2;
-                    ctx.lineTo(x1, midY);
-                    ctx.lineTo(x2, midY);
-                    ctx.lineTo(x2, y2);
-                    ctx.strokeStyle = cBorder; ctx.lineWidth = 1.2;
-                    ctx.stroke();
+                    drawRoundedOrtho(x1, y1, x2, y2, 10);
                   });
                 }
 
@@ -54737,109 +54759,154 @@ Earned Value Management measures project performance and progress by comparing p
                   children.forEach(c => {
                     const x2 = c.x * DIST_X + c.nodeW / 2;
                     const y2 = c.y * DIST_Y;
-                    ctx.beginPath();
-                    ctx.moveTo(x1, y1);
-                    const midY = (y1 + y2) / 2;
-                    ctx.lineTo(x1, midY);
-                    ctx.lineTo(x2, midY);
-                    ctx.lineTo(x2, y2);
-                    ctx.strokeStyle = cBorder; ctx.lineWidth = 1.2;
-                    ctx.stroke();
+                    drawRoundedOrtho(x1, y1, x2, y2, 10);
                   });
                 }
               }
             }
 
-            // Helper to get sub-team color based on reportsTo manager
-            const getMemberColor = (node) => {
-              const manager = node.m ? node.m.reportsTo : null;
-              if (!manager) {
-                // If it is a top-level root, hash their own name
-                let hash = 0;
-                const name = node.name || '';
-                for (let i = 0; i < name.length; i++) {
-                  hash = name.charCodeAt(i) + ((hash << 5) - hash);
-                }
-                const idx = Math.abs(hash) % CC.length;
-                return CC[idx];
+            // Department classification
+            const getDepartment = (node) => {
+              const m = node.m;
+              const name = (node.name || '').toLowerCase();
+              const role = (node.role || '').toLowerCase();
+              const mgr = (m && m.reportsTo ? m.reportsTo : '').toLowerCase();
+
+              const classify = (strRole, strName, strMgr) => {
+                if (strRole.includes('customer') || strRole.includes('support') || strMgr.includes('kay') || strMgr.includes('customer')) return 'Customer';
+                if (strRole.includes('technology') || strRole.includes('tech') || strRole.includes('engineer') || strRole.includes('developer') || strRole.includes('product') || strRole.includes('design') || strMgr.includes('andrea') || strMgr.includes('tech')) return 'Engineering';
+                if (strRole.includes('marketing') || strRole.includes('mktg') || strRole.includes('mkt') || strMgr.includes('kelly') || strMgr.includes('marketing')) return 'Marketing';
+                if (strRole.includes('operating') || strRole.includes('operation') || strRole.includes('ops') || strMgr.includes('stephanie') || strMgr.includes('ops')) return 'Operations';
+                if (strRole.includes('people') || strRole.includes('hr') || strRole.includes('talent') || strRole.includes('recruiting') || strMgr.includes('joelle') || strMgr.includes('people')) return 'People';
+                if (strRole.includes('financial') || strRole.includes('finance') || strRole.includes('revenue') || strRole.includes('sales') || strMgr.includes('barry') || strMgr.includes('revenue') || strMgr.includes('finance')) return 'Revenue';
+                return null;
+              };
+
+              let dept = classify('', '', mgr);
+              if (dept) return dept;
+
+              dept = classify(role, name, '');
+              if (dept) return dept;
+
+              if (!m || !m.reportsTo) {
+                if (role.includes('executive') || role.includes('ceo') || role.includes('president') || role.includes('chief executive')) return 'Executive';
               }
-              // Hash the manager's name so all peers reporting to the same manager get the same color!
-              let hash = 0;
-              for (let i = 0; i < manager.length; i++) {
-                hash = manager.charCodeAt(i) + ((hash << 5) - hash);
+
+              if (m && m.reportsTo) {
+                return m.reportsTo.split(' ')[0];
               }
-              const idx = Math.abs(hash) % CC.length;
-              return CC[idx];
+              return 'Team';
+            };
+
+            const DEPT_COLORS = {
+              'Executive': { banner: '#9d174d', bg: '#fdf2f8', text: '#fff' }, // Rose/Plum
+              'Customer': { banner: '#d97706', bg: '#fffbeb', text: '#fff' }, // Amber
+              'Engineering': { banner: '#2563eb', bg: '#eff6ff', text: '#fff' }, // Blue
+              'Marketing': { banner: '#ea580c', bg: '#fff5f1', text: '#fff' }, // Orange-red
+              'Operations': { banner: '#dc2626', bg: '#fef2f2', text: '#fff' }, // Crimson
+              'People': { banner: '#4f46e5', bg: '#f5f3ff', text: '#fff' }, // Indigo
+              'Revenue': { banner: '#16a34a', bg: '#f0fdf4', text: '#fff' }  // Green
+            };
+
+            const getDeptStyle = (deptName) => {
+              return DEPT_COLORS[deptName] || { banner: '#4b5563', bg: '#f9fafb', text: '#fff' }; // Default gray
             };
 
             // Draw Cards
             const drawNodes = (n) => {
               const px = n.x * DIST_X, py = n.y * DIST_Y;
-              const teamColor = getMemberColor(n);
+              const dept = getDepartment(n);
+              const style = getDeptStyle(dept);
               
-              ctx.shadowColor = 'rgba(0, 0, 0, 0.06)';
-              ctx.shadowBlur = 12;
-              ctx.shadowOffsetY = 4;
+              ctx.shadowColor = 'rgba(0, 0, 0, 0.05)';
+              ctx.shadowBlur = 8;
+              ctx.shadowOffsetY = 2;
               
+              // Draw top section background
               ctx.beginPath();
-              ctx.roundRect(px, py, n.nodeW, n.nodeH, 6);
-              ctx.fillStyle = cSurf;
+              ctx.roundRect(px, py, n.nodeW, 44, { tl: 8, tr: 8, bl: 0, br: 0 });
+              ctx.fillStyle = style.bg;
               ctx.fill();
+              
+              // Draw bottom banner background
+              ctx.beginPath();
+              ctx.roundRect(px, py + 44, n.nodeW, 20, { tl: 0, tr: 0, bl: 8, br: 8 });
+              ctx.fillStyle = style.banner;
+              ctx.fill();
+              
               ctx.shadowBlur = 0; // reset shadow
 
-              // Focused node colored outer ring/border
+              // Border outline
               if (P._org.mode === 'neighborhood' && n.id === P._org.focusId) {
-                ctx.strokeStyle = teamColor;
+                ctx.strokeStyle = style.banner;
                 ctx.lineWidth = 2.2;
               } else {
-                ctx.strokeStyle = cBorder;
+                ctx.strokeStyle = '#e5e7eb';
                 ctx.lineWidth = 1;
               }
               ctx.beginPath();
-              ctx.roundRect(px, py, n.nodeW, n.nodeH, 6);
+              ctx.roundRect(px, py, n.nodeW, n.nodeH, 8);
               ctx.stroke();
 
-              // Left colored accent border
-              ctx.fillStyle = teamColor;
-              ctx.beginPath();
-              ctx.roundRect(px, py, 3.5, n.nodeH, { tl: 6, bl: 6, tr: 0, br: 0 });
-              ctx.fill();
-
-              // Render text
-              ctx.fillStyle = cText;
+              // Render name
+              ctx.fillStyle = '#111827';
               ctx.font = 'bold 11px var(--font-display), sans-serif';
-              ctx.fillText(n.name, px + 12, py + 18);
+              ctx.fillText(n.name, px + 36, py + 18);
               
-              ctx.fillStyle = cMuted;
-              ctx.font = '600 7.5px var(--font-body), sans-serif';
-              ctx.fillText(n.role.toUpperCase(), px + 12, py + 31);
+              // Render role
+              ctx.fillStyle = '#6b7280';
+              ctx.font = '500 8px var(--font-body), sans-serif';
+              ctx.fillText(n.role, px + 36, py + 30);
 
               // Circular avatar
               const initials = n.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
               ctx.save();
               ctx.beginPath();
-              ctx.arc(px + n.nodeW - 22, py + n.nodeH / 2, 10, 0, Math.PI * 2);
-              ctx.fillStyle = teamColor + '18';
+              ctx.arc(px + 20, py + 22, 11, 0, Math.PI * 2);
+              ctx.fillStyle = '#ffffff';
               ctx.fill();
-              ctx.strokeStyle = teamColor + '55';
+              ctx.strokeStyle = style.banner + '33';
               ctx.lineWidth = 1;
               ctx.stroke();
 
-              ctx.fillStyle = teamColor;
+              ctx.fillStyle = style.banner;
               ctx.font = 'bold 8px var(--font-mono), monospace';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
-              ctx.fillText(initials, px + n.nodeW - 22, py + n.nodeH / 2);
+              ctx.fillText(initials, px + 20, py + 22);
               ctx.restore();
 
-              // +X reports indicator in neighborhood mode
+              // Department text centered in bottom banner
+              ctx.save();
+              ctx.fillStyle = '#ffffff';
+              ctx.font = 'bold 7px var(--font-body), sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(dept.toUpperCase(), px + n.nodeW / 2, py + 54);
+              ctx.restore();
+
+              // +X reports indicator in neighborhood mode (pill badge in top-right corner)
               if (P._org.mode === 'neighborhood' && n.id !== P._org.focusId) {
                 const reportsCount = P.members.filter(m => m.reportsTo === n.name).length;
                 if (reportsCount > 0) {
+                  const badgeText = `${reportsCount} reports`;
                   ctx.save();
-                  ctx.fillStyle = teamColor;
-                  ctx.font = 'bold 7.5px var(--font-body), sans-serif';
-                  ctx.fillText(`👁 ${reportsCount} REPORTS`, px + 12, py + n.nodeH - 6);
+                  ctx.font = 'bold 7px var(--font-body), sans-serif';
+                  const badgeW = ctx.measureText(badgeText).width + 8;
+                  const bx = px + n.nodeW - badgeW - 6;
+                  const by = py + 6;
+                  
+                  ctx.beginPath();
+                  ctx.roundRect(bx, by, badgeW, 11, 4);
+                  ctx.fillStyle = style.banner + '15';
+                  ctx.fill();
+                  ctx.strokeStyle = style.banner + '44';
+                  ctx.stroke();
+
+                  ctx.fillStyle = style.banner;
+                  ctx.textAlign = 'left';
+                  ctx.textBaseline = 'top';
+                  ctx.fillText(badgeText, bx + 4, by + 2);
                   ctx.restore();
                 }
               }
