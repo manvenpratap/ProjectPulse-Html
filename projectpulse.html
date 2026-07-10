@@ -50271,6 +50271,12 @@ Earned Value Management measures project performance and progress by comparing p
       --color-text-muted: #6b6560;
       --color-text-faint: #a8a29e;
       --color-primary: #6366f1;
+      --color-primary-rgb: 99, 102, 241;
+      --color-border-faint: rgba(0, 0, 0, 0.04);
+      --red: #ef4444;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --blue: #3b82f6;
       --font-body: 'Plus Jakarta Sans', 'Outfit', sans-serif;
       --sl-left-w: 220px;
     }
@@ -50284,6 +50290,12 @@ Earned Value Management measures project performance and progress by comparing p
       --color-text-muted: #d6d3d1;
       --color-text-faint: #78716c;
       --color-primary: #818cf8;
+      --color-primary-rgb: 129, 140, 248;
+      --color-border-faint: rgba(255, 255, 255, 0.05);
+      --red: #ef4444;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --blue: #3b82f6;
     }
     body {
       margin: 0;
@@ -50367,7 +50379,7 @@ Earned Value Management measures project performance and progress by comparing p
       overflow: hidden;
       background: var(--color-surface);
       flex: 1;
-      height: calc(100vh - 75px);
+      height: calc(100vh - 165px);
       position: relative;
     }
     .gantt-left {
@@ -50457,8 +50469,85 @@ Earned Value Management measures project performance and progress by comparing p
       overflow: hidden;
       background: var(--color-surface);
       flex: 1;
-      height: calc(100vh - 75px);
+      height: calc(100vh - 165px);
       position: relative;
+    }
+    /* ── KPI bento strip ── */
+    .sh-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-shrink: 0;
+    }
+    .sh-kpi-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      position: relative;
+      overflow: hidden;
+    }
+    .sh-kpi-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+    .sh-kpi-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--color-text-muted);
+    }
+    .sh-kpi-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .sh-kpi-value {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--color-text);
+      margin: 4px 0 2px;
+      line-height: 1;
+    }
+    .sh-kpi-sub {
+      font-size: 8.5px;
+      font-weight: 600;
+      color: var(--color-text-faint);
+    }
+    /* ── Release Legend strip ── */
+    .release-legend-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+      flex-shrink: 0;
+      align-items: center;
+    }
+    .legend-title {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--color-text-faint);
+      margin-right: 4px;
+    }
+    .legend-pill {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      border: 1px solid var(--color-border);
     }
     .swimlane-outer.active {
       display: flex;
@@ -50612,9 +50701,14 @@ Earned Value Management measures project performance and progress by comparing p
 </head>
 <body>
   <div class="export-header">
-    <div>
-      <div class="export-title" id="export-title-el">Project Timeline</div>
-      <div class="export-meta">Exported on ${new Date().toLocaleString()}</div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div class="logo-mark" style="width:36px; height:36px; background:var(--color-primary); border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+        <i data-lucide="zap" style="color:#ffffff; width:18px; height:18px;"></i>
+      </div>
+      <div>
+        <div class="export-title" id="export-title-el" style="font-size:18px; font-weight:800; letter-spacing:-0.02em; line-height:1.2;">Project Timeline</div>
+        <div class="export-meta" style="font-size:11px; color:var(--color-text-muted); margin-top:2px;">Exported on ${new Date().toLocaleString()}</div>
+      </div>
     </div>
     <div class="controls-wrap">
       <input type="text" class="search-input" id="search-input" placeholder="Search..." />
@@ -50636,6 +50730,8 @@ Earned Value Management measures project performance and progress by comparing p
       <button class="btn" id="copy-image-btn" onclick="copyViewImageToClipboard()" style="border: 1px solid var(--color-border); border-radius: 8px; font-weight: 600; padding: 6px 12px; background: var(--color-surface); color: var(--color-text-muted); display: flex; align-items: center; gap: 6px;"><i data-lucide="copy" style="width:14px; height:14px;"></i> Copy Image</button>
     </div>
   </div>
+  <div class="sh-kpi-grid" id="export-kpi-grid"></div>
+  <div class="release-legend-strip" id="export-release-legend"></div>
   <div class="gantt-outer" id="export-gantt-outer">
     <div class="gantt-left" id="export-gantt-left"></div>
     <div class="gantt-splitter" id="export-gantt-splitter"></div>
@@ -50677,6 +50773,120 @@ Earned Value Management measures project performance and progress by comparing p
     }
     function laneColorForIdx(idx) { return FEAT_PALETTE[idx % FEAT_PALETTE.length]; }
     function getGroupKey(t) { return isFeat ? (t.category || 'Uncategorized') : (t.moduleType || 'General'); }
+
+    function updateMetricsAndLegend() {
+      const q = searchQuery;
+      const filtered = items.filter(t => {
+        const matchesSearch = t.name.toLowerCase().includes(q) || (t.release || '').toLowerCase().includes(q) || (t.category || '').toLowerCase().includes(q);
+        if (!matchesSearch) return false;
+        if (isFeat) return true;
+        if (showMC) {
+          return t.startDate === t.dueDate || t.category === 'Milestone';
+        }
+        return true;
+      });
+
+      const grid = \$id('export-kpi-grid');
+      const legend = \$id('export-release-legend');
+      if (!grid || !legend) return;
+
+      if (isFeat) {
+        const tot = filtered.length;
+        const avgM = tot ? Math.round(filtered.reduce((s, t) => s + (t.progress || 0), 0) / tot) : 0;
+        const overdue = filtered.filter(t => t.overdue > 0).length;
+        const screens = filtered.reduce((s, t) => s + (t.screensCount || 0), 0);
+
+        grid.innerHTML = \`
+          <div class="sh-kpi-card">
+            <div class="sh-kpi-row">
+              <span class="sh-kpi-label">Total Features</span>
+              <div class="sh-kpi-icon" style="background:rgba(99,102,241,0.1);color:var(--color-primary);"><i data-lucide="layers" style="width:12px;height:12px;"></i></div>
+            </div>
+            <div class="sh-kpi-value">\${tot}</div>
+            <div class="sh-kpi-sub">Active features in view</div>
+          </div>
+          <div class="sh-kpi-card">
+            <div class="sh-kpi-row">
+              <span class="sh-kpi-label">Avg Maturity</span>
+              <div class="sh-kpi-icon" style="background:rgba(16,185,129,0.1);color:var(--green);"><i data-lucide="activity" style="width:12px;height:12px;"></i></div>
+            </div>
+            <div class="sh-kpi-value">\${avgM}%</div>
+            <div class="sh-kpi-sub">Weighted progression</div>
+          </div>
+          <div class="sh-kpi-card">
+            <div class="sh-kpi-row">
+              <span class="sh-kpi-label">At Risk</span>
+              <div class="sh-kpi-icon" style="background:rgba(239,68,68,0.1);color:var(--red);"><i data-lucide="alert-triangle" style="width:12px;height:12px;"></i></div>
+            </div>
+            <div class="sh-kpi-value" style="color:var(--red);">\${overdue}</div>
+            <div class="sh-kpi-sub">Features overdue</div>
+          </div>
+          <div class="sh-kpi-card">
+            <div class="sh-kpi-row">
+              <span class="sh-kpi-label">Screens Mapped</span>
+              <div class="sh-kpi-icon" style="background:rgba(245,158,11,0.1);color:var(--amber);"><i data-lucide="monitor" style="width:12px;height:12px;"></i></div>
+            </div>
+            <div class="sh-kpi-value">\${screens}</div>
+            <div class="sh-kpi-sub">Total mapped mockups</div>
+          </div>
+        \`;
+      } else {
+        const tot = filtered.length;
+        const avgP = tot ? Math.round(filtered.reduce((s, t) => s + (t.progress || 0), 0) / tot) : 0;
+        const comp = filtered.filter(t => t.status === 'Completed').length;
+        const delayed = filtered.filter(t => t.status !== 'Completed' && t.dueDate && new Date(t.dueDate) < new Date()).length;
+
+        grid.innerHTML = \`
+          <div class="sh-kpi-card">
+            <div class="sh-kpi-row">
+              <span class="sh-kpi-label">Total Tasks</span>
+              <div class="sh-kpi-icon" style="background:rgba(99,102,241,0.1);color:var(--color-primary);"><i data-lucide="check-square" style="width:12px;height:12px;"></i></div>
+            </div>
+            <div class="sh-kpi-value">\${tot}</div>
+            <div class="sh-kpi-sub">Total tasks in scope</div>
+          </div>
+          <div class="sh-kpi-card">
+            <div class="sh-kpi-row">
+              <span class="sh-kpi-label">Completed</span>
+              <div class="sh-kpi-icon" style="background:rgba(16,185,129,0.1);color:var(--green);"><i data-lucide="check" style="width:12px;height:12px;"></i></div>
+            </div>
+            <div class="sh-kpi-value">\${comp}</div>
+            <div class="sh-kpi-sub">Tasks fully done</div>
+          </div>
+          <div class="sh-kpi-card">
+            <div class="sh-kpi-row">
+              <span class="sh-kpi-label">Progress</span>
+              <div class="sh-kpi-icon" style="background:rgba(59,130,246,0.1);color:var(--blue);"><i data-lucide="trending-up" style="width:12px;height:12px;"></i></div>
+            </div>
+            <div class="sh-kpi-value">\${avgP}%</div>
+            <div class="sh-kpi-sub">Average completion</div>
+          </div>
+          <div class="sh-kpi-card">
+            <div class="sh-kpi-row">
+              <span class="sh-kpi-label">Overdue</span>
+              <div class="sh-kpi-icon" style="background:rgba(239,68,68,0.1);color:var(--red);"><i data-lucide="clock" style="width:12px;height:12px;"></i></div>
+            </div>
+            <div class="sh-kpi-value" style="color:var(--red);">\${delayed}</div>
+            <div class="sh-kpi-sub">Past due date tasks</div>
+          </div>
+        \`;
+      }
+
+      // Populate Release Legend
+      let legendHtml = '<span class="legend-title">Releases:</span>';
+      (DATA.releases || []).forEach(r => {
+        const rc = RELEASE_STATUS_COLORS[r.status] || '#94a3b8';
+        legendHtml += \`
+          <div class="legend-pill" style="background:\${rc}12; border-color:\${rc}33; color:\${rc}">
+            <span style="width:6px; height:6px; border-radius:50%; background:\${rc};"></span>
+            \${esc(r.name)} (\${esc(r.status)})
+          </div>
+        \`;
+      });
+      legend.innerHTML = legendHtml;
+
+      if (window.lucide) lucide.createIcons();
+    }
 
     if (!isFeat) {
       \$id('toggles-group').style.display = 'flex';
@@ -50861,6 +51071,7 @@ Earned Value Management measures project performance and progress by comparing p
     });
 
     function renderGantt() {
+      updateMetricsAndLegend();
       const filtered = items.filter(t => {
         const matchesSearch = t.name.toLowerCase().includes(searchQuery);
         if (!matchesSearch) return false;
@@ -50910,6 +51121,23 @@ Earned Value Management measures project performance and progress by comparing p
             meta.appendChild(relBadge);
           }
 
+          if (t.category) {
+            const catBadge = document.createElement('span');
+            catBadge.style.cssText = \`font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);color:#7c3aed;white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis;\`;
+            catBadge.textContent = '# ' + t.category;
+            meta.appendChild(catBadge);
+          }
+
+          const barContainer = document.createElement('div');
+          barContainer.style.cssText = 'display:inline-flex;align-items:center;gap:4px;';
+          const barOuter = document.createElement('div');
+          barOuter.style.cssText = \`width:40px;height:4px;background:var(--color-divider);border-radius:2px;overflow:hidden;position:relative;\`;
+          const barInner = document.createElement('div');
+          barInner.style.cssText = \`position:absolute;left:0;top:0;height:100%;width:\${t.progress || 0}%;background:\${bc};\`;
+          barOuter.appendChild(barInner);
+          barContainer.appendChild(barOuter);
+          meta.appendChild(barContainer);
+
           const progSpan = document.createElement('span');
           progSpan.style.cssText = \`font-size:9px;font-weight:700;color:\${bc};opacity:0.85;\`;
           progSpan.textContent = t.progress + '%';
@@ -50918,7 +51146,7 @@ Earned Value Management measures project performance and progress by comparing p
           if (t.overdue > 0) {
             const risk = document.createElement('span');
             risk.style.cssText = 'font-size:9px;color:#ef4444;font-weight:700;';
-            risk.textContent = '⚠ Overdue';
+            risk.textContent = '⚠ Risk';
             meta.appendChild(risk);
           }
 
@@ -51241,7 +51469,8 @@ Earned Value Management measures project performance and progress by comparing p
     // ─── Swimlane renderer ───────────────────────────────────────────────────
     let slHitAreas = [];
 
-    function renderSwimlane() {{
+    function renderSwimlane() {
+      updateMetricsAndLegend();
       const swimOuter = \$id('export-swimlane-outer');
       swimOuter.innerHTML = \`
         <div class="sl-left-col">
