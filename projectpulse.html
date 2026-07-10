@@ -50445,8 +50445,8 @@ Earned Value Management measures project performance and progress by comparing p
             category: f.category || '',
             progress: mObj.avgP,
             overdue: mObj.overdue,
-            startDate: start ? start.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            dueDate: end ? end.toISOString().split('T')[0] : new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+            startDate: start ? start.toISOString().split('T')[0] : null,
+            dueDate: end ? end.toISOString().split('T')[0] : null,
             screensCount: mObj.tot,
             screensDone: mObj.done
           };
@@ -51288,7 +51288,7 @@ Earned Value Management measures project performance and progress by comparing p
     function renderGantt() {
       updateMetricsAndLegend();
       const filtered = items.filter(t => {
-        const matchesSearch = t.name.toLowerCase().includes(searchQuery);
+        const matchesSearch = t.name.toLowerCase().includes(searchQuery) || (t.release || '').toLowerCase().includes(searchQuery) || (t.category || '').toLowerCase().includes(searchQuery);
         if (!matchesSearch) return false;
         if (isFeat) return true;
         if (showMC) {
@@ -51313,7 +51313,7 @@ Earned Value Management measures project performance and progress by comparing p
 
         if (isFeat) {
           r.className += ' feat-row';
-          const bc = FEAT_PALETTE[i % FEAT_PALETTE.length];
+          const bc = t.overdue > 0 ? '#ef4444' : FEAT_PALETTE[i % FEAT_PALETTE.length];
           const stripe = document.createElement('div');
           stripe.style.cssText = \`width:3px;height:100%;background:\${bc};flex-shrink:0;border-radius:0 2px 2px 0;margin-right:10px;opacity:0.8;\`;
           r.appendChild(stripe);
@@ -51330,8 +51330,10 @@ Earned Value Management measures project performance and progress by comparing p
           meta.style.cssText = 'display:flex;align-items:center;gap:5px;margin-top:3px;';
 
           if (t.release) {
+            const relObj = (DATA.releases || []).find(rel => rel.name === t.release);
+            const rc = relObj ? (RELEASE_STATUS_COLORS[relObj.status] || '#94a3b8') : '#94a3b8';
             const relBadge = document.createElement('span');
-            relBadge.style.cssText = \`font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);color:var(--color-primary);white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis;\`;
+            relBadge.style.cssText = \`font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;background:\${rc}18;border:1px solid \${rc}55;color:\${rc};white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis;\`;
             relBadge.textContent = t.release;
             meta.appendChild(relBadge);
           }
@@ -51555,7 +51557,7 @@ Earned Value Management measures project performance and progress by comparing p
         hitAreas.push({ x: x1, x2: x1 + bw, y: HEAD_H + i * ROW_H, y2: HEAD_H + (i + 1) * ROW_H, item: t, idx: i });
 
         if (isFeat) {
-          const bc = FEAT_PALETTE[i % FEAT_PALETTE.length];
+          const bc = t.overdue > 0 ? '#ef4444' : FEAT_PALETTE[i % FEAT_PALETTE.length];
           ctx.fillStyle = bc + '25';
           if (ctx.roundRect) {
             ctx.beginPath();
