@@ -46759,11 +46759,14 @@ Earned Value Management measures project performance and progress by comparing p
       const swimOuter = $id('feat-swimlane-outer');
       if (!swimOuter) return;
       swimOuter.innerHTML = '';
+      slHitAreas = [];
 
       if (filteredFeatures.length === 0) {
         swimOuter.innerHTML = '<div style="padding:40px 16px;text-align:center;color:var(--color-text-muted)"><div style="font-size:24px;margin-bottom:6px">📅</div>No features match the criteria</div>';
         return;
       }
+
+      if (!P._collapsedLanes) P._collapsedLanes = new Set();
 
       // Date range boundary calculation
       let allDates = [];
@@ -46810,7 +46813,6 @@ Earned Value Management measures project performance and progress by comparing p
       const RELEASE_STATUS_COLORS = { Released: '#10b981', Active: '#3b82f6', Planned: '#f59e0b' };
       function laneColorForIdx(idx) { return FEAT_PALETTE[idx % FEAT_PALETTE.length]; }
 
-      // We need a rich tooltip, reuse or configure #feat-gantt-tooltip
       let tooltip = $id('feat-gantt-tooltip');
       if (!tooltip) {
         tooltip = document.createElement('div');
@@ -46825,7 +46827,18 @@ Earned Value Management measures project performance and progress by comparing p
         document.body.appendChild(tooltip);
       }
 
-      const hitAreas = [];
+      const fmtD = (date) => {
+        return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+      };
+
+      const dayW = zoom === 'day' ? 30 : zoom === 'week' ? 14 : 4;
+      const totalDays = Math.ceil((maxDate - minDate) / 864e5);
+      const ROW_H = 48; // aligned with Feature Gantt
+      const HEAD_H = 48;
+      const BAR_H = 22;
+      const PAD_L = 12;
+      const W = totalDays * dayW + PAD_L * 2;
+      const isDarkTheme = document.body.classList.contains('dark-theme');
 
       let laneIdx = 0;
       groupMap.forEach((laneFeatures, laneKey) => {
@@ -46855,24 +46868,34 @@ Earned Value Management measures project performance and progress by comparing p
         if (!laneMin) laneMin = minDate;
         if (!laneMax) laneMax = maxDate;
 
-        // Lane Element Creation
+        const isCollapsed = P._collapsedLanes.has(laneKey);
+
         const lane = document.createElement('div');
-        lane.className = 'sl-lane';
+        lane.className = 'sl-lane' + (isCollapsed ? ' collapsed' : '');
+        lane.setAttribute('data-lane-key', laneKey);
 
         // Header
         const header = document.createElement('div');
         header.className = 'sl-lane-header';
         header.style.background = `linear-gradient(135deg, ${lc}14 0%, ${lc}05 100%)`;
-        
-        const fmtD = (date) => {
-          return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+        header.onclick = () => {
+          if (P._collapsedLanes.has(laneKey)) {
+            P._collapsedLanes.delete(laneKey);
+            lane.classList.remove('collapsed');
+          } else {
+            P._collapsedLanes.add(laneKey);
+            lane.classList.add('collapsed');
+          }
         };
 
+        const dateRangeStr = `${fmtD(laneMin)} &ndash; ${fmtD(laneMax)}`;
+
         header.innerHTML = `
+          <span class="sl-collapse-icon" style="margin-right:6px; font-size:10px; opacity:0.5;">▼</span>
           <div class="sl-lane-accent" style="background:${lc}"></div>
           <div class="sl-lane-title">${esc(laneKey)}</div>
           <div class="sl-lane-count">${laneFeatures.length} feature${laneFeatures.length !== 1 ? 's' : ''}</div>
-          <div class="sl-lane-date-range">${fmtD(laneMin)} &ndash; ${fmtD(laneMax)}</div>
+          <div class="sl-lane-date-range">${dateRangeStr}</div>
           <div style="width:1px;height:14px;background:var(--color-border);margin:0 4px"></div>
           <div class="sl-progress-wrap" style="display:flex;align-items:center;gap:6px;">
             <div class="sl-progress-bar-bg" style="width:60px;height:4px;background:var(--color-border-faint);border-radius:2px;overflow:hidden">
@@ -46882,70 +46905,230 @@ Earned Value Management measures project performance and progress by comparing p
           </div>
         `;
 
-        // Canvas wrap
+        const body = document.createElement('div');
+        body.className = 'sl-lane-body';
+
+        // Left Panel (Feature List)
+        const left = document.createElement('div');
+        left.className = 'sl-lane-left';
+
+        // Add resizer handle
+        const resizer = document.createElement('div');
+        resizer.className = 'sl-lane-resizer';
+        left.appendChild(resizer);
+
+        resizer.addEventListener('pointerdown', (e) => {
+          resizer.classList.add('resizing');
+          document.body.style.cursor = 'col-resize';
+          e.preventDefault();
+          e.stopPropagation();
+
+          const onPointerMove = (moveEvent) => {
+            const rect = left.getBoundingClientRect();
+            const newWidth = moveEvent.clientX - rect.left;
+            if (newWidth > 120 && newWidth < 600) {
+              document.documentElement.style.setProperty('--sl-left-w', `${newWidth}px`);
+            }
+          };
+
+          const onPointerUp = () => {
+            document.removeEventListener('pointermove', onPointerMove);
+            document.removeEventListener('pointerup', onPointerUp);
+            resizer.classList.remove('resizing');
+            document.body.style.cursor = 'default';
+          };
+
+          document.addEventListener('pointermove', onPointerMove);
+          document.addEventListener('pointerup', onPointerUp);
+        });
+
+        const rowHead = document.createElement('div');
+        rowHead.className = 'sl-row-head';
+        rowHead.style.cssText = `height:${HEAD_H}px; display:flex; align-items:center;`;
+        rowHead.textContent = 'Feature Name';
+        left.appendChild(rowHead);
+
+        laneFeatures.forEach((f, i) => {
+          const mObj = featMetricsMap[f.name] || { avgP: 0, tot: 0, done: 0, overdue: 0 };
+          const row = document.createElement('div');
+          row.className = 'sl-row';
+          row.style.cssText = `height:${ROW_H}px; display:flex; align-items:center; padding:0 12px 0 0; position:relative; cursor:pointer; border-bottom:1px solid var(--color-divider);`;
+          if (i % 2 === 1) row.style.background = 'rgba(0,0,0,0.013)';
+
+          row.onclick = (e) => {
+            if (e.target.classList.contains('sl-lane-resizer')) return;
+            startEditFeature(P.features.indexOf(f));
+          };
+          row.onmouseenter = () => row.style.background = 'var(--color-surface-2)';
+          row.onmouseleave = () => row.style.background = i % 2 === 1 ? 'rgba(0,0,0,0.013)' : 'transparent';
+
+          // Left accent stripe
+          const stripe = document.createElement('div');
+          stripe.style.cssText = `width:3px;height:100%;background:${lc};flex-shrink:0;border-radius:0 2px 2px 0;margin-right:10px;opacity:0.8;`;
+          row.appendChild(stripe);
+
+          const info = document.createElement('div');
+          info.style.cssText = 'flex:1;min-width:0;overflow:hidden;';
+
+          // Row 1: name
+          const nameEl = document.createElement('div');
+          nameEl.style.cssText = `font-weight:700;font-size:12px;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;`;
+          nameEl.textContent = f.name;
+
+          // Row 2: release badge + progress %
+          const meta = document.createElement('div');
+          meta.style.cssText = 'display:flex;align-items:center;gap:5px;margin-top:3px;';
+
+          if (f.release) {
+            const relObj = (P.releases || []).find(r => r.name === f.release);
+            const relColor = RELEASE_STATUS_COLORS[relObj && relObj.status] || '#94a3b8';
+            const relBadge = document.createElement('span');
+            relBadge.style.cssText = `font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;background:${relColor}18;border:1px solid ${relColor}55;color:${relColor};white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis;`;
+            relBadge.textContent = f.release;
+            meta.appendChild(relBadge);
+          }
+
+          if (f.category) {
+            const catBadge = document.createElement('span');
+            catBadge.style.cssText = `font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;background:rgba(124,58,237,0.07);border:1px solid rgba(124,58,237,0.2);color:#7c3aed;white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis;`;
+            catBadge.textContent = f.category;
+            meta.appendChild(catBadge);
+          }
+
+          const progSpan = document.createElement('span');
+          progSpan.style.cssText = `font-size:9px;font-weight:700;color:${lc};opacity:0.85;`;
+          progSpan.textContent = `${mObj.avgP}%`;
+          meta.appendChild(progSpan);
+
+          if (mObj.overdue > 0) {
+            const risk = document.createElement('span');
+            risk.style.cssText = 'font-size:9px;color:#ef4444;font-weight:700;';
+            risk.textContent = '⚠ Overdue';
+            meta.appendChild(risk);
+          }
+
+          info.appendChild(nameEl);
+          info.appendChild(meta);
+          row.appendChild(info);
+
+          // Screen count badge on right
+          const scBadge = document.createElement('div');
+          scBadge.style.cssText = `flex-shrink:0;font-size:9px;font-weight:700;color:var(--color-text-faint);background:rgba(128,128,128,0.07);border-radius:6px;padding:2px 6px;margin-left:6px;`;
+          scBadge.textContent = `${f.screens ? f.screens.length : 0} scr`;
+          row.appendChild(scBadge);
+
+          left.appendChild(row);
+        });
+
+        // Right Canvas Wrap
         const canvasWrap = document.createElement('div');
-        canvasWrap.className = 'sl-lane-canvas-wrap';
+        canvasWrap.className = 'sl-lane-right';
+        canvasWrap.style.cssText = `flex:1; overflow-x:auto; position:relative;`;
 
-        const HEAD_H = 36;
-        const ROW_H = 48;
-        const BAR_H = 22;
-        const slW = swimOuter.clientWidth || window.innerWidth - 48;
         const canvasH = HEAD_H + laneFeatures.length * ROW_H + 8;
-
         const cvs = document.createElement('canvas');
         const dpr = window.devicePixelRatio || 1;
-        cvs.width = slW * dpr;
+        cvs.width = W * dpr;
         cvs.height = canvasH * dpr;
-        cvs.style.width = slW + 'px';
+        cvs.style.width = W + 'px';
         cvs.style.height = canvasH + 'px';
-        cvs.style.cursor = 'default';
+        cvs.style.display = 'block';
         canvasWrap.appendChild(cvs);
 
-        lane.appendChild(header);
-        lane.appendChild(canvasWrap);
+        body.appendChild(left);
+        body.appendChild(canvasWrap);
+        lane.appendChild(body);
         swimOuter.appendChild(lane);
 
         // Draw Swimlane Canvas for Features
         const ctx = cvs.getContext('2d');
         ctx.scale(dpr, dpr);
 
-        const PAD = 12;
-        const drawW = slW - PAD * 2;
+        // Resolve CSS vars once
+        const cs = getComputedStyle(document.body);
+        const themeBg      = cs.getPropertyValue('--color-surface').trim()     || '#ffffff';
+        const themeBg2     = cs.getPropertyValue('--color-surface-2').trim()   || '#f8f7f4';
+        const themeBorder  = cs.getPropertyValue('--color-border').trim()      || '#e8e4dc';
+        const themeDivider = cs.getPropertyValue('--color-divider').trim()     || '#f0ede8';
+        const themeMuted   = cs.getPropertyValue('--color-text-muted').trim()  || '#6b6560';
+        const themeFaint   = cs.getPropertyValue('--color-text-faint').trim()  || '#a8a29e';
 
-        function dateToX(d) {
-          if (!d) return PAD;
-          const dt = new Date(d);
-          return PAD + Math.max(0, Math.min(drawW, ((dt - minDate) / totalMs) * drawW));
-        }
+        ctx.fillStyle = themeBg;
+        ctx.fillRect(0, 0, W, canvasH);
 
-        ctx.clearRect(0, 0, slW, canvasH);
+        const dateToX = (dStr) => {
+          if (!dStr) return PAD_L;
+          const rd = new Date(dStr);
+          rd.setHours(0, 0, 0, 0);
+          return PAD_L + Math.floor((rd - minDate) / 864e5) * dayW;
+        };
 
-        // Header bg
-        ctx.fillStyle = 'rgba(0,0,0,0.035)';
-        ctx.fillRect(0, 0, slW, HEAD_H);
+        // Draw Release Period Background Fills
+        const sortedRels = (P.releases || [])
+          .filter(r => r.date)
+          .map(r => ({ ...r, parsedDate: new Date(r.date + 'T00:00:00') }))
+          .sort((a, b) => a.parsedDate - b.parsedDate);
 
-        // Today line
-        const todayX = dateToX(new Date().toISOString().slice(0, 10));
-        ctx.save();
-        ctx.strokeStyle = '#ef4444';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath(); ctx.moveTo(todayX, 0); ctx.lineTo(todayX, canvasH); ctx.stroke();
-        ctx.restore();
+        let lastX = 0;
+        sortedRels.forEach(rel => {
+          const rx = dateToX(rel.date);
+          if (rx > lastX) {
+            const baseColor = RELEASE_STATUS_COLORS[rel.status] || '#94a3b8';
+            let rgbaColor = 'rgba(148, 163, 184, 0.05)';
+            if (baseColor.startsWith('#')) {
+              const r = parseInt(baseColor.slice(1, 3), 16);
+              const g = parseInt(baseColor.slice(3, 5), 16);
+              const b = parseInt(baseColor.slice(5, 7), 16);
+              rgbaColor = `rgba(${r}, ${g}, ${b}, 0.05)`;
+            }
+            ctx.fillStyle = rgbaColor;
+            ctx.fillRect(lastX, HEAD_H, rx - lastX, canvasH - HEAD_H);
+          }
+          lastX = rx;
+        });
+
+        // Background alternate row fills and divider lines
+        laneFeatures.forEach((f, i) => {
+          const by = HEAD_H + i * ROW_H;
+          if (i % 2 === 1) {
+            ctx.fillStyle = isDarkTheme ? 'rgba(255,255,255,0.012)' : 'rgba(0,0,0,0.012)';
+            ctx.fillRect(0, by, W, ROW_H);
+          }
+          ctx.strokeStyle = themeDivider;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(0, by + ROW_H);
+          ctx.lineTo(W, by + ROW_H);
+          ctx.stroke();
+        });
+
+        // Header Background
+        ctx.fillStyle = themeBg2;
+        ctx.fillRect(0, 0, W, HEAD_H);
+        ctx.strokeStyle = themeBorder;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, HEAD_H);
+        ctx.lineTo(W, HEAD_H);
+        ctx.stroke();
 
         // Draw axis ticks
-        ctx.fillStyle = 'rgba(120,120,140,0.7)';
+        ctx.fillStyle = themeMuted;
         ctx.font = '9px Inter,system-ui,sans-serif';
         ctx.textAlign = 'center';
 
-        const dayW = zoom === 'day' ? 30 : zoom === 'week' ? 14 : 4;
         let tickCursor = new Date(minDate);
         while (tickCursor <= maxDate) {
           const tx = dateToX(tickCursor.toISOString().slice(0, 10));
-          ctx.fillStyle = 'rgba(120,120,140,0.18)';
-          ctx.fillRect(tx, 0, 1, canvasH);
+          
+          // Draw tick lines
+          ctx.strokeStyle = themeDivider;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(tx, 0);
+          ctx.lineTo(tx, canvasH);
+          ctx.stroke();
 
-          ctx.fillStyle = 'rgba(120,120,140,0.7)';
           let label = '';
           if (zoom === 'day') {
             label = tickCursor.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
@@ -46957,9 +47140,41 @@ Earned Value Management measures project performance and progress by comparing p
             label = tickCursor.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
             tickCursor.setMonth(tickCursor.getMonth() + 1);
           }
-          if (tx > PAD && tx < slW - PAD) {
+
+          if (tx > PAD_L && tx < W - PAD_L) {
             ctx.fillText(label, tx, HEAD_H / 2 + 3);
           }
+        }
+
+        // Draw Solid Release Separator Lines
+        (P.releases || []).forEach(r => {
+          if (r.date) {
+            const rx = dateToX(r.date);
+            const rc = RELEASE_STATUS_COLORS[r.status] || '#94a3b8';
+            ctx.save();
+            ctx.strokeStyle = rc;
+            ctx.lineWidth = 1;
+            ctx.globalAlpha = 0.25;
+            ctx.beginPath();
+            ctx.moveTo(rx, 0);
+            ctx.lineTo(rx, canvasH);
+            ctx.stroke();
+            ctx.restore();
+          }
+        });
+
+        // Draw Today vertical line
+        const todayX = dateToX(new Date().toISOString().slice(0, 10));
+        if (todayX > PAD_L && todayX < W - PAD_L) {
+          ctx.save();
+          ctx.strokeStyle = '#ef4444';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath();
+          ctx.moveTo(todayX, 0);
+          ctx.lineTo(todayX, canvasH);
+          ctx.stroke();
+          ctx.restore();
         }
 
         // Draw feature rows
@@ -47016,33 +47231,24 @@ Earned Value Management measures project performance and progress by comparing p
             ctx.shadowBlur = 0;
             ctx.shadowOffsetY = 0;
 
-            // Bar label inside bar (if wide enough)
-            if (bw > 50) {
-              ctx.fillStyle = '#fff';
-              ctx.font = 'bold 10px Inter,system-ui,sans-serif';
-              ctx.textAlign = 'left';
-              const label = f.name.length > 20 ? f.name.slice(0, 19) + '…' : f.name;
-              ctx.fillText(label, x1 + 6, by + BAR_H / 2 + 3.5);
-            }
-
             // Register hit area
             hitAreas.push({ cvs, x: x1, x2: x1 + bw, y: by, y2: by + BAR_H, feature: f, metrics: mObj, s: start, e: end, idx: P.features.indexOf(f) });
           } else {
             // Unscheduled feature placeholder
             ctx.fillStyle = 'rgba(128,128,128,0.07)';
             ctx.beginPath();
-            const phW = Math.min(slW - PAD * 2, 260);
-            if (ctx.roundRect) ctx.roundRect(PAD + 8, by, phW, BAR_H, 6);
-            else ctx.rect(PAD + 8, by, phW, BAR_H);
+            const phW = Math.min(W - PAD_L * 2, 260);
+            if (ctx.roundRect) ctx.roundRect(PAD_L + 8, by, phW, BAR_H, 6);
+            else ctx.rect(PAD_L + 8, by, phW, BAR_H);
             ctx.fill();
 
             ctx.fillStyle = 'var(--color-text-faint)';
             ctx.font = 'italic 10px Inter,system-ui,sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(f.name + ' (No dates mapped)', PAD + 18, by + BAR_H / 2 + 3);
+            ctx.fillText('(No dates mapped)', PAD_L + 18, by + BAR_H / 2 + 3);
 
             // Register hit area for unscheduled features so users can still click/hover them
-            hitAreas.push({ cvs, x: PAD + 8, x2: PAD + 8 + phW, y: by, y2: by + BAR_H, feature: f, metrics: mObj, s: null, e: null, idx: P.features.indexOf(f) });
+            hitAreas.push({ cvs, x: PAD_L + 8, x2: PAD_L + 8 + phW, y: by, y2: by + BAR_H, feature: f, metrics: mObj, s: null, e: null, idx: P.features.indexOf(f) });
           }
         });
 
@@ -47161,12 +47367,10 @@ Earned Value Management measures project performance and progress by comparing p
         setTimeout(() => {
           const today = new Date();
           if (today >= minDate && today <= maxDate) {
-            const PAD = 12;
-            const drawW = slW - PAD * 2;
-            const tx = PAD + Math.max(0, Math.min(drawW, ((today - minDate) / totalMs) * drawW));
+            const rx = dateToX(today.toISOString().slice(0, 10));
             const containerW = rightScrolls[0].clientWidth;
             rightScrolls.forEach(el => {
-              el.scrollLeft = tx - containerW / 2;
+              el.scrollLeft = rx - containerW / 2;
             });
           }
         }, 50);
