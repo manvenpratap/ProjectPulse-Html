@@ -185,6 +185,7 @@
     }
 
     :root {
+      --sl-left-w: 220px;
       --tr-base: 0.2s ease;
       --tr-slow: 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
       --tr-spring: 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -7488,13 +7489,28 @@
     }
 
     .sl-lane-left {
-      width: 220px;
-      min-width: 220px;
+      width: var(--sl-left-w);
+      min-width: var(--sl-left-w);
       flex-shrink: 0;
       border-right: 1px solid var(--color-border);
       background: var(--color-surface);
       display: flex;
       flex-direction: column;
+      position: relative;
+    }
+    .sl-lane-resizer {
+      position: absolute;
+      right: -2.5px;
+      top: 0;
+      bottom: 0;
+      width: 5px;
+      cursor: col-resize;
+      z-index: 10;
+      transition: background 0.15s;
+    }
+    .sl-lane-resizer:hover,
+    .sl-lane-resizer.resizing {
+      background: var(--color-primary);
     }
 
     .sl-lane-right {
@@ -46282,6 +46298,37 @@ Earned Value Management measures project performance and progress by comparing p
       ctx.fillStyle = themeBg;
       ctx.fillRect(0, 0, W, H);
 
+      // Draw Release Period Backgrounds
+      const dateToX = (dStr) => {
+        if (!dStr) return PAD_L;
+        const rd = new Date(dStr);
+        rd.setHours(0, 0, 0, 0);
+        return PAD_L + Math.floor((rd - minDate) / 864e5) * dayW;
+      };
+
+      const sortedRels = (P.releases || [])
+        .filter(r => r.date)
+        .map(r => ({ ...r, parsedDate: new Date(r.date + 'T00:00:00') }))
+        .sort((a, b) => a.parsedDate - b.parsedDate);
+
+      let lastX = 0;
+      sortedRels.forEach(rel => {
+        const rx = dateToX(rel.date);
+        if (rx > lastX) {
+          const baseColor = RELEASE_STATUS_COLORS[rel.status] || '#94a3b8';
+          let rgbaColor = 'rgba(148, 163, 184, 0.05)';
+          if (baseColor.startsWith('#')) {
+            const r = parseInt(baseColor.slice(1, 3), 16);
+            const g = parseInt(baseColor.slice(3, 5), 16);
+            const b = parseInt(baseColor.slice(5, 7), 16);
+            rgbaColor = `rgba(${r}, ${g}, ${b}, 0.05)`;
+          }
+          ctx.fillStyle = rgbaColor;
+          ctx.fillRect(lastX, HEAD_H, rx - lastX, H - HEAD_H);
+        }
+        lastX = rx;
+      });
+
       // ── Alternating row bands ───────────────────────────────────────────────
       filteredFeatures.forEach((_, i) => {
         if (i % 2 === 1) {
@@ -46376,18 +46423,15 @@ Earned Value Management measures project performance and progress by comparing p
         const rx = PAD_L + Math.floor((rd - minDate) / 864e5) * dayW;
         const relC = RELEASE_STATUS_COLORS[rel.status] || '#94a3b8';
 
-        // Dashed vertical line through full chart
+        // Solid vertical line through full chart (opacity 0.25)
         ctx.save();
         ctx.strokeStyle = relC;
-        ctx.lineWidth   = 1.5;
-        ctx.globalAlpha = 0.65;
-        ctx.setLineDash([5, 4]);
+        ctx.lineWidth   = 1;
+        ctx.globalAlpha = 0.25;
         ctx.beginPath();
         ctx.moveTo(rx, 0);
         ctx.lineTo(rx, H);
         ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.globalAlpha = 1;
         ctx.restore();
 
         // Release label badge drawn on header
@@ -46397,11 +46441,13 @@ Earned Value Management measures project performance and progress by comparing p
         const lblX = Math.min(rx + 3, W - lblW - 4);
         const lblY = 4;
         ctx.fillStyle = relC;
+        ctx.save();
         ctx.globalAlpha = 0.18;
+        ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(lblX, lblY, lblW, 16, 4);
         else ctx.rect(lblX, lblY, lblW, 16);
         ctx.fill();
-        ctx.globalAlpha = 1;
+        ctx.restore();
         ctx.fillStyle = relC;
         ctx.textAlign = 'left';
         ctx.fillText(lbl, lblX + 5, lblY + 11);
@@ -47091,6 +47137,40 @@ Earned Value Management measures project performance and progress by comparing p
 
         laneIdx++;
       });
+
+      // Synchronize horizontal scrolling
+      const rightScrolls = swimOuter.querySelectorAll('.sl-lane-right');
+      let isSyncingScroll = false;
+      rightScrolls.forEach(el => {
+        el.addEventListener('scroll', () => {
+          if (isSyncingScroll) return;
+          isSyncingScroll = true;
+          const targetScrollLeft = el.scrollLeft;
+          rightScrolls.forEach(other => {
+            if (other !== el && other.scrollLeft !== targetScrollLeft) {
+              other.scrollLeft = targetScrollLeft;
+            }
+          });
+          isSyncingScroll = false;
+        });
+      });
+
+      // Center Gantt/Timeline if force flag is set
+      if (P._forceGanttCenter && rightScrolls.length > 0) {
+        P._forceGanttCenter = false;
+        setTimeout(() => {
+          const today = new Date();
+          if (today >= minDate && today <= maxDate) {
+            const PAD = 12;
+            const drawW = slW - PAD * 2;
+            const tx = PAD + Math.max(0, Math.min(drawW, ((today - minDate) / totalMs) * drawW));
+            const containerW = rightScrolls[0].clientWidth;
+            rightScrolls.forEach(el => {
+              el.scrollLeft = tx - containerW / 2;
+            });
+          }
+        }, 50);
+      }
     }
 
     // ── Copy feature Gantt to clipboard ──────────────────────────────────────
@@ -47822,6 +47902,36 @@ Earned Value Management measures project performance and progress by comparing p
         const left = document.createElement('div');
         left.className = 'sl-lane-left';
 
+        // Add resizer handle
+        const resizer = document.createElement('div');
+        resizer.className = 'sl-lane-resizer';
+        left.appendChild(resizer);
+
+        resizer.addEventListener('pointerdown', (e) => {
+          resizer.classList.add('resizing');
+          document.body.style.cursor = 'col-resize';
+          e.preventDefault();
+          e.stopPropagation();
+
+          const onPointerMove = (moveEvent) => {
+            const rect = left.getBoundingClientRect();
+            const newWidth = moveEvent.clientX - rect.left;
+            if (newWidth > 120 && newWidth < 600) {
+              document.documentElement.style.setProperty('--sl-left-w', `${newWidth}px`);
+            }
+          };
+
+          const onPointerUp = () => {
+            document.removeEventListener('pointermove', onPointerMove);
+            document.removeEventListener('pointerup', onPointerUp);
+            resizer.classList.remove('resizing');
+            document.body.style.cursor = 'default';
+          };
+
+          document.addEventListener('pointermove', onPointerMove);
+          document.addEventListener('pointerup', onPointerUp);
+        });
+
         const rowHead = document.createElement('div');
         rowHead.className = 'sl-row-head';
         rowHead.textContent = 'Task Name';
@@ -48107,13 +48217,18 @@ Earned Value Management measures project performance and progress by comparing p
 
       // Synchronize horizontal scrolling
       const rightScrolls = swimOuter.querySelectorAll('.sl-lane-right');
+      let isSyncingScroll = false;
       rightScrolls.forEach(el => {
         el.addEventListener('scroll', () => {
+          if (isSyncingScroll) return;
+          isSyncingScroll = true;
+          const targetScrollLeft = el.scrollLeft;
           rightScrolls.forEach(other => {
-            if (other !== el && other.scrollLeft !== el.scrollLeft) {
-              other.scrollLeft = el.scrollLeft;
+            if (other !== el && other.scrollLeft !== targetScrollLeft) {
+              other.scrollLeft = targetScrollLeft;
             }
           });
+          isSyncingScroll = false;
         });
       });
 
@@ -48312,6 +48427,35 @@ Earned Value Management measures project performance and progress by comparing p
 
         ctx.fillStyle = themeBg; ctx.fillRect(0, 0, W, H);
 
+        const dateToX = (dStr) => {
+          if (!dStr) return PAD_L;
+          const rd = new Date(dStr);
+          rd.setHours(0, 0, 0, 0);
+          return PAD_L + Math.floor((rd - minDate) / 864e5) * dayW;
+        };
+        const RELEASE_STATUS_COLORS = { Released: '#10b981', Active: '#3b82f6', Planned: '#f59e0b' };
+        const sortedRels = (P.releases || [])
+          .filter(r => r.date)
+          .map(r => ({ ...r, parsedDate: new Date(r.date + 'T00:00:00') }))
+          .sort((a, b) => a.parsedDate - b.parsedDate);
+        let lastX = 0;
+        sortedRels.forEach(rel => {
+          const rx = dateToX(rel.date);
+          if (rx > lastX) {
+            const baseColor = RELEASE_STATUS_COLORS[rel.status] || '#94a3b8';
+            let rgbaColor = 'rgba(148, 163, 184, 0.05)';
+            if (baseColor.startsWith('#')) {
+              const r = parseInt(baseColor.slice(1, 3), 16);
+              const g = parseInt(baseColor.slice(3, 5), 16);
+              const b = parseInt(baseColor.slice(5, 7), 16);
+              rgbaColor = `rgba(${r}, ${g}, ${b}, 0.05)`;
+            }
+            ctx.fillStyle = rgbaColor;
+            ctx.fillRect(lastX, HEAD_H, rx - lastX, H - HEAD_H);
+          }
+          lastX = rx;
+        });
+
         // Interaction State
         const hitAreas = [];
         let tooltip = $id('gantt-tooltip');
@@ -48388,6 +48532,46 @@ Earned Value Management measures project performance and progress by comparing p
           else if (zoom === 'week' && dt.getDay() === 1) { ctx.fillStyle = themeFaint; ctx.font = '9px ' + window.bodyFont; ctx.textAlign = 'left'; ctx.fillText(dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), x + 2, HEAD_H - 4); }
           else if (zoom === 'month' && dt.getDate() === 1) { ctx.fillStyle = themeMuted; ctx.font = 'bold 9px ' + window.bodyFont; ctx.textAlign = 'left'; ctx.fillText(dt.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), x + 2, HEAD_H - 4); }
         }
+        // Draw release markers
+        (P.releases || []).forEach(rel => {
+          if (!rel.date) return;
+          const rd = new Date(rel.date);
+          rd.setHours(0, 0, 0, 0);
+          if (rd < minDate || rd > maxDate) return;
+          const rx = dateToX(rel.date);
+          const relC = RELEASE_STATUS_COLORS[rel.status] || '#94a3b8';
+
+          // Subtle solid vertical separator line through full chart
+          ctx.save();
+          ctx.strokeStyle = relC;
+          ctx.lineWidth   = 1;
+          ctx.globalAlpha = 0.25;
+          ctx.beginPath();
+          ctx.moveTo(rx, 0);
+          ctx.lineTo(rx, H);
+          ctx.stroke();
+          ctx.restore();
+
+          // Release label badge drawn on header
+          const lbl = rel.name;
+          ctx.save();
+          ctx.font = 'bold 8.5px ' + (window.bodyFont || 'Inter,sans-serif');
+          const lblW = ctx.measureText(lbl).width + 8;
+          const lblX = Math.min(rx + 2, W - lblW - 4);
+          const lblY = 3;
+          ctx.fillStyle = relC;
+          ctx.globalAlpha = 0.15;
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(lblX, lblY, lblW, 12, 3);
+          else ctx.rect(lblX, lblY, lblW, 12);
+          ctx.fill();
+
+          ctx.globalAlpha = 1.0;
+          ctx.fillStyle = relC;
+          ctx.textAlign = 'left';
+          ctx.fillText(lbl, lblX + 4, lblY + 9);
+          ctx.restore();
+        });
         // Today line
         if (today >= minDate && today <= maxDate) { const tx = PAD_L + Math.floor((today - minDate) / 864e5) * dayW; ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.moveTo(tx, HEAD_H); ctx.lineTo(tx, H); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = '#ef4444'; ctx.font = 'bold 8px ' + window.bodyFont; ctx.textAlign = 'left'; ctx.fillText('Today', tx + 2, HEAD_H + 10); }
         // Row lines
@@ -49950,12 +50134,16 @@ Earned Value Management measures project performance and progress by comparing p
 
     function downloadGanttAsHtml() {
       const isFeat = (P.view === 'features' || (P.view === 'admin' && P._adminActiveTab === 'features'));
-      const leftId = isFeat ? 'feat-gantt-left' : 'gantt-left';
-      const canvasId = isFeat ? 'feat-gantt-canvas' : 'gantt-canvas';
+      
+      const isTimelineActive = isFeat 
+        ? (document.getElementById('feat-gantt-left') && document.getElementById('feat-gantt-canvas'))
+        : (document.getElementById('gantt-left') && document.getElementById('gantt-canvas'));
+        
+      const isSwimlaneActive = isFeat
+        ? document.getElementById('feat-swimlane-outer')
+        : document.getElementById('task-swimlane-outer');
 
-      const leftEl = document.getElementById(leftId);
-      const canvasEl = document.getElementById(canvasId);
-      if (!leftEl || !canvasEl) {
+      if (!isTimelineActive && !isSwimlaneActive) {
         notify('Gantt chart not found in active view.', 'err');
         return;
       }
@@ -49982,7 +50170,6 @@ Earned Value Management measures project performance and progress by comparing p
       if (isFeat) {
         P.features.forEach((f) => {
           let fScreens = [];
-          const fMods = new Set();
           (f.screens || []).forEach(scName => {
             if (dashCache.subtasksByScreen[scName] && dashCache.subtasksByScreen[scName].length > 0) {
               fScreens.push(...dashCache.subtasksByScreen[scName]);
@@ -50072,19 +50259,20 @@ Earned Value Management measures project performance and progress by comparing p
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  ${'<' + 'script src="https://unpkg.com/lucide@latest">' + '<' + '/script' + '>'}
+  <script src="https://unpkg.com/lucide@latest">${'<' + '/script' + '>'}
   <style>
     :root {
-      --color-bg: ${getComputedStyle(document.body).getPropertyValue('--color-bg') || '#ffffff'};
-      --color-surface: ${getComputedStyle(document.body).getPropertyValue('--color-surface') || '#ffffff'};
-      --color-surface-2: ${getComputedStyle(document.body).getPropertyValue('--color-surface-2') || '#f8f7f4'};
-      --color-border: ${getComputedStyle(document.body).getPropertyValue('--color-border') || '#e8e4dc'};
-      --color-divider: ${getComputedStyle(document.body).getPropertyValue('--color-divider') || '#f0ede8'};
-      --color-text: ${getComputedStyle(document.body).getPropertyValue('--color-text') || '#1c1917'};
-      --color-text-muted: ${getComputedStyle(document.body).getPropertyValue('--color-text-muted') || '#6b6560'};
-      --color-text-faint: ${getComputedStyle(document.body).getPropertyValue('--color-text-faint') || '#a8a29e'};
-      --color-primary: ${getComputedStyle(document.body).getPropertyValue('--color-primary') || '#6366f1'};
+      --color-bg: #ffffff;
+      --color-surface: #ffffff;
+      --color-surface-2: #f8f7f4;
+      --color-border: #e8e4dc;
+      --color-divider: #f0ede8;
+      --color-text: #1c1917;
+      --color-text-muted: #6b6560;
+      --color-text-faint: #a8a29e;
+      --color-primary: #6366f1;
       --font-body: 'Plus Jakarta Sans', 'Outfit', sans-serif;
+      --sl-left-w: 220px;
     }
     body.dark-theme {
       --color-bg: #11100e;
@@ -50095,6 +50283,7 @@ Earned Value Management measures project performance and progress by comparing p
       --color-text: #f5f5f4;
       --color-text-muted: #d6d3d1;
       --color-text-faint: #78716c;
+      --color-primary: #818cf8;
     }
     body {
       margin: 0;
@@ -50258,143 +50447,165 @@ Earned Value Management measures project performance and progress by comparing p
       color: var(--color-text);
       font-family: var(--font-body);
     }
-    /* ── Swimlane View ── */
+    
+    /* ── Swimlane View CSS ── */
     .swimlane-outer {
       display: none;
-      flex-direction: column;
-      overflow-y: auto;
-      overflow-x: hidden;
+      flex-direction: row;
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--color-surface);
       flex: 1;
       height: calc(100vh - 75px);
-      background: var(--color-surface-2);
+      position: relative;
     }
-    .swimlane-outer.active { display: flex; }
-    .gantt-outer.sl-hidden { display: none; }
-    .sl-lane {
+    .swimlane-outer.active {
+      display: flex;
+    }
+    .sl-hidden {
+      display: none !important;
+    }
+    .sl-left-col {
+      width: var(--sl-left-w);
+      min-width: var(--sl-left-w);
+      flex-shrink: 0;
+      overflow-y: hidden;
+      background: var(--color-surface);
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+      border-right: 1px solid var(--color-border);
+    }
+    .sl-splitter {
+      width: 4px;
+      background: var(--color-divider);
+      cursor: col-resize;
+      flex-shrink: 0;
+      transition: background 0.15s;
+      z-index: 10;
+    }
+    .sl-splitter:hover, .sl-splitter.dragging {
+      background: var(--color-primary);
+    }
+    .sl-right-col {
+      flex: 1;
+      overflow: auto;
+      background: var(--color-surface-2);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .sl-axis-left-header {
+      height: 36px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--color-text-faint);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 2px solid var(--color-border);
+      background: var(--color-surface-2);
+      box-sizing: border-box;
+      flex-shrink: 0;
+    }
+    .sl-axis-right-container {
+      height: 36px;
+      border-bottom: 2px solid var(--color-border);
+      background: var(--color-surface-2);
+      flex-shrink: 0;
+      box-sizing: border-box;
+    }
+    .sl-left-lanes-container {
+      flex: 1;
+      overflow-y: hidden;
+    }
+    .sl-right-lanes-container {
+      flex: 1;
+    }
+    .sl-lane-left-group {
       display: flex;
       flex-direction: column;
       border-bottom: 1px solid var(--color-border);
-      background: var(--color-surface);
     }
-    .sl-lane:last-child { border-bottom: none; }
-    .sl-lane-header {
+    .sl-lane-right-group {
+      display: flex;
+      flex-direction: column;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .sl-left-lane-header {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 10px 18px;
+      gap: 8px;
+      padding: 8px 12px;
+      height: 36px;
       cursor: pointer;
       user-select: none;
-      border-bottom: 1px solid var(--color-divider);
       background: var(--color-surface);
-      position: sticky;
-      top: 0;
-      z-index: 5;
+      box-sizing: border-box;
+      border-bottom: 1px solid var(--color-divider);
     }
-    .sl-lane-header:hover { background: var(--color-surface-2); }
-    .sl-collapse-icon {
-      font-size: 12px;
-      color: var(--color-text-faint);
-      transition: transform 0.2s;
-      flex-shrink: 0;
-      line-height: 1;
+    .sl-left-lane-header:hover {
+      background: var(--color-surface-2);
     }
-    .sl-lane.collapsed .sl-collapse-icon { transform: rotate(-90deg); }
-    .sl-lane-color-dot {
-      width: 9px; height: 9px;
-      border-radius: 50%;
+    .sl-lane-accent {
+      width: 3px;
+      height: 18px;
+      border-radius: 2px;
       flex-shrink: 0;
     }
-    .sl-lane-name {
+    .sl-lane-title {
+      font-weight: 700;
       font-size: 12px;
-      font-weight: 800;
       color: var(--color-text);
       flex: 1;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .sl-lane-stats {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
-    }
-    .sl-stat-chip {
-      font-size: 10px;
+    .sl-lane-count {
+      font-size: 9px;
       font-weight: 700;
-      padding: 2px 7px;
-      border-radius: 10px;
-      white-space: nowrap;
+      padding: 1px 6px;
+      border-radius: 8px;
+      background: rgba(99,102,241,0.1);
+      border: 1px solid rgba(99,102,241,0.2);
+      color: var(--color-primary);
     }
-    .sl-progress-wrap {
+    .sl-left-items-list {
+      display: flex;
+      flex-direction: column;
+    }
+    .sl-left-item {
+      height: 48px;
       display: flex;
       align-items: center;
-      gap: 7px;
-      flex-shrink: 0;
-    }
-    .sl-progress-bar-bg {
-      width: 72px; height: 5px;
-      background: var(--color-divider);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    .sl-progress-bar-fill {
-      height: 100%;
-      border-radius: 3px;
-      transition: width 0.6s ease;
-    }
-    .sl-progress-pct {
-      font-size: 10px;
-      font-weight: 700;
-      min-width: 28px;
-      text-align: right;
-    }
-    .sl-lane-body {
-      display: flex;
-      overflow: hidden;
-      transition: max-height 0.3s ease;
-    }
-    .sl-lane.collapsed .sl-lane-body { max-height: 0 !important; }
-    .sl-lane-left {
-      width: 220px;
-      min-width: 220px;
-      flex-shrink: 0;
-      border-right: 1px solid var(--color-divider);
-      overflow-y: auto;
-      overflow-x: hidden;
-      background: var(--color-surface);
-    }
-    .sl-lane-right {
-      flex: 1;
-      overflow-x: auto;
-      overflow-y: hidden;
-      background: var(--color-surface-2);
-      position: relative;
-    }
-    .sl-row {
-      display: flex;
-      align-items: center;
-      padding: 0 10px;
+      padding: 0 16px;
       border-bottom: 1px solid var(--color-divider);
-      font-size: 11px;
-      color: var(--color-text);
-      white-space: nowrap;
-      overflow: hidden;
       box-sizing: border-box;
-      cursor: default;
-      gap: 5px;
     }
-    .sl-row:hover { background: var(--color-surface-2) !important; }
-    .sl-row:last-child { border-bottom: none; }
-    .sl-summary-bar {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      padding: 9px 18px;
+    .sl-left-item:hover {
+      background: var(--color-surface-2);
+    }
+    .sl-left-item:last-child {
+      border-bottom: none;
+    }
+    .sl-lane-canvas-wrap {
       background: var(--color-surface);
-      border-bottom: 2px solid var(--color-border);
-      flex-shrink: 0;
-      flex-wrap: wrap;
+    }
+    .sl-lane-canvas-wrap canvas {
+      display: block;
+    }
+    .sl-lane-left-group.collapsed .sl-left-items-list {
+      display: none;
+    }
+    .sl-lane-right-group.collapsed canvas {
+      display: none;
+    }
+    .sl-lane-left-group.collapsed .sl-collapse-icon {
+      transform: rotate(-90deg);
     }
     ${stylesBundled}
   </style>
@@ -50422,6 +50633,7 @@ Earned Value Management measures project performance and progress by comparing p
         <button class="btn" id="toggle-mc-btn" onclick="toggleMC()">MC</button>
       </div>
       <button class="btn" id="theme-toggle-btn" onclick="toggleTheme()" style="border: 1px solid var(--color-border); border-radius: 8px; font-weight: 600; padding: 6px 12px; background: var(--color-surface); color: var(--color-text-muted);">🌙 Dark Mode</button>
+      <button class="btn" id="copy-image-btn" onclick="copyViewImageToClipboard()" style="border: 1px solid var(--color-border); border-radius: 8px; font-weight: 600; padding: 6px 12px; background: var(--color-surface); color: var(--color-text-muted); display: flex; align-items: center; gap: 6px;"><i data-lucide="copy" style="width:14px; height:14px;"></i> Copy Image</button>
     </div>
   </div>
   <div class="gantt-outer" id="export-gantt-outer">
@@ -50451,7 +50663,7 @@ Earned Value Management measures project performance and progress by comparing p
     const RELEASE_STATUS_COLORS = { Released: '#10b981', Active: '#3b82f6', Planned: '#f59e0b' };
     const ST_COLORS = { 'Not Started': '#94a3b8', 'In Progress': '#3b82f6', 'On Hold': '#f59e0b', 'Under Review': '#8b5cf6', Completed: '#22c55e', Cancelled: '#ef4444' };
 
-    function $id(id) { return document.getElementById(id); }
+    function \$id(id) { return document.getElementById(id); }
     function esc(s) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
     function fmtDate(dStr) {
       if (!dStr) return '';
@@ -50467,26 +50679,50 @@ Earned Value Management measures project performance and progress by comparing p
     function getGroupKey(t) { return isFeat ? (t.category || 'Uncategorized') : (t.moduleType || 'General'); }
 
     if (!isFeat) {
-      $id('toggles-group').style.display = 'flex';
+      \$id('toggles-group').style.display = 'flex';
+    }
+
+    function getThemeColors() {
+      if (isDarkTheme) {
+        return {
+          bg: '#1c1917',
+          bg2: '#262220',
+          border: '#2e2a28',
+          divider: '#3a3532',
+          text: '#f5f5f4',
+          muted: '#d6d3d1',
+          faint: '#78716c'
+        };
+      } else {
+        return {
+          bg: '#ffffff',
+          bg2: '#f8f7f4',
+          border: '#e8e4dc',
+          divider: '#f0ede8',
+          text: '#1c1917',
+          muted: '#6b6560',
+          faint: '#a8a29e'
+        };
+      }
     }
 
     window.toggleActuals = function() {
       showActuals = !showActuals;
-      $id('toggle-actuals-btn').classList.toggle('active', showActuals);
+      \$id('toggle-actuals-btn').classList.toggle('active', showActuals);
       if (currentViewMode === 'swimlane') renderSwimlane();
       else renderGantt();
     };
 
     window.toggleDeps = function() {
       showDeps = !showDeps;
-      $id('toggle-deps-btn').classList.toggle('active', showDeps);
+      \$id('toggle-deps-btn').classList.toggle('active', showDeps);
       if (currentViewMode === 'swimlane') renderSwimlane();
       else renderGantt();
     };
 
     window.toggleMC = function() {
       showMC = !showMC;
-      $id('toggle-mc-btn').classList.toggle('active', showMC);
+      \$id('toggle-mc-btn').classList.toggle('active', showMC);
       if (currentViewMode === 'swimlane') renderSwimlane();
       else renderGantt();
     };
@@ -50494,20 +50730,20 @@ Earned Value Management measures project performance and progress by comparing p
     window.toggleTheme = function() {
       isDarkTheme = !isDarkTheme;
       document.body.classList.toggle('dark-theme', isDarkTheme);
-      $id('theme-toggle-btn').textContent = isDarkTheme ? '☀️ Light Mode' : '🌙 Dark Mode';
+      \$id('theme-toggle-btn').innerHTML = isDarkTheme ? '☀️ Light Mode' : '🌙 Dark Mode';
       if (currentViewMode === 'swimlane') renderSwimlane();
       else renderGantt();
     };
 
-    $id('export-title-el').textContent = DATA.projectName + ' - ' + (isFeat ? 'Features Timeline' : 'Tasks Timeline');
+    \$id('export-title-el').textContent = DATA.projectName + ' - ' + (isFeat ? 'Features Timeline' : 'Tasks Timeline');
     document.title = DATA.projectName + ' - ' + (isFeat ? 'Features Timeline' : 'Tasks Timeline');
 
     window.setViewMode = function(mode) {
       currentViewMode = mode;
-      $id('view-timeline-btn').classList.toggle('active', mode === 'timeline');
-      $id('view-swimlane-btn').classList.toggle('active', mode === 'swimlane');
-      const ganttOuter = $id('export-gantt-outer');
-      const swimOuter = $id('export-swimlane-outer');
+      \$id('view-timeline-btn').classList.toggle('active', mode === 'timeline');
+      \$id('view-swimlane-btn').classList.toggle('active', mode === 'swimlane');
+      const ganttOuter = \$id('export-gantt-outer');
+      const swimOuter = \$id('export-swimlane-outer');
       if (mode === 'swimlane') {
         ganttOuter.classList.add('sl-hidden');
         swimOuter.classList.add('active');
@@ -50519,8 +50755,8 @@ Earned Value Management measures project performance and progress by comparing p
       }
     };
 
-    const splitter = $id('export-gantt-splitter');
-    const leftPanel = $id('export-gantt-left');
+    const splitter = \$id('export-gantt-splitter');
+    const leftPanel = \$id('export-gantt-left');
     let isDragging = false;
 
     splitter.addEventListener('mousedown', (e) => {
@@ -50547,22 +50783,21 @@ Earned Value Management measures project performance and progress by comparing p
 
     window.setZoom = function(z) {
       currentZoom = z;
-      [$id('zoom-day-btn'), $id('zoom-week-btn'), $id('zoom-month-btn')].forEach(b => b && b.classList.remove('active'));
-      $id('zoom-' + z + '-btn').classList.add('active');
+      [\$id('zoom-day-btn'), \$id('zoom-week-btn'), \$id('zoom-month-btn')].forEach(b => b && b.classList.remove('active'));
+      \$id('zoom-' + z + '-btn').classList.add('active');
       if (currentViewMode === 'swimlane') renderSwimlane();
       else renderGantt();
     };
 
-    const searchInput = $id('search-input');
+    const searchInput = \$id('search-input');
     searchInput.addEventListener('input', (e) => {
       searchQuery = e.target.value.toLowerCase();
       if (currentViewMode === 'swimlane') renderSwimlane();
       else renderGantt();
     });
 
-
-    const cvs = $id('export-gantt-canvas');
-    const tooltip = $id('export-gantt-tooltip');
+    const cvs = \$id('export-gantt-canvas');
+    const tooltip = \$id('export-gantt-tooltip');
     let hitAreas = [];
 
     cvs.addEventListener('mousemove', (e) => {
@@ -50661,6 +50896,7 @@ Earned Value Management measures project performance and progress by comparing p
           info.style.cssText = 'flex:1;min-width:0;overflow:hidden;';
 
           const nameEl = document.createElement('div');
+          nameEl.className = 'export-item-name';
           nameEl.style.cssText = 'font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;';
           nameEl.textContent = t.name;
 
@@ -50676,7 +50912,7 @@ Earned Value Management measures project performance and progress by comparing p
 
           const progSpan = document.createElement('span');
           progSpan.style.cssText = \`font-size:9px;font-weight:700;color:\${bc};opacity:0.85;\`;
-          progSpan.textContent = \`\${t.progress}%\`;
+          progSpan.textContent = t.progress + '%';
           meta.appendChild(progSpan);
 
           if (t.overdue > 0) {
@@ -50698,7 +50934,7 @@ Earned Value Management measures project performance and progress by comparing p
           } else {
             nameHtml = modTag + nameHtml;
           }
-          r.innerHTML = \`<span style="overflow:hidden;text-overflow:ellipsis;flex:1;display:flex;align-items:center">\${nameHtml}</span>\`;
+          r.innerHTML = \`<span class="export-item-name" style="overflow:hidden;text-overflow:ellipsis;flex:1;display:flex;align-items:center">\${nameHtml}</span>\`;
         }
 
         leftPanel.appendChild(r);
@@ -50744,21 +50980,40 @@ Earned Value Management measures project performance and progress by comparing p
       const ctx = cvs.getContext('2d');
       ctx.scale(dpr, dpr);
 
-      const themeBg = getComputedStyle(document.body).getPropertyValue('--color-surface').trim() || '#ffffff';
-      const themeBg2 = getComputedStyle(document.body).getPropertyValue('--color-surface-2').trim() || '#f8f7f4';
-      const themeBorder = getComputedStyle(document.body).getPropertyValue('--color-border').trim() || '#e8e4dc';
-      const themeDivider = getComputedStyle(document.body).getPropertyValue('--color-divider').trim() || '#f0ede8';
-      const themeMuted = getComputedStyle(document.body).getPropertyValue('--color-text-muted').trim() || '#6b6560';
-      const themeFaint = getComputedStyle(document.body).getPropertyValue('--color-text-faint').trim() || '#a8a29e';
-
-      ctx.fillStyle = themeBg;
+      const colors = getThemeColors();
+      ctx.fillStyle = colors.bg;
       ctx.fillRect(0, 0, W, H);
+
+      // Shaded release backgrounds
+      const sortedRels = (DATA.releases || [])
+        .filter(r => r.date)
+        .map(r => ({{ ...r, parsedDate: new Date(r.date + 'T00:00:00') }}))
+        .sort((a, b) => a.parsedDate - b.parsedDate);
+      let lastX = 0;
+      sortedRels.forEach(rel => {{
+        const rd = new Date(rel.date); rd.setHours(0,0,0,0);
+        let rx = PAD_L + Math.floor((rd - minDate) / 864e5) * dayW;
+        if (rx > W) rx = W;
+        if (rx > lastX) {{
+          const baseColor = RELEASE_STATUS_COLORS[rel.status] || '#94a3b8';
+          let rgbaColor = 'rgba(148, 163, 184, 0.05)';
+          if (baseColor.startsWith('#')) {{
+            const r = parseInt(baseColor.slice(1, 3), 16);
+            const g = parseInt(baseColor.slice(3, 5), 16);
+            const b = parseInt(baseColor.slice(5, 7), 16);
+            rgbaColor = \\\`rgba(\\\${{r}}, \\\${{g}}, \\\${{b}}, 0.05)\\\`;
+          }}
+          ctx.fillStyle = rgbaColor;
+          ctx.fillRect(lastX, HEAD_H, rx - lastX, H - HEAD_H);
+        }}
+        lastX = Math.max(0, rx);
+      }});
 
       hitAreas = [];
 
-      ctx.fillStyle = themeBg2;
+      ctx.fillStyle = colors.bg2;
       ctx.fillRect(0, 0, W, HEAD_H);
-      ctx.strokeStyle = themeBorder;
+      ctx.strokeStyle = colors.border;
       ctx.lineWidth = 1;
 
       for (let d = 0; d < totalDays; d++) {
@@ -50766,35 +51021,35 @@ Earned Value Management measures project performance and progress by comparing p
         const x = PAD_L + d * dayW;
 
         if (dt.getDay() === 1 || currentZoom === 'day') {
-          ctx.strokeStyle = themeDivider;
+          ctx.strokeStyle = colors.divider;
           ctx.beginPath();
           ctx.moveTo(x, HEAD_H);
           ctx.lineTo(x, H);
           ctx.stroke();
         }
         if (dt.getDay() === 0 || dt.getDay() === 6) {
-          ctx.fillStyle = 'rgba(128,128,128,0.04)';
+          ctx.fillStyle = isDarkTheme ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.02)';
           ctx.fillRect(x, HEAD_H, dayW, H - HEAD_H);
         }
 
         if (currentZoom === 'day') {
-          ctx.fillStyle = themeFaint;
-          ctx.font = '9px ' + DATA.theme;
+          ctx.fillStyle = colors.faint;
+          ctx.font = '9px var(--font-body)';
           ctx.textAlign = 'center';
           ctx.fillText(dt.getDate(), x + dayW / 2, HEAD_H - (isFeat ? 8 : 4));
           if (dt.getDate() === 1 || d === 0) {
-            ctx.fillStyle = themeMuted;
-            ctx.font = 'bold 9px ' + DATA.theme;
+            ctx.fillStyle = colors.muted;
+            ctx.font = 'bold 9px var(--font-body)';
             ctx.fillText(dt.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), x + dayW / 2, HEAD_H - (isFeat ? 24 : 16));
           }
         } else if (currentZoom === 'week' && dt.getDay() === 1) {
-          ctx.fillStyle = themeFaint;
-          ctx.font = '9px ' + DATA.theme;
+          ctx.fillStyle = colors.faint;
+          ctx.font = '9px var(--font-body)';
           ctx.textAlign = 'left';
           ctx.fillText(dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), x + 2, HEAD_H - 4);
         } else if (currentZoom === 'month' && dt.getDate() === 1) {
-          ctx.fillStyle = themeMuted;
-          ctx.font = 'bold 9px ' + DATA.theme;
+          ctx.fillStyle = colors.muted;
+          ctx.font = 'bold 9px var(--font-body)';
           ctx.textAlign = 'left';
           ctx.fillText(dt.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), x + 2, HEAD_H - 4);
         }
@@ -50813,7 +51068,7 @@ Earned Value Management measures project performance and progress by comparing p
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillStyle = '#ef4444';
-        ctx.font = 'bold 8px ' + DATA.theme;
+        ctx.font = 'bold 8px var(--font-body)';
         ctx.textAlign = 'left';
         ctx.fillText('Today', tx + 2, HEAD_H + 10);
       }
@@ -50829,13 +51084,13 @@ Earned Value Management measures project performance and progress by comparing p
           ctx.beginPath(); ctx.moveTo(rx, 0); ctx.lineTo(rx, H); ctx.stroke();
 
           ctx.fillStyle = rColor;
-          ctx.font = 'bold 8px ' + DATA.theme;
+          ctx.font = 'bold 8px var(--font-body)';
           ctx.textAlign = 'left';
           ctx.fillText(r.name, rx + 4, 12);
         }
       });
 
-      ctx.strokeStyle = themeBorder;
+      ctx.strokeStyle = colors.border;
       ctx.lineWidth = 0.5;
       for (let i = 0; i <= filtered.length; i++) {
         const y = HEAD_H + i * ROW_H;
@@ -50846,7 +51101,6 @@ Earned Value Management measures project performance and progress by comparing p
       }
 
       const taskPositions = {};
-      const stColors = { 'Not Started': '#94a3b8', 'In Progress': '#3b82f6', 'On Hold': '#f59e0b', 'Under Review': '#8b5cf6', Completed: '#22c55e', Cancelled: '#ef4444' };
       filtered.forEach((t, i) => {
         const s = new Date(t.startDate), e = new Date(t.dueDate);
         s.setHours(0, 0, 0, 0); e.setHours(0, 0, 0, 0);
@@ -50895,7 +51149,7 @@ Earned Value Management measures project performance and progress by comparing p
             const mx = x1 + dayW / 2;
             const my = y + BAR_H / 2;
             taskPositions[t.id] = { x: mx, x2: mx, y: my };
-            ctx.fillStyle = stColors[t.status] || '#94a3b8';
+            ctx.fillStyle = ST_COLORS[t.status] || '#94a3b8';
             ctx.beginPath();
             ctx.moveTo(mx, my - 8);
             ctx.lineTo(mx + 8, my);
@@ -50905,7 +51159,7 @@ Earned Value Management measures project performance and progress by comparing p
             ctx.fill();
           } else {
             taskPositions[t.id] = { x: x1, x2: x1 + bw, y: y + BAR_H / 2 };
-            ctx.fillStyle = (stColors[t.status] || '#94a3b8') + '25';
+            ctx.fillStyle = (ST_COLORS[t.status] || '#94a3b8') + '25';
             if (ctx.roundRect) {
               ctx.beginPath();
               ctx.roundRect(x1, y, bw, BAR_H, 4);
@@ -50916,17 +51170,17 @@ Earned Value Management measures project performance and progress by comparing p
 
             const pw = bw * ((t.progress || 0) / 100);
             if (pw > 0) {
-              ctx.fillStyle = stColors[t.status] || '#3b82f6';
+              ctx.fillStyle = ST_COLORS[t.status] || '#3b82f6';
               if (ctx.roundRect) {
                 ctx.beginPath();
                 ctx.roundRect(x1, y, pw, BAR_H, 4);
                 ctx.fill();
               } else {
-                ctx.fillRect(x1, y, pw, BAR_H);
+                ctx.fillRect(x1, y, bw, BAR_H);
               }
             }
 
-            ctx.strokeStyle = stColors[t.status] || '#94a3b8';
+            ctx.strokeStyle = ST_COLORS[t.status] || '#94a3b8';
             ctx.lineWidth = 1;
             if (ctx.roundRect) {
               ctx.beginPath();
@@ -50976,7 +51230,7 @@ Earned Value Management measures project performance and progress by comparing p
     }
 
     const leftScroll = leftPanel;
-    const rightScroll = $id('export-gantt-right');
+    const rightScroll = \$id('export-gantt-right');
     rightScroll.addEventListener('scroll', () => {
       leftScroll.scrollTop = rightScroll.scrollTop;
     });
@@ -50984,55 +51238,76 @@ Earned Value Management measures project performance and progress by comparing p
       rightScroll.scrollTop += e.deltaY;
     }, { passive: true });
 
-
-    // ─── Inject swimlane CSS (only once) ────────────────────────────────────
-    (function injectSwimlaneCSS() {
-      const existing = document.getElementById('_sl_style');
-      if (existing) return;
-      const s = document.createElement('style');
-      s.id = '_sl_style';
-      s.textContent = \`
-        .swimlane-outer { display:none; flex-direction:column; gap:0; flex:1; overflow-y:auto; background:var(--color-bg); padding:12px 0; }
-        .swimlane-outer.active { display:flex; }
-        .sl-hidden { display:none !important; }
-        .sl-lane { display:flex; flex-direction:column; border-radius:12px; overflow:hidden; margin:0 16px 14px; background:var(--color-surface); border:1px solid var(--color-border); box-shadow:0 2px 8px rgba(0,0,0,0.07); }
-        .sl-lane-header { display:flex; align-items:center; gap:10px; padding:10px 16px; min-height:46px; cursor:default; user-select:none; position:relative; }
-        .sl-lane-accent { width:4px; height:36px; border-radius:3px; flex-shrink:0; }
-        .sl-lane-title { font-weight:700; font-size:13px; letter-spacing:0.01em; flex:1; }
-        .sl-lane-count { font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.2); color:var(--color-primary); }
-        .sl-lane-date-range { font-size:10px; color:var(--color-text-muted); font-weight:500; white-space:nowrap; }
-        .sl-lane-progress-bar { height:3px; background:var(--color-border); }
-        .sl-lane-progress-fill { height:3px; border-radius:2px; transition:width 0.5s ease; }
-        .sl-lane-canvas-wrap { position:relative; }
-        .sl-lane-canvas-wrap canvas { display:block; width:100%; }
-        .sl-canvas-head { position:absolute; top:0; left:0; pointer-events:none; }
-        .sl-no-items { padding:24px; font-size:12px; color:var(--color-text-muted); text-align:center; }
-      \`;
-      document.head.appendChild(s);
-    })();
-
     // ─── Swimlane renderer ───────────────────────────────────────────────────
     let slHitAreas = [];
 
-    function renderSwimlane() {
-      const swimOuter = $id('export-swimlane-outer');
-      swimOuter.innerHTML = '';
+    function renderSwimlane() {{
+      const swimOuter = \$id('export-swimlane-outer');
+      swimOuter.innerHTML = \`
+        <div class="sl-left-col">
+          <div class="sl-axis-left-header">Category / Item</div>
+          <div class="sl-left-lanes-container"></div>
+        </div>
+        <div class="sl-splitter" id="export-sl-splitter"></div>
+        <div class="sl-right-col">
+          <div class="sl-axis-right-container">
+            <canvas id="sl-axis-canvas"></canvas>
+          </div>
+          <div class="sl-right-lanes-container"></div>
+        </div>
+      \`;
       slHitAreas = [];
 
-      const q = searchQuery;
-      const filtered = items.filter(t => !q || t.name.toLowerCase().includes(q) || (t.release || '').toLowerCase().includes(q) || (t.moduleType || '').toLowerCase().includes(q));
+      // Splitter dragging
+      const slSplitter = swimOuter.querySelector('#export-sl-splitter');
+      let isSlDragging = false;
+      if (slSplitter) {{
+        slSplitter.addEventListener('mousedown', (e) => {{
+          isSlDragging = true;
+          slSplitter.classList.add('dragging');
+          document.body.style.cursor = 'col-resize';
+          e.preventDefault();
+        }});
+        document.addEventListener('mousemove', (e) => {{
+          if (!isSlDragging) return;
+          const newWidth = Math.max(120, Math.min(600, e.clientX));
+          document.documentElement.style.setProperty('--sl-left-w', newWidth + 'px');
+        }});
+        document.addEventListener('mouseup', () => {{
+          if (isSlDragging) {{
+            isSlDragging = false;
+            slSplitter.classList.remove('dragging');
+            document.body.style.cursor = '';
+          }}
+        }});
+      }}
 
-      // ── Compute date range ─────────────────────────────────────────────────
+      // Sync scrolling
+      const leftCol = swimOuter.querySelector('.sl-left-col');
+      const rightCol = swimOuter.querySelector('.sl-right-col');
+      if (leftCol && rightCol) {{
+        rightCol.addEventListener('scroll', () => {{
+          leftCol.scrollTop = rightCol.scrollTop;
+        }});
+        leftCol.addEventListener('wheel', (e) => {{
+          rightCol.scrollTop += e.deltaY;
+        }}, {{ passive: true }});
+      }}
+
+      const q = searchQuery;
+      const filtered = items.filter(t => !q || t.name.toLowerCase().includes(q) || (t.release || '').toLowerCase().includes(q) || (t.category || '').toLowerCase().includes(q));
+
+      // Compute date range
       const allDates = filtered.flatMap(t => [t.startDate, t.dueDate]).filter(Boolean).map(d => new Date(d + 'T00:00:00'));
       if (allDates.length === 0) {
-        swimOuter.innerHTML = '<div class="sl-no-items">No items to display.</div>';
+        swimOuter.innerHTML = '<div style="padding:24px; font-size:12px; color:var(--color-text-muted); text-align:center;">No items to display.</div>';
         return;
       }
 
       let minDate = new Date(Math.min(...allDates));
       let maxDate = new Date(Math.max(...allDates));
 
-      // snap to zoom unit boundaries
+      // Snap to boundaries
       const z = currentZoom;
       if (z === 'week') {
         const dow = minDate.getDay(); minDate.setDate(minDate.getDate() - (dow === 0 ? 6 : dow - 1));
@@ -51044,13 +51319,32 @@ Earned Value Management measures project performance and progress by comparing p
 
       const totalMs = maxDate - minDate;
 
-      // ── Group items ────────────────────────────────────────────────────────
+      // Group items
       const groupMap = new Map();
       filtered.forEach(t => {
         const key = getGroupKey(t);
         if (!groupMap.has(key)) groupMap.set(key, []);
         groupMap.get(key).push(t);
       });
+
+      // Axis canvas sizing and drawing
+      const dayW = currentZoom === 'day' ? 30 : currentZoom === 'week' ? 14 : 4;
+      const totalDays = Math.ceil(totalMs / 864e5) + 1;
+      const W = totalDays * dayW + 24;
+      const dpr = window.devicePixelRatio || 1;
+
+      const axisCvs = \$id('sl-axis-canvas');
+      axisCvs.width = W * dpr;
+      axisCvs.height = 36 * dpr;
+      axisCvs.style.width = W + 'px';
+      axisCvs.style.height = '36px';
+
+      drawSwimlaneAxis(axisCvs, dpr, minDate, maxDate, W, 36);
+
+      const leftContainer = swimOuter.querySelector('.sl-left-lanes-container');
+      const rightContainer = swimOuter.querySelector('.sl-right-lanes-container');
+
+      if (!window._collapsedLanes) window._collapsedLanes = new Set();
 
       let laneIdx = 0;
       groupMap.forEach((laneItems, laneKey) => {
@@ -51059,72 +51353,108 @@ Earned Value Management measures project performance and progress by comparing p
         const laneMin = new Date(Math.min(...laneItems.map(t => t.startDate ? new Date(t.startDate + 'T00:00:00') : Infinity)));
         const laneMax = new Date(Math.max(...laneItems.map(t => t.dueDate ? new Date(t.dueDate + 'T00:00:00') : -Infinity)));
 
-        // ── Lane wrapper ───────────────────────────────────────────────────
-        const lane = document.createElement('div');
-        lane.className = 'sl-lane';
+        const isCollapsed = window._collapsedLanes.has(laneKey);
 
-        // header
-        const header = document.createElement('div');
-        header.className = 'sl-lane-header';
-        header.style.background = \`linear-gradient(135deg,\${lc}14 0%,\${lc}05 100%)\`;
-        header.innerHTML = \`
+        // Create left group
+        const leftGrp = document.createElement('div');
+        leftGrp.className = 'sl-lane-left-group' + (isCollapsed ? ' collapsed' : '');
+        leftGrp.setAttribute('data-lane-key', laneKey);
+
+        const leftHeader = document.createElement('div');
+        leftHeader.className = 'sl-left-lane-header';
+        leftHeader.style.background = \`linear-gradient(135deg, \${lc}12 0%, \${lc}04 100%)\`;
+        leftHeader.innerHTML = \`
+          <span class="sl-collapse-icon" style="margin-right:4px; font-size:9px; transition:transform 0.2s ease; display:inline-block; color:var(--color-text-muted)">▼</span>
           <div class="sl-lane-accent" style="background:\${lc}"></div>
           <div class="sl-lane-title">\${esc(laneKey)}</div>
-          <div class="sl-lane-count">\${laneItems.length} item\${laneItems.length!==1?'s':''}</div>
-          <div class="sl-lane-date-range">\${fmtDate(laneMin.toISOString().slice(0,10))} &ndash; \${fmtDate(laneMax.toISOString().slice(0,10))}</div>
+          <div class="sl-lane-count" style="background:\${lc}18; border:1px solid \${lc}33; color:\${lc}">\${laneItems.length} item\${laneItems.length!==1?'s':''}</div>
         \`;
 
-        // progress bar
-        const progBar = document.createElement('div');
-        progBar.className = 'sl-lane-progress-bar';
-        const progFill = document.createElement('div');
-        progFill.className = 'sl-lane-progress-fill';
-        progFill.style.width = progress + '%';
-        progFill.style.background = lc;
-        progBar.appendChild(progFill);
+        const itemsList = document.createElement('div');
+        itemsList.className = 'sl-left-items-list';
 
-        // canvas wrap
+        laneItems.forEach((t, i) => {
+          const itemEl = document.createElement('div');
+          itemEl.className = 'sl-left-item';
+          itemEl.style.height = isFeat ? '48px' : '32px';
+          
+          let statusC = '#f59e0b';
+          if (t.overdue > 0) statusC = '#ef4444';
+          else if (t.progress === 100) statusC = '#10b981';
+          else if (t.progress > 0) statusC = '#3b82f6';
+
+          itemEl.innerHTML = \`
+            <div style="width:6px; height:6px; border-radius:50%; background:\${statusC}; margin-right:8px; flex-shrink:0;"></div>
+            <div style="flex:1; min-width:0; overflow:hidden;">
+              <div class="export-item-name" style="font-weight:700; font-size:11.5px; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2;">\${esc(t.name)}</div>
+              <div style="font-size:9px; color:var(--color-text-muted); font-weight:600; margin-top:2px;">\${t.progress || 0}% maturity • \${t.release || 'Unassigned'}</div>
+            </div>
+          \`;
+          itemsList.appendChild(itemEl);
+        });
+
+        leftGrp.appendChild(leftHeader);
+        leftGrp.appendChild(itemsList);
+        leftContainer.appendChild(leftGrp);
+
+        // Create right group
+        const rightGrp = document.createElement('div');
+        rightGrp.className = 'sl-lane-right-group' + (isCollapsed ? ' collapsed' : '');
+        rightGrp.setAttribute('data-lane-key', laneKey);
+
+        const rightHeader = document.createElement('div');
+        rightHeader.style.height = '36px';
+        rightHeader.style.background = \`linear-gradient(135deg, \${lc}12 0%, \${lc}04 100%)\`;
+        rightHeader.style.borderBottom = '1px solid var(--color-divider)';
+        rightGrp.appendChild(rightHeader);
+
         const canvasWrap = document.createElement('div');
         canvasWrap.className = 'sl-lane-canvas-wrap';
 
-        // canvas
-        const HEAD_H = 36;
-        const ROW_H = isFeat ? 48 : 36;
-        const BAR_H = isFeat ? 22 : 16;
-        const slW = swimOuter.clientWidth || window.innerWidth - 48;
-        const canvasH = HEAD_H + laneItems.length * ROW_H + 8;
+        const rowH = isFeat ? 48 : 32;
+        const canvasH = laneItems.length * rowH;
 
         const cvs = document.createElement('canvas');
-        const dpr = window.devicePixelRatio || 1;
-        cvs.width = slW * dpr;
+        cvs.width = W * dpr;
         cvs.height = canvasH * dpr;
-        cvs.style.width = slW + 'px';
+        cvs.style.width = W + 'px';
         cvs.style.height = canvasH + 'px';
-        cvs.style.cursor = 'default';
-
         canvasWrap.appendChild(cvs);
+        rightGrp.appendChild(canvasWrap);
+        rightContainer.appendChild(rightGrp);
 
-        // assemble
-        lane.appendChild(header);
-        lane.appendChild(progBar);
-        lane.appendChild(canvasWrap);
-        swimOuter.appendChild(lane);
+        // Draw Canvas content
+        const barH = isFeat ? 20 : 16;
+        drawSwimlaneCanvas(cvs, dpr, laneItems, lc, minDate, maxDate, W, canvasH, rowH, barH);
 
-        // ── Draw canvas ────────────────────────────────────────────────────
-        drawSwimlaneCanvas(cvs, dpr, laneItems, laneKey, lc, minDate, maxDate, slW, canvasH, HEAD_H, ROW_H, BAR_H, laneIdx);
+        // Connect Collapse Click
+        leftHeader.onclick = () => {
+          if (window._collapsedLanes.has(laneKey)) {
+            window._collapsedLanes.delete(laneKey);
+            leftGrp.classList.remove('collapsed');
+            rightGrp.classList.remove('collapsed');
+          } else {
+            window._collapsedLanes.add(laneKey);
+            leftGrp.classList.add('collapsed');
+            rightGrp.classList.add('collapsed');
+          }
+        };
 
         laneIdx++;
       });
 
-      // ── Global swimlane tooltip ────────────────────────────────────────────
-      const slTooltip = $id('export-gantt-tooltip');
+      // Synchronize tooltips
+      const slTooltip = \$id('export-gantt-tooltip');
       swimOuter.addEventListener('mousemove', (e) => {
         let hit = null;
         for (const h of slHitAreas) {
           const rect = h.cvs.getBoundingClientRect();
           const mx = e.clientX - rect.left;
           const my = e.clientY - rect.top;
-          if (mx >= h.x && mx <= h.x2 && my >= h.y && my <= h.y2) { hit = h; break; }
+          if (mx >= h.x && mx <= h.x2 && my >= h.y && my <= h.y2 && h.cvs.offsetParent !== null) {
+            hit = h;
+            break;
+          }
         }
         if (hit) {
           const t = hit.item;
@@ -51164,143 +51494,561 @@ Earned Value Management measures project performance and progress by comparing p
           document.querySelectorAll('.sl-lane-canvas-wrap canvas').forEach(c => c.style.cursor = 'default');
         }
       });
+
       swimOuter.addEventListener('mouseleave', () => {
         slTooltip.style.opacity = '0';
         slTooltip.style.transform = 'translateY(8px)';
       });
     }
 
-    function drawSwimlaneCanvas(cvs, dpr, laneItems, laneKey, lc, minDate, maxDate, W, H, HEAD_H, ROW_H, BAR_H, laneIdx) {
+    function drawSwimlaneAxis(cvs, dpr, minDate, maxDate, W, H) {
       const ctx = cvs.getContext('2d');
       ctx.scale(dpr, dpr);
 
+      const colors = getThemeColors();
       const totalMs = maxDate - minDate;
-      const PAD = 12;
-      const drawW = W - PAD * 2;
 
       function dateToX(d) {
-        if (!d) return PAD;
+        if (!d) return 12;
         const dt = new Date(d + 'T00:00:00');
-        return PAD + Math.max(0, Math.min(drawW, ((dt - minDate) / totalMs) * drawW));
+        const drawW = W - 24;
+        return 12 + Math.max(0, Math.min(drawW, ((dt - minDate) / totalMs) * drawW));
       }
 
-      // ── Background ──────────────────────────────────────────────────────────
       ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = colors.bg2;
+      ctx.fillRect(0, 0, W, H);
 
-      // ── Header axis ─────────────────────────────────────────────────────────
-      ctx.fillStyle = 'rgba(0,0,0,0.035)';
-      ctx.fillRect(0, 0, W, HEAD_H);
-
-      // Today line
-      const todayX = dateToX(new Date().toISOString().slice(0, 10));
-      ctx.save();
-      ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([3, 3]);
-      ctx.beginPath(); ctx.moveTo(todayX, 0); ctx.lineTo(todayX, H); ctx.stroke();
-      ctx.restore();
-
-      // Draw axis ticks
-      ctx.fillStyle = 'rgba(120,120,140,0.7)';
-      ctx.font = '9px Inter,system-ui,sans-serif';
-      ctx.textAlign = 'center';
-
-      const z = currentZoom;
       let tickCursor = new Date(minDate);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
       while (tickCursor <= maxDate) {
         const tx = dateToX(tickCursor.toISOString().slice(0, 10));
-        ctx.fillStyle = 'rgba(120,120,140,0.18)';
-        ctx.fillRect(tx, 0, 1, H);
+        
+        ctx.strokeStyle = colors.divider;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(tx, 0);
+        ctx.lineTo(tx, H);
+        ctx.stroke();
 
-        ctx.fillStyle = 'rgba(120,120,140,0.7)';
         let label = '';
+        const z = currentZoom;
         if (z === 'day') {
           label = tickCursor.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
           tickCursor.setDate(tickCursor.getDate() + 1);
         } else if (z === 'week') {
-          label = tickCursor.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+          label = 'W' + Math.ceil(tickCursor.getDate() / 7) + ' ' + tickCursor.toLocaleDateString('en-GB', { month: 'short' });
           tickCursor.setDate(tickCursor.getDate() + 7);
         } else {
-          label = tickCursor.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
+          label = tickCursor.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
           tickCursor.setMonth(tickCursor.getMonth() + 1);
         }
-        ctx.fillText(label, tx + 2, HEAD_H - 8);
+
+        ctx.fillStyle = colors.muted;
+        ctx.font = '500 8.5px var(--font-body), sans-serif';
+        ctx.fillText(label, tx, H / 2);
       }
 
-      // ── Rows ──────────────────────────────────────────────────────────────
-      laneItems.forEach((t, i) => {
-        const ry = HEAD_H + i * ROW_H;
+      // Today line tag
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      if (today >= minDate && today <= maxDate) {
+        const tx = dateToX(today.toISOString().slice(0, 10));
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.45)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(tx, 0);
+        ctx.lineTo(tx, H);
+        ctx.stroke();
 
-        // zebra
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.85)';
+        ctx.font = 'bold 8px var(--font-body), sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('TODAY', tx + 4, H / 2);
+      }
+    }
+
+    function drawSwimlaneCanvas(cvs, dpr, laneItems, lc, minDate, maxDate, W, H, ROW_H, BAR_H) {
+      const ctx = cvs.getContext('2d');
+      ctx.scale(dpr, dpr);
+
+      const colors = getThemeColors();
+      const totalMs = maxDate - minDate;
+
+      function dateToX(d) {
+        if (!d) return 12;
+        const dt = new Date(d + 'T00:00:00');
+        const drawW = W - 24;
+        return 12 + Math.max(0, Math.min(drawW, ((dt - minDate) / totalMs) * drawW));
+      }
+
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = colors.bg;
+      ctx.fillRect(0, 0, W, H);
+
+      // Shaded release backgrounds
+      const sortedRels = (DATA.releases || [])
+        .filter(r => r.date)
+        .map(r => ({{ ...r, parsedDate: new Date(r.date + 'T00:00:00') }}))
+        .sort((a, b) => a.parsedDate - b.parsedDate);
+      let lastX = 0;
+      sortedRels.forEach(rel => {{
+        let rx = dateToX(rel.date);
+        if (rx > W) rx = W;
+        if (rx > lastX) {{
+          const baseColor = RELEASE_STATUS_COLORS[rel.status] || '#94a3b8';
+          let rgbaColor = 'rgba(148, 163, 184, 0.05)';
+          if (baseColor.startsWith('#')) {{
+            const r = parseInt(baseColor.slice(1, 3), 16);
+            const g = parseInt(baseColor.slice(3, 5), 16);
+            const b = parseInt(baseColor.slice(5, 7), 16);
+            rgbaColor = \\\`rgba(\\\${{r}}, \\\${{g}}, \\\${{b}}, 0.05)\\\`;
+          }}
+          ctx.fillStyle = rgbaColor;
+          ctx.fillRect(lastX, 0, rx - lastX, H);
+        }}
+        lastX = Math.max(0, rx);
+      }});
+
+      // Release vertical separator lines
+      (DATA.releases || []).forEach(rel => {{
+        if (!rel.date) return;
+        const rd = new Date(rel.date);
+        rd.setHours(0, 0, 0, 0);
+        if (rd < minDate || rd > maxDate) return;
+        const rx = dateToX(rel.date);
+        const relC = RELEASE_STATUS_COLORS[rel.status] || '#94a3b8';
+
+        ctx.save();
+        ctx.strokeStyle = relC;
+        ctx.lineWidth   = 1;
+        ctx.globalAlpha = 0.25;
+        ctx.beginPath();
+        ctx.moveTo(rx, 0);
+        ctx.lineTo(rx, H);
+        ctx.stroke();
+        ctx.restore();
+      }});
+
+      // Grid lines
+      let tickCursor = new Date(minDate);
+      while (tickCursor <= maxDate) {
+        const tx = dateToX(tickCursor.toISOString().slice(0, 10));
+        ctx.strokeStyle = colors.divider;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(tx, 0);
+        ctx.lineTo(tx, H);
+        ctx.stroke();
+
+        const z = currentZoom;
+        if (z === 'day') {
+          tickCursor.setDate(tickCursor.getDate() + 1);
+        } else if (z === 'week') {
+          tickCursor.setDate(tickCursor.getDate() + 7);
+        } else {
+          tickCursor.setMonth(tickCursor.getMonth() + 1);
+        }
+      }
+
+      // Today line
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      if (today >= minDate && today <= maxDate) {
+        const tx = dateToX(today.toISOString().slice(0, 10));
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.45)';
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(tx, 0);
+        ctx.lineTo(tx, H);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Draw rows
+      laneItems.forEach((t, i) => {
+        const ry = i * ROW_H;
+        const by = ry + (ROW_H - BAR_H) / 2;
+
+        // Alternating row background
         if (i % 2 === 1) {
-          ctx.fillStyle = 'rgba(0,0,0,0.018)';
+          ctx.fillStyle = isDarkTheme ? 'rgba(255, 255, 255, 0.012)' : 'rgba(0, 0, 0, 0.012)';
           ctx.fillRect(0, ry, W, ROW_H);
         }
 
-        // row separator
-        ctx.strokeStyle = 'rgba(0,0,0,0.06)';
-        ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(0, ry + ROW_H); ctx.lineTo(W, ry + ROW_H); ctx.stroke();
+        // Row border
+        ctx.strokeStyle = colors.divider;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(0, ry + ROW_H);
+        ctx.lineTo(W, ry + ROW_H);
+        ctx.stroke();
 
-        if (!t.startDate || !t.dueDate) return;
+        if (!t.startDate || !t.dueDate) {
+          // Unscheduled placeholder
+          const phW = 150;
+          ctx.strokeStyle = isDarkTheme ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)';
+          ctx.lineWidth = 1.2;
+          ctx.setLineDash([4, 3]);
+          ctx.fillStyle = isDarkTheme ? 'rgba(255, 255, 255, 0.015)' : 'rgba(0, 0, 0, 0.015)';
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(16, by, phW, BAR_H, 6);
+          else ctx.rect(16, by, phW, BAR_H);
+          ctx.fill();
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.fillStyle = colors.faint;
+          ctx.font = 'italic 8.5px var(--font-body), sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('Not scheduled', 16 + phW / 2, by + BAR_H / 2 + 3);
+          
+          slHitAreas.push({ cvs, x: 16, x2: 16 + phW, y: by, y2: by + BAR_H, item: t });
+          return;
+        }
 
         const x1 = dateToX(t.startDate);
         const x2 = dateToX(t.dueDate);
-        const bw = Math.max(4, x2 - x1);
-        const by = ry + (ROW_H - BAR_H) / 2;
+        const bw = Math.max(16, x2 - x1);
 
-        const pct = (t.progress || 0) / 100;
-
-        // bar shadow
-        ctx.shadowColor = lc + '55';
-        ctx.shadowBlur = 4;
-
-        // bar base
-        ctx.fillStyle = lc + '33';
-        roundRect(ctx, x1, by, bw, BAR_H, 5);
+        // Progress gradient bar
+        ctx.fillStyle = lc + '15';
+        ctx.strokeStyle = lc + '33';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x1, by, bw, BAR_H, 6);
+        else ctx.rect(x1, by, bw, BAR_H);
         ctx.fill();
+        ctx.stroke();
 
-        // progress fill
-        ctx.shadowBlur = 0;
+        const pct = t.progress || 0;
         if (pct > 0) {
-          ctx.fillStyle = lc;
-          roundRect(ctx, x1, by, Math.max(bw * pct, BAR_H * 0.8), BAR_H, 5);
+          const barGrad = ctx.createLinearGradient(x1, by, x1 + bw * (pct / 100), by);
+          barGrad.addColorStop(0, lc + 'dd');
+          barGrad.addColorStop(1, lc);
+          ctx.fillStyle = barGrad;
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(x1, by, bw * (pct / 100), BAR_H, 6);
+          else ctx.rect(x1, by, bw * (pct / 100), BAR_H);
           ctx.fill();
         }
 
-        ctx.shadowBlur = 0;
-
-        // bar label inside bar (if wide enough)
-        if (bw > 50) {
-          ctx.fillStyle = '#fff';
-          ctx.font = \`bold \${isFeat ? 10 : 9}px Inter,system-ui,sans-serif\`;
-          ctx.textAlign = 'left';
-          const label = t.name.length > 20 ? t.name.slice(0, 19) + '…' : t.name;
-          ctx.fillText(label, x1 + 6, by + BAR_H / 2 + 3.5);
+        if (bw > 45) {
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 9.5px var(--font-mono), monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(pct + '%', x1 + bw / 2, by + BAR_H / 2 + 3.5);
         }
 
-        // register hit area
-        slHitAreas.push({ cvs, x: x1, x2: x1 + bw, y: by, y2: by + BAR_H, item: t, laneIdx, rowIdx: i });
+        slHitAreas.push({ cvs, x: x1, x2: x1 + bw, y: by, y2: by + BAR_H, item: t });
       });
-
-      // ── Lane label on left ─────────────────────────────────────────────────
-      ctx.save();
-      ctx.fillStyle = lc;
-      ctx.font = \`bold 10px Inter,system-ui,sans-serif\`;
-      ctx.textAlign = 'left';
-      ctx.restore();
     }
 
-    function roundRect(ctx, x, y, w, h, r) {
-      if (w < 2 * r) r = w / 2;
-      if (h < 2 * r) r = h / 2;
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.arcTo(x + w, y, x + w, y + h, r);
-      ctx.arcTo(x + w, y + h, x, y + h, r);
-      ctx.arcTo(x, y + h, x, y, r);
-      ctx.arcTo(x, y, x + w, y, r);
-      ctx.closePath();
+    async function copyViewImageToClipboard() {
+      try {
+        const btn = \$id('copy-image-btn');
+        if (btn) { btn.textContent = '⏳ Capturing…'; btn.disabled = true; }
+
+        let finalCvs = document.createElement('canvas');
+        const dpr = window.devicePixelRatio || 2;
+        const colors = getThemeColors();
+
+        // ── helpers ──────────────────────────────────────────────────────────
+        function drawRR(ctx, x, y, w, h, r) {
+          r = Math.min(r, w / 2, h / 2);
+          if (ctx.roundRect) {
+            ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
+          } else {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
+            ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+            ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r);
+            ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+          }
+        }
+
+        function drawLeftRow(ctx, t, x, y, w, rowH, idx, isFeatureRow) {
+          // Alternating row tint
+          if (idx % 2 === 1) {
+            ctx.fillStyle = isDarkTheme ? 'rgba(255,255,255,0.012)' : 'rgba(0,0,0,0.012)';
+            ctx.fillRect(x, y, w, rowH);
+          }
+
+          if (isFeatureRow) {
+            const healthC = t.overdue > 0 ? '#ef4444' : (t.progress || 0) >= 80 ? '#10b981' : (t.progress || 0) >= 40 ? '#6366f1' : '#f59e0b';
+            const pct = t.progress || 0;
+
+            // Left health accent stripe
+            ctx.fillStyle = healthC;
+            ctx.fillRect(x, y, 4, rowH);
+
+            const px = x + 10;
+            const availW = w - 14;
+
+            // Name (bold, truncated)
+            ctx.fillStyle = colors.text;
+            ctx.font = '700 11.5px Plus Jakarta Sans, Outfit, sans-serif';
+            ctx.textBaseline = 'alphabetic';
+            const nameY = y + 17;
+            ctx.save();
+            ctx.beginPath(); ctx.rect(px, y, availW - 40, rowH); ctx.clip();
+            ctx.fillText(t.name || '', px, nameY);
+            ctx.restore();
+
+            // Risk / Done badge (top-right)
+            if (t.overdue > 0) {
+              ctx.fillStyle = 'rgba(239,68,68,0.12)';
+              drawRR(ctx, x + w - 36, y + 5, 34, 13, 5); ctx.fill();
+              ctx.fillStyle = '#ef4444';
+              ctx.font = '800 7.5px Plus Jakarta Sans, sans-serif';
+              ctx.fillText('⚠ Risk', x + w - 33, y + 14.5);
+            } else if (pct === 100) {
+              ctx.fillStyle = 'rgba(16,185,129,0.12)';
+              drawRR(ctx, x + w - 38, y + 5, 36, 13, 5); ctx.fill();
+              ctx.fillStyle = '#10b981';
+              ctx.font = '800 7.5px Plus Jakarta Sans, sans-serif';
+              ctx.fillText('✓ Done', x + w - 35, y + 14.5);
+            }
+
+            // Second line: release + category + progress bar
+            const metaY = y + 32;
+            let bx = px;
+
+            if (t.release) {
+              const relText = '🚩 ' + (t.release.length > 9 ? t.release.substring(0, 8) + '…' : t.release);
+              ctx.fillStyle = 'rgba(99,102,241,0.1)';
+              drawRR(ctx, bx, metaY - 8, 56, 12, 4); ctx.fill();
+              ctx.fillStyle = 'rgba(99,102,241,0.9)';
+              ctx.font = '700 7.5px Plus Jakarta Sans, sans-serif';
+              ctx.fillText(relText, bx + 3, metaY);
+              bx += 60;
+            }
+
+            if (t.category && bx + 52 < x + w - 45) {
+              const catText = '# ' + (t.category.length > 7 ? t.category.substring(0, 6) + '…' : t.category);
+              ctx.fillStyle = 'rgba(124,58,237,0.08)';
+              drawRR(ctx, bx, metaY - 8, 50, 12, 4); ctx.fill();
+              ctx.fillStyle = '#7c3aed';
+              ctx.font = '700 7.5px Plus Jakarta Sans, sans-serif';
+              ctx.fillText(catText, bx + 3, metaY);
+              bx += 54;
+            }
+
+            // Mini progress bar
+            const barX = bx + 2;
+            const barMaxW = Math.min(x + w - barX - 28, 70);
+            if (barMaxW > 14) {
+              ctx.fillStyle = isDarkTheme ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
+              drawRR(ctx, barX, metaY - 4, barMaxW, 4, 2); ctx.fill();
+              if (pct > 0) {
+                ctx.fillStyle = healthC;
+                drawRR(ctx, barX, metaY - 4, barMaxW * (pct / 100), 4, 2); ctx.fill();
+              }
+              ctx.fillStyle = healthC;
+              ctx.font = '700 7.5px Plus Jakarta Sans, sans-serif';
+              ctx.fillText(pct + '%', barX + barMaxW + 3, metaY);
+            }
+
+          } else {
+            const isMS = t.startDate === t.dueDate || t.category === 'Milestone';
+            const statusC = ST_COLORS[t.status] || '#94a3b8';
+            const dotX = x + 14;
+            const dotY = y + rowH / 2;
+            ctx.fillStyle = statusC;
+            ctx.beginPath(); ctx.arc(dotX, dotY, 4, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = colors.text;
+            ctx.font = '600 11px Plus Jakarta Sans, Outfit, sans-serif';
+            ctx.textBaseline = 'middle';
+            ctx.save();
+            ctx.beginPath(); ctx.rect(dotX + 10, y, w - dotX - 12, rowH); ctx.clip();
+            ctx.fillText(isMS ? '💎 ' + t.name : t.name, dotX + 10, dotY);
+            ctx.restore();
+          }
+
+          // Row bottom divider
+          ctx.strokeStyle = colors.divider;
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(x, y + rowH); ctx.lineTo(x + w, y + rowH); ctx.stroke();
+        }
+
+        if (currentViewMode === 'timeline') {
+          const leftEl = \$id('export-gantt-left');
+          const rightCvs = \$id('export-gantt-canvas');
+          if (!leftEl || !rightCvs) { if (btn) { btn.textContent = '📷 Copy Image'; btn.disabled = false; } return; }
+
+          const leftW = leftEl.offsetWidth;
+          const rightW = rightCvs.offsetWidth || (rightCvs.width / dpr);
+          const totalW = leftW + rightW;
+          const totalH = rightCvs.offsetHeight || (rightCvs.height / dpr);
+
+          finalCvs.width = Math.round(totalW * dpr);
+          finalCvs.height = Math.round(totalH * dpr);
+          finalCvs.style.width = totalW + 'px';
+          finalCvs.style.height = totalH + 'px';
+
+          const fCtx = finalCvs.getContext('2d');
+          fCtx.scale(dpr, dpr);
+
+          fCtx.fillStyle = colors.bg;
+          fCtx.fillRect(0, 0, totalW, totalH);
+
+          const headH = isFeat ? 56 : 48;
+          fCtx.fillStyle = colors.bg2;
+          fCtx.fillRect(0, 0, leftW, headH);
+          fCtx.fillStyle = colors.muted;
+          fCtx.font = '800 10px Plus Jakarta Sans, sans-serif';
+          fCtx.textBaseline = 'middle';
+          fCtx.textAlign = 'left';
+          fCtx.fillText((isFeat ? 'FEATURE / RELEASE' : 'TASK'), 16, headH / 2);
+          fCtx.strokeStyle = colors.border;
+          fCtx.lineWidth = 2;
+          fCtx.beginPath(); fCtx.moveTo(0, headH); fCtx.lineTo(leftW, headH); fCtx.stroke();
+
+          const rowH = isFeat ? 48 : 32;
+          const rows = leftEl.querySelectorAll('.gl-row');
+          rows.forEach((r, idx) => {
+            const y = headH + idx * rowH;
+            const nameEl = r.querySelector('.export-item-name');
+            const nameText = nameEl ? nameEl.textContent.trim() : '';
+            const t = items.find(it => it.name === nameText) || { name: nameText, progress: 0, overdue: 0 };
+            drawLeftRow(fCtx, t, 0, y, leftW, rowH, idx, isFeat);
+          });
+
+          // Draw right canvas (scaled correctly for dpr)
+          fCtx.drawImage(rightCvs, 0, 0, rightCvs.width, rightCvs.height, leftW, 0, rightCvs.width / dpr, rightCvs.height / dpr);
+
+          fCtx.strokeStyle = colors.border;
+          fCtx.lineWidth = 1;
+          fCtx.beginPath(); fCtx.moveTo(leftW, 0); fCtx.lineTo(leftW, totalH); fCtx.stroke();
+
+        } else {
+          const leftCol = document.querySelector('.sl-left-col');
+          const rightCol = document.querySelector('.sl-right-col');
+          const axisCvs = \$id('sl-axis-canvas');
+          if (!leftCol || !rightCol || !axisCvs) { if (btn) { btn.textContent = '📷 Copy Image'; btn.disabled = false; } return; }
+
+          const leftW = leftCol.offsetWidth;
+          const rightW = axisCvs.width / dpr;
+          const totalW = leftW + rightW;
+          const axisH = 36;
+
+          // Measure total height
+          const leftLanes = leftCol.querySelectorAll('.sl-lane-left-group');
+          const rightLanes = rightCol.querySelectorAll('.sl-lane-right-group');
+          let totalH = axisH;
+          leftLanes.forEach(lg => { totalH += lg.scrollHeight; });
+
+          finalCvs.width = Math.round(totalW * dpr);
+          finalCvs.height = Math.round(totalH * dpr);
+          finalCvs.style.width = totalW + 'px';
+          finalCvs.style.height = totalH + 'px';
+
+          const fCtx = finalCvs.getContext('2d');
+          fCtx.scale(dpr, dpr);
+
+          fCtx.fillStyle = colors.bg;
+          fCtx.fillRect(0, 0, totalW, totalH);
+
+          // Axis header
+          fCtx.fillStyle = colors.bg2;
+          fCtx.fillRect(0, 0, leftW, axisH);
+          fCtx.fillStyle = colors.muted;
+          fCtx.font = '800 10px Plus Jakarta Sans, sans-serif';
+          fCtx.textBaseline = 'middle';
+          fCtx.textAlign = 'left';
+          fCtx.fillText(isFeat ? 'CATEGORY / FEATURE' : 'MODULE / TASK', 16, axisH / 2);
+          fCtx.strokeStyle = colors.border;
+          fCtx.lineWidth = 2;
+          fCtx.beginPath(); fCtx.moveTo(0, axisH); fCtx.lineTo(leftW, axisH); fCtx.stroke();
+          fCtx.drawImage(axisCvs, 0, 0, axisCvs.width, axisCvs.height, leftW, 0, axisCvs.width / dpr, axisCvs.height / dpr);
+
+          let currentY = axisH;
+
+          leftLanes.forEach((laneLeftGrp, idx) => {
+            const laneRightGrp = rightLanes[idx];
+            if (!laneLeftGrp) return;
+
+            const headerEl = laneLeftGrp.querySelector('.sl-left-lane-header');
+            const hH = headerEl ? headerEl.offsetHeight : 36;
+
+            // Lane header (left)
+            fCtx.fillStyle = isDarkTheme ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)';
+            fCtx.fillRect(0, currentY, leftW, hH);
+            const accentEl = headerEl ? headerEl.querySelector('.sl-lane-accent') : null;
+            if (accentEl) {
+              fCtx.fillStyle = accentEl.style.background || '#6366f1';
+              fCtx.fillRect(0, currentY, 3, hH);
+            }
+            const titleEl = headerEl ? headerEl.querySelector('.sl-lane-title') : null;
+            fCtx.fillStyle = colors.text;
+            fCtx.font = 'bold 12px Plus Jakarta Sans, sans-serif';
+            fCtx.textBaseline = 'middle';
+            fCtx.textAlign = 'left';
+            fCtx.fillText(titleEl ? titleEl.textContent.trim() : '', 14, currentY + hH / 2);
+
+            // Lane header (right)
+            fCtx.fillStyle = isDarkTheme ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.025)';
+            fCtx.fillRect(leftW, currentY, rightW, hH);
+            fCtx.strokeStyle = colors.divider;
+            fCtx.lineWidth = 0.5;
+            fCtx.beginPath(); fCtx.moveTo(0, currentY + hH); fCtx.lineTo(totalW, currentY + hH); fCtx.stroke();
+
+            currentY += hH;
+
+            if (!laneLeftGrp.classList.contains('collapsed')) {
+              const itemEls = laneLeftGrp.querySelectorAll('.sl-left-item');
+              const canvasEl = laneRightGrp ? laneRightGrp.querySelector('canvas') : null;
+              const rowH = isFeat ? 48 : 32;
+              const itemStartY = currentY;
+
+              itemEls.forEach((itemEl, i) => {
+                const nameEl = itemEl.querySelector('.export-item-name');
+                const nameText = nameEl ? nameEl.textContent.trim() : '';
+                const t = items.find(it => it.name === nameText) || { name: nameText, progress: 0, overdue: 0 };
+                drawLeftRow(fCtx, t, 0, currentY, leftW, rowH, i, isFeat);
+                currentY += rowH;
+              });
+
+              if (canvasEl && canvasEl.width > 0 && canvasEl.height > 0) {
+                fCtx.drawImage(canvasEl, 0, 0, canvasEl.width, canvasEl.height,
+                  leftW, itemStartY, canvasEl.width / dpr, canvasEl.height / dpr);
+              }
+            }
+          });
+
+          fCtx.strokeStyle = colors.border;
+          fCtx.lineWidth = 1;
+          fCtx.beginPath(); fCtx.moveTo(leftW, 0); fCtx.lineTo(leftW, totalH); fCtx.stroke();
+        }
+
+        finalCvs.toBlob(async (blob) => {
+          if (btn) { btn.textContent = '📷 Copy Image'; btn.disabled = false; }
+          if (!blob) return;
+          try {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            if (btn) {
+              btn.textContent = '✓ Copied!';
+              setTimeout(() => { btn.textContent = '📷 Copy Image'; }, 2000);
+            }
+          } catch (err) {
+            console.error('Clipboard copy failed:', err);
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'timeline-export.png';
+            a.click();
+          }
+        }, 'image/png');
+      } catch (e) {
+        console.error('Error generating capture image:', e);
+        const btn = \$id('copy-image-btn');
+        if (btn) { btn.textContent = '📷 Copy Image'; btn.disabled = false; }
+      }
     }
 
     renderGantt();
@@ -51315,7 +52063,7 @@ Earned Value Management measures project performance and progress by comparing p
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${P.name || 'ProjectPulse'}-${isFeat ? 'Features' : 'Tasks'}-Timeline.html`;
+      a.download = `\${P.name || 'ProjectPulse'}-\${isFeat ? 'Features' : 'Tasks'}-Timeline.html`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -51323,8 +52071,6 @@ Earned Value Management measures project performance and progress by comparing p
 
       notify('Gantt HTML downloaded successfully!', 'ok');
     }
-
-
     async function printContainer(containerId) {
       notify('Preparing high-fidelity print view...', 'info');
       const container = document.getElementById(containerId);
