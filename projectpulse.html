@@ -33822,6 +33822,7 @@ Earned Value Management measures project performance and progress by comparing p
       if (type === 'pdf') printContainer(contId);
       if (type === 'excel') {
         if (P.view === 'log') exportLogCSV();
+        else if (P.view === 'features') exportFeatureMatrixExcel();
         else exportProjectExcel(false, true);
       }
       if (type === 'share') shareView(contId);
@@ -33877,7 +33878,7 @@ Earned Value Management measures project performance and progress by comparing p
       }
 
       // Tabular view check to show/hide Excel option in unified dropdown
-      const isTabular = (v === 'tasks' || v === 'defects');
+      const isTabular = (v === 'tasks' || v === 'defects' || v === 'features');
       const excelBtn = $id('export-excel-btn');
       const excelSep = $id('export-excel-sep');
       if (excelBtn) excelBtn.style.display = isTabular ? 'flex' : 'none';
@@ -38182,6 +38183,668 @@ Earned Value Management measures project performance and progress by comparing p
           notify('CSV Export failed: ' + e.message, 'err');
         }
       },
+
+      async exportFeatureMatrixExcel() {
+        if (typeof ExcelJS === 'undefined') { notify('Excel library not loaded yet. Please try again.', 'amber'); return; }
+        try {
+          const projectClean = (P.name || 'Project').replace(/[\\\/*?:"<>|\s]/g, '');
+          const ts = new Date().toISOString().replace(/[-:T]/g, '').split('.')[0];
+
+          notify('Preparing Feature Matrix Excel Export...', 'ok');
+          showAppLock('Generating Feature Matrix Excel...', 'Compiling Release Plan, Feature Details, Gantt, and Swimlane sheets. Please wait...', 'viewlevel');
+          await new Promise(r => setTimeout(r, 100));
+
+          PP.log('[Feature Matrix Excel Export] Starting...', { projectName: P.name });
+
+          const wb = await this.generateFeatureMatrixWorkbook();
+
+          const buf = await wb.xlsx.writeBuffer();
+          const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `ProjectPulse_${projectClean}_FeatureMatrix_${ts}.xlsx`;
+          a.click();
+          URL.revokeObjectURL(url);
+          PP.log('[Feature Matrix Excel Export] Download triggered.');
+          hideAppLock();
+          notify('Feature Matrix Excel exported successfully', 'ok');
+        } catch (e) {
+          PP.error('Feature Matrix Export Error:', e);
+          hideAppLock();
+          notify('Feature Matrix Export failed: ' + e.message, 'err');
+        }
+      },
+
+      async generateFeatureMatrixWorkbook() {
+        if (typeof ExcelJS === 'undefined') { notify('Excel library not loaded yet. Please try again.', 'amber'); return; }
+        const wb = new ExcelJS.Workbook();
+        wb.creator = 'ProjectPulse'; wb.lastModifiedBy = 'ProjectPulse'; wb.created = new Date(); wb.modified = new Date();
+
+        const style = window.getComputedStyle(document.documentElement);
+
+        const parseCssColorToArgb = (cssVal, defaultColor) => {
+          if (!cssVal) return defaultColor;
+          let clean = cssVal.trim();
+          if (clean.startsWith('#')) {
+            let hex = clean.substring(1);
+            if (hex.length === 3) {
+              hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+            }
+            return 'FF' + hex.toUpperCase();
+          }
+          if (clean.startsWith('rgb')) {
+            let match = clean.match(/\d+/g);
+            if (match && match.length >= 3) {
+              let r = parseInt(match[0]).toString(16).padStart(2, '0');
+              let g = parseInt(match[1]).toString(16).padStart(2, '0');
+              let b = parseInt(match[2]).toString(16).padStart(2, '0');
+              return 'FF' + (r + g + b).toUpperCase();
+            }
+          }
+          return defaultColor;
+        };
+
+        const isColorDark = (argb) => {
+          if (!argb || argb.length < 8) return false;
+          let hex = argb.substring(argb.length - 6);
+          let r = parseInt(hex.substring(0, 2), 16);
+          let g = parseInt(hex.substring(2, 4), 16);
+          let b = parseInt(hex.substring(4, 6), 16);
+          let luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b);
+          return luminance < 140;
+        };
+
+        const cssBg = style.getPropertyValue('--color-bg') || '';
+        const cssSurface = style.getPropertyValue('--color-surface') || '';
+        const cssText = style.getPropertyValue('--color-text') || '';
+        const cssPrimary = style.getPropertyValue('--color-primary') || '';
+        const cssDivider = style.getPropertyValue('--color-divider') || '';
+        const cssTextMuted = style.getPropertyValue('--color-text-muted') || '';
+
+        const resolvedBg = parseCssColorToArgb(cssBg, 'FFF8FAFC');
+        const resolvedSurface = parseCssColorToArgb(cssSurface, 'FFFFFFFF');
+        const resolvedText = parseCssColorToArgb(cssText, 'FF0F172A');
+        const resolvedPrimary = parseCssColorToArgb(cssPrimary, 'FF4338CA');
+        const resolvedDivider = parseCssColorToArgb(cssDivider, 'FFE2E8F0');
+        const resolvedMuted = parseCssColorToArgb(cssTextMuted, 'FF64748B');
+
+        const isThemeDark = isColorDark(resolvedBg);
+
+        const COLORS = {
+          navy: resolvedText,
+          indigo: resolvedPrimary,
+          slate: resolvedMuted,
+          emerald: 'FF10B981',
+          rose: 'FFF43F5E',
+          header: isThemeDark ? 'FF1E293B' : 'FFF8FAFC',
+          input: resolvedPrimary,
+          amber: 'FFF59E0B',
+          blue: 'FF3B82F6',
+          purple: 'FF8B5CF6',
+          bg: resolvedBg,
+          surface: resolvedSurface,
+          divider: resolvedDivider,
+          muted: resolvedMuted,
+          textDark: resolvedText,
+          surfaceAlt: isThemeDark ? 'FF111827' : 'FFF1F5F9',
+          isDark: isThemeDark
+        };
+
+        COLORS.getThemeTint = (argb, factor) => {
+          if (!argb || argb.length < 6) return 'FFFFFFFF';
+          let hex = argb.substring(argb.length - 6);
+          let r = parseInt(hex.substring(0, 2), 16) || 0;
+          let g = parseInt(hex.substring(2, 4), 16) || 0;
+          let b = parseInt(hex.substring(4, 6), 16) || 0;
+
+          let bgHex = (resolvedBg && resolvedBg.length >= 6) ? resolvedBg.substring(resolvedBg.length - 6) : 'FFFFFF';
+          let bgR = parseInt(bgHex.substring(0, 2), 16) || 255;
+          let bgG = parseInt(bgHex.substring(2, 4), 16) || 255;
+          let bgB = parseInt(bgHex.substring(4, 6), 16) || 255;
+
+          r = Math.round(r * factor + bgR * (1 - factor));
+          g = Math.round(g * factor + bgG * (1 - factor));
+          b = Math.round(b * factor + bgB * (1 - factor));
+
+          return 'FF' + r.toString(16).padStart(2, '0').toUpperCase() + g.toString(16).padStart(2, '0').toUpperCase() + b.toString(16).padStart(2, '0').toUpperCase();
+        };
+
+        COLORS.styleRow = (row, i) => {
+          const bg = (i % 2 === 1)
+            ? COLORS.getThemeTint(COLORS.indigo, 0.09)
+            : COLORS.getThemeTint(COLORS.indigo, 0.03);
+          row.eachCell(c => {
+            c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+          });
+        };
+
+        const hdrStyle = {
+          fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } },
+          font: { color: { argb: 'FFFFFFFF' }, bold: true, size: 10 },
+          alignment: { vertical: 'middle', horizontal: 'center' },
+          border: { bottom: { style: 'medium', color: { argb: COLORS.navy } } }
+        };
+
+        const cleanFmtDate = (d) => {
+          if (!d || d === '-' || d === '—') return '-';
+          if (d instanceof Date) return isNaN(d) ? '-' : d.toISOString().split('T')[0];
+          if (typeof d === 'string') {
+            const clean = d.trim();
+            if (/^\d{4}-\d{2}-\d{2}/.test(clean)) return clean.substring(0, 10);
+          }
+          try {
+            const dt = new Date(d);
+            return isNaN(dt) ? '-' : dt.toISOString().split('T')[0];
+          } catch (e) { return '-'; }
+        };
+
+        const S = (v) => {
+          if (v === null || v === undefined) return '';
+          if (typeof v === 'string') return v.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F]/g, '').trim();
+          return String(v).replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F]/g, '').trim();
+        };
+
+        const daysDiff = (dateStr) => {
+          if (!dateStr) return null;
+          const now = new Date();
+          const t = new Date(dateStr) - now;
+          return Math.ceil(t / (1000 * 3600 * 24));
+        };
+
+        const buildDashCache = PulseDashboard.buildDashCache || ((tasks) => ({ subtasksByScreen: {}, screenByName: {} }));
+        const dashCache = buildDashCache(P.tasks, P.log);
+        
+        const calculatedFeatures = (P.features || []).map((f, idx) => {
+          let fScreens = [];
+          (f.screens || []).forEach(scName => {
+            if (dashCache.subtasksByScreen[scName] && dashCache.subtasksByScreen[scName].length > 0) {
+              fScreens.push(...dashCache.subtasksByScreen[scName]);
+            } else if (dashCache.screenByName[scName] && dashCache.screenByName[scName].parentTasks) {
+              fScreens.push(...dashCache.screenByName[scName].parentTasks);
+            }
+          });
+
+          const tot = fScreens.length;
+          const done = fScreens.filter(s => s.status === 'Completed').length;
+          const avgP = tot ? Math.round(fScreens.reduce((s, sc) => s + (sc.progress || 0), 0) / tot) : 0;
+          const overdue = fScreens.filter(s => {
+            const dd = daysDiff(s.dueDate);
+            return dd !== null && dd < 0 && s.status !== 'Completed';
+          }).length;
+
+          let start = null, end = null;
+          fScreens.forEach(sc => {
+            if (sc.startDate) {
+              const sd = new Date(sc.startDate);
+              if (!start || sd < start) start = sd;
+            }
+            if (sc.dueDate) {
+              const ed = new Date(sc.dueDate);
+              if (!end || ed > end) end = ed;
+            }
+          });
+
+          const linkedTasks = [];
+          (f.screens || []).forEach(scName => {
+            const scObj = dashCache.screenByName[scName];
+            if (scObj && scObj.parentTasks) {
+              scObj.parentTasks.forEach(pt => {
+                if (!linkedTasks.some(t => t.id === pt.id)) {
+                  linkedTasks.push(pt);
+                }
+              });
+            }
+          });
+
+          return {
+            name: f.name,
+            category: f.category || 'General',
+            release: f.release || '',
+            desc: f.desc || f.description || '',
+            screensCount: f.screens ? f.screens.length : 0,
+            screensList: f.screens ? f.screens.join(', ') : '',
+            tasksCount: tot,
+            tasksList: linkedTasks.map(t => `${t.id}: ${t.name}`).join(', '),
+            progress: avgP / 100,
+            atRisk: overdue,
+            startDate: start ? start.toISOString().split('T')[0] : '',
+            dueDate: end ? end.toISOString().split('T')[0] : ''
+          };
+        });
+
+        // SHEET 1: Release Plan
+        const wsRel = wb.addWorksheet('Release Plan', { views: [{ showGridLines: true }] });
+        wsRel.properties.tabColor = { argb: COLORS.emerald };
+        
+        wsRel.columns = [
+          { header: 'Release Name', key: 'name', width: 22 },
+          { header: 'Target Date', key: 'date', width: 18 },
+          { header: 'Status', key: 'status', width: 16 },
+          { header: 'Feature Count', key: 'featCount', width: 16 },
+          { header: 'Avg Progress', key: 'avgProg', width: 18 },
+          { header: 'At-Risk Features', key: 'atRisk', width: 18 },
+          { header: 'Screens Covered', key: 'screens', width: 18 }
+        ];
+
+        // Fill background of guidance/KPI headers
+        for (let r = 1; r <= 6; r++) {
+          wsRel.getRow(r).height = 18;
+          for (let c = 1; c <= 7; c++) {
+            wsRel.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.bg } };
+          }
+        }
+
+        const cardStyleLabel = { font: { name: 'Segoe UI', size: 9, bold: true, color: { argb: COLORS.slate } }, alignment: { vertical: 'middle', horizontal: 'center' } };
+        const cardStyleVal = { font: { name: 'Segoe UI', size: 16, bold: true, color: { argb: COLORS.indigo } }, alignment: { vertical: 'middle', horizontal: 'center' } };
+        
+        wsRel.mergeCells('B2:C2'); wsRel.getCell('B2').value = 'TOTAL FEATURES'; wsRel.getCell('B2').style = cardStyleLabel;
+        wsRel.mergeCells('B3:C4'); wsRel.getCell('B3').value = { formula: "=COUNTA('Feature Details'!$A$8:$A$1000)" }; wsRel.getCell('B3').style = cardStyleVal;
+        
+        wsRel.mergeCells('D2:E2'); wsRel.getCell('D2').value = 'AVG MATURITY'; wsRel.getCell('D2').style = cardStyleLabel;
+        wsRel.mergeCells('D3:E4'); wsRel.getCell('D3').value = { formula: "=IFERROR(AVERAGE('Feature Details'!$I$8:$I$1000), 0)" }; wsRel.getCell('D3').style = cardStyleVal; wsRel.getCell('D3').numFmt = '0%';
+
+        wsRel.mergeCells('F2:G2'); wsRel.getCell('F2').value = 'AT-RISK FEATURES'; wsRel.getCell('F2').style = cardStyleLabel;
+        wsRel.mergeCells('F3:G4'); wsRel.getCell('F3').value = { formula: "=COUNTIF('Feature Details'!$J$8:$J$1000, \">0\")" }; wsRel.getCell('F3').style = cardStyleVal;
+
+        wsRel.getRow(7).height = 30;
+        wsRel.getRow(7).eachCell(c => c.style = hdrStyle);
+
+        const releasesList = P.releases || [];
+        releasesList.forEach((r, idx) => {
+          const rowIdx = 8 + idx;
+          const row = wsRel.addRow({
+            name: r.name,
+            date: cleanFmtDate(r.date),
+            status: r.status,
+            featCount: { formula: `=COUNTIF('Feature Details'!$C$8:$C$1000, A${rowIdx})` },
+            avgProg: { formula: `=IFERROR(AVERAGEIF('Feature Details'!$C$8:$C$1000, A${rowIdx}, 'Feature Details'!$I$8:$I$1000), 0)` },
+            atRisk: { formula: `=COUNTIFS('Feature Details'!$C$8:$C$1000, A${rowIdx}, 'Feature Details'!$J$8:$J$1000, ">0")` },
+            screens: { formula: `=SUMIF('Feature Details'!$C$8:$C$1000, A${rowIdx}, 'Feature Details'!$E$8:$E$1000)` }
+          });
+          row.getCell('avgProg').numFmt = '0%';
+          COLORS.styleRow(row, idx);
+        });
+
+        const unassignedRowIdx = 8 + releasesList.length;
+        const unassignedRow = wsRel.addRow({
+          name: 'Unassigned',
+          date: '-',
+          status: 'Planned',
+          featCount: { formula: `=COUNTIF('Feature Details'!$C$8:$C$1000, "")` },
+          avgProg: { formula: `=IFERROR(AVERAGEIF('Feature Details'!$C$8:$C$1000, "", 'Feature Details'!$I$8:$I$1000), 0)` },
+          atRisk: { formula: `=COUNTIFS('Feature Details'!$C$8:$C$1000, "", 'Feature Details'!$J$8:$J$1000, ">0")` },
+          screens: { formula: `=SUMIF('Feature Details'!$C$8:$C$1000, "", 'Feature Details'!$E$8:$E$1000)` }
+        });
+        unassignedRow.getCell('avgProg').numFmt = '0%';
+        COLORS.styleRow(unassignedRow, releasesList.length);
+
+        // SHEET 2: Feature Details
+        const wsFeat = wb.addWorksheet('Feature Details', { views: [{ state: 'frozen', ySplit: 7 }] });
+        wsFeat.properties.tabColor = { argb: COLORS.indigo };
+        wsFeat.columns = [
+          { header: 'Feature Name', key: 'name', width: 25 },
+          { header: 'Category', key: 'category', width: 18 },
+          { header: 'Target Release', key: 'release', width: 18 },
+          { header: 'Description', key: 'desc', width: 35 },
+          { header: 'Screens Count', key: 'screensCount', width: 15 },
+          { header: 'Screens List', key: 'screensList', width: 30 },
+          { header: 'Tasks Count', key: 'tasksCount', width: 15 },
+          { header: 'Tasks List', key: 'tasksList', width: 30 },
+          { header: 'Progress (%)', key: 'progress', width: 15 },
+          { header: 'At-Risk Tasks', key: 'atRisk', width: 15 },
+          { header: 'Start Date', key: 'startDate', width: 15 },
+          { header: 'Due Date', key: 'dueDate', width: 15 },
+          { header: 'Status', key: 'status', width: 15 }
+        ];
+
+        for (let r = 1; r <= 6; r++) {
+          wsFeat.getRow(r).height = 18;
+          for (let c = 1; c <= 13; c++) {
+            wsFeat.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.bg } };
+          }
+        }
+        
+        wsFeat.mergeCells('B2:M5');
+        const infoCell = wsFeat.getCell('B2');
+        infoCell.value = ' >> FEATURE SPECIFICATION & ASSETS DATABASE\n\nEdit feature names, categories, target releases, dates, and progress directly on this sheet.\nGantt Chart and Swimlane sheets will reflect modifications automatically.';
+        infoCell.font = { name: 'Courier New', size: 10, bold: true, color: { argb: COLORS.textDark } };
+        infoCell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
+
+        wsFeat.getRow(7).height = 30;
+        wsFeat.columns.forEach((col, cIdx) => {
+          const cell = wsFeat.getCell(7, cIdx + 1);
+          cell.value = col.header;
+          cell.style = hdrStyle;
+        });
+
+        calculatedFeatures.forEach((f, idx) => {
+          const rowIdx = 8 + idx;
+          const row = wsFeat.addRow({
+            name: f.name,
+            category: f.category,
+            release: f.release,
+            desc: f.desc,
+            screensCount: f.screensCount,
+            screensList: f.screensList,
+            tasksCount: f.tasksCount,
+            tasksList: f.tasksList,
+            progress: f.progress,
+            atRisk: f.atRisk,
+            startDate: f.startDate,
+            dueDate: f.dueDate,
+            status: { formula: `=IF(I${rowIdx}>=1,"Completed",IF(I${rowIdx}>0,"In Progress","Not Started"))` }
+          });
+          row.getCell('progress').numFmt = '0%';
+          COLORS.styleRow(row, idx);
+        });
+
+        const startEmptyIdx = 8 + calculatedFeatures.length;
+        for (let i = 0; i < 50; i++) {
+          const rowIdx = startEmptyIdx + i;
+          const row = wsFeat.addRow({
+            name: '',
+            category: 'General',
+            release: '',
+            desc: '',
+            screensCount: 0,
+            screensList: '',
+            tasksCount: 0,
+            tasksList: '',
+            progress: 0,
+            atRisk: 0,
+            startDate: '',
+            dueDate: '',
+            status: { formula: `=IF(I${rowIdx}>=1,"Completed",IF(I${rowIdx}>0,"In Progress","Not Started"))` }
+          });
+          row.getCell('progress').numFmt = '0%';
+          COLORS.styleRow(row, calculatedFeatures.length + i);
+        }
+
+        wsFeat.dataValidation('C8:C200', {
+          type: 'list',
+          allowBlank: true,
+          formulae: [`'Release Plan'!$A$8:$A$${8 + releasesList.length}`]
+        });
+
+        // SHEET 3: Gantt Chart
+        let overallMinDate = null, overallMaxDate = null;
+        calculatedFeatures.forEach(f => {
+          if (f.startDate) {
+            const d = new Date(f.startDate);
+            if (!overallMinDate || d < overallMinDate) overallMinDate = d;
+          }
+          if (f.dueDate) {
+            const d = new Date(f.dueDate);
+            if (!overallMaxDate || d > overallMaxDate) overallMaxDate = d;
+          }
+        });
+
+        if (!overallMinDate) overallMinDate = new Date();
+        if (!overallMaxDate) {
+          overallMaxDate = new Date();
+          overallMaxDate.setDate(overallMaxDate.getDate() + 90);
+        }
+
+        let minTimelineDate = new Date(overallMinDate);
+        const dayVal = minTimelineDate.getDay();
+        const mondayDiff = minTimelineDate.getDate() - dayVal + (dayVal === 0 ? -6 : 1);
+        minTimelineDate.setDate(mondayDiff);
+        minTimelineDate.setDate(minTimelineDate.getDate() - 7);
+
+        let maxTimelineDate = new Date(overallMaxDate);
+        maxTimelineDate.setDate(maxTimelineDate.getDate() + 14);
+
+        const timeSpanDiff = maxTimelineDate.getTime() - minTimelineDate.getTime();
+        let numWeeksVal = Math.ceil(timeSpanDiff / (1000 * 3600 * 24 * 7));
+        if (numWeeksVal < 12) numWeeksVal = 12;
+        if (numWeeksVal > 52) numWeeksVal = 52;
+
+        const wsGantt = wb.addWorksheet('Gantt Chart', { views: [{ state: 'frozen', ySplit: 6, xSplit: 7 }] });
+        wsGantt.properties.tabColor = { argb: COLORS.blue };
+
+        const ganttCols = [
+          { header: '', key: '_spacer', width: 3 },
+          { header: 'Feature Name', key: 'name', width: 25 },
+          { header: 'Category', key: 'category', width: 16 },
+          { header: 'Target Release', key: 'release', width: 16 },
+          { header: 'Start Date', key: 'startDate', width: 14 },
+          { header: 'Due Date', key: 'dueDate', width: 14 },
+          { header: 'Progress', key: 'progress', width: 12 }
+        ];
+
+        for (let w = 0; w < numWeeksVal; w++) {
+          ganttCols.push({ header: '', key: `w_${w}`, width: 12 });
+        }
+        wsGantt.columns = ganttCols.map(c => ({ key: c.key, width: c.width }));
+
+        for (let r = 1; r <= 5; r++) {
+          wsGantt.getRow(r).height = 18;
+          for (let c = 1; c <= 7 + numWeeksVal; c++) {
+            wsGantt.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.bg } };
+          }
+        }
+
+        wsGantt.mergeCells('B2:G5');
+        const ganttInfo = wsGantt.getCell('B2');
+        ganttInfo.value = ' >> FEATURE TIMELINE GANTT CHART\n\nAll features from "Feature Details" are linked here via formula.\nChange dates on the database sheet to dynamically repaint Gantt bars.';
+        ganttInfo.font = { name: 'Courier New', size: 9.5, bold: true, color: { argb: COLORS.textDark } };
+        ganttInfo.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
+
+        wsGantt.getRow(6).height = 24;
+        ganttCols.slice(0, 7).forEach((col, cIdx) => {
+          const cell = wsGantt.getCell(6, cIdx + 1);
+          cell.value = col.header;
+          cell.style = hdrStyle;
+        });
+
+        let tempDate = new Date(minTimelineDate);
+        for (let w = 0; w < numWeeksVal; w++) {
+          const colIdx = 8 + w;
+          const cell = wsGantt.getCell(6, colIdx);
+          if (w === 0) {
+            cell.value = new Date(tempDate);
+          } else {
+            const prevColLetter = wsGantt.getColumn(colIdx - 1).letter;
+            cell.value = { formula: `=${prevColLetter}6+7` };
+          }
+          cell.numFmt = 'dd-mmm';
+          cell.style = hdrStyle;
+          tempDate.setDate(tempDate.getDate() + 7);
+        }
+
+        let monthStartCol = 8;
+        let currentMonthName = '';
+        const getMonthYearStr = (dateObj) => {
+          const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+          return `${months[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+        };
+
+        let tempDateHeader = new Date(minTimelineDate);
+        for (let w = 0; w < numWeeksVal; w++) {
+          const colIdx = 8 + w;
+          const monthStr = getMonthYearStr(tempDateHeader);
+          if (w === 0) {
+            currentMonthName = monthStr;
+          } else if (monthStr !== currentMonthName || w === numWeeksVal - 1) {
+            const endCol = w === numWeeksVal - 1 ? colIdx : colIdx - 1;
+            wsGantt.mergeCells(5, monthStartCol, 5, endCol);
+            const mCell = wsGantt.getCell(5, monthStartCol);
+            mCell.value = currentMonthName;
+            mCell.font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: COLORS.slate } };
+            mCell.alignment = { vertical: 'middle', horizontal: 'center' };
+            mCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+            mCell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
+            
+            monthStartCol = colIdx;
+            currentMonthName = monthStr;
+          }
+          tempDateHeader.setDate(tempDateHeader.getDate() + 7);
+        }
+
+        const totalGanttRows = Math.max(calculatedFeatures.length + 20, 60);
+        for (let i = 0; i < totalGanttRows; i++) {
+          const rowIdx = 8 + i;
+          const sourceRowIdx = 8 + i;
+
+          wsGantt.getCell(`B${rowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!A${sourceRowIdx})` };
+          wsGantt.getCell(`C${rowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!B${sourceRowIdx})` };
+          wsGantt.getCell(`D${rowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!C${sourceRowIdx})` };
+          wsGantt.getCell(`E${rowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!K${sourceRowIdx})` };
+          wsGantt.getCell(`F${rowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!L${sourceRowIdx})` };
+          wsGantt.getCell(`G${rowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!I${sourceRowIdx})` };
+          wsGantt.getCell(`G${rowIdx}`).numFmt = '0%';
+
+          for (let w = 0; w < numWeeksVal; w++) {
+            const colIdx = 8 + w;
+            const cell = wsGantt.getCell(rowIdx, colIdx);
+            const colLetter = wsGantt.getColumn(colIdx).letter;
+            cell.value = { formula: `=IF($B${rowIdx}="","",IF(AND(${colLetter}$6<=$F${rowIdx}, ${colLetter}$6+6>=$E${rowIdx}), 1, 0))` };
+          }
+
+          const row = wsGantt.getRow(rowIdx);
+          row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
+          COLORS.styleRow(row, i);
+        }
+
+        wsGantt.addConditionalFormatting({
+          ref: `H8:${wsGantt.getColumn(8 + numWeeksVal - 1).letter}200`,
+          rules: [
+            {
+              type: 'cellIs',
+              operator: 'equal',
+              formulae: ['1'],
+              style: {
+                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FF6366F1' }, fgColor: { argb: 'FF6366F1' } },
+                font: { color: { argb: 'FF6366F1' } }
+              }
+            }
+          ]
+        });
+
+        // SHEET 4: Swimlane View
+        const wsSwim = wb.addWorksheet('Swim Lane View', { views: [{ state: 'frozen', ySplit: 6, xSplit: 7 }] });
+        wsSwim.properties.tabColor = { argb: COLORS.rose };
+
+        wsSwim.columns = wsGantt.columns.map(c => ({ key: c.key, width: c.width }));
+
+        for (let r = 1; r <= 5; r++) {
+          wsSwim.getRow(r).height = 18;
+          for (let c = 1; c <= 7 + numWeeksVal; c++) {
+            wsSwim.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.bg } };
+          }
+        }
+
+        wsSwim.mergeCells('B2:G5');
+        const swimInfo = wsSwim.getCell('B2');
+        swimInfo.value = ' >> FEATURE SWIM LANE CHART (BY CATEGORY)\n\nCategorized view. All dates and progress are linked back to the master sheets.\nFormulas dynamically paint Gantt cells under each swimlane band.';
+        swimInfo.font = { name: 'Courier New', size: 9.5, bold: true, color: { argb: COLORS.textDark } };
+        swimInfo.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
+
+        wsSwim.getRow(6).height = 24;
+        ganttCols.slice(0, 7).forEach((col, cIdx) => {
+          const cell = wsSwim.getCell(6, cIdx + 1);
+          cell.value = col.header;
+          cell.style = hdrStyle;
+        });
+
+        for (let w = 0; w < numWeeksVal; w++) {
+          const colIdx = 8 + w;
+          const colLetter = wsSwim.getColumn(colIdx).letter;
+          wsSwim.getCell(6, colIdx).value = { formula: `='Gantt Chart'!${colLetter}6` };
+          wsSwim.getCell(6, colIdx).numFmt = 'dd-mmm';
+          wsSwim.getCell(6, colIdx).style = hdrStyle;
+        }
+
+        const categoriesList = Array.from(new Set(calculatedFeatures.map(f => f.category || 'General'))).sort();
+        let swimRowIdx = 8;
+
+        categoriesList.forEach((cat, catIdx) => {
+          wsSwim.getRow(swimRowIdx).height = 26;
+          wsSwim.mergeCells(`B${swimRowIdx}:G${swimRowIdx}`);
+          const catCell = wsSwim.getCell(`B${swimRowIdx}`);
+          catCell.value = ` :: WORKSTREAM SWIMLANE: ${cat.toUpperCase()}`;
+          catCell.font = { name: 'Segoe UI', size: 10.5, bold: true, color: { argb: 'FFFFFFFF' } };
+          catCell.alignment = { vertical: 'middle', indent: 1 };
+
+          const catFillColor = COLORS.indigo;
+          wsSwim.getRow(swimRowIdx).eachCell(cell => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: catFillColor } };
+          });
+          swimRowIdx++;
+
+          let itemIndex = 0;
+          calculatedFeatures.forEach((f, fIdx) => {
+            if ((f.category || 'General') !== cat) return;
+            const sourceRowIdx = 8 + fIdx;
+
+            wsSwim.getCell(`B${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!A${sourceRowIdx})` };
+            wsSwim.getCell(`C${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!B${sourceRowIdx})` };
+            wsSwim.getCell(`D${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!C${sourceRowIdx})` };
+            wsSwim.getCell(`E${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!K${sourceRowIdx})` };
+            wsSwim.getCell(`F${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!L${sourceRowIdx})` };
+            wsSwim.getCell(`G${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!I${sourceRowIdx})` };
+            wsSwim.getCell(`G${swimRowIdx}`).numFmt = '0%';
+
+            for (let w = 0; w < numWeeksVal; w++) {
+              const colIdx = 8 + w;
+              const cell = wsSwim.getCell(swimRowIdx, colIdx);
+              const colLetter = wsSwim.getColumn(colIdx).letter;
+              cell.value = { formula: `=IF($B${swimRowIdx}="","",IF(AND(${colLetter}$6<=$F${swimRowIdx}, ${colLetter}$6+6>=$E${swimRowIdx}), 1, 0))` };
+            }
+
+            const row = wsSwim.getRow(swimRowIdx);
+            row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
+            COLORS.styleRow(row, itemIndex++);
+            swimRowIdx++;
+          });
+
+          for (let e = 0; e < 3; e++) {
+            const sourceRowIdx = 8 + calculatedFeatures.length + (catIdx * 3) + e;
+            
+            wsSwim.getCell(`B${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!A${sourceRowIdx})` };
+            wsSwim.getCell(`C${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!B${sourceRowIdx})` };
+            wsSwim.getCell(`D${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!C${sourceRowIdx})` };
+            wsSwim.getCell(`E${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!K${sourceRowIdx})` };
+            wsSwim.getCell(`F${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!L${sourceRowIdx})` };
+            wsSwim.getCell(`G${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!I${sourceRowIdx})` };
+            wsSwim.getCell(`G${swimRowIdx}`).numFmt = '0%';
+
+            for (let w = 0; w < numWeeksVal; w++) {
+              const colIdx = 8 + w;
+              const cell = wsSwim.getCell(swimRowIdx, colIdx);
+              const colLetter = wsSwim.getColumn(colIdx).letter;
+              cell.value = { formula: `=IF($B${swimRowIdx}="","",IF(AND(${colLetter}$6<=$F${swimRowIdx}, ${colLetter}$6+6>=$E${swimRowIdx}), 1, 0))` };
+            }
+
+            const row = wsSwim.getRow(swimRowIdx);
+            row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
+            COLORS.styleRow(row, itemIndex++);
+            swimRowIdx++;
+          }
+
+          wsSwim.getRow(swimRowIdx).height = 12;
+          swimRowIdx++;
+        });
+
+        wsSwim.addConditionalFormatting({
+          ref: `H8:${wsSwim.getColumn(8 + numWeeksVal - 1).letter}200`,
+          rules: [
+            {
+              type: 'cellIs',
+              operator: 'equal',
+              formulae: ['1'],
+              style: {
+                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFF43F5E' }, fgColor: { argb: 'FFF43F5E' } },
+                font: { color: { argb: 'FFF43F5E' } }
+              }
+            }
+          ]
+        });
+
+        return wb;
+      },
+
 
       // ══════ EXCEL BUILDERS (SMART WORKBOOK) ══════
       buildReadmeSheet(wb, safeMode, COLORS, hdrStyle) {
@@ -42993,6 +43656,8 @@ Earned Value Management measures project performance and progress by comparing p
 
     // Global aliases for backward compatibility
     function exportProjectExcel(...args) { return PulseExcel.exportProjectExcel(...args); }
+    function exportFeatureMatrixExcel(...args) { return PulseExcel.exportFeatureMatrixExcel(...args); }
+    function generateFeatureMatrixWorkbook(...args) { return PulseExcel.generateFeatureMatrixWorkbook(...args); }
     function exportProjectCSV(...args) { return PulseExcel.exportProjectCSV(...args); }
     function buildReadmeSheet(...args) { return PulseExcel.buildReadmeSheet(...args); }
     function buildDataDictionarySheet(...args) { return PulseExcel.buildDataDictionarySheet(...args); }
