@@ -38693,7 +38693,7 @@ Earned Value Management measures project performance and progress by comparing p
 
         wsGantt.mergeCells('B1:G5');
         const ganttInfo = wsGantt.getCell('B1');
-        ganttInfo.value = ' >> FEATURE TIMELINE GANTT CHART\n\nGantt bars auto-update when you edit dates on the \"Feature Details\" sheet.\n\n  ● Green = \u226580% done    ● Blue = 40\u201379% done    ● Orange = <40% done\n  ▶ Yellow highlighted column = current week';
+        ganttInfo.value = ' >> FEATURE TIMELINE GANTT CHART\n\nGantt bars auto-update when you edit dates on the \"Feature Details\" sheet.\n\n  ● Green = \u226580% done    ● Blue = 40\u201379% done    ● Orange = <40% done\n  ▶ Red dotted column = current week / today';
         ganttInfo.font = { name: 'Courier New', size: 9.5, bold: true, color: { argb: COLORS.textDark } };
         ganttInfo.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
 
@@ -38813,7 +38813,7 @@ Earned Value Management measures project performance and progress by comparing p
           ]
         });
 
-        // Dynamic Today/Current Week highlighting
+        // Dynamic Today/Current Week highlighting — red dotted left border + light red tint
         wsGantt.addConditionalFormatting({
           ref: `H6:${wsGantt.getColumn(8 + numWeeksVal - 1).letter}200`,
           rules: [
@@ -38821,7 +38821,8 @@ Earned Value Management measures project performance and progress by comparing p
               type: 'expression',
               formulae: ['AND(TODAY()>=H$6, TODAY()<H$6+7)'],
               style: {
-                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFF2CC' }, fgColor: { argb: 'FFFFF2CC' } }
+                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFEE2E2' }, fgColor: { argb: 'FFFEE2E2' } },
+                border: { left: { style: 'dotted', color: { argb: 'FFEF4444' } } }
               }
             }
           ]
@@ -38989,6 +38990,7 @@ Earned Value Management measures project performance and progress by comparing p
           ]
         });
 
+        // Dynamic Today/Current Week highlighting — red dotted left border + light red tint
         wsSwim.addConditionalFormatting({
           ref: `H6:${wsSwim.getColumn(8 + numWeeksVal - 1).letter}200`,
           rules: [
@@ -38996,7 +38998,8 @@ Earned Value Management measures project performance and progress by comparing p
               type: 'expression',
               formulae: ['AND(TODAY()>=H$6, TODAY()<H$6+7)'],
               style: {
-                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFF2CC' }, fgColor: { argb: 'FFFFF2CC' } }
+                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFEE2E2' }, fgColor: { argb: 'FFFEE2E2' } },
+                border: { left: { style: 'dotted', color: { argb: 'FFEF4444' } } }
               }
             }
           ]
