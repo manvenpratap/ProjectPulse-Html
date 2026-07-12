@@ -50358,7 +50358,7 @@ Earned Value Management measures project performance and progress by comparing p
         if (todayIdx >= 0 && todayIdx < N) {
           const tx = xOf(todayIdx);
           ctx.save();
-          ctx.strokeStyle = '#374151'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.globalAlpha = 0.75;
+          ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5; ctx.setLineDash([2, 3]); ctx.globalAlpha = 1;
           ctx.beginPath(); ctx.moveTo(tx, pT + 20); ctx.lineTo(tx, pT + aH); ctx.stroke();
           ctx.restore();
           // Pill label inside top of chart
@@ -50371,7 +50371,7 @@ Earned Value Management measures project performance and progress by comparing p
           if (pillX < pL) pillX = pL;
           if (pillX + tw > pL + aW) pillX = pL + aW - tw;
           const pillY = pT + 2;
-          ctx.fillStyle = '#374151'; ctx.globalAlpha = 0.85;
+          ctx.fillStyle = '#ef4444'; ctx.globalAlpha = 0.9;
           ctx.beginPath();
           if (ctx.roundRect) ctx.roundRect(pillX, pillY, tw, th, 4); else ctx.rect(pillX, pillY, tw, th);
           ctx.fill();
