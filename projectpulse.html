@@ -38344,7 +38344,18 @@ Earned Value Management measures project performance and progress by comparing p
         };
 
         const calculatedFeatures = (P.features || []).map(f => {
-          const linkedTasks = (P.tasks || []).filter(t => t.featureId === f.id);
+          const fScreens = f.screens || [];
+          const linkedTasks = (P.tasks || []).filter(t => {
+            const hasGuiScreenMatch = (t.guiScreens || []).some(sc => {
+              const scName = typeof sc === 'string' ? sc : (sc.name || sc.screen);
+              return scName && fScreens.includes(scName);
+            });
+            const hasSubtaskMatch = (t.subtasks || []).some(st => {
+              const stName = typeof st === 'string' ? st : (st.name || st.screen);
+              return stName && fScreens.includes(stName);
+            });
+            return hasGuiScreenMatch || hasSubtaskMatch;
+          });
           const tot = linkedTasks.length;
           const done = linkedTasks.filter(t => t.status === 'Completed').length;
           const avgP = tot ? Math.round((done / tot) * 100) : (f.progress || 0);
