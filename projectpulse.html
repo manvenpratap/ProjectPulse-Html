@@ -38587,7 +38587,6 @@ Earned Value Management measures project performance and progress by comparing p
             status: { formula: `=IF(A${rowIdx}="","",IF(I${rowIdx}>=1,"Completed",IF(I${rowIdx}>0,"In Progress","Not Started")))` }
           });
           row.getCell('progress').numFmt = '0%';
-          COLORS.styleRow(row, calculatedFeatures.length + i, 13);
         }
 
         for (let r = 8; r <= 200; r++) {
@@ -38616,7 +38615,47 @@ Earned Value Management measures project performance and progress by comparing p
         minTimelineDate.setDate(minTimelineDate.getDate() - minTimelineDate.getDay() + 1);
         maxTimelineDate.setDate(maxTimelineDate.getDate() + (7 - maxTimelineDate.getDay()));
 
-        const numWeeksVal = Math.max(2, Math.min(52, Math.ceil((maxTimelineDate - minTimelineDate) / (7 * 24 * 60 * 60 * 1000)) + 1));
+        const numWeeksVal = Math.max(2, Math.min(150, Math.ceil((maxTimelineDate - minTimelineDate) / (7 * 24 * 60 * 60 * 1000)) + 1));
+
+        // Period Shading & Today Highlight
+        const getReleasePeriodColor = (date) => {
+          if (!date) return 'FFFFFFFF';
+          const dVal = new Date(date);
+          const sortedRels = [...(P.releases || [])]
+            .filter(r => r.date && r.date !== '-' && r.date !== '—')
+            .map(r => ({ name: r.name, date: new Date(r.date) }))
+            .sort((a, b) => a.date - b.date);
+
+          if (!sortedRels.length) return 'FFFFFFFF';
+
+          const tints = [
+            'FFF1F5F9', // Slate 50 (Very light gray)
+            'FFF5F3FF', // Violet 50 (Very light violet)
+            'FFECFDF5', // Emerald 50 (Very light green)
+            'FFEFF6FF', // Blue 50 (Very light blue)
+            'FFFDF2F8'  // Pink 50 (Very light pink)
+          ];
+
+          for (let i = 0; i < sortedRels.length; i++) {
+            if (dVal <= sortedRels[i].date) {
+              return tints[i % tints.length];
+            }
+          }
+          return tints[sortedRels.length % tints.length];
+        };
+
+        const colColors = [];
+        const todayVal = new Date();
+        for (let w = 0; w < numWeeksVal; w++) {
+          const cellDate = new Date(minTimelineDate);
+          cellDate.setDate(cellDate.getDate() + w * 7);
+          const diffDays = (todayVal - cellDate) / (86400000);
+          if (diffDays >= 0 && diffDays < 7) {
+            colColors.push('FFFFF2CC'); // Soft warm yellow for current week marker
+          } else {
+            colColors.push(getReleasePeriodColor(cellDate));
+          }
+        }
 
         const wsGantt = wb.addWorksheet('Gantt Chart', { views: [{ state: 'frozen', ySplit: 6, xSplit: 7, showGridLines: true }] });
         wsGantt.properties.tabColor = { argb: COLORS.rose };
@@ -38632,7 +38671,7 @@ Earned Value Management measures project performance and progress by comparing p
         ];
 
         for (let w = 0; w < numWeeksVal; w++) {
-          ganttCols.push({ key: `w_${w}`, width: 3.8 });
+          ganttCols.push({ key: `w_${w}`, width: 5.5 });
         }
         wsGantt.columns = ganttCols.map(c => ({ key: c.key, width: c.width }));
 
@@ -38699,7 +38738,6 @@ Earned Value Management measures project performance and progress by comparing p
         }
 
         // TODAY Week marker
-        const todayVal = new Date();
         for (let w = 0; w < numWeeksVal; w++) {
           const colIdx = 8 + w;
           const cell = wsGantt.getCell(6, colIdx);
@@ -38728,16 +38766,25 @@ Earned Value Management measures project performance and progress by comparing p
           wsGantt.getCell(`E${rowIdx}`).numFmt = 'dd-mmm-yyyy';
           wsGantt.getCell(`F${rowIdx}`).numFmt = 'dd-mmm-yyyy';
 
+          const isRealFeature = i < calculatedFeatures.length;
+
+          if (isRealFeature) {
+            const row = wsGantt.getRow(rowIdx);
+            row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
+            COLORS.styleRow(row, i);
+          }
+
           for (let w = 0; w < numWeeksVal; w++) {
             const colIdx = 8 + w;
             const cell = wsGantt.getCell(rowIdx, colIdx);
             const colLetter = wsGantt.getColumn(colIdx).letter;
             cell.value = { formula: `=IF($B${rowIdx}="","",IF(AND(${colLetter}$6<=$F${rowIdx}, ${colLetter}$6+6>=$E${rowIdx}), IF($G${rowIdx}>=0.8, 5, IF($G${rowIdx}>=0.4, 4, 2)), 0))` };
+            
+            if (isRealFeature) {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colColors[w] } };
+              cell.font = { name: 'Segoe UI', size: 9, color: { argb: colColors[w] } };
+            }
           }
-
-          const row = wsGantt.getRow(rowIdx);
-          row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
-          COLORS.styleRow(row, i);
         }
 
         wsGantt.addConditionalFormatting({
@@ -38876,16 +38923,25 @@ Earned Value Management measures project performance and progress by comparing p
             wsSwim.getCell(`E${swimRowIdx}`).numFmt = 'dd-mmm-yyyy';
             wsSwim.getCell(`F${swimRowIdx}`).numFmt = 'dd-mmm-yyyy';
 
+            const isRealSwimSlot = n <= count;
+
+            if (isRealSwimSlot) {
+              const row = wsSwim.getRow(swimRowIdx);
+              row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
+              COLORS.styleRow(row, n - 1);
+            }
+
             for (let w = 0; w < numWeeksVal; w++) {
               const colIdx = 8 + w;
               const cell = wsSwim.getCell(swimRowIdx, colIdx);
               const colLetter = wsSwim.getColumn(colIdx).letter;
               cell.value = { formula: `=IF($B${swimRowIdx}="","",IF(AND(${colLetter}$6<=$F${swimRowIdx}, ${colLetter}$6+6>=$E${swimRowIdx}), IF($G${swimRowIdx}>=0.8, 5, IF($G${swimRowIdx}>=0.4, 4, 2)), 0))` };
+              
+              if (isRealSwimSlot) {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colColors[w] } };
+                cell.font = { name: 'Segoe UI', size: 9, color: { argb: colColors[w] } };
+              }
             }
-
-            const row = wsSwim.getRow(swimRowIdx);
-            row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
-            COLORS.styleRow(row, n - 1);
             swimRowIdx++;
           }
 
