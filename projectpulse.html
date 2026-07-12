@@ -38598,20 +38598,34 @@ Earned Value Management measures project performance and progress by comparing p
         }
 
         // SHEET 3: Gantt Chart
-        let overallMinDate = null, overallMaxDate = null;
+        const parseExcelDate = (val) => {
+          if (!val) return null;
+          if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+          const d = new Date(val);
+          if (!isNaN(d.getTime())) return d;
+          const dIso = new Date(val + 'T00:00:00');
+          if (!isNaN(dIso.getTime())) return dIso;
+          return null;
+        };
+
+        const allDates = [];
         calculatedFeatures.forEach(f => {
-          if (f.startDate) {
-            const sd = new Date(f.startDate);
-            if (!overallMinDate || sd < overallMinDate) overallMinDate = sd;
-          }
-          if (f.dueDate) {
-            const ed = new Date(f.dueDate);
-            if (!overallMaxDate || ed > overallMaxDate) overallMaxDate = ed;
+          const sd = parseExcelDate(f.startDate);
+          if (sd) allDates.push(sd);
+          const dd = parseExcelDate(f.dueDate);
+          if (dd) allDates.push(dd);
+        });
+        (P.releases || []).forEach(r => {
+          if (r.date && r.date !== '-' && r.date !== '—') {
+            const rd = parseExcelDate(r.date);
+            if (rd) allDates.push(rd);
           }
         });
+        allDates.push(new Date());
 
-        const minTimelineDate = overallMinDate ? new Date(overallMinDate) : new Date();
-        const maxTimelineDate = overallMaxDate ? new Date(overallMaxDate) : new Date();
+        const validDates = allDates.filter(d => d instanceof Date && !isNaN(d.getTime()));
+        const minTimelineDate = new Date(Math.min(...validDates));
+        const maxTimelineDate = new Date(Math.max(...validDates));
         minTimelineDate.setDate(minTimelineDate.getDate() - minTimelineDate.getDay() + 1);
         maxTimelineDate.setDate(maxTimelineDate.getDate() + (7 - maxTimelineDate.getDay()));
 
@@ -38623,7 +38637,7 @@ Earned Value Management measures project performance and progress by comparing p
           const dVal = new Date(date);
           const sortedRels = [...(P.releases || [])]
             .filter(r => r.date && r.date !== '-' && r.date !== '—')
-            .map(r => ({ name: r.name, date: new Date(r.date) }))
+            .map(r => ({ name: r.name, date: new Date(r.date + 'T00:00:00') }))
             .sort((a, b) => a.date - b.date);
 
           if (!sortedRels.length) return 'FFFFFFFF';
@@ -38649,15 +38663,10 @@ Earned Value Management measures project performance and progress by comparing p
         for (let w = 0; w < numWeeksVal; w++) {
           const cellDate = new Date(minTimelineDate);
           cellDate.setDate(cellDate.getDate() + w * 7);
-          const diffDays = (todayVal - cellDate) / (86400000);
-          if (diffDays >= 0 && diffDays < 7) {
-            colColors.push('FFFFF2CC'); // Soft warm yellow for current week marker
-          } else {
-            colColors.push(getReleasePeriodColor(cellDate));
-          }
+          colColors.push(getReleasePeriodColor(cellDate));
         }
 
-        const wsGantt = wb.addWorksheet('Gantt Chart', { views: [{ state: 'frozen', ySplit: 6, xSplit: 7, showGridLines: true }] });
+        const wsGantt = wb.addWorksheet('Gantt Chart', { views: [{ state: 'frozen', ySplit: 6, xSplit: 7, showGridLines: false }] });
         wsGantt.properties.tabColor = { argb: COLORS.rose };
 
         const ganttCols = [
@@ -38671,7 +38680,7 @@ Earned Value Management measures project performance and progress by comparing p
         ];
 
         for (let w = 0; w < numWeeksVal; w++) {
-          ganttCols.push({ key: `w_${w}`, width: 6.33 });
+          ganttCols.push({ key: `w_${w}`, width: 7.16 }); // 7.16 in ExcelJS translates to exactly 6.33 displayed width in Excel (accounting for 0.83 padding)
         }
         wsGantt.columns = ganttCols.map(c => ({ key: c.key, width: c.width }));
 
@@ -38682,8 +38691,8 @@ Earned Value Management measures project performance and progress by comparing p
           }
         }
 
-        wsGantt.mergeCells('B2:G5');
-        const ganttInfo = wsGantt.getCell('B2');
+        wsGantt.mergeCells('B1:G5');
+        const ganttInfo = wsGantt.getCell('B1');
         ganttInfo.value = ' >> FEATURE TIMELINE GANTT CHART\n\nGantt bars auto-update when you edit dates on the \"Feature Details\" sheet.\n\n  ● Green = \u226580% done    ● Blue = 40\u201379% done    ● Orange = <40% done\n  ▶ Yellow highlighted column = current week';
         ganttInfo.font = { name: 'Courier New', size: 9.5, bold: true, color: { argb: COLORS.textDark } };
         ganttInfo.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
@@ -38692,7 +38701,7 @@ Earned Value Management measures project performance and progress by comparing p
         const ganttHeaders = ['', 'Feature Name', 'Category', 'Target Release', 'Start Date', 'Due Date', 'Progress'];
         ganttHeaders.forEach((h, idx) => {
           if (idx > 0) {
-            const cell = wsGantt.getCell(6, idx);
+            const cell = wsGantt.getCell(6, idx + 1);
             cell.value = h;
             cell.style = hdrStyle;
           }
@@ -38735,19 +38744,6 @@ Earned Value Management measures project performance and progress by comparing p
             currentMonthName = monthStr;
           }
           tempDateHeader.setDate(tempDateHeader.getDate() + 7);
-        }
-
-        // TODAY Week marker
-        for (let w = 0; w < numWeeksVal; w++) {
-          const colIdx = 8 + w;
-          const cell = wsGantt.getCell(6, colIdx);
-          const cellDate = new Date(minTimelineDate);
-          cellDate.setDate(cellDate.getDate() + w * 7);
-          const diffDays = (todayVal - cellDate) / (1000 * 60 * 60 * 24);
-          if (diffDays >= 0 && diffDays < 7) {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF099' } }; // Soft yellow
-            cell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF1E293B' } };
-          }
         }
 
         const totalGanttRows = Math.max(calculatedFeatures.length + 20, 60);
@@ -38817,11 +38813,25 @@ Earned Value Management measures project performance and progress by comparing p
           ]
         });
 
+        // Dynamic Today/Current Week highlighting
+        wsGantt.addConditionalFormatting({
+          ref: `H6:${wsGantt.getColumn(8 + numWeeksVal - 1).letter}200`,
+          rules: [
+            {
+              type: 'expression',
+              formulae: ['AND(TODAY()>=H$6, TODAY()<H$6+7)'],
+              style: {
+                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFF2CC' }, fgColor: { argb: 'FFFFF2CC' } }
+              }
+            }
+          ]
+        });
+
         // SHEET 4: Swimlane View
-        const wsSwim = wb.addWorksheet('Swim Lane View', { views: [{ state: 'frozen', ySplit: 6, xSplit: 7, showGridLines: true }] });
+        const wsSwim = wb.addWorksheet('Swim Lane View', { views: [{ state: 'frozen', ySplit: 6, xSplit: 7, showGridLines: false }] });
         wsSwim.properties.tabColor = { argb: COLORS.rose };
 
-        wsSwim.columns = wsGantt.columns.map(c => ({ key: c.key, width: c.width }));
+        wsSwim.columns = ganttCols.map(c => ({ key: c.key, width: c.width }));
 
         for (let r = 1; r <= 5; r++) {
           wsSwim.getRow(r).height = 18;
@@ -38839,7 +38849,7 @@ Earned Value Management measures project performance and progress by comparing p
         wsSwim.getRow(6).height = 24;
         ganttHeaders.forEach((h, idx) => {
           if (idx > 0) {
-            const cell = wsSwim.getCell(6, idx);
+            const cell = wsSwim.getCell(6, idx + 1);
             cell.value = h;
             cell.style = hdrStyle;
           }
@@ -38974,6 +38984,19 @@ Earned Value Management measures project performance and progress by comparing p
               style: {
                 fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFF59E0B' }, fgColor: { argb: 'FFF59E0B' } },
                 font: { color: { argb: 'FFF59E0B' } }
+              }
+            }
+          ]
+        });
+
+        wsSwim.addConditionalFormatting({
+          ref: `H6:${wsSwim.getColumn(8 + numWeeksVal - 1).letter}200`,
+          rules: [
+            {
+              type: 'expression',
+              formulae: ['AND(TODAY()>=H$6, TODAY()<H$6+7)'],
+              style: {
+                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFF2CC' }, fgColor: { argb: 'FFFFF2CC' } }
               }
             }
           ]
@@ -46943,14 +46966,15 @@ Earned Value Management measures project performance and progress by comparing p
         const mObj = featMetricsMap[f.name];
         if (mObj && mObj.fScreens) {
           mObj.fScreens.forEach(t => {
-            if (t.startDate) allDates.push(new Date(t.startDate));
-            if (t.dueDate)   allDates.push(new Date(t.dueDate));
+            if (t.startDate) allDates.push(new Date(t.startDate + 'T00:00:00'));
+            if (t.dueDate)   allDates.push(new Date(t.dueDate + 'T00:00:00'));
           });
         }
       });
       // Also include release dates so release markers are always visible
-      (P.releases || []).forEach(r => { if (r.date) allDates.push(new Date(r.date)); });
-      if (allDates.length === 0) allDates = [new Date(), new Date(Date.now() + 60 * 864e5)];
+      (P.releases || []).forEach(r => { if (r.date) allDates.push(new Date(r.date + 'T00:00:00')); });
+      // Include today's date dynamically
+      allDates.push(new Date());
       let minDate = new Date(Math.min(...allDates));
       let maxDate = new Date(Math.max(...allDates));
       minDate.setDate(minDate.getDate() - 5);
@@ -47216,58 +47240,94 @@ Earned Value Management measures project performance and progress by comparing p
         }
       }
 
-      // ── Release version marker lines ────────────────────────────────────────
+      // ── Release version marker lines (bold start & end) ─────────────────────
       (P.releases || []).forEach(rel => {
-        if (!rel.date) return;
-        const rd = new Date(rel.date);
-        rd.setHours(0, 0, 0, 0);
-        if (rd < minDate || rd > maxDate) return;
-        const rx = PAD_L + Math.floor((rd - minDate) / 864e5) * dayW;
+        // Find screens of features assigned to this release
+        const relScreens = [];
+        P.features.forEach(f => {
+          if (f.release === rel.name) {
+            const m = featMetricsMap[f.name];
+            if (m && m.fScreens) {
+              m.fScreens.forEach(sc => {
+                if (sc.startDate && sc.dueDate) relScreens.push(sc);
+              });
+            }
+          }
+        });
+
+        let relStart = null;
+        let relEnd = null;
+        if (relScreens.length > 0) {
+          const starts = relScreens.map(sc => new Date(sc.startDate + 'T00:00:00'));
+          const ends = relScreens.map(sc => new Date(sc.dueDate + 'T00:00:00'));
+          relStart = new Date(Math.min(...starts));
+          relEnd = new Date(Math.max(...ends));
+        } else if (rel.date) {
+          relStart = new Date(rel.date + 'T00:00:00');
+          relEnd = new Date(rel.date + 'T00:00:00');
+        }
+
+        if (!relStart || !relEnd) return;
         const relC = RELEASE_STATUS_COLORS[rel.status] || '#94a3b8';
 
-        // Solid vertical line through full chart (opacity 0.25)
-        ctx.save();
-        ctx.strokeStyle = relC;
-        ctx.lineWidth   = 1;
-        ctx.globalAlpha = 0.25;
-        ctx.beginPath();
-        ctx.moveTo(rx, 0);
-        ctx.lineTo(rx, H);
-        ctx.stroke();
-        ctx.restore();
+        const drawReleaseLine = (date, suffix) => {
+          date.setHours(0, 0, 0, 0);
+          if (date < minDate || date > maxDate) return;
+          const rx = PAD_L + Math.floor((date - minDate) / 864e5) * dayW;
 
-        // Release label badge drawn on header
-        const lbl = rel.name;
-        ctx.font = `bold 9px ${themeFont}`;
-        const lblW = ctx.measureText(lbl).width + 10;
-        const lblX = Math.min(rx + 3, W - lblW - 4);
-        const lblY = 4;
-        ctx.fillStyle = relC;
-        ctx.save();
-        ctx.globalAlpha = 0.18;
-        ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(lblX, lblY, lblW, 16, 4);
-        else ctx.rect(lblX, lblY, lblW, 16);
-        ctx.fill();
-        ctx.restore();
-        ctx.fillStyle = relC;
-        ctx.textAlign = 'left';
-        ctx.fillText(lbl, lblX + 5, lblY + 11);
+          // Bold vertical separator line through full chart
+          ctx.save();
+          ctx.strokeStyle = relC;
+          ctx.lineWidth   = 2.5; // Bold
+          ctx.beginPath();
+          ctx.moveTo(rx, 0);
+          ctx.lineTo(rx, H);
+          ctx.stroke();
+          ctx.restore();
+
+          // Release label badge drawn on header
+          const lbl = `${rel.name} ${suffix}`;
+          ctx.font = `bold 9px ${themeFont}`;
+          const lblW = ctx.measureText(lbl).width + 10;
+          const lblX = Math.min(rx + 3, W - lblW - 4);
+          const lblY = 4;
+          ctx.fillStyle = relC;
+          ctx.save();
+          ctx.globalAlpha = 0.18;
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(lblX, lblY, lblW, 16, 4);
+          else ctx.rect(lblX, lblY, lblW, 16);
+          ctx.fill();
+          ctx.restore();
+          ctx.fillStyle = relC;
+          ctx.textAlign = 'left';
+          ctx.fillText(lbl, lblX + 5, lblY + 11);
+        };
+
+        if (relStart.getTime() === relEnd.getTime()) {
+          drawReleaseLine(relStart, 'Target');
+        } else {
+          drawReleaseLine(relStart, 'Start');
+          drawReleaseLine(relEnd, 'End');
+        }
       });
 
-      // ── TODAY line (prominent) ──────────────────────────────────────────────
+      // ── TODAY line (prominent, dotted) ──────────────────────────────────────
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       if (today >= minDate && today <= maxDate) {
         const tx = PAD_L + Math.floor((today - minDate) / 864e5) * dayW;
-        // Solid colored line
+        // Dotted red line
+        ctx.save();
         ctx.strokeStyle = '#ef4444';
-        ctx.lineWidth   = 2;
-        ctx.setLineDash([]);
+        ctx.lineWidth   = 1.5;
+        ctx.setLineDash([2, 3]); // dotted red line
         ctx.beginPath();
         ctx.moveTo(tx, HEAD_H);
         ctx.lineTo(tx, H);
         ctx.stroke();
+        ctx.restore();
+        
         // Small "Today" pill
         const todayLbl = 'Today';
         ctx.font = `bold 8px ${themeFont}`;
@@ -47576,13 +47636,14 @@ Earned Value Management measures project performance and progress by comparing p
         const mObj = featMetricsMap[f.name];
         if (mObj && mObj.fScreens) {
           mObj.fScreens.forEach(t => {
-            if (t.startDate) allDates.push(new Date(t.startDate));
-            if (t.dueDate)   allDates.push(new Date(t.dueDate));
+            if (t.startDate) allDates.push(new Date(t.startDate + 'T00:00:00'));
+            if (t.dueDate)   allDates.push(new Date(t.dueDate + 'T00:00:00'));
           });
         }
       });
-      (P.releases || []).forEach(r => { if (r.date) allDates.push(new Date(r.date)); });
-      if (allDates.length === 0) allDates = [new Date(), new Date(Date.now() + 60 * 864e5)];
+      (P.releases || []).forEach(r => { if (r.date) allDates.push(new Date(r.date + 'T00:00:00')); });
+      // Include today dynamically
+      allDates.push(new Date());
       
       let minDate = new Date(Math.min(...allDates));
       let maxDate = new Date(Math.max(...allDates));
@@ -47959,30 +48020,66 @@ Earned Value Management measures project performance and progress by comparing p
           }
         }
 
-        // Draw Solid Release Separator Lines
+        // Draw Release Separator Lines (bold start & end)
         (P.releases || []).forEach(r => {
-          if (r.date) {
-            const rx = dateToX(r.date);
-            const rc = RELEASE_STATUS_COLORS[r.status] || '#94a3b8';
+          // Find screens of features assigned to this release
+          const relScreens = [];
+          P.features.forEach(f => {
+            if (f.release === r.name) {
+              const m = featMetricsMap[f.name];
+              if (m && m.fScreens) {
+                m.fScreens.forEach(sc => {
+                  if (sc.startDate && sc.dueDate) relScreens.push(sc);
+                });
+              }
+            }
+          });
+
+          let relStart = null;
+          let relEnd = null;
+          if (relScreens.length > 0) {
+            const starts = relScreens.map(sc => new Date(sc.startDate + 'T00:00:00'));
+            const ends = relScreens.map(sc => new Date(sc.dueDate + 'T00:00:00'));
+            relStart = new Date(Math.min(...starts));
+            relEnd = new Date(Math.max(...ends));
+          } else if (r.date) {
+            relStart = new Date(r.date + 'T00:00:00');
+            relEnd = new Date(r.date + 'T00:00:00');
+          }
+
+          if (!relStart || !relEnd) return;
+          const rc = RELEASE_STATUS_COLORS[r.status] || '#94a3b8';
+
+          const drawReleaseLine = (date) => {
+            date.setHours(0, 0, 0, 0);
+            if (date < minDate || date > maxDate) return;
+            const rx = dateToX(date.toISOString().slice(0, 10));
+
             ctx.save();
             ctx.strokeStyle = rc;
-            ctx.lineWidth = 1;
-            ctx.globalAlpha = 0.25;
+            ctx.lineWidth   = 2.5; // Bold vertical line
             ctx.beginPath();
             ctx.moveTo(rx, 0);
             ctx.lineTo(rx, canvasH);
             ctx.stroke();
             ctx.restore();
+          };
+
+          if (relStart.getTime() === relEnd.getTime()) {
+            drawReleaseLine(relStart);
+          } else {
+            drawReleaseLine(relStart);
+            drawReleaseLine(relEnd);
           }
         });
 
-        // Draw Today vertical line
+        // Draw Today vertical line (dotted red line)
         const todayX = dateToX(new Date().toISOString().slice(0, 10));
         if (todayX > PAD_L && todayX < W - PAD_L) {
           ctx.save();
           ctx.strokeStyle = '#ef4444';
-          ctx.lineWidth = 1.5;
-          ctx.setLineDash([3, 3]);
+          ctx.lineWidth = 1.2;
+          ctx.setLineDash([2, 3]); // dotted red line
           ctx.beginPath();
           ctx.moveTo(todayX, 0);
           ctx.lineTo(todayX, canvasH);
@@ -48837,7 +48934,9 @@ Earned Value Management measures project performance and progress by comparing p
       });
 
       // Compute general date bounds
-      const allDates = tasks.flatMap(t => [new Date(t.startDate), new Date(t.dueDate), ...(P.showGanttActuals && t.actCompletionDate ? [new Date(t.actCompletionDate)] : [])]);
+      const allDates = tasks.flatMap(t => [new Date(t.startDate + 'T00:00:00'), new Date(t.dueDate + 'T00:00:00'), ...(P.showGanttActuals && t.actCompletionDate ? [new Date(t.actCompletionDate + 'T00:00:00')] : [])]);
+      (P.releases || []).forEach(r => { if (r.date) allDates.push(new Date(r.date + 'T00:00:00')); });
+      allDates.push(new Date());
       let minDate = new Date(Math.min(...allDates));
       let maxDate = new Date(Math.max(...allDates));
 
@@ -49061,7 +49160,7 @@ Earned Value Management measures project performance and progress by comparing p
           const tx = PAD_L + Math.floor((today - minDate) / 864e5) * dayW;
           ctx.strokeStyle = '#ef4444';
           ctx.lineWidth = 1.5;
-          ctx.setLineDash([4, 3]);
+          ctx.setLineDash([2, 3]); // Dotted red line
           ctx.beginPath();
           ctx.moveTo(tx, HEAD_H);
           ctx.lineTo(tx, H);
@@ -49072,6 +49171,69 @@ Earned Value Management measures project performance and progress by comparing p
           ctx.textAlign = 'left';
           ctx.fillText('Today', tx + 2, HEAD_H + 10);
         }
+
+        // Draw release markers (start & end)
+        const RELEASE_STATUS_COLORS = { Released: '#10b981', Active: '#3b82f6', Planned: '#f59e0b' };
+        (P.releases || []).forEach(rel => {
+          const relTasks = (P.tasks || []).filter(t => t.release === rel.name && t.startDate && t.dueDate);
+          let relStart = null;
+          let relEnd = null;
+          if (relTasks.length > 0) {
+            const starts = relTasks.map(t => new Date(t.startDate + 'T00:00:00'));
+            const ends = relTasks.map(t => new Date(t.dueDate + 'T00:00:00'));
+            relStart = new Date(Math.min(...starts));
+            relEnd = new Date(Math.max(...ends));
+          } else if (rel.date) {
+            relStart = new Date(rel.date + 'T00:00:00');
+            relEnd = new Date(rel.date + 'T00:00:00');
+          }
+
+          if (!relStart || !relEnd) return;
+          const relC = RELEASE_STATUS_COLORS[rel.status] || '#94a3b8';
+
+          const drawReleaseLine = (date, suffix) => {
+            date.setHours(0, 0, 0, 0);
+            if (date < minDate || date > maxDate) return;
+            const rx = PAD_L + Math.floor((date - minDate) / 864e5) * dayW;
+
+            // Bold vertical separator line through full chart
+            ctx.save();
+            ctx.strokeStyle = relC;
+            ctx.lineWidth   = 2.5; // Bold
+            ctx.beginPath();
+            ctx.moveTo(rx, 0);
+            ctx.lineTo(rx, H);
+            ctx.stroke();
+            ctx.restore();
+
+            // Release label badge drawn on header
+            const lbl = `${rel.name} ${suffix}`;
+            ctx.save();
+            ctx.font = 'bold 8.5px ' + (window.bodyFont || 'Inter,sans-serif');
+            const lblW = ctx.measureText(lbl).width + 8;
+            const lblX = Math.min(rx + 2, W - lblW - 4);
+            const lblY = 3;
+            ctx.fillStyle = relC;
+            ctx.globalAlpha = 0.15;
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(lblX, lblY, lblW, 12, 3);
+            else ctx.rect(lblX, lblY, lblW, 12);
+            ctx.fill();
+
+            ctx.globalAlpha = 1.0;
+            ctx.fillStyle = relC;
+            ctx.textAlign = 'left';
+            ctx.fillText(lbl, lblX + 4, lblY + 9);
+            ctx.restore();
+          };
+
+          if (relStart.getTime() === relEnd.getTime()) {
+            drawReleaseLine(relStart, 'Target');
+          } else {
+            drawReleaseLine(relStart, 'Start');
+            drawReleaseLine(relEnd, 'End');
+          }
+        });
 
         // Row dividers
         ctx.strokeStyle = themeBorder;
@@ -49355,7 +49517,9 @@ Earned Value Management measures project performance and progress by comparing p
       withScroll(() => {
         const tasks = getFiltered().filter(t => t.startDate && t.dueDate).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
         if (!tasks.length) { $id('gantt-left').innerHTML = '<div style="padding:40px 16px;text-align:center;color:var(--color-text-muted)"><div style="font-size:24px;margin-bottom:6px">📅</div>No tasks with dates</div>'; $id('gantt-canvas').width = 0; return; }
-        const allDates = tasks.flatMap(t => [new Date(t.startDate), new Date(t.dueDate), ...(P.showGanttActuals && t.actCompletionDate ? [new Date(t.actCompletionDate)] : [])]);
+        const allDates = tasks.flatMap(t => [new Date(t.startDate + 'T00:00:00'), new Date(t.dueDate + 'T00:00:00'), ...(P.showGanttActuals && t.actCompletionDate ? [new Date(t.actCompletionDate + 'T00:00:00')] : [])]);
+        (P.releases || []).forEach(r => { if (r.date) allDates.push(new Date(r.date + 'T00:00:00')); });
+        allDates.push(new Date());
         let minDate = new Date(Math.min(...allDates)), maxDate = new Date(Math.max(...allDates));
         minDate.setDate(minDate.getDate() - 3); maxDate.setDate(maxDate.getDate() + 7);
         const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -49549,48 +49713,69 @@ Earned Value Management measures project performance and progress by comparing p
           else if (zoom === 'week' && dt.getDay() === 1) { ctx.fillStyle = themeFaint; ctx.font = '9px ' + window.bodyFont; ctx.textAlign = 'left'; ctx.fillText(dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), x + 2, HEAD_H - 4); }
           else if (zoom === 'month' && dt.getDate() === 1) { ctx.fillStyle = themeMuted; ctx.font = 'bold 9px ' + window.bodyFont; ctx.textAlign = 'left'; ctx.fillText(dt.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), x + 2, HEAD_H - 4); }
         }
-        // Draw release markers
+        // Draw release markers (start & end)
         (P.releases || []).forEach(rel => {
-          if (!rel.date) return;
-          const rd = new Date(rel.date);
-          rd.setHours(0, 0, 0, 0);
-          if (rd < minDate || rd > maxDate) return;
-          const rx = dateToX(rel.date);
+          const relTasks = (P.tasks || []).filter(t => t.release === rel.name && t.startDate && t.dueDate);
+          let relStart = null;
+          let relEnd = null;
+          if (relTasks.length > 0) {
+            const starts = relTasks.map(t => new Date(t.startDate + 'T00:00:00'));
+            const ends = relTasks.map(t => new Date(t.dueDate + 'T00:00:00'));
+            relStart = new Date(Math.min(...starts));
+            relEnd = new Date(Math.max(...ends));
+          } else if (rel.date) {
+            relStart = new Date(rel.date + 'T00:00:00');
+            relEnd = new Date(rel.date + 'T00:00:00');
+          }
+
+          if (!relStart || !relEnd) return;
           const relC = RELEASE_STATUS_COLORS[rel.status] || '#94a3b8';
 
-          // Subtle solid vertical separator line through full chart
-          ctx.save();
-          ctx.strokeStyle = relC;
-          ctx.lineWidth   = 1;
-          ctx.globalAlpha = 0.25;
-          ctx.beginPath();
-          ctx.moveTo(rx, 0);
-          ctx.lineTo(rx, H);
-          ctx.stroke();
-          ctx.restore();
+          const drawReleaseLine = (date, suffix) => {
+            date.setHours(0, 0, 0, 0);
+            if (date < minDate || date > maxDate) return;
+            const rx = PAD_L + Math.floor((date - minDate) / 864e5) * dayW;
 
-          // Release label badge drawn on header
-          const lbl = rel.name;
-          ctx.save();
-          ctx.font = 'bold 8.5px ' + (window.bodyFont || 'Inter,sans-serif');
-          const lblW = ctx.measureText(lbl).width + 8;
-          const lblX = Math.min(rx + 2, W - lblW - 4);
-          const lblY = 3;
-          ctx.fillStyle = relC;
-          ctx.globalAlpha = 0.15;
-          ctx.beginPath();
-          if (ctx.roundRect) ctx.roundRect(lblX, lblY, lblW, 12, 3);
-          else ctx.rect(lblX, lblY, lblW, 12);
-          ctx.fill();
+            // Bold vertical separator line through full chart
+            ctx.save();
+            ctx.strokeStyle = relC;
+            ctx.lineWidth   = 2.5; // Bold
+            ctx.beginPath();
+            ctx.moveTo(rx, 0);
+            ctx.lineTo(rx, H);
+            ctx.stroke();
+            ctx.restore();
 
-          ctx.globalAlpha = 1.0;
-          ctx.fillStyle = relC;
-          ctx.textAlign = 'left';
-          ctx.fillText(lbl, lblX + 4, lblY + 9);
-          ctx.restore();
+            // Release label badge drawn on header
+            const lbl = `${rel.name} ${suffix}`;
+            ctx.save();
+            ctx.font = 'bold 8.5px ' + (window.bodyFont || 'Inter,sans-serif');
+            const lblW = ctx.measureText(lbl).width + 8;
+            const lblX = Math.min(rx + 2, W - lblW - 4);
+            const lblY = 3;
+            ctx.fillStyle = relC;
+            ctx.globalAlpha = 0.15;
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(lblX, lblY, lblW, 12, 3);
+            else ctx.rect(lblX, lblY, lblW, 12);
+            ctx.fill();
+
+            ctx.globalAlpha = 1.0;
+            ctx.fillStyle = relC;
+            ctx.textAlign = 'left';
+            ctx.fillText(lbl, lblX + 4, lblY + 9);
+            ctx.restore();
+          };
+
+          if (relStart.getTime() === relEnd.getTime()) {
+            drawReleaseLine(relStart, 'Target');
+          } else {
+            drawReleaseLine(relStart, 'Start');
+            drawReleaseLine(relEnd, 'End');
+          }
         });
         // Today line
-        if (today >= minDate && today <= maxDate) { const tx = PAD_L + Math.floor((today - minDate) / 864e5) * dayW; ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.moveTo(tx, HEAD_H); ctx.lineTo(tx, H); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = '#ef4444'; ctx.font = 'bold 8px ' + window.bodyFont; ctx.textAlign = 'left'; ctx.fillText('Today', tx + 2, HEAD_H + 10); }
+        if (today >= minDate && today <= maxDate) { const tx = PAD_L + Math.floor((today - minDate) / 864e5) * dayW; ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5; ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.moveTo(tx, HEAD_H); ctx.lineTo(tx, H); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = '#ef4444'; ctx.font = 'bold 8px ' + window.bodyFont; ctx.textAlign = 'left'; ctx.fillText('Today', tx + 2, HEAD_H + 10); }
         // Row lines
         ctx.strokeStyle = themeBorder; ctx.lineWidth = .5;
         for (let i = 0; i <= tasks.length; i++) { const y = HEAD_H + i * ROW_H; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
@@ -52506,13 +52691,11 @@ Earned Value Management measures project performance and progress by comparing p
 
       let allDates = [];
       filtered.forEach(t => {
-        if (t.startDate) allDates.push(new Date(t.startDate));
-        if (t.dueDate) allDates.push(new Date(t.dueDate));
+        if (t.startDate) allDates.push(new Date(t.startDate + 'T00:00:00'));
+        if (t.dueDate) allDates.push(new Date(t.dueDate + 'T00:00:00'));
       });
-      DATA.releases.forEach(r => { if (r.date) allDates.push(new Date(r.date)); });
-      if (allDates.length === 0) {
-        allDates = [new Date(), new Date(Date.now() + 30 * 864e5)];
-      }
+      (DATA.releases || []).forEach(r => { if (r.date) allDates.push(new Date(r.date + 'T00:00:00')); });
+      allDates.push(new Date());
 
       let minDate = new Date(Math.min(...allDates));
       let maxDate = new Date(Math.max(...allDates));
@@ -52619,7 +52802,7 @@ Earned Value Management measures project performance and progress by comparing p
         const tx = PAD_L + Math.floor((today - minDate) / 864e5) * dayW;
         ctx.strokeStyle = '#ef4444';
         ctx.lineWidth = 1.5;
-        ctx.setLineDash([4, 3]);
+        ctx.setLineDash([2, 3]); // Dotted red line
         ctx.beginPath();
         ctx.moveTo(tx, HEAD_H);
         ctx.lineTo(tx, H);
@@ -52631,20 +52814,64 @@ Earned Value Management measures project performance and progress by comparing p
         ctx.fillText('Today', tx + 2, HEAD_H + 10);
       }
 
-      DATA.releases.forEach(r => {
-        if (!r.date) return;
-        const rd = new Date(r.date); rd.setHours(0, 0, 0, 0);
-        if (rd >= minDate && rd <= maxDate) {
-          const rx = PAD_L + Math.floor((rd - minDate) / 864e5) * dayW;
-          const rColor = RELEASE_STATUS_COLORS[r.status] || '#8b5cf6';
-          ctx.strokeStyle = rColor;
-          ctx.lineWidth = 1;
-          ctx.beginPath(); ctx.moveTo(rx, 0); ctx.lineTo(rx, H); ctx.stroke();
+      (DATA.releases || []).forEach(rel => {
+        const relTasks = (items || []).filter(t => t.release === rel.name && t.startDate && t.dueDate);
+        let relStart = null;
+        let relEnd = null;
+        if (relTasks.length > 0) {
+          const starts = relTasks.map(t => new Date(t.startDate + 'T00:00:00'));
+          const ends = relTasks.map(t => new Date(t.dueDate + 'T00:00:00'));
+          relStart = new Date(Math.min(...starts));
+          relEnd = new Date(Math.max(...ends));
+        } else if (rel.date) {
+          relStart = new Date(rel.date + 'T00:00:00');
+          relEnd = new Date(rel.date + 'T00:00:00');
+        }
 
-          ctx.fillStyle = rColor;
-          ctx.font = 'bold 8px var(--font-body)';
+        if (!relStart || !relEnd) return;
+        const relC = RELEASE_STATUS_COLORS[rel.status] || '#94a3b8';
+
+        const drawReleaseLine = (date, suffix) => {
+          date.setHours(0, 0, 0, 0);
+          if (date < minDate || date > maxDate) return;
+          const rx = PAD_L + Math.floor((date - minDate) / 864e5) * dayW;
+
+          // Bold vertical separator line through full chart
+          ctx.save();
+          ctx.strokeStyle = relC;
+          ctx.lineWidth   = 2.5; // Bold
+          ctx.beginPath();
+          ctx.moveTo(rx, 0);
+          ctx.lineTo(rx, H);
+          ctx.stroke();
+          ctx.restore();
+
+          // Release label badge drawn on header
+          const lbl = \`\${rel.name} \${suffix}\`;
+          ctx.save();
+          ctx.font = 'bold 8.5px var(--font-body)';
+          const lblW = ctx.measureText(lbl).width + 8;
+          const lblX = Math.min(rx + 2, W - lblW - 4);
+          const lblY = 3;
+          ctx.fillStyle = relC;
+          ctx.globalAlpha = 0.15;
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(lblX, lblY, lblW, 12, 3);
+          else ctx.rect(lblX, lblY, lblW, 12);
+          ctx.fill();
+
+          ctx.globalAlpha = 1.0;
+          ctx.fillStyle = relC;
           ctx.textAlign = 'left';
-          ctx.fillText(r.name, rx + 4, 12);
+          ctx.fillText(lbl, lblX + 4, lblY + 9);
+          ctx.restore();
+        };
+
+        if (relStart.getTime() === relEnd.getTime()) {
+          drawReleaseLine(relStart, 'Target');
+        } else {
+          drawReleaseLine(relStart, 'Start');
+          drawReleaseLine(relEnd, 'End');
         }
       });
 
@@ -52858,6 +53085,8 @@ Earned Value Management measures project performance and progress by comparing p
 
       // Compute date range
       const allDates = filtered.flatMap(t => [t.startDate, t.dueDate]).filter(Boolean).map(d => new Date(d + 'T00:00:00'));
+      (DATA.releases || []).forEach(r => { if (r.date) allDates.push(new Date(r.date + 'T00:00:00')); });
+      allDates.push(new Date());
       if (allDates.length === 0) {
         swimOuter.innerHTML = '<div style="padding:24px; font-size:12px; color:var(--color-text-muted); text-align:center;">No items to display.</div>';
         return;
@@ -53140,18 +53369,82 @@ Earned Value Management measures project performance and progress by comparing p
       today.setHours(0,0,0,0);
       if (today >= minDate && today <= maxDate) {
         const tx = dateToX(today.toISOString().slice(0, 10));
-        ctx.strokeStyle = 'rgba(239, 68, 68, 0.45)';
+        ctx.strokeStyle = '#ef4444';
         ctx.lineWidth = 1.2;
+        ctx.setLineDash([2, 3]); // Dotted red line
         ctx.beginPath();
         ctx.moveTo(tx, 0);
         ctx.lineTo(tx, H);
         ctx.stroke();
+        ctx.setLineDash([]);
 
         ctx.fillStyle = 'rgba(239, 68, 68, 0.85)';
         ctx.font = 'bold 8px var(--font-body), sans-serif';
         ctx.textAlign = 'left';
         ctx.fillText('TODAY', tx + 4, H / 2);
       }
+
+      // Draw release markers on axis (start & end)
+      (DATA.releases || []).forEach(rel => {
+        const relTasks = (items || []).filter(t => t.release === rel.name && t.startDate && t.dueDate);
+        let relStart = null;
+        let relEnd = null;
+        if (relTasks.length > 0) {
+          const starts = relTasks.map(t => new Date(t.startDate + 'T00:00:00'));
+          const ends = relTasks.map(t => new Date(t.dueDate + 'T00:00:00'));
+          relStart = new Date(Math.min(...starts));
+          relEnd = new Date(Math.max(...ends));
+        } else if (rel.date) {
+          relStart = new Date(rel.date + 'T00:00:00');
+          relEnd = new Date(rel.date + 'T00:00:00');
+        }
+
+        if (!relStart || !relEnd) return;
+        const relC = RELEASE_STATUS_COLORS[rel.status] || '#94a3b8';
+
+        const drawReleaseLine = (date, suffix) => {
+          date.setHours(0, 0, 0, 0);
+          if (date < minDate || date > maxDate) return;
+          const rx = dateToX(date.toISOString().slice(0, 10));
+
+          // Bold vertical separator line through full chart
+          ctx.save();
+          ctx.strokeStyle = relC;
+          ctx.lineWidth   = 2.5; // Bold
+          ctx.beginPath();
+          ctx.moveTo(rx, 0);
+          ctx.lineTo(rx, H);
+          ctx.stroke();
+          ctx.restore();
+
+          // Release label badge drawn on header
+          const lbl = \`\${rel.name} \${suffix}\`;
+          ctx.save();
+          ctx.font = 'bold 8px var(--font-body), sans-serif';
+          const lblW = ctx.measureText(lbl).width + 8;
+          const lblX = Math.min(rx + 2, W - lblW - 4);
+          const lblY = 3;
+          ctx.fillStyle = relC;
+          ctx.globalAlpha = 0.15;
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(lblX, lblY, lblW, 12, 3);
+          else ctx.rect(lblX, lblY, lblW, 12);
+          ctx.fill();
+
+          ctx.globalAlpha = 1.0;
+          ctx.fillStyle = relC;
+          ctx.textAlign = 'left';
+          ctx.fillText(lbl, lblX + 4, lblY + 9);
+          ctx.restore();
+        };
+
+        if (relStart.getTime() === relEnd.getTime()) {
+          drawReleaseLine(relStart, 'Target');
+        } else {
+          drawReleaseLine(relStart, 'Start');
+          drawReleaseLine(relEnd, 'End');
+        }
+      });
     }
 
     function drawSwimlaneCanvas(cvs, dpr, laneItems, lc, minDate, maxDate, W, H, ROW_H, BAR_H) {
@@ -53196,24 +53489,45 @@ Earned Value Management measures project performance and progress by comparing p
         lastX = Math.max(0, rx);
       });
 
-      // Release vertical separator lines
+      // Draw release separators (bold start & end)
       (DATA.releases || []).forEach(rel => {
-        if (!rel.date) return;
-        const rd = new Date(rel.date);
-        rd.setHours(0, 0, 0, 0);
-        if (rd < minDate || rd > maxDate) return;
-        const rx = dateToX(rel.date);
+        const relTasks = (items || []).filter(t => t.release === rel.name && t.startDate && t.dueDate);
+        let relStart = null;
+        let relEnd = null;
+        if (relTasks.length > 0) {
+          const starts = relTasks.map(t => new Date(t.startDate + 'T00:00:00'));
+          const ends = relTasks.map(t => new Date(t.dueDate + 'T00:00:00'));
+          relStart = new Date(Math.min(...starts));
+          relEnd = new Date(Math.max(...ends));
+        } else if (rel.date) {
+          relStart = new Date(rel.date + 'T00:00:00');
+          relEnd = new Date(rel.date + 'T00:00:00');
+        }
+
+        if (!relStart || !relEnd) return;
         const relC = RELEASE_STATUS_COLORS[rel.status] || '#94a3b8';
 
-        ctx.save();
-        ctx.strokeStyle = relC;
-        ctx.lineWidth   = 1;
-        ctx.globalAlpha = 0.25;
-        ctx.beginPath();
-        ctx.moveTo(rx, 0);
-        ctx.lineTo(rx, H);
-        ctx.stroke();
-        ctx.restore();
+        const drawReleaseLine = (date) => {
+          date.setHours(0, 0, 0, 0);
+          if (date < minDate || date > maxDate) return;
+          const rx = dateToX(date.toISOString().slice(0, 10));
+
+          ctx.save();
+          ctx.strokeStyle = relC;
+          ctx.lineWidth   = 2.5; // Bold vertical line
+          ctx.beginPath();
+          ctx.moveTo(rx, 0);
+          ctx.lineTo(rx, H);
+          ctx.stroke();
+          ctx.restore();
+        };
+
+        if (relStart.getTime() === relEnd.getTime()) {
+          drawReleaseLine(relStart);
+        } else {
+          drawReleaseLine(relStart);
+          drawReleaseLine(relEnd);
+        }
       });
 
       // Grid lines
@@ -53242,9 +53556,9 @@ Earned Value Management measures project performance and progress by comparing p
       today.setHours(0,0,0,0);
       if (today >= minDate && today <= maxDate) {
         const tx = dateToX(today.toISOString().slice(0, 10));
-        ctx.strokeStyle = 'rgba(239, 68, 68, 0.45)';
+        ctx.strokeStyle = '#ef4444';
         ctx.lineWidth = 1.2;
-        ctx.setLineDash([3, 3]);
+        ctx.setLineDash([2, 3]); // Dotted red line
         ctx.beginPath();
         ctx.moveTo(tx, 0);
         ctx.lineTo(tx, H);
