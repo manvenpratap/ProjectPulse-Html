@@ -784,7 +784,7 @@ def ch_widgets_glossary(doc):
             ["velocity", "Weekly Velocity", "Dashboard / Report", "Bar Chart", "Weekly completed effort"],
             ["cfd", "Cumulative Flow", "Dashboard / Report", "Area Chart", "Task status transition log"],
             ["overdue", "Overdue Attention", "Dashboard / Report", "List", "Overdue tasks list"],
-            ["high_impact_entities", "High Impact Entities", "Dashboard", "List", "Predecessor dependency counts"],
+            ["high_impact_entities", "High Impact Entities", "Dashboard", "Bubble Heatmap", "Force-directed bubble risk visualization"],
             ["workload", "Team Workload", "Dashboard / Report", "Bar Chart", "Assigned task effort"],
             ["cat_hours", "Category & Effort", "Dashboard / Report", "Donut Chart", "Task category distribution"],
             ["defect_intel", "Defect Intelligence", "Dashboard / Report", "Bento Statistics", "Defects registry log"],
@@ -932,9 +932,9 @@ def ch_widgets_glossary(doc):
     # 16. high_impact_entities
     make_heading(doc,"14.2.16  High Impact Entities (high_impact_entities)",level=3,color=CLR_NAVY)
     make_body(doc,
-        "• Description: Surfaced list of critical tasks that block the largest volume of downstream tasks.\n"
-        "• Interpretation: Ranked by follower count. Items at the top are critical path nodes.\n"
-        "• How to Use: Developers prioritize these tasks to unblock downstream dependent work items.",space_after=4)
+        "• Description: An interactive Canvas-based force-directed bubble heatmap widget that visualizes project risk density and dependency gravity.\n"
+        "• Interpretation: Bubble sizes correspond to the composite risk impact score of the entity (integrating delays, priority, blockers, defect counts, and progress). Bubble colors represent risk categories: Green for OK (Low Risk), Amber for Warning (Medium), and Red for Critical (High Risk). Hovering reveals detailed metadata tooltips, and clicking navigates directly to the target item.\n"
+        "• How to Use: Managers and leads monitor bubble clusters and sizes to identify and resolve high-risk bottleneck nodes before they block downstream paths.",space_after=4)
     add_screenshot(doc, "widgets/high_impact_entities", "Figure 14.16 — High Impact Entities Widget (high_impact_entities)", width_inches=5.5)
 
     # 17. workload
