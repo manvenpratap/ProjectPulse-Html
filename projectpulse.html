@@ -38217,7 +38217,6 @@ Earned Value Management measures project performance and progress by comparing p
       },
 
       async generateFeatureMatrixWorkbook() {
-        if (typeof ExcelJS === 'undefined') { notify('Excel library not loaded yet. Please try again.', 'amber'); return; }
         const wb = new ExcelJS.Workbook();
         wb.creator = 'ProjectPulse'; wb.lastModifiedBy = 'ProjectPulse'; wb.created = new Date(); wb.modified = new Date();
 
@@ -38297,107 +38296,86 @@ Earned Value Management measures project performance and progress by comparing p
           let r = parseInt(hex.substring(0, 2), 16) || 0;
           let g = parseInt(hex.substring(2, 4), 16) || 0;
           let b = parseInt(hex.substring(4, 6), 16) || 0;
-
-          let bgHex = (resolvedBg && resolvedBg.length >= 6) ? resolvedBg.substring(resolvedBg.length - 6) : 'FFFFFF';
-          let bgR = parseInt(bgHex.substring(0, 2), 16) || 255;
-          let bgG = parseInt(bgHex.substring(2, 4), 16) || 255;
-          let bgB = parseInt(bgHex.substring(4, 6), 16) || 255;
-
-          r = Math.round(r * factor + bgR * (1 - factor));
-          g = Math.round(g * factor + bgG * (1 - factor));
-          b = Math.round(b * factor + bgB * (1 - factor));
-
+          // Always blend toward white — produces clean, readable stripes in both light & dark themes
+          r = Math.round(r * factor + 255 * (1 - factor));
+          g = Math.round(g * factor + 255 * (1 - factor));
+          b = Math.round(b * factor + 255 * (1 - factor));
           return 'FF' + r.toString(16).padStart(2, '0').toUpperCase() + g.toString(16).padStart(2, '0').toUpperCase() + b.toString(16).padStart(2, '0').toUpperCase();
         };
 
-        COLORS.styleRow = (row, i) => {
+        // maxDataCol: columns ≤ this get the themed stripe; columns above get white bg
+        // so Gantt/Swimlane timeline bars are clearly visible against a clean background.
+        COLORS.styleRow = (row, i, maxDataCol = 7) => {
           const bg = (i % 2 === 1)
-            ? COLORS.getThemeTint(COLORS.indigo, 0.09)
-            : COLORS.getThemeTint(COLORS.indigo, 0.03);
-          row.eachCell(c => {
-            c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+            ? COLORS.getThemeTint(COLORS.indigo, 0.14)
+            : COLORS.getThemeTint(COLORS.indigo, 0.06);
+          row.eachCell((c, colNum) => {
+            if (colNum <= maxDataCol) {
+              c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+              // Light stripe bg always → dark text for legibility
+              c.font = Object.assign({}, c.font, { name: 'Segoe UI', size: 10, color: { argb: 'FF1E293B' } });
+            } else {
+              // Timeline cols: white fill + white font hides 0/1 values; CF rules paint the bars
+              c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+              c.font = Object.assign({}, c.font, { name: 'Segoe UI', size: 9, color: { argb: 'FFFFFFFF' } });
+            }
           });
         };
 
+        const isHeaderDark = isColorDark(COLORS.indigo);
         const hdrStyle = {
           fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } },
-          font: { color: { argb: 'FFFFFFFF' }, bold: true, size: 10 },
+          font: { color: { argb: isHeaderDark ? 'FFFFFFFF' : 'FF1E293B' }, bold: true, size: 10 },
           alignment: { vertical: 'middle', horizontal: 'center' },
           border: { bottom: { style: 'medium', color: { argb: COLORS.navy } } }
         };
 
         const cleanFmtDate = (d) => {
           if (!d || d === '-' || d === '—') return '-';
-          if (d instanceof Date) return isNaN(d) ? '-' : d.toISOString().split('T')[0];
-          if (typeof d === 'string') {
-            const clean = d.trim();
-            if (/^\d{4}-\d{2}-\d{2}/.test(clean)) return clean.substring(0, 10);
-          }
           try {
-            const dt = new Date(d);
-            return isNaN(dt) ? '-' : dt.toISOString().split('T')[0];
-          } catch (e) { return '-'; }
+            const dateObj = new Date(d);
+            return isNaN(dateObj.getTime()) ? '-' : dateObj;
+          } catch(e) { return '-'; }
         };
 
-        const S = (v) => {
-          if (v === null || v === undefined) return '';
-          if (typeof v === 'string') return v.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F]/g, '').trim();
-          return String(v).replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F]/g, '').trim();
+        const getMonthYearStr = (dateVal) => {
+          const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          return `${mNames[dateVal.getMonth()]} ${dateVal.getFullYear()}`;
         };
 
-        const daysDiff = (dateStr) => {
-          if (!dateStr) return null;
-          const now = new Date();
-          const t = new Date(dateStr) - now;
-          return Math.ceil(t / (1000 * 3600 * 24));
-        };
-
-        const buildDashCache = PulseDashboard.buildDashCache || ((tasks) => ({ subtasksByScreen: {}, screenByName: {} }));
-        const dashCache = buildDashCache(P.tasks, P.log);
-        
-        const calculatedFeatures = (P.features || []).map((f, idx) => {
-          let fScreens = [];
-          (f.screens || []).forEach(scName => {
-            if (dashCache.subtasksByScreen[scName] && dashCache.subtasksByScreen[scName].length > 0) {
-              fScreens.push(...dashCache.subtasksByScreen[scName]);
-            } else if (dashCache.screenByName[scName] && dashCache.screenByName[scName].parentTasks) {
-              fScreens.push(...dashCache.screenByName[scName].parentTasks);
-            }
-          });
-
-          const tot = fScreens.length;
-          const done = fScreens.filter(s => s.status === 'Completed').length;
-          const avgP = tot ? Math.round(fScreens.reduce((s, sc) => s + (sc.progress || 0), 0) / tot) : 0;
-          const overdue = fScreens.filter(s => {
-            const dd = daysDiff(s.dueDate);
-            return dd !== null && dd < 0 && s.status !== 'Completed';
-          }).length;
+        const calculatedFeatures = (P.features || []).map(f => {
+          const linkedTasks = (P.tasks || []).filter(t => t.featureId === f.id);
+          const tot = linkedTasks.length;
+          const done = linkedTasks.filter(t => t.status === 'Completed').length;
+          const avgP = tot ? Math.round((done / tot) * 100) : (f.progress || 0);
 
           let start = null, end = null;
-          fScreens.forEach(sc => {
-            if (sc.startDate) {
-              const sd = new Date(sc.startDate);
-              if (!start || sd < start) start = sd;
-            }
-            if (sc.dueDate) {
-              const ed = new Date(sc.dueDate);
-              if (!end || ed > end) end = ed;
-            }
-          });
+          if (f.startDate) start = new Date(f.startDate);
+          if (f.dueDate) end = new Date(f.dueDate);
 
-          const linkedTasks = [];
-          (f.screens || []).forEach(scName => {
-            const scObj = dashCache.screenByName[scName];
-            if (scObj && scObj.parentTasks) {
-              scObj.parentTasks.forEach(pt => {
-                if (!linkedTasks.some(t => t.id === pt.id)) {
-                  linkedTasks.push(pt);
-                }
-              });
-            }
-          });
+          if (!start || !end) {
+            linkedTasks.forEach(t => {
+              if (t.startDate) {
+                const sd = new Date(t.startDate);
+                if (!start || sd < start) start = sd;
+              }
+              if (t.dueDate) {
+                const ed = new Date(t.dueDate);
+                if (!end || ed > end) end = ed;
+              }
+            });
+          }
+
+          if (!start) start = new Date();
+          if (!end) { end = new Date(); end.setDate(end.getDate() + 30); }
+
+          const overdue = linkedTasks.filter(t => {
+            if (t.status === 'Completed' || !t.dueDate) return false;
+            return new Date(t.dueDate) < new Date();
+          }).length;
 
           return {
+            id: f.id,
             name: f.name,
             category: f.category || 'General',
             release: f.release || '',
@@ -38408,8 +38386,8 @@ Earned Value Management measures project performance and progress by comparing p
             tasksList: linkedTasks.map(t => `${t.id}: ${t.name}`).join(', '),
             progress: avgP / 100,
             atRisk: overdue,
-            startDate: start ? start.toISOString().split('T')[0] : '',
-            dueDate: end ? end.toISOString().split('T')[0] : ''
+            startDate: start ? new Date(start) : '',
+            dueDate: end ? new Date(end) : ''
           };
         });
 
@@ -38418,13 +38396,13 @@ Earned Value Management measures project performance and progress by comparing p
         wsRel.properties.tabColor = { argb: COLORS.emerald };
         
         wsRel.columns = [
-          { header: 'Release Name', key: 'name', width: 22 },
-          { header: 'Target Date', key: 'date', width: 18 },
-          { header: 'Status', key: 'status', width: 16 },
-          { header: 'Feature Count', key: 'featCount', width: 16 },
-          { header: 'Avg Progress', key: 'avgProg', width: 18 },
-          { header: 'At-Risk Features', key: 'atRisk', width: 18 },
-          { header: 'Screens Covered', key: 'screens', width: 18 }
+          { key: 'name', width: 22 },
+          { key: 'date', width: 18 },
+          { key: 'status', width: 16 },
+          { key: 'featCount', width: 16 },
+          { key: 'avgProg', width: 18 },
+          { key: 'atRisk', width: 18 },
+          { key: 'screens', width: 18 }
         ];
 
         // Fill background of guidance/KPI headers
@@ -38435,20 +38413,52 @@ Earned Value Management measures project performance and progress by comparing p
           }
         }
 
-        const cardStyleLabel = { font: { name: 'Segoe UI', size: 9, bold: true, color: { argb: COLORS.slate } }, alignment: { vertical: 'middle', horizontal: 'center' } };
-        const cardStyleVal = { font: { name: 'Segoe UI', size: 16, bold: true, color: { argb: COLORS.indigo } }, alignment: { vertical: 'middle', horizontal: 'center' } };
-        
-        wsRel.mergeCells('B2:C2'); wsRel.getCell('B2').value = 'TOTAL FEATURES'; wsRel.getCell('B2').style = cardStyleLabel;
-        wsRel.mergeCells('B3:C4'); wsRel.getCell('B3').value = { formula: "=COUNTA('Feature Details'!$A$8:$A$1000)" }; wsRel.getCell('B3').style = cardStyleVal;
-        
-        wsRel.mergeCells('D2:E2'); wsRel.getCell('D2').value = 'AVG MATURITY'; wsRel.getCell('D2').style = cardStyleLabel;
-        wsRel.mergeCells('D3:E4'); wsRel.getCell('D3').value = { formula: "=IFERROR(AVERAGE('Feature Details'!$I$8:$I$1000), 0)" }; wsRel.getCell('D3').style = cardStyleVal; wsRel.getCell('D3').numFmt = '0%';
+        const drawTopKpiCard = (sheet, col, row, w, h, label, value, subLabel, accentColor) => {
+          const cardBg = COLORS.isDark ? 'FF1E293B' : 'FFFFFFFF';
+          const shadowColor = COLORS.isDark ? 'FF020612' : 'FFCBD5E1';
+          const highlightColor = COLORS.isDark ? 'FF2A364F' : 'FFE2E8F0';
 
-        wsRel.mergeCells('F2:G2'); wsRel.getCell('F2').value = 'AT-RISK FEATURES'; wsRel.getCell('F2').style = cardStyleLabel;
-        wsRel.mergeCells('F3:G4'); wsRel.getCell('F3').value = { formula: "=COUNTIF('Feature Details'!$J$8:$J$1000, \">0\")" }; wsRel.getCell('F3').style = cardStyleVal;
+          for (let r = row; r < row + h; r++) {
+            for (let c = col; c < col + w; c++) {
+              const cell = sheet.getCell(r, c);
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: cardBg } };
+            }
+          }
+          sheet.mergeCells(row, col, row + h - 1, col + w - 1);
+          const mainCell = sheet.getCell(row, col);
+          mainCell.border = {
+            top: { style: 'thin', color: { argb: highlightColor } },
+            left: { style: 'medium', color: { argb: accentColor } },
+            bottom: { style: 'medium', color: { argb: shadowColor } },
+            right: { style: 'thin', color: { argb: shadowColor } }
+          };
+          mainCell.value = {
+            richText: [
+              { text: `[${label.toUpperCase()}]\n`, font: { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.slate } } },
+              { text: `${value}\n`, font: { name: 'Courier New', size: 14, bold: true, color: { argb: accentColor } } },
+              { text: subLabel || '', font: { name: 'Courier New', size: 7.5, italic: true, color: { argb: COLORS.slate } } }
+            ]
+          };
+          mainCell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
+        };
 
+        const totalFeatCount = calculatedFeatures.length;
+        const avgMaturity = totalFeatCount
+          ? Math.round(calculatedFeatures.reduce((sum, f) => sum + f.progress, 0) / totalFeatCount * 100)
+          : 0;
+        const atRiskFeatures = calculatedFeatures.filter(f => f.atRisk > 0).length;
+
+        drawTopKpiCard(wsRel, 2, 2, 2, 3, 'Total Features', `${totalFeatCount}`, 'Feature nodes', COLORS.indigo);
+        drawTopKpiCard(wsRel, 4, 2, 2, 3, 'Avg Maturity', `${avgMaturity}%`, 'Completion rate', COLORS.blue);
+        drawTopKpiCard(wsRel, 6, 2, 2, 3, 'At-Risk Features', `${atRiskFeatures}`, atRiskFeatures > 0 ? '⚠ Attention Required' : '✔ On Schedule', atRiskFeatures > 0 ? COLORS.rose : COLORS.emerald);
+
+        const relHeaders = ['Release Name', 'Target Date', 'Status', 'Feature Count', 'Avg Progress', 'At-Risk Features', 'Screens Covered'];
         wsRel.getRow(7).height = 30;
-        wsRel.getRow(7).eachCell(c => c.style = hdrStyle);
+        relHeaders.forEach((h, idx) => {
+          const cell = wsRel.getCell(7, idx + 1);
+          cell.value = h;
+          cell.style = hdrStyle;
+        });
 
         const releasesList = P.releases || [];
         releasesList.forEach((r, idx) => {
@@ -38466,15 +38476,14 @@ Earned Value Management measures project performance and progress by comparing p
           COLORS.styleRow(row, idx);
         });
 
-        const unassignedRowIdx = 8 + releasesList.length;
         const unassignedRow = wsRel.addRow({
           name: 'Unassigned',
           date: '-',
           status: 'Planned',
-          featCount: { formula: `=COUNTIF('Feature Details'!$C$8:$C$1000, "")` },
-          avgProg: { formula: `=IFERROR(AVERAGEIF('Feature Details'!$C$8:$C$1000, "", 'Feature Details'!$I$8:$I$1000), 0)` },
-          atRisk: { formula: `=COUNTIFS('Feature Details'!$C$8:$C$1000, "", 'Feature Details'!$J$8:$J$1000, ">0")` },
-          screens: { formula: `=SUMIF('Feature Details'!$C$8:$C$1000, "", 'Feature Details'!$E$8:$E$1000)` }
+          featCount: { formula: `=COUNTIFS('Feature Details'!$A$8:$A$1000,"<>", 'Feature Details'!$C$8:$C$1000,"")` },
+          avgProg:   { formula: `=IFERROR(AVERAGEIFS('Feature Details'!$I$8:$I$1000, 'Feature Details'!$A$8:$A$1000,"<>", 'Feature Details'!$C$8:$C$1000,""),0)` },
+          atRisk:    { formula: `=COUNTIFS('Feature Details'!$A$8:$A$1000,"<>", 'Feature Details'!$C$8:$C$1000,"", 'Feature Details'!$J$8:$J$1000,">0")` },
+          screens:   { formula: `=SUMIFS('Feature Details'!$E$8:$E$1000, 'Feature Details'!$A$8:$A$1000,"<>", 'Feature Details'!$C$8:$C$1000,"")` }
         });
         unassignedRow.getCell('avgProg').numFmt = '0%';
         COLORS.styleRow(unassignedRow, releasesList.length);
@@ -38483,19 +38492,19 @@ Earned Value Management measures project performance and progress by comparing p
         const wsFeat = wb.addWorksheet('Feature Details', { views: [{ state: 'frozen', ySplit: 7 }] });
         wsFeat.properties.tabColor = { argb: COLORS.indigo };
         wsFeat.columns = [
-          { header: 'Feature Name', key: 'name', width: 25 },
-          { header: 'Category', key: 'category', width: 18 },
-          { header: 'Target Release', key: 'release', width: 18 },
-          { header: 'Description', key: 'desc', width: 35 },
-          { header: 'Screens Count', key: 'screensCount', width: 15 },
-          { header: 'Screens List', key: 'screensList', width: 30 },
-          { header: 'Tasks Count', key: 'tasksCount', width: 15 },
-          { header: 'Tasks List', key: 'tasksList', width: 30 },
-          { header: 'Progress (%)', key: 'progress', width: 15 },
-          { header: 'At-Risk Tasks', key: 'atRisk', width: 15 },
-          { header: 'Start Date', key: 'startDate', width: 15 },
-          { header: 'Due Date', key: 'dueDate', width: 15 },
-          { header: 'Status', key: 'status', width: 15 }
+          { key: 'name', width: 25 },
+          { key: 'category', width: 18 },
+          { key: 'release', width: 18 },
+          { key: 'desc', width: 35 },
+          { key: 'screensCount', width: 15 },
+          { key: 'screensList', width: 30 },
+          { key: 'tasksCount', width: 15 },
+          { key: 'tasksList', width: 30 },
+          { key: 'progress', width: 15 },
+          { key: 'atRisk', width: 15 },
+          { key: 'startDate', width: 15 },
+          { key: 'dueDate', width: 15 },
+          { key: 'status', width: 15 }
         ];
 
         for (let r = 1; r <= 6; r++) {
@@ -38512,9 +38521,13 @@ Earned Value Management measures project performance and progress by comparing p
         infoCell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
 
         wsFeat.getRow(7).height = 30;
-        wsFeat.columns.forEach((col, cIdx) => {
-          const cell = wsFeat.getCell(7, cIdx + 1);
-          cell.value = col.header;
+        const featHeaders = [
+          'Feature Name', 'Category', 'Target Release', 'Description', 'Screens Count', 'Screens List',
+          'Tasks Count', 'Tasks List', 'Progress (%)', 'At-Risk Tasks', 'Start Date', 'Due Date', 'Status'
+        ];
+        featHeaders.forEach((h, idx) => {
+          const cell = wsFeat.getCell(7, idx + 1);
+          cell.value = h;
           cell.style = hdrStyle;
         });
 
@@ -38536,7 +38549,9 @@ Earned Value Management measures project performance and progress by comparing p
             status: { formula: `=IF(I${rowIdx}>=1,"Completed",IF(I${rowIdx}>0,"In Progress","Not Started"))` }
           });
           row.getCell('progress').numFmt = '0%';
-          COLORS.styleRow(row, idx);
+          if (f.startDate) row.getCell('startDate').numFmt = 'yyyy-mm-dd';
+          if (f.dueDate) row.getCell('dueDate').numFmt = 'yyyy-mm-dd';
+          COLORS.styleRow(row, idx, 13);
         });
 
         const startEmptyIdx = 8 + calculatedFeatures.length;
@@ -38558,14 +38573,14 @@ Earned Value Management measures project performance and progress by comparing p
             status: { formula: `=IF(I${rowIdx}>=1,"Completed",IF(I${rowIdx}>0,"In Progress","Not Started"))` }
           });
           row.getCell('progress').numFmt = '0%';
-          COLORS.styleRow(row, calculatedFeatures.length + i);
+          COLORS.styleRow(row, calculatedFeatures.length + i, 13);
         }
 
         for (let r = 8; r <= 200; r++) {
           wsFeat.getCell(`C${r}`).dataValidation = {
             type: 'list',
             allowBlank: true,
-            formulae: [`'Release Plan'!$A$8:$A$${8 + releasesList.length}`]
+            formulae: [`'Release Plan'!$A$8:$A$` + (8 + releasesList.length)]
           };
         }
 
@@ -38573,50 +38588,37 @@ Earned Value Management measures project performance and progress by comparing p
         let overallMinDate = null, overallMaxDate = null;
         calculatedFeatures.forEach(f => {
           if (f.startDate) {
-            const d = new Date(f.startDate);
-            if (!overallMinDate || d < overallMinDate) overallMinDate = d;
+            const sd = new Date(f.startDate);
+            if (!overallMinDate || sd < overallMinDate) overallMinDate = sd;
           }
           if (f.dueDate) {
-            const d = new Date(f.dueDate);
-            if (!overallMaxDate || d > overallMaxDate) overallMaxDate = d;
+            const ed = new Date(f.dueDate);
+            if (!overallMaxDate || ed > overallMaxDate) overallMaxDate = ed;
           }
         });
 
-        if (!overallMinDate) overallMinDate = new Date();
-        if (!overallMaxDate) {
-          overallMaxDate = new Date();
-          overallMaxDate.setDate(overallMaxDate.getDate() + 90);
-        }
+        const minTimelineDate = overallMinDate ? new Date(overallMinDate) : new Date();
+        const maxTimelineDate = overallMaxDate ? new Date(overallMaxDate) : new Date();
+        minTimelineDate.setDate(minTimelineDate.getDate() - minTimelineDate.getDay() + 1);
+        maxTimelineDate.setDate(maxTimelineDate.getDate() + (7 - maxTimelineDate.getDay()));
 
-        let minTimelineDate = new Date(overallMinDate);
-        const dayVal = minTimelineDate.getDay();
-        const mondayDiff = minTimelineDate.getDate() - dayVal + (dayVal === 0 ? -6 : 1);
-        minTimelineDate.setDate(mondayDiff);
-        minTimelineDate.setDate(minTimelineDate.getDate() - 7);
+        const numWeeksVal = Math.max(2, Math.min(52, Math.ceil((maxTimelineDate - minTimelineDate) / (7 * 24 * 60 * 60 * 1000)) + 1));
 
-        let maxTimelineDate = new Date(overallMaxDate);
-        maxTimelineDate.setDate(maxTimelineDate.getDate() + 14);
-
-        const timeSpanDiff = maxTimelineDate.getTime() - minTimelineDate.getTime();
-        let numWeeksVal = Math.ceil(timeSpanDiff / (1000 * 3600 * 24 * 7));
-        if (numWeeksVal < 12) numWeeksVal = 12;
-        if (numWeeksVal > 52) numWeeksVal = 52;
-
-        const wsGantt = wb.addWorksheet('Gantt Chart', { views: [{ state: 'frozen', ySplit: 6, xSplit: 7 }] });
-        wsGantt.properties.tabColor = { argb: COLORS.blue };
+        const wsGantt = wb.addWorksheet('Gantt Chart', { views: [{ state: 'frozen', ySplit: 6, xSplit: 7, showGridLines: true }] });
+        wsGantt.properties.tabColor = { argb: COLORS.rose };
 
         const ganttCols = [
-          { header: '', key: '_spacer', width: 3 },
-          { header: 'Feature Name', key: 'name', width: 25 },
-          { header: 'Category', key: 'category', width: 16 },
-          { header: 'Target Release', key: 'release', width: 16 },
-          { header: 'Start Date', key: 'startDate', width: 14 },
-          { header: 'Due Date', key: 'dueDate', width: 14 },
-          { header: 'Progress', key: 'progress', width: 12 }
+          { key: '_spacer', width: 3 },
+          { key: 'name', width: 25 },
+          { key: 'category', width: 16 },
+          { key: 'release', width: 16 },
+          { key: 'startDate', width: 14 },
+          { key: 'dueDate', width: 14 },
+          { key: 'progress', width: 12 }
         ];
 
         for (let w = 0; w < numWeeksVal; w++) {
-          ganttCols.push({ header: '', key: `w_${w}`, width: 12 });
+          ganttCols.push({ key: `w_${w}`, width: 3.8 });
         }
         wsGantt.columns = ganttCols.map(c => ({ key: c.key, width: c.width }));
 
@@ -38629,15 +38631,18 @@ Earned Value Management measures project performance and progress by comparing p
 
         wsGantt.mergeCells('B2:G5');
         const ganttInfo = wsGantt.getCell('B2');
-        ganttInfo.value = ' >> FEATURE TIMELINE GANTT CHART\n\nAll features from "Feature Details" are linked here via formula.\nChange dates on the database sheet to dynamically repaint Gantt bars.';
+        ganttInfo.value = ' >> FEATURE TIMELINE GANTT CHART\n\nGantt bars auto-update when you edit dates on the \"Feature Details\" sheet.\n\n  ● Green = \u226580% done    ● Blue = 40\u201379% done    ● Orange = <40% done\n  ▶ Yellow highlighted column = current week';
         ganttInfo.font = { name: 'Courier New', size: 9.5, bold: true, color: { argb: COLORS.textDark } };
         ganttInfo.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
 
         wsGantt.getRow(6).height = 24;
-        ganttCols.slice(0, 7).forEach((col, cIdx) => {
-          const cell = wsGantt.getCell(6, cIdx + 1);
-          cell.value = col.header;
-          cell.style = hdrStyle;
+        const ganttHeaders = ['', 'Feature Name', 'Category', 'Target Release', 'Start Date', 'Due Date', 'Progress'];
+        ganttHeaders.forEach((h, idx) => {
+          if (idx > 0) {
+            const cell = wsGantt.getCell(6, idx);
+            cell.value = h;
+            cell.style = hdrStyle;
+          }
         });
 
         let tempDate = new Date(minTimelineDate);
@@ -38650,18 +38655,13 @@ Earned Value Management measures project performance and progress by comparing p
             const prevColLetter = wsGantt.getColumn(colIdx - 1).letter;
             cell.value = { formula: `=${prevColLetter}6+7` };
           }
-          cell.numFmt = 'dd-mmm';
           cell.style = hdrStyle;
+          cell.numFmt = 'dd-mmm';
           tempDate.setDate(tempDate.getDate() + 7);
         }
 
         let monthStartCol = 8;
         let currentMonthName = '';
-        const getMonthYearStr = (dateObj) => {
-          const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-          return `${months[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
-        };
-
         let tempDateHeader = new Date(minTimelineDate);
         for (let w = 0; w < numWeeksVal; w++) {
           const colIdx = 8 + w;
@@ -38684,11 +38684,26 @@ Earned Value Management measures project performance and progress by comparing p
           tempDateHeader.setDate(tempDateHeader.getDate() + 7);
         }
 
+        // TODAY Week marker
+        const todayVal = new Date();
+        for (let w = 0; w < numWeeksVal; w++) {
+          const colIdx = 8 + w;
+          const cell = wsGantt.getCell(6, colIdx);
+          const cellDate = new Date(minTimelineDate);
+          cellDate.setDate(cellDate.getDate() + w * 7);
+          const diffDays = (todayVal - cellDate) / (1000 * 60 * 60 * 24);
+          if (diffDays >= 0 && diffDays < 7) {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF099' } }; // Soft yellow
+            cell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF1E293B' } };
+          }
+        }
+
         const totalGanttRows = Math.max(calculatedFeatures.length + 20, 60);
         for (let i = 0; i < totalGanttRows; i++) {
           const rowIdx = 8 + i;
           const sourceRowIdx = 8 + i;
 
+          wsGantt.getRow(rowIdx).height = 20;
           wsGantt.getCell(`B${rowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!A${sourceRowIdx})` };
           wsGantt.getCell(`C${rowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!B${sourceRowIdx})` };
           wsGantt.getCell(`D${rowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!C${sourceRowIdx})` };
@@ -38696,12 +38711,14 @@ Earned Value Management measures project performance and progress by comparing p
           wsGantt.getCell(`F${rowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!L${sourceRowIdx})` };
           wsGantt.getCell(`G${rowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!I${sourceRowIdx})` };
           wsGantt.getCell(`G${rowIdx}`).numFmt = '0%';
+          wsGantt.getCell(`E${rowIdx}`).numFmt = 'yyyy-mm-dd';
+          wsGantt.getCell(`F${rowIdx}`).numFmt = 'yyyy-mm-dd';
 
           for (let w = 0; w < numWeeksVal; w++) {
             const colIdx = 8 + w;
             const cell = wsGantt.getCell(rowIdx, colIdx);
             const colLetter = wsGantt.getColumn(colIdx).letter;
-            cell.value = { formula: `=IF($B${rowIdx}="","",IF(AND(${colLetter}$6<=$F${rowIdx}, ${colLetter}$6+6>=$E${rowIdx}), 1, 0))` };
+            cell.value = { formula: `=IF($B${rowIdx}="","",IF(AND(${colLetter}$6<=$F${rowIdx}, ${colLetter}$6+6>=$E${rowIdx}), IF($G${rowIdx}>=0.8, 5, IF($G${rowIdx}>=0.4, 4, 2)), 0))` };
           }
 
           const row = wsGantt.getRow(rowIdx);
@@ -38710,22 +38727,37 @@ Earned Value Management measures project performance and progress by comparing p
         }
 
         wsGantt.addConditionalFormatting({
-          ref: `H8:${wsGantt.getColumn(8 + numWeeksVal - 1).letter}200`,
+          ref: `H8:\${wsGantt.getColumn(8 + numWeeksVal - 1).letter}200`,
           rules: [
+            // Code 5: Green (\u226580%)
             {
-              type: 'cellIs',
-              operator: 'equal',
-              formulae: ['1'],
+              type: 'cellIs', operator: 'equal', formulae: ['5'],
               style: {
-                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FF6366F1' }, fgColor: { argb: 'FF6366F1' } },
-                font: { color: { argb: 'FF6366F1' } }
+                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FF10B981' }, fgColor: { argb: 'FF10B981' } },
+                font: { color: { argb: 'FF10B981' } }
+              }
+            },
+            // Code 4: Blue (40\u201379%)
+            {
+              type: 'cellIs', operator: 'equal', formulae: ['4'],
+              style: {
+                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FF3B82F6' }, fgColor: { argb: 'FF3B82F6' } },
+                font: { color: { argb: 'FF3B82F6' } }
+              }
+            },
+            // Code 2: Orange (<40%)
+            {
+              type: 'cellIs', operator: 'equal', formulae: ['2'],
+              style: {
+                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFF59E0B' }, fgColor: { argb: 'FFF59E0B' } },
+                font: { color: { argb: 'FFF59E0B' } }
               }
             }
           ]
         });
 
         // SHEET 4: Swimlane View
-        const wsSwim = wb.addWorksheet('Swim Lane View', { views: [{ state: 'frozen', ySplit: 6, xSplit: 7 }] });
+        const wsSwim = wb.addWorksheet('Swim Lane View', { views: [{ state: 'frozen', ySplit: 6, xSplit: 7, showGridLines: true }] });
         wsSwim.properties.tabColor = { argb: COLORS.rose };
 
         wsSwim.columns = wsGantt.columns.map(c => ({ key: c.key, width: c.width }));
@@ -38744,22 +38776,61 @@ Earned Value Management measures project performance and progress by comparing p
         swimInfo.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
 
         wsSwim.getRow(6).height = 24;
-        ganttCols.slice(0, 7).forEach((col, cIdx) => {
-          const cell = wsSwim.getCell(6, cIdx + 1);
-          cell.value = col.header;
-          cell.style = hdrStyle;
+        ganttHeaders.forEach((h, idx) => {
+          if (idx > 0) {
+            const cell = wsSwim.getCell(6, idx);
+            cell.value = h;
+            cell.style = hdrStyle;
+          }
         });
 
         for (let w = 0; w < numWeeksVal; w++) {
           const colIdx = 8 + w;
           const colLetter = wsSwim.getColumn(colIdx).letter;
           wsSwim.getCell(6, colIdx).value = { formula: `='Gantt Chart'!${colLetter}6` };
-          wsSwim.getCell(6, colIdx).numFmt = 'dd-mmm';
           wsSwim.getCell(6, colIdx).style = hdrStyle;
+          wsSwim.getCell(6, colIdx).numFmt = 'dd-mmm';
+        }
+
+        let swimMonthStartCol = 8;
+        let swimCurrentMonthName = '';
+        let swimTempDateHeader = new Date(minTimelineDate);
+        for (let w = 0; w < numWeeksVal; w++) {
+          const colIdx = 8 + w;
+          const monthStr = getMonthYearStr(swimTempDateHeader);
+          if (w === 0) {
+            swimCurrentMonthName = monthStr;
+          } else if (monthStr !== swimCurrentMonthName || w === numWeeksVal - 1) {
+            const endCol = w === numWeeksVal - 1 ? colIdx : colIdx - 1;
+            wsSwim.mergeCells(5, swimMonthStartCol, 5, endCol);
+            const mCell = wsSwim.getCell(5, swimMonthStartCol);
+            mCell.value = swimCurrentMonthName;
+            mCell.font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: COLORS.slate } };
+            mCell.alignment = { vertical: 'middle', horizontal: 'center' };
+            mCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+            mCell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
+            
+            swimMonthStartCol = colIdx;
+            swimCurrentMonthName = monthStr;
+          }
+          swimTempDateHeader.setDate(swimTempDateHeader.getDate() + 7);
         }
 
         const categoriesList = Array.from(new Set(calculatedFeatures.map(f => f.category || 'General'))).sort();
         let swimRowIdx = 8;
+
+        const SWIM_CAT_COLORS = [
+          COLORS.indigo,
+          'FF0D9488', // Teal
+          'FF0284C7', // Sky Blue
+          COLORS.purple,
+          'FFEC4899', // Pink
+          'FFF59E0B', // Amber
+          'FF10B981', // Emerald
+          'FF3B82F6', // Blue
+          'FF8B5CF6', // Violet
+          'FF64748B'  // Muted Slate
+        ];
 
         categoriesList.forEach((cat, catIdx) => {
           wsSwim.getRow(swimRowIdx).height = 26;
@@ -38769,59 +38840,38 @@ Earned Value Management measures project performance and progress by comparing p
           catCell.font = { name: 'Segoe UI', size: 10.5, bold: true, color: { argb: 'FFFFFFFF' } };
           catCell.alignment = { vertical: 'middle', indent: 1 };
 
-          const catFillColor = COLORS.indigo;
+          const catFillColor = SWIM_CAT_COLORS[catIdx % SWIM_CAT_COLORS.length];
           wsSwim.getRow(swimRowIdx).eachCell(cell => {
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: catFillColor } };
           });
           swimRowIdx++;
 
-          let itemIndex = 0;
-          calculatedFeatures.forEach((f, fIdx) => {
-            if ((f.category || 'General') !== cat) return;
-            const sourceRowIdx = 8 + fIdx;
+          const count = calculatedFeatures.filter(f => (f.category || 'General') === cat).length;
+          const totalSlots = count + 10; // count + 10 buffer slots
 
-            wsSwim.getCell(`B${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!A${sourceRowIdx})` };
-            wsSwim.getCell(`C${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!B${sourceRowIdx})` };
-            wsSwim.getCell(`D${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!C${sourceRowIdx})` };
-            wsSwim.getCell(`E${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!K${sourceRowIdx})` };
-            wsSwim.getCell(`F${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!L${sourceRowIdx})` };
-            wsSwim.getCell(`G${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!I${sourceRowIdx})` };
+          const escapedCatName = cat.replace(/"/g, '""');
+
+          for (let n = 1; n <= totalSlots; n++) {
+            wsSwim.getCell(`B${swimRowIdx}`).value = { formula: `=IFERROR(INDEX(_xlfn._xlws.FILTER('Feature Details'!$A$8:$A$1000, 'Feature Details'!$B$8:$B$1000 = "${escapedCatName}"), ${n}), "")` };
+            wsSwim.getCell(`C${swimRowIdx}`).value = { formula: `=IFERROR(INDEX(_xlfn._xlws.FILTER('Feature Details'!$B$8:$B$1000, 'Feature Details'!$B$8:$B$1000 = "${escapedCatName}"), ${n}), "")` };
+            wsSwim.getCell(`D${swimRowIdx}`).value = { formula: `=IFERROR(INDEX(_xlfn._xlws.FILTER('Feature Details'!$C$8:$C$1000, 'Feature Details'!$B$8:$B$1000 = "${escapedCatName}"), ${n}), "")` };
+            wsSwim.getCell(`E${swimRowIdx}`).value = { formula: `=IFERROR(INDEX(_xlfn._xlws.FILTER('Feature Details'!$K$8:$K$1000, 'Feature Details'!$B$8:$B$1000 = "${escapedCatName}"), ${n}), "")` };
+            wsSwim.getCell(`F${swimRowIdx}`).value = { formula: `=IFERROR(INDEX(_xlfn._xlws.FILTER('Feature Details'!$L$8:$L$1000, 'Feature Details'!$B$8:$B$1000 = "${escapedCatName}"), ${n}), "")` };
+            wsSwim.getCell(`G${swimRowIdx}`).value = { formula: `=IFERROR(INDEX(_xlfn._xlws.FILTER('Feature Details'!$I$8:$I$1000, 'Feature Details'!$B$8:$B$1000 = "${escapedCatName}"), ${n}), "")` };
             wsSwim.getCell(`G${swimRowIdx}`).numFmt = '0%';
+            wsSwim.getCell(`E${swimRowIdx}`).numFmt = 'yyyy-mm-dd';
+            wsSwim.getCell(`F${swimRowIdx}`).numFmt = 'yyyy-mm-dd';
 
             for (let w = 0; w < numWeeksVal; w++) {
               const colIdx = 8 + w;
               const cell = wsSwim.getCell(swimRowIdx, colIdx);
               const colLetter = wsSwim.getColumn(colIdx).letter;
-              cell.value = { formula: `=IF($B${swimRowIdx}="","",IF(AND(${colLetter}$6<=$F${swimRowIdx}, ${colLetter}$6+6>=$E${swimRowIdx}), 1, 0))` };
+              cell.value = { formula: `=IF($B${swimRowIdx}="","",IF(AND(${colLetter}$6<=$F${swimRowIdx}, ${colLetter}$6+6>=$E${swimRowIdx}), IF($G${swimRowIdx}>=0.8, 5, IF($G${swimRowIdx}>=0.4, 4, 2)), 0))` };
             }
 
             const row = wsSwim.getRow(swimRowIdx);
             row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
-            COLORS.styleRow(row, itemIndex++);
-            swimRowIdx++;
-          });
-
-          for (let e = 0; e < 3; e++) {
-            const sourceRowIdx = 8 + calculatedFeatures.length + (catIdx * 3) + e;
-            
-            wsSwim.getCell(`B${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!A${sourceRowIdx})` };
-            wsSwim.getCell(`C${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!B${sourceRowIdx})` };
-            wsSwim.getCell(`D${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!C${sourceRowIdx})` };
-            wsSwim.getCell(`E${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!K${sourceRowIdx})` };
-            wsSwim.getCell(`F${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!L${sourceRowIdx})` };
-            wsSwim.getCell(`G${swimRowIdx}`).value = { formula: `=IF('Feature Details'!A${sourceRowIdx}="","", 'Feature Details'!I${sourceRowIdx})` };
-            wsSwim.getCell(`G${swimRowIdx}`).numFmt = '0%';
-
-            for (let w = 0; w < numWeeksVal; w++) {
-              const colIdx = 8 + w;
-              const cell = wsSwim.getCell(swimRowIdx, colIdx);
-              const colLetter = wsSwim.getColumn(colIdx).letter;
-              cell.value = { formula: `=IF($B${swimRowIdx}="","",IF(AND(${colLetter}$6<=$F${swimRowIdx}, ${colLetter}$6+6>=$E${swimRowIdx}), 1, 0))` };
-            }
-
-            const row = wsSwim.getRow(swimRowIdx);
-            row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
-            COLORS.styleRow(row, itemIndex++);
+            COLORS.styleRow(row, n - 1);
             swimRowIdx++;
           }
 
@@ -38830,15 +38880,30 @@ Earned Value Management measures project performance and progress by comparing p
         });
 
         wsSwim.addConditionalFormatting({
-          ref: `H8:${wsSwim.getColumn(8 + numWeeksVal - 1).letter}200`,
+          ref: `H8:\${wsSwim.getColumn(8 + numWeeksVal - 1).letter}200`,
           rules: [
+            // Code 5: Green (\u226580%)
             {
-              type: 'cellIs',
-              operator: 'equal',
-              formulae: ['1'],
+              type: 'cellIs', operator: 'equal', formulae: ['5'],
               style: {
-                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFF43F5E' }, fgColor: { argb: 'FFF43F5E' } },
-                font: { color: { argb: 'FFF43F5E' } }
+                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FF10B981' }, fgColor: { argb: 'FF10B981' } },
+                font: { color: { argb: 'FF10B981' } }
+              }
+            },
+            // Code 4: Blue (40\u201379%)
+            {
+              type: 'cellIs', operator: 'equal', formulae: ['4'],
+              style: {
+                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FF3B82F6' }, fgColor: { argb: 'FF3B82F6' } },
+                font: { color: { argb: 'FF3B82F6' } }
+              }
+            },
+            // Code 2: Orange (<40%)
+            {
+              type: 'cellIs', operator: 'equal', formulae: ['2'],
+              style: {
+                fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFF59E0B' }, fgColor: { argb: 'FFF59E0B' } },
+                font: { color: { argb: 'FFF59E0B' } }
               }
             }
           ]
