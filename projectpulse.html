@@ -30977,17 +30977,63 @@
                 };
               });
 
+              // Dynamically scale down radii if total bubble area exceeds 32% of canvas area
+              const totalArea = bubbles.reduce((sum, b) => sum + Math.PI * b.r * b.r, 0);
+              const maxAllowedArea = W * H * 0.32;
+              if (totalArea > maxAllowedArea) {
+                const scale = Math.sqrt(maxAllowedArea / totalArea);
+                bubbles.forEach(b => { b.r *= scale; });
+              }
+
               // Force simulation (pre-settle)
-              const PADDING=5, CENTER_F=0.011, DAMPING=0.80;
-              for (let iter=0; iter<130; iter++) {
-                bubbles.forEach(b => { b.vx+=(W/2-b.x)*CENTER_F; b.vy+=(H/2-b.y)*CENTER_F; });
-                for (let i=0;i<bubbles.length;i++) for (let j=i+1;j<bubbles.length;j++) {
-                  const a=bubbles[i],b=bubbles[j];
-                  const dx=b.x-a.x,dy=b.y-a.y,dist=Math.sqrt(dx*dx+dy*dy)||0.01;
-                  const minD=a.r+b.r+PADDING;
-                  if (dist<minD){const f=(minD-dist)/dist*0.38,fx=dx*f,fy=dy*f;a.vx-=fx;a.vy-=fy;b.vx+=fx;b.vy+=fy;}
+              const PADDING = 6, CENTER_F = 0.015, DAMPING = 0.85;
+              for (let iter = 0; iter < 240; iter++) {
+                bubbles.forEach(b => { b.vx += (W/2 - b.x) * CENTER_F; b.vy += (H/2 - b.y) * CENTER_F; });
+                for (let i = 0; i < bubbles.length; i++) {
+                  for (let j = i + 1; j < bubbles.length; j++) {
+                    const a = bubbles[i], b = bubbles[j];
+                    const dx = b.x - a.x, dy = b.y - a.y, dist = Math.sqrt(dx*dx + dy*dy) || 0.01;
+                    const minD = a.r + b.r + PADDING;
+                    if (dist < minD) {
+                      const overlap = minD - dist;
+                      const fx = (dx / dist) * overlap * 0.5;
+                      const fy = (dy / dist) * overlap * 0.5;
+                      a.vx -= fx; a.vy -= fy;
+                      b.vx += fx; b.vy += fy;
+                    }
+                  }
                 }
-                bubbles.forEach(b=>{b.vx*=DAMPING;b.vy*=DAMPING;b.x+=b.vx;b.y+=b.vy;b.x=Math.max(b.r+4,Math.min(W-b.r-4,b.x));b.y=Math.max(b.r+4,Math.min(H-b.r-4,b.y));});
+                bubbles.forEach(b => {
+                  b.vx *= DAMPING; b.vy *= DAMPING;
+                  b.x += b.vx; b.y += b.vy;
+                  b.x = Math.max(b.r + PADDING, Math.min(W - b.r - PADDING, b.x));
+                  b.y = Math.max(b.r + PADDING, Math.min(H - b.r - PADDING, b.y));
+                });
+              }
+
+              // Strict projection passes to guarantee ZERO overlap
+              for (let pass = 0; pass < 60; pass++) {
+                let resolvedAny = false;
+                for (let i = 0; i < bubbles.length; i++) {
+                  for (let j = i + 1; j < bubbles.length; j++) {
+                    const a = bubbles[i], b = bubbles[j];
+                    const dx = b.x - a.x, dy = b.y - a.y, dist = Math.sqrt(dx*dx + dy*dy) || 0.01;
+                    const minD = a.r + b.r + PADDING;
+                    if (dist < minD) {
+                      resolvedAny = true;
+                      const overlap = minD - dist;
+                      const pushX = (dx / dist) * overlap;
+                      const pushY = (dy / dist) * overlap;
+                      a.x -= pushX * 0.5; a.y -= pushY * 0.5;
+                      b.x += pushX * 0.5; b.y += pushY * 0.5;
+                    }
+                  }
+                }
+                bubbles.forEach(b => {
+                  b.x = Math.max(b.r + PADDING, Math.min(W - b.r - PADDING, b.x));
+                  b.y = Math.max(b.r + PADDING, Math.min(H - b.r - PADDING, b.y));
+                });
+                if (!resolvedAny) break;
               }
 
               function draw(hovIdx) {
