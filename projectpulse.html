@@ -19026,6 +19026,11 @@
             }
           });
         }
+        if (P.dropdownDefaults) {
+          if (!cloned.priority && P.dropdownDefaults.priority) cloned.priority = P.dropdownDefaults.priority;
+          if (!cloned.complexity && P.dropdownDefaults.complexity) cloned.complexity = P.dropdownDefaults.complexity;
+          if (!cloned.status && P.dropdownDefaults.status) cloned.status = P.dropdownDefaults.status;
+        }
         window._editingSubtask = cloned;
       }
       const stEdit = window._editingSubtask;
@@ -19108,6 +19113,60 @@
       window.saveScreenFlyoutData = saveScreenFlyoutData;
       function saveScreenFlyoutData() {
         if (!window._editingSubtask || !window._editingTaskId) return;
+
+        // Scraping fallback
+        const winNameEl = $id('subtask_edit_window_name');
+        if (winNameEl) window._editingSubtask.windowName = winNameEl.value;
+        const techNameEl = $id('subtask_edit_technical_window_name');
+        if (techNameEl) window._editingSubtask.technicalWindowName = techNameEl.value;
+        const assigneeEl = $id('subtask_edit_assignee');
+        if (assigneeEl) window._editingSubtask.assignee = assigneeEl.value;
+        const priorityEl = $id('subtask_edit_priority');
+        if (priorityEl) window._editingSubtask.priority = priorityEl.value;
+        const complexityEl = $id('subtask_edit_complexity');
+        if (complexityEl) window._editingSubtask.complexity = complexityEl.value;
+        const isNewWinEl = $id('subtask_edit_new_window');
+        if (isNewWinEl) window._editingSubtask.isNewWindow = isNewWinEl.checked;
+        const statusEl = $id('subtask_edit_status');
+        if (statusEl) {
+          window._editingSubtask.status = statusEl.value;
+          window._editingSubtask.done = statusEl.value === 'Completed';
+        }
+        const effortEl = $id('subtask_edit_effort');
+        if (effortEl) window._editingSubtask.effort = parseFloat(effortEl.value) || 0;
+        const startEl = $id('subtask_edit_start_date');
+        if (startEl) window._editingSubtask.startDate = startEl.value;
+        const dueEl = $id('subtask_edit_due_date');
+        if (dueEl && !dueEl.readOnly) window._editingSubtask.dueDate = dueEl.value;
+        const notesEl = $id('subtask_edit_notes');
+        if (notesEl) window._editingSubtask.notes = notesEl.value;
+
+        // Update workflow steps
+        (window._editingSubtask.workflow || []).forEach((step, idx) => {
+          const cb = $id(`gui_step_cb_${idx}`);
+          const sel = $id(`gui_step_sel_${idx}`);
+          if (sel) {
+            step.status = sel.value;
+            step.done = sel.value === 'Completed';
+            step.progress = step.done ? 100 : (step.status === 'In Progress' ? 50 : 0);
+          } else if (cb) {
+            step.done = cb.checked;
+            step.status = cb.checked ? 'Completed' : 'In Progress';
+            step.progress = cb.checked ? 100 : 50;
+          }
+          const eff = $id(`gui_step_eff_${idx}`);
+          if (eff) step.effort = parseFloat(eff.value) || 0;
+          const act = $id(`gui_step_act_${idx}`);
+          if (act) {
+            step.actCompletionDate = act.value;
+            if (act.value && window._editingSubtask.startDate) {
+              step.actEffort = getBusinessDays(window._editingSubtask.startDate, act.value);
+            } else {
+              step.actEffort = 0;
+            }
+          }
+        });
+
         const task = P.tasks.find(t => t.id === window._editingTaskId);
         if (!task) return;
         const idx = task.subtasks.findIndex(s => s.id === window._editingSubtaskId);
@@ -20113,7 +20172,7 @@
         }
         const fg = document.createElement('div'); fg.className = 'fg'; fg.id = 'fg_' + c.key;
         let val = t[c.key] || (c.key === 'progress' ? 0 : '');
-        if (!id && !val && P.dropdownDefaults) {
+        if (!val && P.dropdownDefaults) {
           if (P.dropdownDefaults[c.key]) {
             val = P.dropdownDefaults[c.key];
           } else {
@@ -20609,6 +20668,33 @@
         if (!window._editingServerSubtasks || !window._editingServerTaskId) return;
         const task = P.tasks.find(t => t.id === window._editingServerTaskId);
         if (!task) return;
+
+        // Scraping fallback
+        window._editingServerSubtasks.forEach((st) => {
+          const cb = $id(`server_st_cb_${st.id}`);
+          const sel = $id(`server_st_sel_${st.id}`);
+          if (sel) {
+            st.status = sel.value;
+            st.done = sel.value === 'Completed';
+            st.progress = st.done ? 100 : (st.status === 'In Progress' ? 50 : 0);
+          } else if (cb) {
+            st.done = cb.checked;
+            st.status = cb.checked ? 'Completed' : 'In Progress';
+            st.progress = cb.checked ? 100 : 50;
+          }
+          const eff = $id(`server_st_eff_${st.id}`);
+          if (eff) st.effort = parseFloat(eff.value) || 0;
+          const act = $id(`server_st_act_${st.id}`);
+          if (act) {
+            st.actCompletionDate = act.value;
+            if (st.status === 'Completed' && act.value) {
+              const effectiveStart = getSubtaskEffectiveStart(st, task);
+              st.actEffort = getBusinessDays(effectiveStart, act.value);
+            } else {
+              st.actEffort = 0;
+            }
+          }
+        });
 
         task.subtasks = window._editingServerSubtasks;
 
@@ -36021,7 +36107,7 @@ Earned Value Management measures project performance and progress by comparing p
       if (cfCont) {
         cfCont.innerHTML = (P.defCustomFields || []).map(cf => {
           let val = d ? d[cf.name] : '';
-          if (!d && cf.type === 'dropdown') {
+          if (!val && cf.type === 'dropdown') {
             if (cf.source === 'global' && cf.globalKey && P.dropdownDefaults && P.dropdownDefaults[cf.globalKey]) {
               val = P.dropdownDefaults[cf.globalKey];
             }
