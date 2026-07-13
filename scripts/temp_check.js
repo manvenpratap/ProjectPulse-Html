@@ -16659,9 +16659,7 @@
             if (P.fsDirHandle.queryPermission) {
               const status = await P.fsDirHandle.queryPermission({ mode: 'readwrite' });
               if (status !== 'granted') {
-                P._fsPermissionError = true;
-                P._fsErrorDetails = { source: 'createFileBackup:queryPermission', message: 'Permission query returned: ' + status };
-                updateFsInd();
+                PP.warn('Directory backup skipped: permission query returned ' + status);
                 return;
               }
             }
@@ -16675,9 +16673,7 @@
             PP.log('File-mode backup created:', bName);
           } catch (e) {
             if (e.name === 'NotAllowedError') {
-              P._fsPermissionError = true;
-              P._fsErrorDetails = { source: 'createFileBackup:catch', message: e.name + ': ' + e.message };
-              updateFsInd();
+              PP.warn('Directory backup skipped: permission access denied.', e);
             } else {
               PP.error('Directory backup failed', e);
             }
@@ -16951,9 +16947,7 @@
           if (dirHandle.queryPermission) {
             const status = await dirHandle.queryPermission({ mode: 'readwrite' });
             if (status !== 'granted') {
-              P._fsPermissionError = true;
-              P._fsErrorDetails = { source: 'compileUserManualToDirectory:queryPermission', message: 'Permission query returned: ' + status };
-              updateFsInd();
+              PP.warn('User manual compilation skipped: folder permission returned ' + status);
               return;
             }
           }
@@ -17017,9 +17011,7 @@
           localStorage.setItem('pp-last-manual-update', new Date().toISOString());
         } catch (e) {
           if (e.name === 'NotAllowedError') {
-            P._fsPermissionError = true;
-            P._fsErrorDetails = { source: 'compileUserManualToDirectory:catch', message: e.name + ': ' + e.message };
-            updateFsInd();
+            PP.warn('User manual compilation skipped: access denied.', e);
           } else {
             PP.error('Browser manual compilation failed:', e);
           }
@@ -17262,6 +17254,16 @@
         return;
       }
       try {
+        if (P.fsDirHandle.queryPermission) {
+          const status = await P.fsDirHandle.queryPermission({ mode: 'readwrite' });
+          if (status !== 'granted') {
+            const reqStatus = await P.fsDirHandle.requestPermission({ mode: 'readwrite' });
+            if (reqStatus !== 'granted') {
+              notify('Permission denied to access backup directory', 'err');
+              return;
+            }
+          }
+        }
         notify('Syncing backup directory...', 'ok');
         const wb = await generateProjectWorkbook();
         const buf = await wb.xlsx.writeBuffer();
@@ -19024,6 +19026,11 @@
             }
           });
         }
+        if (P.dropdownDefaults) {
+          if (!cloned.priority && P.dropdownDefaults.priority) cloned.priority = P.dropdownDefaults.priority;
+          if (!cloned.complexity && P.dropdownDefaults.complexity) cloned.complexity = P.dropdownDefaults.complexity;
+          if (!cloned.status && P.dropdownDefaults.status) cloned.status = P.dropdownDefaults.status;
+        }
         window._editingSubtask = cloned;
       }
       const stEdit = window._editingSubtask;
@@ -19106,6 +19113,60 @@
       window.saveScreenFlyoutData = saveScreenFlyoutData;
       function saveScreenFlyoutData() {
         if (!window._editingSubtask || !window._editingTaskId) return;
+
+        // Scraping fallback
+        const winNameEl = $id('subtask_edit_window_name');
+        if (winNameEl) window._editingSubtask.windowName = winNameEl.value;
+        const techNameEl = $id('subtask_edit_technical_window_name');
+        if (techNameEl) window._editingSubtask.technicalWindowName = techNameEl.value;
+        const assigneeEl = $id('subtask_edit_assignee');
+        if (assigneeEl) window._editingSubtask.assignee = assigneeEl.value;
+        const priorityEl = $id('subtask_edit_priority');
+        if (priorityEl) window._editingSubtask.priority = priorityEl.value;
+        const complexityEl = $id('subtask_edit_complexity');
+        if (complexityEl) window._editingSubtask.complexity = complexityEl.value;
+        const isNewWinEl = $id('subtask_edit_new_window');
+        if (isNewWinEl) window._editingSubtask.isNewWindow = isNewWinEl.checked;
+        const statusEl = $id('subtask_edit_status');
+        if (statusEl) {
+          window._editingSubtask.status = statusEl.value;
+          window._editingSubtask.done = statusEl.value === 'Completed';
+        }
+        const effortEl = $id('subtask_edit_effort');
+        if (effortEl) window._editingSubtask.effort = parseFloat(effortEl.value) || 0;
+        const startEl = $id('subtask_edit_start_date');
+        if (startEl) window._editingSubtask.startDate = startEl.value;
+        const dueEl = $id('subtask_edit_due_date');
+        if (dueEl && !dueEl.readOnly) window._editingSubtask.dueDate = dueEl.value;
+        const notesEl = $id('subtask_edit_notes');
+        if (notesEl) window._editingSubtask.notes = notesEl.value;
+
+        // Update workflow steps
+        (window._editingSubtask.workflow || []).forEach((step, idx) => {
+          const cb = $id(`gui_step_cb_${idx}`);
+          const sel = $id(`gui_step_sel_${idx}`);
+          if (sel) {
+            step.status = sel.value;
+            step.done = sel.value === 'Completed';
+            step.progress = step.done ? 100 : (step.status === 'In Progress' ? 50 : 0);
+          } else if (cb) {
+            step.done = cb.checked;
+            step.status = cb.checked ? 'Completed' : 'In Progress';
+            step.progress = cb.checked ? 100 : 50;
+          }
+          const eff = $id(`gui_step_eff_${idx}`);
+          if (eff) step.effort = parseFloat(eff.value) || 0;
+          const act = $id(`gui_step_act_${idx}`);
+          if (act) {
+            step.actCompletionDate = act.value;
+            if (act.value && window._editingSubtask.startDate) {
+              step.actEffort = getBusinessDays(window._editingSubtask.startDate, act.value);
+            } else {
+              step.actEffort = 0;
+            }
+          }
+        });
+
         const task = P.tasks.find(t => t.id === window._editingTaskId);
         if (!task) return;
         const idx = task.subtasks.findIndex(s => s.id === window._editingSubtaskId);
@@ -20111,7 +20172,7 @@
         }
         const fg = document.createElement('div'); fg.className = 'fg'; fg.id = 'fg_' + c.key;
         let val = t[c.key] || (c.key === 'progress' ? 0 : '');
-        if (!id && !val && P.dropdownDefaults) {
+        if (!val && P.dropdownDefaults) {
           if (P.dropdownDefaults[c.key]) {
             val = P.dropdownDefaults[c.key];
           } else {
@@ -20607,6 +20668,33 @@
         if (!window._editingServerSubtasks || !window._editingServerTaskId) return;
         const task = P.tasks.find(t => t.id === window._editingServerTaskId);
         if (!task) return;
+
+        // Scraping fallback
+        window._editingServerSubtasks.forEach((st) => {
+          const cb = $id(`server_st_cb_${st.id}`);
+          const sel = $id(`server_st_sel_${st.id}`);
+          if (sel) {
+            st.status = sel.value;
+            st.done = sel.value === 'Completed';
+            st.progress = st.done ? 100 : (st.status === 'In Progress' ? 50 : 0);
+          } else if (cb) {
+            st.done = cb.checked;
+            st.status = cb.checked ? 'Completed' : 'In Progress';
+            st.progress = cb.checked ? 100 : 50;
+          }
+          const eff = $id(`server_st_eff_${st.id}`);
+          if (eff) st.effort = parseFloat(eff.value) || 0;
+          const act = $id(`server_st_act_${st.id}`);
+          if (act) {
+            st.actCompletionDate = act.value;
+            if (st.status === 'Completed' && act.value) {
+              const effectiveStart = getSubtaskEffectiveStart(st, task);
+              st.actEffort = getBusinessDays(effectiveStart, act.value);
+            } else {
+              st.actEffort = 0;
+            }
+          }
+        });
 
         task.subtasks = window._editingServerSubtasks;
 
@@ -22059,9 +22147,11 @@
       if (!P.log.length) { inner.innerHTML = '<div class="log-empty"><div style="font-size:28px;margin-bottom:6px">📝</div><div style="font-size:13px;font-weight:var(--fw-bold)">No Activity Yet</div></div>'; return; }
 
       const filteredLogs = getFilteredLogs();
-      $id('view-actions').innerHTML = `
-        <span style="font-size:11px;color:var(--t2);margin-right:8px">${filteredLogs.length} entries</span>
-      `;
+      const taskInfoEl = $id('task-info');
+      if (taskInfoEl) {
+        taskInfoEl.innerHTML = `<strong>${filteredLogs.length}</strong> / ${P.log.length} entries`;
+      }
+      $id('view-actions').innerHTML = '';
       const byDay = {}; filteredLogs.slice().reverse().forEach(e => { const d = e.ts.split('T')[0]; if (!byDay[d]) byDay[d] = []; byDay[d].push(e); });
       const tl = document.createElement('div');
       Object.entries(byDay).forEach(([day, entries]) => {
@@ -30852,12 +30942,10 @@
                             </div>
                           `;
               });
-
               impactHtml += `
                           </div>
                         </div>
-                      </div>
-                    `;
+                      </div>`;
               impactCard.querySelector('.cb').innerHTML = impactHtml;
             }
           } else {
@@ -30877,75 +30965,282 @@
             grid.appendChild(emptyCard);
           }
         } else if (sec.id === 'high_impact_entities') {
-          addST(inner, 'High Impact Entities');
+          addST(inner, 'High-Impact Entities Heatmap');
           const grid = addGrid(inner);
           const impactId = 'dash-high-impact-entities';
           const impactSpan = (P.widgetSpans && P.widgetSpans[impactId]) || sec.span || 4;
-          const impactCard = mkCC('High Impact Entities', 'Deliverables with highest defect density', impactId, '', 'standard', "<b>Quality Hotspots:</b> Lists the specific tasks, deliverables, or modules that have accumulated the highest number of linked defects. High defect density indicates architectural bottlenecks or areas needing intensive code review.", 'View Explanation', 'octagon-alert');
+          const impactCard = mkCC('High-Impact Entities Heatmap', 'Bubble size = impact score · Color = risk level · Click to inspect', impactId, '', 'standard', '<b>High-Impact Entities Heatmap:</b> Each bubble represents a Task or RAID item. Bubble size encodes a composite impact score (overdue penalty + blocked status + defect count + priority weight). Color denotes risk: Green = OK (low), Amber = Warning (medium), Red = Critical (high). Click any bubble to inspect the item.', 'View Explanation', 'activity');
           impactCard.style.gridColumn = `span ${impactSpan}`;
           grid.appendChild(impactCard);
 
-          const defs = P.defects || [];
-          const counts = {};
-          defs.forEach(d => {
-            if (d.linkedId) counts[d.linkedId] = (counts[d.linkedId] || 0) + 1;
-          });
-          const sortedEntities = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-          const topEntities = sortedEntities.slice(0, 5);
-          const maxDefects = topEntities.length ? topEntities[0][1] : 1;
+          // ── Build bubble dataset (tasks + raids scored by impact) ──────────────
+          const _hieTasks = P.tasks  || [];
+          const _hieRaids = P.raids  || [];
+          const _hieDefs  = P.defects|| [];
+          const _hieDC    = {};
+          _hieDefs.forEach(d => { if (d.linkedId) _hieDC[d.linkedId] = (_hieDC[d.linkedId]||0)+1; });
 
-          let impactHtml = '';
-          if (topEntities.length) {
-            impactHtml = '<div style="padding:16px"><div class="hotspot-list">';
-            topEntities.forEach(([id, c]) => {
-              let name = id;
-              if (dashCache.taskById[id]) name = dashCache.taskById[id].name;
-              else if (dashCache.subtaskById[id]) name = dashCache.subtaskById[id].st.name;
-              else if (dashCache.screenByName[id]) name = dashCache.screenByName[id].name;
+          const _pW = { critical:4, high:3, medium:2, low:1 };
+          function _hieScore(it) {
+            let s = 0;
+            if (it.dueDate) { const dd = new Date(it.dueDate); if (!isNaN(dd) && dd < new Date()) s += 4; }
+            if ((it.status||'').toLowerCase() === 'blocked') s += 3;
+            s += Math.min((_hieDC[it.id]||0)*1.5, 5);
+            s += (_pW[(it.priority||'').toLowerCase()]||1);
+            const pct = parseFloat(it.completion||it.progress||0);
+            if (!isNaN(pct)) s += Math.round((1 - pct/100) * 2);
+            return Math.max(1, Math.round(s * 10) / 10);
+          }
+          function _hieCol(it) {
+            const st = (it.status||'').toLowerCase(), sc = _hieScore(it);
+            if (st==='blocked'||st==='critical'||sc>=8) return {fill:'#dc2626',glow:'rgba(220,38,38,0.28)',label:'Critical'};
+            if (st==='on hold'||st==='at risk'||sc>=4) return {fill:'#d97706',glow:'rgba(217,119,6,0.25)',label:'Warning'};
+            return {fill:'#16a34a',glow:'rgba(22,163,74,0.22)',label:'OK'};
+          }
 
-              const pct = (c / maxDefects) * 100;
-              const colorClass = pct > 70 ? 'high' : pct > 35 ? 'med' : 'low';
+          const _hieItems = [
+            ..._hieTasks.map(t => ({...t, _kind:'TASK'})),
+            ..._hieRaids.map(r => ({...r, _kind:'RAID', name: r.title||r.name}))
+          ].map(it => ({...it, _score:_hieScore(it), _col:_hieCol(it)}))
+           .sort((a,b) => b._score - a._score)
+           .slice(0, 22);
 
-              let clickAction = `openFlyout('${id}', 'view')`;
-              if (dashCache.subtaskById[id]) {
-                const { st, parentTask } = dashCache.subtaskById[id];
-                if (st.type === 'screen') {
-                  clickAction = `openScreenFlyout('${parentTask.id}', '${st.id}', 'view')`;
-                } else {
-                  clickAction = `openFlyout('${parentTask.id}', 'view')`;
-                }
-              } else if (dashCache.screenByName[id]) {
-                const scr = dashCache.screenByName[id];
-                if (scr.parentTasks.length > 0 && dashCache.subtasksByScreen[id] && dashCache.subtasksByScreen[id].length > 0) {
-                  clickAction = `openScreenFlyout('${scr.parentTasks[0].id}', '${dashCache.subtasksByScreen[id][0].id}', 'view')`;
-                } else if (scr.parentTasks.length > 0) {
-                  clickAction = `openFlyout('${scr.parentTasks[0].id}', 'view')`;
-                }
-              }
+          const _cbEl = impactCard.querySelector('.cb');
 
-              impactHtml += `
-                <div class="hotspot-row" onclick="${clickAction}" style="margin: 4px 0;" title="Click to inspect this Hotspot">
-                  <div class="hotspot-bar ${colorClass}" style="width:${pct}%"></div>
-                  <div class="hotspot-pill">${esc(id)}</div>
-                  <div class="hotspot-name" style="z-index:1; font-weight:800; color:var(--color-text)">${esc(name)}</div>
-                  <div class="hotspot-count" style="z-index:1">
-                    <div class="hotspot-count-val">${c}</div>
-                    <div class="hotspot-count-lbl">Defects</div>
-                  </div>
-                </div>`;
-            });
-            impactHtml += '</div></div>';
-          } else {
-            impactHtml = `
-              <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:40px 20px;text-align:center">
-                <div style="width:48px;height:48px;background:var(--color-surface-2);border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:16px;color:var(--color-green)">
+          if (!_hieItems.length) {
+            _cbEl.innerHTML = `
+              <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:260px;padding:20px;text-align:center">
+                <div style="width:48px;height:48px;background:var(--color-surface-2);border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:14px;color:var(--green)">
                   <i data-lucide="check-circle" style="width:24px;height:24px"></i>
                 </div>
-                <div style="font-weight:700;font-size:14px;color:var(--color-text)">No Hotspots Detected</div>
-                <div style="font-size:12px;color:var(--color-text-muted);margin-top:4px">All linked entities are currently maintaining high quality standards.</div>
+                <div style="font-weight:700;font-size:14px;color:var(--color-text)">No High-Impact Items Detected</div>
+                <div style="font-size:12px;color:var(--color-text-muted);margin-top:4px">All tasks and RAIDs are on track. Great work!</div>
               </div>`;
+            if (window.lucide) lucide.createIcons({ context: _cbEl });
+          } else {
+            const _hieCanvasId = 'hie-canvas-' + impactId;
+            const _hieTipId    = 'hie-tip-'    + impactId;
+            _cbEl.style.padding = '0';
+            _cbEl.innerHTML = `
+              <div style="display:flex;flex-direction:column;width:100%;background:var(--color-surface);border-radius:0 0 var(--radius-lg) var(--radius-lg)">
+                <!-- Canvas drawing container -->
+                <div style="position:relative;width:100%;height:330px;overflow:hidden">
+                  <canvas id="${_hieCanvasId}" style="width:100%;height:100%;display:block;cursor:default"></canvas>
+                  <div id="${_hieTipId}" style="position:absolute;pointer-events:none;display:none;z-index:9;background:var(--color-surface-3,#1e293b);border:1px solid var(--color-divider);border-radius:10px;padding:10px 14px;font-size:11px;line-height:1.65;color:var(--color-text);box-shadow:0 8px 32px rgba(0,0,0,0.28);min-width:170px;max-width:230px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)"></div>
+                </div>
+                <!-- Separate legend panel at the bottom -->
+                <div style="background:var(--color-surface-2);border-top:1px solid var(--color-divider);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;font-size:10.5px;border-radius:0 0 var(--radius-lg) var(--radius-lg)">
+                  <!-- Status Colors -->
+                  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+                    <div style="font-weight:700;color:var(--color-text-muted);font-size:9.5px;text-transform:uppercase;letter-spacing:.6px">Status Legend:</div>
+                    <div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#16a34a;display:inline-block;box-shadow:0 0 5px rgba(22,163,74,.5)"></span><span style="color:var(--color-text-muted)">OK (Low Risk)</span></div>
+                    <div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#d97706;display:inline-block;box-shadow:0 0 5px rgba(217,119,6,.5)"></span><span style="color:var(--color-text-muted)">Warning (Medium)</span></div>
+                    <div style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#dc2626;display:inline-block;box-shadow:0 0 5px rgba(220,38,38,.5)"></span><span style="color:var(--color-text-muted)">Critical (High)</span></div>
+                  </div>
+                  <!-- Bubble Sizes -->
+                  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                    <div style="font-weight:700;color:var(--color-text-muted);font-size:9.5px;text-transform:uppercase;letter-spacing:.5px">Impact Score (Size):</div>
+                    <div style="display:flex;gap:10px;align-items:flex-end">
+                      ${[['Low',12],['Med',18],['High',24],['Max',31]].map(([l,s])=>`<div style="display:flex;flex-direction:column;align-items:center;gap:2.5px"><div style="width:${s}px;height:${s}px;border-radius:50%;background:rgba(148,163,184,0.18);border:1.5px solid rgba(148,163,184,0.38)"></div><span style="color:var(--color-text-faint);font-size:8px">${l}</span></div>`).join('')}
+                    </div>
+                  </div>
+                </div>
+              </div>`;
+
+            dashDrawQueue.push(() => {
+              const canvas = document.getElementById(_hieCanvasId);
+              const tip    = document.getElementById(_hieTipId);
+              if (!canvas) return;
+              const dpr = window.devicePixelRatio || 1;
+              const W   = canvas.offsetWidth  || (canvas.parentElement ? canvas.parentElement.offsetWidth : 800);
+              const H   = canvas.offsetHeight || 330;
+              canvas.width  = W * dpr;
+              canvas.height = H * dpr;
+              const ctx = canvas.getContext('2d');
+              ctx.scale(dpr, dpr);
+
+              // Radius mapping
+              const maxScore = Math.max(..._hieItems.map(b=>b._score), 1);
+              const MIN_R = 26, MAX_R = 68;
+              const bubbles = _hieItems.map((it, i) => {
+                const r = MIN_R + Math.pow(it._score / maxScore, 0.52) * (MAX_R - MIN_R);
+                const angle = (i / _hieItems.length) * Math.PI * 2;
+                const spread = Math.min(W, H) * 0.28;
+                return {
+                  it, r,
+                  x: W/2 + Math.cos(angle)*spread*(0.5+Math.random()*0.5),
+                  y: H/2 + Math.sin(angle)*spread*(0.5+Math.random()*0.5),
+                  vx:0, vy:0
+                };
+              });
+
+              // Dynamically scale down radii if total bubble area exceeds 32% of canvas area
+              const totalArea = bubbles.reduce((sum, b) => sum + Math.PI * b.r * b.r, 0);
+              const maxAllowedArea = W * H * 0.32;
+              if (totalArea > maxAllowedArea) {
+                const scale = Math.sqrt(maxAllowedArea / totalArea);
+                bubbles.forEach(b => { b.r *= scale; });
+              }
+
+              // Force simulation (pre-settle)
+              const PADDING = 6, CENTER_F = 0.015, DAMPING = 0.85;
+              for (let iter = 0; iter < 240; iter++) {
+                bubbles.forEach(b => { b.vx += (W/2 - b.x) * CENTER_F; b.vy += (H/2 - b.y) * CENTER_F; });
+                for (let i = 0; i < bubbles.length; i++) {
+                  for (let j = i + 1; j < bubbles.length; j++) {
+                    const a = bubbles[i], b = bubbles[j];
+                    const dx = b.x - a.x, dy = b.y - a.y, dist = Math.sqrt(dx*dx + dy*dy) || 0.01;
+                    const minD = a.r + b.r + PADDING;
+                    if (dist < minD) {
+                      const overlap = minD - dist;
+                      const fx = (dx / dist) * overlap * 0.5;
+                      const fy = (dy / dist) * overlap * 0.5;
+                      a.vx -= fx; a.vy -= fy;
+                      b.vx += fx; b.vy += fy;
+                    }
+                  }
+                }
+                bubbles.forEach(b => {
+                  b.vx *= DAMPING; b.vy *= DAMPING;
+                  b.x += b.vx; b.y += b.vy;
+                  b.x = Math.max(b.r + PADDING, Math.min(W - b.r - PADDING, b.x));
+                  b.y = Math.max(b.r + PADDING, Math.min(H - b.r - PADDING, b.y));
+                });
+              }
+
+              // Strict projection passes to guarantee ZERO overlap
+              for (let pass = 0; pass < 60; pass++) {
+                let resolvedAny = false;
+                for (let i = 0; i < bubbles.length; i++) {
+                  for (let j = i + 1; j < bubbles.length; j++) {
+                    const a = bubbles[i], b = bubbles[j];
+                    const dx = b.x - a.x, dy = b.y - a.y, dist = Math.sqrt(dx*dx + dy*dy) || 0.01;
+                    const minD = a.r + b.r + PADDING;
+                    if (dist < minD) {
+                      resolvedAny = true;
+                      const overlap = minD - dist;
+                      const pushX = (dx / dist) * overlap;
+                      const pushY = (dy / dist) * overlap;
+                      a.x -= pushX * 0.5; a.y -= pushY * 0.5;
+                      b.x += pushX * 0.5; b.y += pushY * 0.5;
+                    }
+                  }
+                }
+                bubbles.forEach(b => {
+                  b.x = Math.max(b.r + PADDING, Math.min(W - b.r - PADDING, b.x));
+                  b.y = Math.max(b.r + PADDING, Math.min(H - b.r - PADDING, b.y));
+                });
+                if (!resolvedAny) break;
+              }
+
+              function draw(hovIdx) {
+                ctx.clearRect(0, 0, W, H);
+                // Dot-grid background
+                ctx.fillStyle = 'rgba(148,163,184,0.055)';
+                for (let gx=18;gx<W;gx+=26) for (let gy=18;gy<H;gy+=26) { ctx.beginPath();ctx.arc(gx,gy,1.2,0,Math.PI*2);ctx.fill(); }
+
+                // Decorative connector lines from centre
+                bubbles.forEach(b => {
+                  const alpha = 0.035 + (b.it._score/maxScore)*0.07;
+                  ctx.beginPath();ctx.moveTo(W/2,H/2);ctx.lineTo(b.x,b.y);
+                  ctx.strokeStyle=`rgba(148,163,184,${alpha})`;ctx.lineWidth=0.7;ctx.stroke();
+                });
+
+                bubbles.forEach((b,i) => {
+                  const col=b.it._col, isHov=i===hovIdx, r=b.r;
+
+                  // Outer glow halo
+                  const grd=ctx.createRadialGradient(b.x,b.y,r*0.4,b.x,b.y,r*(isHov?1.75:1.42));
+                  const alpha = isHov ? 0.5 : 0.28;
+                  grd.addColorStop(0, col.glow.replace(/[\d.]+\)$/,`${alpha})`));
+                  grd.addColorStop(1,'rgba(0,0,0,0)');
+                  ctx.fillStyle=grd;ctx.beginPath();ctx.arc(b.x,b.y,r*(isHov?1.75:1.42),0,Math.PI*2);ctx.fill();
+
+                  // Main bubble fill
+                  const bGrd=ctx.createRadialGradient(b.x-r*0.28,b.y-r*0.28,r*0.05,b.x,b.y,r);
+                  bGrd.addColorStop(0, col.fill+'ee');
+                  bGrd.addColorStop(0.6,col.fill+'bb');
+                  bGrd.addColorStop(1, col.fill+'77');
+                  ctx.beginPath();ctx.arc(b.x,b.y,r,0,Math.PI*2);ctx.fillStyle=bGrd;ctx.fill();
+
+                  // Rim border
+                  ctx.strokeStyle=isHov?'rgba(255,255,255,0.6)':'rgba(255,255,255,0.22)';
+                  ctx.lineWidth=isHov?2.5:1.5;ctx.stroke();
+
+                  // Inner sheen
+                  const sGrd=ctx.createRadialGradient(b.x-r*0.36,b.y-r*0.38,1,b.x-r*0.18,b.y-r*0.18,r*0.7);
+                  sGrd.addColorStop(0,'rgba(255,255,255,0.38)');sGrd.addColorStop(1,'rgba(255,255,255,0)');
+                  ctx.beginPath();ctx.arc(b.x,b.y,r,0,Math.PI*2);ctx.fillStyle=sGrd;ctx.fill();
+
+                  // Labels
+                  ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
+                  const name=(b.it.name||b.it.title||b.it.id||'').trim();
+                  const maxCh=Math.max(6,Math.floor(r/4.8));
+
+                  // Status+kind badge (top of bubble)
+                  ctx.font=`600 ${Math.max(6.5,r*0.148)}px "Inter",system-ui,sans-serif`;
+                  ctx.fillStyle='rgba(255,255,255,0.72)';
+                  ctx.fillText((col.label+': '+b.it._kind), b.x, b.y-r*0.3);
+
+                  // Name (auto-wrap)
+                  const fSz=Math.max(8,r*0.19);
+                  ctx.font=`700 ${fSz}px "Inter",system-ui,sans-serif`;
+                  ctx.fillStyle='#fff';
+                  const words=name.split(' '),lines=[];let line='';
+                  words.forEach(w=>{const t=line?line+' '+w:w;if(ctx.measureText(t).width>r*1.5&&line){lines.push(line);line=w;}else line=t;});
+                  if(line)lines.push(line);
+                  const maxL=Math.max(1,Math.floor(r/15)),vis=lines.slice(0,maxL);
+                  const lh=fSz*1.25,totalH=vis.length*lh;
+                  vis.forEach((l,li)=>{ctx.fillText(l.length>maxCh?l.slice(0,maxCh)+'…':l,b.x,b.y-totalH/2+li*lh+lh/2+r*0.025);});
+
+                  // Score
+                  ctx.font=`800 ${Math.max(7,r*0.165)}px "Inter",system-ui,sans-serif`;
+                  ctx.fillStyle='rgba(255,255,255,0.82)';
+                  ctx.fillText('Score: '+b.it._score, b.x, b.y+r*0.38);
+                  ctx.restore();
+                });
+              }
+
+              draw(-1);
+
+              function getHov(mx,my){for(let i=bubbles.length-1;i>=0;i--){const b=bubbles[i];if((mx-b.x)**2+(my-b.y)**2<=b.r**2)return i;}return -1;}
+
+              canvas.addEventListener('mousemove', ev=>{
+                const rect=canvas.getBoundingClientRect();
+                const mx=ev.clientX-rect.left,my=ev.clientY-rect.top;
+                const hi=getHov(mx,my);
+                draw(hi);canvas.style.cursor=hi>=0?'pointer':'default';
+                if(hi>=0){
+                  const it=bubbles[hi].it;
+                  const dC=_hieDC[it.id]||0;
+                  tip.style.display='block';
+                  tip.innerHTML=`<div style="font-weight:800;font-size:12px;margin-bottom:7px;color:var(--color-text)">${esc(it.name||it.title||it.id||'')}</div>
+                    <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 12px">
+                      <span style="color:var(--color-text-muted)">Type</span><span style="font-weight:700">${it._kind}</span>
+                      <span style="color:var(--color-text-muted)">Status</span><span style="font-weight:700;color:${it._col.fill}">${esc(it.status||'—')}</span>
+                      <span style="color:var(--color-text-muted)">Priority</span><span style="font-weight:700">${esc(it.priority||'—')}</span>
+                      <span style="color:var(--color-text-muted)">Defects</span><span style="font-weight:700">${dC}</span>
+                      <span style="color:var(--color-text-muted)">Impact</span><span style="font-weight:800;font-size:13px;color:${it._col.fill}">${it._score}</span>
+                    </div>
+                    <div style="margin-top:6px;font-size:9.5px;color:var(--color-text-faint);border-top:1px solid var(--color-divider);padding-top:5px">Click to open →</div>`;
+                  const tipW=220,tipH=145;
+                  let tx=mx+16,ty=my-16;
+                  if(tx+tipW>W)tx=mx-tipW-12;
+                  if(ty+tipH>H)ty=my-tipH;
+                  tip.style.left=tx+'px';tip.style.top=ty+'px';
+                } else {tip.style.display='none';}
+              });
+              canvas.addEventListener('mouseleave',()=>{draw(-1);tip.style.display='none';canvas.style.cursor='default';});
+              canvas.addEventListener('click',ev=>{
+                const rect=canvas.getBoundingClientRect();
+                const hi=getHov(ev.clientX-rect.left,ev.clientY-rect.top);
+                if(hi<0)return;
+                const it=bubbles[hi].it;
+                if(it._kind==='RAID'){try{setView('raids');}catch(e){}}
+                else{try{openFlyout(it.id,'view');}catch(e){}}
+              });
+            });
           }
-          impactCard.querySelector('.cb').innerHTML = impactHtml;
         } else if (sec.id === 'feature_insights') {
           const feats = P.features || [];
           if (feats.length) {
@@ -35814,7 +36109,7 @@ Earned Value Management measures project performance and progress by comparing p
       if (cfCont) {
         cfCont.innerHTML = (P.defCustomFields || []).map(cf => {
           let val = d ? d[cf.name] : '';
-          if (!d && cf.type === 'dropdown') {
+          if (!val && cf.type === 'dropdown') {
             if (cf.source === 'global' && cf.globalKey && P.dropdownDefaults && P.dropdownDefaults[cf.globalKey]) {
               val = P.dropdownDefaults[cf.globalKey];
             }
@@ -37392,7 +37687,19 @@ Earned Value Management measures project performance and progress by comparing p
         return 0;
       });
 
-      const filtered = P._currentRaidFilter === 'All' ? sortedRaids : sortedRaids.filter(r => r.type === P._currentRaidFilter);
+      let filtered = P._currentRaidFilter === 'All' ? sortedRaids : sortedRaids.filter(r => r.type === P._currentRaidFilter);
+      if (P.search) {
+        const q = P.search.toLowerCase();
+        filtered = filtered.filter(r =>
+          (r.id || '').toLowerCase().includes(q) ||
+          (r.type || '').toLowerCase().includes(q) ||
+          (r.title || '').toLowerCase().includes(q) ||
+          (r.desc || '').toLowerCase().includes(q) ||
+          (r.owner || '').toLowerCase().includes(q) ||
+          (r.mitigation || '').toLowerCase().includes(q) ||
+          (r.status || '').toLowerCase().includes(q)
+        );
+      }
 
       // Apply Matrix Heatmap Filter if active
       let matrixFiltered = filtered;
@@ -37421,6 +37728,11 @@ Earned Value Management measures project performance and progress by comparing p
           }
           return rImp === P._matrixFilter.impact && rProb === P._matrixFilter.prob;
         });
+      }
+
+      const taskInfoEl = $id('task-info');
+      if (taskInfoEl) {
+        taskInfoEl.innerHTML = `<strong>${matrixFiltered.length}</strong> / ${raids.length} items`;
       }
 
       const sortArrow = (col) => {
@@ -40345,6 +40657,7 @@ Earned Value Management measures project performance and progress by comparing p
         const cols = [
           { header: 'Subtask ID', key: 'id', width: 18 }, { header: 'Parent ID', key: 'parentId', width: 15 },
           { header: 'Task Name', key: 'name', width: 35 }, { header: 'Type', key: 'type', width: 15 },
+          { header: 'Is New Window', key: 'isNewWindow', width: 15 },
           { header: 'Window Name (Functional)', key: 'windowName', width: 30 },
           { header: 'Technical Window Name', key: 'technicalWindowName', width: 28 },
           { header: 'Status', key: 'status', width: 18 }, { header: 'Assignee', key: 'assignee', width: 22 },
@@ -40357,6 +40670,7 @@ Earned Value Management measures project performance and progress by comparing p
         subs.forEach((s, i) => {
           const rowValues = {
             id: S(s.id), parentId: S(s.parentId), name: S(s.name), type: S(s.type),
+            isNewWindow: s.isNewWindow ? 'Yes' : 'No',
             windowName: S(s.windowName || ''),
             technicalWindowName: S(s.technicalWindowName || ''),
             status: S(s.status),
@@ -40370,8 +40684,10 @@ Earned Value Management measures project performance and progress by comparing p
 
         const subCount = Math.max(100, subs.length + 50);
         for (let r = 2; r <= subCount; r++) {
-          ws.getCell(`E${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['Val_Statuses'] };
-          ws.getCell(`F${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Team'] };
+          ws.getCell(`D${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['"step,screen"'] };
+          ws.getCell(`E${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['"Yes,No"'] };
+          ws.getCell(`H${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['Val_Statuses'] };
+          ws.getCell(`I${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Team'] };
         }
       },
 
@@ -43682,6 +43998,7 @@ Earned Value Management measures project performance and progress by comparing p
           if (t.subtasks) {
             t.subtasks.forEach(s => {
               if (!s.id) s.id = 'ST-' + String(P.nextSubId++).padStart(3, '0');
+              s.isNewWindow = (s.isNewWindow === true || String(s.isNewWindow || '').toLowerCase() === 'yes' || String(s.isNewWindow || '').toLowerCase() === 'true');
               if ((s.type || '').toLowerCase() === 'screen') {
                 if (!s.windowName || String(s.windowName).trim() === '' || s.windowName === '—' || s.windowName === '-') {
                   s.windowName = s.name || '';

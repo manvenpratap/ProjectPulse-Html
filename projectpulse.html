@@ -22147,9 +22147,11 @@
       if (!P.log.length) { inner.innerHTML = '<div class="log-empty"><div style="font-size:28px;margin-bottom:6px">📝</div><div style="font-size:13px;font-weight:var(--fw-bold)">No Activity Yet</div></div>'; return; }
 
       const filteredLogs = getFilteredLogs();
-      $id('view-actions').innerHTML = `
-        <span style="font-size:11px;color:var(--t2);margin-right:8px">${filteredLogs.length} entries</span>
-      `;
+      const taskInfoEl = $id('task-info');
+      if (taskInfoEl) {
+        taskInfoEl.innerHTML = `<strong>${filteredLogs.length}</strong> / ${P.log.length} entries`;
+      }
+      $id('view-actions').innerHTML = '';
       const byDay = {}; filteredLogs.slice().reverse().forEach(e => { const d = e.ts.split('T')[0]; if (!byDay[d]) byDay[d] = []; byDay[d].push(e); });
       const tl = document.createElement('div');
       Object.entries(byDay).forEach(([day, entries]) => {
@@ -37685,7 +37687,19 @@ Earned Value Management measures project performance and progress by comparing p
         return 0;
       });
 
-      const filtered = P._currentRaidFilter === 'All' ? sortedRaids : sortedRaids.filter(r => r.type === P._currentRaidFilter);
+      let filtered = P._currentRaidFilter === 'All' ? sortedRaids : sortedRaids.filter(r => r.type === P._currentRaidFilter);
+      if (P.search) {
+        const q = P.search.toLowerCase();
+        filtered = filtered.filter(r =>
+          (r.id || '').toLowerCase().includes(q) ||
+          (r.type || '').toLowerCase().includes(q) ||
+          (r.title || '').toLowerCase().includes(q) ||
+          (r.desc || '').toLowerCase().includes(q) ||
+          (r.owner || '').toLowerCase().includes(q) ||
+          (r.mitigation || '').toLowerCase().includes(q) ||
+          (r.status || '').toLowerCase().includes(q)
+        );
+      }
 
       // Apply Matrix Heatmap Filter if active
       let matrixFiltered = filtered;
@@ -37714,6 +37728,11 @@ Earned Value Management measures project performance and progress by comparing p
           }
           return rImp === P._matrixFilter.impact && rProb === P._matrixFilter.prob;
         });
+      }
+
+      const taskInfoEl = $id('task-info');
+      if (taskInfoEl) {
+        taskInfoEl.innerHTML = `<strong>${matrixFiltered.length}</strong> / ${raids.length} items`;
       }
 
       const sortArrow = (col) => {
