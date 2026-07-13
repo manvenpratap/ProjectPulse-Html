@@ -16659,9 +16659,7 @@
             if (P.fsDirHandle.queryPermission) {
               const status = await P.fsDirHandle.queryPermission({ mode: 'readwrite' });
               if (status !== 'granted') {
-                P._fsPermissionError = true;
-                P._fsErrorDetails = { source: 'createFileBackup:queryPermission', message: 'Permission query returned: ' + status };
-                updateFsInd();
+                PP.warn('Directory backup skipped: permission query returned ' + status);
                 return;
               }
             }
@@ -16675,9 +16673,7 @@
             PP.log('File-mode backup created:', bName);
           } catch (e) {
             if (e.name === 'NotAllowedError') {
-              P._fsPermissionError = true;
-              P._fsErrorDetails = { source: 'createFileBackup:catch', message: e.name + ': ' + e.message };
-              updateFsInd();
+              PP.warn('Directory backup skipped: permission access denied.', e);
             } else {
               PP.error('Directory backup failed', e);
             }
@@ -16951,9 +16947,7 @@
           if (dirHandle.queryPermission) {
             const status = await dirHandle.queryPermission({ mode: 'readwrite' });
             if (status !== 'granted') {
-              P._fsPermissionError = true;
-              P._fsErrorDetails = { source: 'compileUserManualToDirectory:queryPermission', message: 'Permission query returned: ' + status };
-              updateFsInd();
+              PP.warn('User manual compilation skipped: folder permission returned ' + status);
               return;
             }
           }
@@ -17017,9 +17011,7 @@
           localStorage.setItem('pp-last-manual-update', new Date().toISOString());
         } catch (e) {
           if (e.name === 'NotAllowedError') {
-            P._fsPermissionError = true;
-            P._fsErrorDetails = { source: 'compileUserManualToDirectory:catch', message: e.name + ': ' + e.message };
-            updateFsInd();
+            PP.warn('User manual compilation skipped: access denied.', e);
           } else {
             PP.error('Browser manual compilation failed:', e);
           }
@@ -17262,6 +17254,16 @@
         return;
       }
       try {
+        if (P.fsDirHandle.queryPermission) {
+          const status = await P.fsDirHandle.queryPermission({ mode: 'readwrite' });
+          if (status !== 'granted') {
+            const reqStatus = await P.fsDirHandle.requestPermission({ mode: 'readwrite' });
+            if (reqStatus !== 'granted') {
+              notify('Permission denied to access backup directory', 'err');
+              return;
+            }
+          }
+        }
         notify('Syncing backup directory...', 'ok');
         const wb = await generateProjectWorkbook();
         const buf = await wb.xlsx.writeBuffer();
