@@ -18022,6 +18022,26 @@
       return ms;
     }
 
+    function getTaskScreenText(task) {
+      if (!task) return '';
+      let screens = [];
+      if (task.screenName) screens.push(task.screenName);
+      if (task.windowName) screens.push(task.windowName);
+      if (task.technicalWindowName) screens.push(task.technicalWindowName);
+      if (task.screen) screens.push(task.screen);
+      if (task.guiScreen) screens.push(task.guiScreen);
+      if (Array.isArray(task.guiScreens)) screens.push(...task.guiScreens);
+      if (Array.isArray(task.screens)) screens.push(...task.screens);
+      if (typeof task.screens === 'string') screens.push(task.screens);
+      if (Array.isArray(task.subtasks)) {
+        task.subtasks.forEach(st => {
+          if (st.name && (st.type === 'screen' || st.screenName)) screens.push(st.name);
+          if (st.screenName) screens.push(st.screenName);
+        });
+      }
+      return screens.filter(Boolean).join(' ');
+    }
+
     function getFiltered() {
       let t = [...P.tasks];
       if (P.search) {
@@ -18097,28 +18117,7 @@
         const taskByIdMap = {};
         P.tasks.forEach(task => taskByIdMap[task.id] = task);
         t = t.filter(x => x.status === 'On Hold' || x.status === 'Blocked' || isBlocked(x, taskByIdMap));
-      }
-    function getTaskScreenText(task) {
-      if (!task) return '';
-      let screens = [];
-      if (task.screenName) screens.push(task.screenName);
-      if (task.windowName) screens.push(task.windowName);
-      if (task.technicalWindowName) screens.push(task.technicalWindowName);
-      if (task.screen) screens.push(task.screen);
-      if (task.guiScreen) screens.push(task.guiScreen);
-      if (Array.isArray(task.guiScreens)) screens.push(...task.guiScreens);
-      if (Array.isArray(task.screens)) screens.push(...task.screens);
-      if (typeof task.screens === 'string') screens.push(task.screens);
-      if (Array.isArray(task.subtasks)) {
-        task.subtasks.forEach(st => {
-          if (st.name && (st.type === 'screen' || st.screenName)) screens.push(st.name);
-          if (st.screenName) screens.push(st.screenName);
-        });
-      }
-      return screens.filter(Boolean).join(' ');
-    }
-
-    if (P.colFilters) {
+      if (P.colFilters) {
         Object.entries(P.colFilters).forEach(([k, v]) => {
           if (!v) return;
           const type = getFieldType(k);
