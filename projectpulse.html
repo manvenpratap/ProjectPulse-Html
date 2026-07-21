@@ -33358,12 +33358,8 @@
         } else if (sec.id === 'analytics') {
           addST(inner, 'Advanced Analytics Overview');
           const grid = addGrid(inner);
-          const anId = 'dash-analytics-summary';
-          const anSpan = (P.widgetSpans && P.widgetSpans[anId]) || sec.span || 4;
-          const anCard = mkCC('Advanced Analytics & Forecasting', 'Executive summary of project trajectory, velocity, and cumulative flow', anId, '', 'standard', "<b>Advanced Analytics Suite:</b> Consolidated metrics derived from burndown trajectories, rolling team velocity, and cumulative flow distribution. Use this overview for high-level steering decisions.", 'View Explanation', 'trending-up');
-          anCard.style.gridColumn = `span ${anSpan}`;
-          grid.appendChild(anCard);
 
+          // Calculate core analytics metrics
           const totalEffort = tasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
           const currentActual = tasks.filter(t => t.status !== 'Completed').reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
           const doneEffort = totalEffort - currentActual;
@@ -33413,12 +33409,14 @@
             forecastBg = 'rgba(34,197,94,0.12)';
           }
 
-          const summaryContent = document.createElement('div');
-          summaryContent.style = "display:flex; gap:20px; flex-wrap:wrap; margin-top:12px;";
-
-          // Left panel: 4 Premium Overview Cards Grid
+          // ── WIDGET 1: Executive KPI Overview (Span 4) ────────────────────────
+          const kpiId = 'dash-analytics-summary';
+          const kpiSpan = (P.widgetSpans && P.widgetSpans[kpiId]) || sec.span || 4;
+          const kpiCard = mkCC('Advanced Analytics & Executive KPIs', 'Executive summary of project completion, velocity pacing, WIP load, and completion trajectory', kpiId, '', 'standard', "<b>Executive Overview:</b> Consolidated high-level performance indicators summarizing overall completion progress, rolling velocity, work in progress, and projected completion date.", 'View Explanation', 'trending-up');
+          kpiCard.style.gridColumn = `span ${kpiSpan}`;
+          
           const overviewGrid = document.createElement('div');
-          overviewGrid.style = "flex:1.25; min-width:320px; display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:14px;";
+          overviewGrid.style = "display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px; margin-top:8px;";
           overviewGrid.innerHTML = `
             <!-- Card 1: Burndown Progress -->
             <div style="background:linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-surface-1) 100%); padding:14px 16px; border-radius:var(--radius-lg); border:1px solid var(--color-border); box-shadow:var(--shadow-xs); transition:all 0.25s ease; position:relative; overflow:hidden;" onmouseenter="this.style.transform='translateY(-3px)'; this.style.boxShadow='var(--shadow-md)'; this.style.borderColor='var(--color-primary-alpha)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='var(--shadow-xs)'; this.style.borderColor='var(--color-border)'">
@@ -33480,68 +33478,15 @@
               </div>
             </div>
           `;
+          kpiCard.querySelector('.cb').appendChild(overviewGrid);
+          grid.appendChild(kpiCard);
 
-          // Right panel: Premium Interactive Tabbed Visualization Hub
-          const anVizPanel = document.createElement('div');
-          anVizPanel.style = "flex:1.1; min-width:320px; display:flex; flex-direction:column; background:var(--color-surface-1); border-radius:var(--radius-lg); border:1px solid var(--color-border); padding:16px; box-shadow:var(--shadow-sm); justify-content:space-between;";
+          // ── WIDGET 2: Weekly Velocity Band & Trend (Span 2) ───────────────────
+          const velId = 'dash-analytics-velocity';
+          const velSpan = (P.widgetSpans && P.widgetSpans[velId]) || 2;
+          const velCard = mkCC('Weekly Velocity Band & Trend', 'Rolling story points & effort velocity benchmark', velId, '', 'standard', '<b>Velocity Band:</b> Visualizes completed effort over rolling weeks against team average benchmark line.', 'View Explanation', 'bar-chart-2');
+          velCard.style.gridColumn = `span ${velSpan}`;
 
-          const anTabsHeader = document.createElement('div');
-          anTabsHeader.style = "display: flex; gap: 6px; background:var(--color-surface-2); padding:4px; border-radius:var(--radius-md); border:1px solid var(--color-border-faint); margin-bottom: 14px;";
-
-          const createTabBtn = (label, iconName, isActive) => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.innerHTML = `<i data-lucide="${iconName}" style="width:12px;height:12px;"></i> ${label}`;
-            btn.style = `flex:1; display:flex; align-items:center; justify-content:center; gap:6px; background:${isActive ? 'var(--color-surface-1)' : 'transparent'}; color:${isActive ? 'var(--color-primary)' : 'var(--color-text-muted)'}; border:none; padding:7px 10px; border-radius:var(--radius-sm); font-size:11px; font-weight:700; cursor:pointer; transition:all 0.2s cubic-bezier(0.4, 0, 0.2, 1); ${isActive ? 'box-shadow:var(--shadow-xs); border:1px solid var(--color-border)' : ''}`;
-            return btn;
-          };
-
-          const anBtnVel = createTabBtn('Velocity Trend', 'bar-chart-2', true);
-          const anBtnWip = createTabBtn('WIP Flow', 'layers', false);
-          const anBtnScenario = createTabBtn('Scenarios', 'sliders', false);
-
-          anTabsHeader.appendChild(anBtnVel);
-          anTabsHeader.appendChild(anBtnWip);
-          anTabsHeader.appendChild(anBtnScenario);
-
-          const anTabContent = document.createElement('div');
-          anTabContent.style = "flex: 1; display: flex; flex-direction: column; justify-content: center;";
-
-          const anTabVel = document.createElement('div');
-          anTabVel.style.display = 'block';
-
-          const anTabWip = document.createElement('div');
-          anTabWip.style.display = 'none';
-
-          const anTabScenario = document.createElement('div');
-          anTabScenario.style.display = 'none';
-
-          anTabContent.appendChild(anTabVel);
-          anTabContent.appendChild(anTabWip);
-          anTabContent.appendChild(anTabScenario);
-
-          anVizPanel.appendChild(anTabsHeader);
-          anVizPanel.appendChild(anTabContent);
-
-          const setAnTabActive = (activeBtn, showTab) => {
-            [anBtnVel, anBtnWip, anBtnScenario].forEach(b => {
-              b.style.background = 'transparent';
-              b.style.color = 'var(--color-text-muted)';
-              b.style.border = 'none';
-              b.style.boxShadow = 'none';
-            });
-            [anTabVel, anTabWip, anTabScenario].forEach(t => t.style.display = 'none');
-            activeBtn.style.background = 'var(--color-surface-1)';
-            activeBtn.style.color = 'var(--color-primary)';
-            activeBtn.style.border = '1px solid var(--color-border)';
-            activeBtn.style.boxShadow = 'var(--shadow-xs)';
-            showTab.style.display = 'block';
-          };
-          anBtnVel.onclick = () => setAnTabActive(anBtnVel, anTabVel);
-          anBtnWip.onclick = () => setAnTabActive(anBtnWip, anTabWip);
-          anBtnScenario.onclick = () => setAnTabActive(anBtnScenario, anTabScenario);
-
-          // 1. Velocity Trend Bar Chart with Glow & Benchmark Line
           const lastVelocityPoints = velocity.slice(-6);
           const maxVVal = Math.max(...lastVelocityPoints, 1);
           let barsHtml = '';
@@ -33558,12 +33503,14 @@
           const trendPointsStr = lastVelocityPoints.map((v, idx) => `${32 + idx * 40 + 9},${82 - (v / maxVVal) * 58}`);
           const avgY = 82 - (avgVel / maxVVal) * 58;
 
-          anTabVel.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
-              <span style="font-size:11.5px; font-weight:700; color:var(--color-text)">Weekly Velocity Trend</span>
-              <span style="font-size:9.5px; font-weight:700; color:var(--green)">Avg Benchmark: ${avgVel.toFixed(1)}d</span>
+          const velBody = document.createElement('div');
+          velBody.style = "padding:8px 0;";
+          velBody.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
+              <span style="font-size:11.5px; font-weight:700; color:var(--color-text)">Weekly Output vs Benchmark</span>
+              <span style="font-size:9.5px; font-weight:700; color:var(--green); background:rgba(34,197,94,0.1); padding:2px 8px; border-radius:10px; border:1px solid rgba(34,197,94,0.2)">Avg Benchmark: ${avgVel.toFixed(1)}d/wk</span>
             </div>
-            <svg viewBox="0 0 280 115" style="width:100%; height:115px; overflow:visible;">
+            <svg viewBox="0 0 280 115" style="width:100%; height:125px; overflow:visible;">
               <defs>
                 <linearGradient id="velBarGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stop-color="var(--color-primary)" />
@@ -33577,15 +33524,22 @@
               <path d="M ${trendPointsStr.join(' L ')}" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           `;
+          velCard.querySelector('.cb').appendChild(velBody);
+          grid.appendChild(velCard);
 
-          // 2. Active WIP Flow List
-          const activeWips = tasks.filter(t => t.status === 'In Progress' || t.status === 'Under Review').slice(0, 3);
+          // ── WIDGET 3: Active WIP Flow Breakdown (Span 1) ──────────────────────
+          const wipId = 'dash-analytics-wip';
+          const wipSpan = (P.widgetSpans && P.widgetSpans[wipId]) || 1;
+          const wipCard = mkCC('Active WIP Flow', 'Current work-in-progress task load & bottlenecks', wipId, '', 'standard', '<b>Active WIP Flow:</b> Tracks active tasks currently In Progress or Under Review to prevent bottlenecks.', 'View Explanation', 'layers');
+          wipCard.style.gridColumn = `span ${wipSpan}`;
+
+          const activeWips = tasks.filter(t => t.status === 'In Progress' || t.status === 'Under Review').slice(0, 4);
           let wipListHtml = '';
           if (activeWips.length === 0) {
             wipListHtml = `
-              <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:90px; color:var(--color-text-faint)">
-                <i data-lucide="check-circle-2" style="width:22px; height:22px; color:var(--green); margin-bottom:4px"></i>
-                <div style="font-size:11px; font-weight:600">No bottlenecks — zero active WIP tasks</div>
+              <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100px; color:var(--color-text-faint)">
+                <i data-lucide="check-circle-2" style="width:24px; height:24px; color:var(--green); margin-bottom:4px"></i>
+                <div style="font-size:11px; font-weight:600">No active WIP bottlenecks</div>
               </div>
             `;
           } else {
@@ -33596,24 +33550,33 @@
                 <div style="display:flex; justify-content:space-between; align-items:center; background:var(--color-surface-2); padding:8px 12px; border-radius:var(--radius-md); font-size:11px; border:1px solid var(--color-border-faint); margin-bottom:6px">
                   <div style="display:flex; align-items:center; gap:8px; overflow:hidden">
                     <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:${color}"></span>
-                    <span style="font-weight:700; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px">${esc(t.name || ('Task #' + t.id))}</span>
+                    <span style="font-weight:700; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:140px">${esc(t.name || ('Task #' + t.id))}</span>
                   </div>
                   <span style="background:${bg}; color:${color}; font-size:9px; font-weight:800; padding:2.5px 8px; border-radius:10px; border:1px solid ${color}33">${t.status}</span>
                 </div>
               `;
             });
           }
-          anTabWip.innerHTML = `
-            <div style="font-size:11.5px; font-weight:700; color:var(--color-text); margin-bottom:8px">Active Work In Progress</div>
+          const wipBody = document.createElement('div');
+          wipBody.style = "padding:8px 0;";
+          wipBody.innerHTML = `
+            <div style="font-size:11.5px; font-weight:700; color:var(--color-text); margin-bottom:10px">Active Task Workload</div>
             <div style="display:flex; flex-direction:column">${wipListHtml}</div>
           `;
+          wipCard.querySelector('.cb').appendChild(wipBody);
+          grid.appendChild(wipCard);
 
-          // 3. Trajectory Forecast Scenarios
+          // ── WIDGET 4: Predictive Trajectory Scenarios (Span 1) ─────────────────
+          const scId = 'dash-analytics-scenarios';
+          const scSpan = (P.widgetSpans && P.widgetSpans[scId]) || 1;
+          const scCard = mkCC('Predictive Trajectory Scenarios', 'Monte Carlo & velocity completion projections', scId, '', 'standard', '<b>Forecast Scenarios:</b> Calculates project completion dates based on 150%, 100%, and 50% velocity pacing.', 'View Explanation', 'sliders');
+          scCard.style.gridColumn = `span ${scSpan}`;
+
           let scenariosHtml = '';
           if (weeksToComplete === null || weeksToComplete === Infinity) {
             scenariosHtml = `
-              <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:90px; color:var(--color-text-faint)">
-                <div style="font-size:11px">Not enough velocity data for forecasting scenarios</div>
+              <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100px; color:var(--color-text-faint)">
+                <div style="font-size:11px">Insufficient velocity data</div>
               </div>
             `;
           } else {
@@ -33624,40 +33587,42 @@
               return fd.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
             };
             scenariosHtml = `
-              <div style="display:flex; flex-direction:column; gap:6px">
+              <div style="display:flex; flex-direction:column; gap:8px">
                 <div style="display:flex; justify-content:space-between; align-items:center; background:linear-gradient(90deg, rgba(34,197,94,0.08) 0%, var(--color-surface-2) 100%); padding:8px 12px; border-radius:var(--radius-md); font-size:11px; border:1px solid rgba(34,197,94,0.25)">
                   <div style="display:flex; align-items:center; gap:6px">
                     <span style="color:var(--green); font-weight:800">⚡ Optimistic</span>
-                    <span style="font-size:9.5px; color:var(--color-text-muted); font-weight:600">(150% Velocity)</span>
+                    <span style="font-size:9px; color:var(--color-text-muted); font-weight:600">(150%)</span>
                   </div>
                   <span style="font-weight:900; color:var(--color-text)">${getScenarioDateStr(1.5)}</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center; background:linear-gradient(90deg, rgba(99,102,241,0.08) 0%, var(--color-surface-2) 100%); padding:8px 12px; border-radius:var(--radius-md); font-size:11px; border:1px solid rgba(99,102,241,0.25)">
                   <div style="display:flex; align-items:center; gap:6px">
                     <span style="color:var(--color-primary); font-weight:800">🎯 Expected</span>
-                    <span style="font-size:9.5px; color:var(--color-text-muted); font-weight:600">(100% Velocity)</span>
+                    <span style="font-size:9px; color:var(--color-text-muted); font-weight:600">(100%)</span>
                   </div>
                   <span style="font-weight:900; color:var(--color-text)">${getScenarioDateStr(1.0)}</span>
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center; background:linear-gradient(90deg, rgba(220,38,38,0.08) 0%, var(--color-surface-2) 100%); padding:8px 12px; border-radius:var(--radius-md); font-size:11px; border:1px solid rgba(220,38,38,0.25)">
                   <div style="display:flex; align-items:center; gap:6px">
                     <span style="color:var(--red); font-weight:800">⚠️ Conservative</span>
-                    <span style="font-size:9.5px; color:var(--color-text-muted); font-weight:600">(50% Velocity)</span>
+                    <span style="font-size:9.5px; color:var(--color-text-muted); font-weight:600">(50%)</span>
                   </div>
                   <span style="font-weight:900; color:var(--color-text)">${getScenarioDateStr(0.5)}</span>
                 </div>
               </div>
             `;
           }
-          anTabScenario.innerHTML = `
-            <div style="font-size:11.5px; font-weight:700; color:var(--color-text); margin-bottom:8px">Forecast Scenarios & Pacing</div>
+          const scBody = document.createElement('div');
+          scBody.style = "padding:8px 0;";
+          scBody.innerHTML = `
+            <div style="font-size:11.5px; font-weight:700; color:var(--color-text); margin-bottom:10px">Forecast Scenarios</div>
             ${scenariosHtml}
           `;
+          scCard.querySelector('.cb').appendChild(scBody);
+          grid.appendChild(scCard);
 
-          summaryContent.appendChild(overviewGrid);
-          summaryContent.appendChild(anVizPanel);
-          anCard.querySelector('.cb').appendChild(summaryContent);
-          if (window.lucide) lucide.createIcons({ context: summaryContent });
+          if (window.lucide) lucide.createIcons({ context: inner });
+        }
         } else if (sec.id === 'evm_analytics') {
           addST(inner, 'Earned Value Management (EVM)');
           const grid = addGrid(inner);
