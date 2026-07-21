@@ -31186,7 +31186,7 @@
             _cbEl.innerHTML = `
               <div style="display:flex;flex-direction:column;width:100%;background:var(--color-surface);border-radius:0 0 var(--radius-lg) var(--radius-lg)">
                 <!-- Canvas drawing container -->
-                <div style="position:relative;width:100%;height:330px;overflow:hidden">
+                <div style="position:relative;width:100%;height:360px;overflow:hidden">
                   <canvas id="${_hieCanvasId}" style="width:100%;height:100%;display:block;cursor:default"></canvas>
                   <div id="${_hieTipId}" style="position:absolute;pointer-events:none;display:none;z-index:9;background:var(--color-surface-3,#1e293b);border:1px solid var(--color-divider);border-radius:10px;padding:10px 14px;font-size:11px;line-height:1.65;color:var(--color-text);box-shadow:0 8px 32px rgba(0,0,0,0.28);min-width:170px;max-width:230px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)"></div>
                 </div>
@@ -31203,7 +31203,7 @@
                   <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
                     <div style="font-weight:700;color:var(--color-text-muted);font-size:9.5px;text-transform:uppercase;letter-spacing:.5px">Impact Score (Size):</div>
                     <div style="display:flex;gap:10px;align-items:flex-end">
-                      ${[['Low',12],['Med',18],['High',24],['Max',31]].map(([l,s])=>`<div style="display:flex;flex-direction:column;align-items:center;gap:2.5px"><div style="width:${s}px;height:${s}px;border-radius:50%;background:rgba(148,163,184,0.18);border:1.5px solid rgba(148,163,184,0.38)"></div><span style="color:var(--color-text-faint);font-size:8px">${l}</span></div>`).join('')}
+                      ${[['Low',14],['Med',20],['High',26],['Max',34]].map(([l,s])=>`<div style="display:flex;flex-direction:column;align-items:center;gap:2.5px"><div style="width:${s}px;height:${s}px;border-radius:50%;background:rgba(148,163,184,0.18);border:1.5px solid rgba(148,163,184,0.38)"></div><span style="color:var(--color-text-faint);font-size:8px">${l}</span></div>`).join('')}
                     </div>
                   </div>
                 </div>
@@ -31215,7 +31215,7 @@
               if (!canvas) return;
               const dpr = window.devicePixelRatio || 1;
               const W   = canvas.offsetWidth  || (canvas.parentElement ? canvas.parentElement.offsetWidth : 800);
-              const H   = canvas.offsetHeight || 330;
+              const H   = canvas.offsetHeight || 360;
               canvas.width  = W * dpr;
               canvas.height = H * dpr;
               const ctx = canvas.getContext('2d');
@@ -31223,7 +31223,7 @@
 
               // Radius mapping
               const maxScore = Math.max(..._hieItems.map(b=>b._score), 1);
-              const MIN_R = 26, MAX_R = 68;
+              const MIN_R = 28, MAX_R = 72;
               const bubbles = _hieItems.map((it, i) => {
                 const r = MIN_R + Math.pow(it._score / maxScore, 0.52) * (MAX_R - MIN_R);
                 const angle = (i / _hieItems.length) * Math.PI * 2;
@@ -31236,9 +31236,9 @@
                 };
               });
 
-              // Dynamically scale down radii if total bubble area exceeds 32% of canvas area
+              // Dynamically scale down radii if total bubble area exceeds 38% of canvas area
               const totalArea = bubbles.reduce((sum, b) => sum + Math.PI * b.r * b.r, 0);
-              const maxAllowedArea = W * H * 0.32;
+              const maxAllowedArea = W * H * 0.38;
               if (totalArea > maxAllowedArea) {
                 const scale = Math.sqrt(maxAllowedArea / totalArea);
                 bubbles.forEach(b => { b.r *= scale; });
@@ -31334,31 +31334,103 @@
                   sGrd.addColorStop(0,'rgba(255,255,255,0.38)');sGrd.addColorStop(1,'rgba(255,255,255,0)');
                   ctx.beginPath();ctx.arc(b.x,b.y,r,0,Math.PI*2);ctx.fillStyle=sGrd;ctx.fill();
 
-                  // Labels
-                  ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
-                  const name=(b.it.name||b.it.title||b.it.id||'').trim();
-                  const maxCh=Math.max(6,Math.floor(r/4.8));
+                  // Strict Circular Clipping Mask to guarantee NO text bleeds outside bubble rim
+                  ctx.save();
+                  ctx.beginPath();
+                  ctx.arc(b.x, b.y, Math.max(1, r - 2), 0, Math.PI * 2);
+                  ctx.clip();
 
-                  // Status+kind badge (top of bubble)
-                  ctx.font=`600 ${Math.max(6.5,r*0.148)}px "Inter",system-ui,sans-serif`;
-                  ctx.fillStyle='rgba(255,255,255,0.72)';
-                  ctx.fillText((col.label+': '+b.it._kind), b.x, b.y-r*0.3);
+                  ctx.textAlign = 'center';
+                  ctx.textBaseline = 'middle';
+                  const name = (b.it.name || b.it.title || b.it.id || '').trim();
 
-                  // Name (auto-wrap)
-                  const fSz=Math.max(8,r*0.19);
-                  ctx.font=`700 ${fSz}px "Inter",system-ui,sans-serif`;
-                  ctx.fillStyle='#fff';
-                  const words=name.split(' '),lines=[];let line='';
-                  words.forEach(w=>{const t=line?line+' '+w:w;if(ctx.measureText(t).width>r*1.5&&line){lines.push(line);line=w;}else line=t;});
-                  if(line)lines.push(line);
-                  const maxL=Math.max(1,Math.floor(r/15)),vis=lines.slice(0,maxL);
-                  const lh=fSz*1.25,totalH=vis.length*lh;
-                  vis.forEach((l,li)=>{ctx.fillText(l.length>maxCh?l.slice(0,maxCh)+'…':l,b.x,b.y-totalH/2+li*lh+lh/2+r*0.025);});
+                  if (r < 30) {
+                    // SMALL BUBBLE: Score only in center
+                    ctx.font = `800 ${Math.max(9, r * 0.38)}px "Inter",system-ui,sans-serif`;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText(b.it._score, b.x, b.y);
+                  } else if (r < 46) {
+                    // MEDIUM BUBBLE: Title (up to 2 lines) + Score
+                    const fSz = Math.max(9, Math.min(12, r * 0.21));
+                    ctx.font = `700 ${fSz}px "Inter",system-ui,sans-serif`;
+                    ctx.fillStyle = '#ffffff';
 
-                  // Score
-                  ctx.font=`800 ${Math.max(7,r*0.165)}px "Inter",system-ui,sans-serif`;
-                  ctx.fillStyle='rgba(255,255,255,0.82)';
-                  ctx.fillText('Score: '+b.it._score, b.x, b.y+r*0.38);
+                    const maxW = r * 1.55;
+                    const words = name.split(' ');
+                    let lines = [], currentLine = '';
+                    words.forEach(w => {
+                      const testLine = currentLine ? currentLine + ' ' + w : w;
+                      if (ctx.measureText(testLine).width > maxW && currentLine) {
+                        lines.push(currentLine);
+                        currentLine = w;
+                      } else {
+                        currentLine = testLine;
+                      }
+                    });
+                    if (currentLine) lines.push(currentLine);
+
+                    const visLines = lines.slice(0, 2);
+                    const lh = fSz * 1.2;
+                    const startY = b.y - (visLines.length === 2 ? lh * 0.5 : 0) - r * 0.12;
+
+                    visLines.forEach((l, idx) => {
+                      let text = l;
+                      if (idx === 1 && lines.length > 2) {
+                        while (text.length > 3 && ctx.measureText(text + '…').width > maxW) {
+                          text = text.slice(0, -1);
+                        }
+                        text += '…';
+                      }
+                      ctx.fillText(text, b.x, startY + idx * lh);
+                    });
+
+                    ctx.font = `800 ${Math.max(8, r * 0.19)}px "Inter",system-ui,sans-serif`;
+                    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+                    ctx.fillText(b.it._score, b.x, b.y + r * 0.42);
+                  } else {
+                    // LARGE BUBBLE: Kind badge + Title + Score
+                    ctx.font = `700 ${Math.max(8, r * 0.14)}px "Inter",system-ui,sans-serif`;
+                    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+                    ctx.fillText(b.it._kind, b.x, b.y - r * 0.48);
+
+                    const fSz = Math.max(10, Math.min(13, r * 0.18));
+                    ctx.font = `700 ${fSz}px "Inter",system-ui,sans-serif`;
+                    ctx.fillStyle = '#ffffff';
+
+                    const maxW = r * 1.6;
+                    const words = name.split(' ');
+                    let lines = [], currentLine = '';
+                    words.forEach(w => {
+                      const testLine = currentLine ? currentLine + ' ' + w : w;
+                      if (ctx.measureText(testLine).width > maxW && currentLine) {
+                        lines.push(currentLine);
+                        currentLine = w;
+                      } else {
+                        currentLine = testLine;
+                      }
+                    });
+                    if (currentLine) lines.push(currentLine);
+
+                    const visLines = lines.slice(0, 3);
+                    const lh = fSz * 1.2;
+                    const startY = b.y - ((visLines.length - 1) * lh) / 2 - r * 0.05;
+
+                    visLines.forEach((l, idx) => {
+                      let text = l;
+                      if (idx === visLines.length - 1 && lines.length > visLines.length) {
+                        while (text.length > 3 && ctx.measureText(text + '…').width > maxW) {
+                          text = text.slice(0, -1);
+                        }
+                        text += '…';
+                      }
+                      ctx.fillText(text, b.x, startY + idx * lh);
+                    });
+
+                    ctx.font = `800 ${Math.max(9, r * 0.16)}px "Inter",system-ui,sans-serif`;
+                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                    ctx.fillText(`Score: ${b.it._score}`, b.x, b.y + r * 0.52);
+                  }
+
                   ctx.restore();
                 });
               }
@@ -33304,15 +33376,6 @@
           const velocity = lastWeeks.map(w => tasks.filter(t => { if (t.status !== 'Completed' || !t.dueDate) return false; const d = new Date(t.dueDate); return getWeekNumber(d) === w.w && d.getFullYear() === w.y; }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
           const latestVel = velocity[velocity.length - 1] || 0;
 
-          // Sparkline path calculation
-          const maxV = Math.max(...velocity, 1);
-          const points = velocity.map((val, idx) => {
-            const x = (idx / (velocity.length - 1)) * 100;
-            const y = 25 - (val / maxV) * 20 - 2;
-            return `${x.toFixed(1)},${y.toFixed(1)}`;
-          });
-          const pathD = `M ${points.join(' L ')}`;
-
           // WIP Breakdown
           const wipTasks = tasks.filter(t => t.status === 'In Progress');
           const reviewTasks = tasks.filter(t => t.status === 'Under Review');
@@ -33328,6 +33391,7 @@
           let forecastDateStr = 'Needs Velocity';
           let forecastStatus = 'Underperforming';
           let forecastColor = 'var(--red)';
+          let forecastBg = 'rgba(220,38,38,0.12)';
 
           if (weeksToComplete !== null && weeksToComplete !== Infinity && weeksToComplete > 0) {
             const fd = new Date();
@@ -33336,83 +33400,105 @@
             if (avgVel > 5) {
               forecastStatus = 'Optimal Velocity';
               forecastColor = 'var(--green)';
+              forecastBg = 'rgba(34,197,94,0.12)';
             } else {
               forecastStatus = 'Steady Progress';
               forecastColor = 'var(--amber)';
+              forecastBg = 'rgba(234,88,12,0.12)';
             }
           } else if (currentActual === 0) {
             forecastDateStr = 'Project Complete';
             forecastStatus = 'Complete';
             forecastColor = 'var(--green)';
+            forecastBg = 'rgba(34,197,94,0.12)';
           }
 
           const summaryContent = document.createElement('div');
           summaryContent.style = "display:flex; gap:20px; flex-wrap:wrap; margin-top:12px;";
 
-          // Left panel: 4 Overview Cards Grid
+          // Left panel: 4 Premium Overview Cards Grid
           const overviewGrid = document.createElement('div');
-          overviewGrid.style = "flex:1.2; min-width:320px; display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px;";
+          overviewGrid.style = "flex:1.25; min-width:320px; display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:14px;";
           overviewGrid.innerHTML = `
-                    <div style="background:var(--color-surface-1); padding:12px; border-radius:10px; border:1px solid var(--color-border); transition:transform 0.2s ease, box-shadow 0.2s ease; cursor:default" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-sm)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='none'">
-                      <div style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:2px">Burndown Progress</div>
-                      <div style="display:flex; justify-content:space-between; align-items:baseline">
-                        <div style="font-size:20px; font-weight:900; color:var(--color-primary)">${donePct}%</div>
-                        <div style="font-size:10px; color:var(--color-text-faint)">${doneEffort.toFixed(1)}d of ${totalEffort.toFixed(1)}d</div>
-                      </div>
-                      <div style="position:relative; width:100%; height:4px; background:var(--color-surface-2); border-radius:2px; margin-top:6px; overflow:hidden; border:1px solid var(--color-border-faint)">
-                        <div style="width:${donePct}%; height:100%; background:var(--color-primary); border-radius:2px;"></div>
-                      </div>
-                    </div>
-                    
-                    <div style="background:var(--color-surface-1); padding:12px; border-radius:10px; border:1px solid var(--color-border); transition:transform 0.2s ease, box-shadow 0.2s ease; cursor:default" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-sm)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='none'">
-                      <div style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:2px">Weekly Velocity</div>
-                      <div style="display:flex; justify-content:space-between; align-items:baseline">
-                        <div style="font-size:20px; font-weight:900; color:var(--green)">${latestVel.toFixed(1)}d</div>
-                        <div style="font-size:10px; color:var(--color-text-faint)">Avg: ${avgVel.toFixed(1)}d/wk</div>
-                      </div>
-                    </div>
-                    
-                    <div style="background:var(--color-surface-1); padding:12px; border-radius:10px; border:1px solid var(--color-border); transition:transform 0.2s ease, box-shadow 0.2s ease; cursor:default" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-sm)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='none'">
-                      <div style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:2px">WIP Distribution</div>
-                      <div style="display:flex; justify-content:space-between; align-items:baseline">
-                        <div style="font-size:20px; font-weight:900; color:var(--amber)">${wipTasks.length + reviewTasks.length}</div>
-                        <div style="font-size:10px; color:var(--color-text-faint)">${holdTasks.length} on hold</div>
-                      </div>
-                      <div style="display:flex; height:4px; border-radius:2px; overflow:hidden; margin-top:6px; border:1px solid var(--color-border-faint)">
-                        <div style="width:${wipPct}%; background:var(--amber)" title="In Progress: ${wipTasks.length}"></div>
-                        <div style="width:${reviewPct}%; background:var(--color-primary)" title="Under Review: ${reviewTasks.length}"></div>
-                        <div style="width:${holdPct}%; background:var(--color-text-faint)" title="On Hold: ${holdTasks.length}"></div>
-                      </div>
-                    </div>
+            <!-- Card 1: Burndown Progress -->
+            <div style="background:linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-surface-1) 100%); padding:14px 16px; border-radius:var(--radius-lg); border:1px solid var(--color-border); box-shadow:var(--shadow-xs); transition:all 0.25s ease; position:relative; overflow:hidden;" onmouseenter="this.style.transform='translateY(-3px)'; this.style.boxShadow='var(--shadow-md)'; this.style.borderColor='var(--color-primary-alpha)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='var(--shadow-xs)'; this.style.borderColor='var(--color-border)'">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px">
+                <span style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; letter-spacing:0.5px">Burndown Progress</span>
+                <i data-lucide="flame" style="width:14px; height:14px; color:var(--color-primary); opacity:0.8"></i>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px">
+                <div style="font-size:22px; font-weight:900; color:var(--color-primary); letter-spacing:-0.5px">${donePct}%</div>
+                <div style="font-size:10px; font-weight:600; color:var(--color-text-muted)">${doneEffort.toFixed(1)}d <span style="opacity:0.5">/ ${totalEffort.toFixed(1)}d</span></div>
+              </div>
+              <div style="position:relative; width:100%; height:6px; background:var(--color-surface-3); border-radius:4px; overflow:hidden; border:1px solid var(--color-border-faint)">
+                <div style="width:${donePct}%; height:100%; background:linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-highlight) 100%); border-radius:4px; box-shadow:0 0 8px var(--color-primary);"></div>
+              </div>
+            </div>
+            
+            <!-- Card 2: Weekly Velocity -->
+            <div style="background:linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-surface-1) 100%); padding:14px 16px; border-radius:var(--radius-lg); border:1px solid var(--color-border); box-shadow:var(--shadow-xs); transition:all 0.25s ease; position:relative; overflow:hidden;" onmouseenter="this.style.transform='translateY(-3px)'; this.style.boxShadow='var(--shadow-md)'; this.style.borderColor='rgba(34,197,94,0.3)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='var(--shadow-xs)'; this.style.borderColor='var(--color-border)'">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px">
+                <span style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; letter-spacing:0.5px">Weekly Velocity</span>
+                <i data-lucide="zap" style="width:14px; height:14px; color:var(--green); opacity:0.85"></i>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px">
+                <div style="font-size:22px; font-weight:900; color:var(--green); letter-spacing:-0.5px">${latestVel.toFixed(1)}d</div>
+                <div style="font-size:10px; font-weight:600; color:var(--color-text-muted)">Avg: <span style="color:var(--color-text); font-weight:700">${avgVel.toFixed(1)}d</span>/wk</div>
+              </div>
+              <div style="font-size:9.5px; color:var(--color-text-faint); display:flex; align-items:center; gap:4px">
+                <span style="color:var(--green); font-weight:700">● ${velocity.length} Wks Rolling</span>
+              </div>
+            </div>
+            
+            <!-- Card 3: WIP Distribution -->
+            <div style="background:linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-surface-1) 100%); padding:14px 16px; border-radius:var(--radius-lg); border:1px solid var(--color-border); box-shadow:var(--shadow-xs); transition:all 0.25s ease; position:relative; overflow:hidden;" onmouseenter="this.style.transform='translateY(-3px)'; this.style.boxShadow='var(--shadow-md)'; this.style.borderColor='rgba(234,88,12,0.3)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='var(--shadow-xs)'; this.style.borderColor='var(--color-border)'">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px">
+                <span style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; letter-spacing:0.5px">Active WIP Load</span>
+                <i data-lucide="layers" style="width:14px; height:14px; color:var(--amber); opacity:0.85"></i>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px">
+                <div style="font-size:22px; font-weight:900; color:var(--amber); letter-spacing:-0.5px">${wipTasks.length + reviewTasks.length} <span style="font-size:11px; font-weight:600; color:var(--color-text-muted)">tasks</span></div>
+                <div style="font-size:10px; font-weight:600; color:var(--color-text-faint)">${holdTasks.length} on hold</div>
+              </div>
+              <div style="display:flex; height:6px; border-radius:4px; overflow:hidden; border:1px solid var(--color-border-faint)">
+                <div style="width:${wipPct}%; background:var(--amber); box-shadow:0 0 6px rgba(217,119,6,0.4)" title="In Progress: ${wipTasks.length}"></div>
+                <div style="width:${reviewPct}%; background:var(--color-primary)" title="Under Review: ${reviewTasks.length}"></div>
+                <div style="width:${holdPct}%; background:var(--color-text-faint)" title="On Hold: ${holdTasks.length}"></div>
+              </div>
+            </div>
 
-                    <div style="background:var(--color-surface-1); padding:12px; border-radius:10px; border:1px solid var(--color-border); transition:transform 0.2s ease, box-shadow 0.2s ease; cursor:default" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-sm)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='none'">
-                      <div style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:2px">Trajectory Forecast</div>
-                      <div style="font-size:16px; font-weight:900; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${forecastDateStr}</div>
-                      <div style="display:flex; align-items:center; gap:4px; margin-top:4px">
-                        <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:${forecastColor}"></span>
-                        <span style="font-size:9px; font-weight:700; color:var(--color-text-muted)">${forecastStatus}</span>
-                      </div>
-                    </div>
-                  `;
+            <!-- Card 4: Trajectory Forecast -->
+            <div style="background:linear-gradient(135deg, var(--color-surface-2) 0%, var(--color-surface-1) 100%); padding:14px 16px; border-radius:var(--radius-lg); border:1px solid var(--color-border); box-shadow:var(--shadow-xs); transition:all 0.25s ease; position:relative; overflow:hidden;" onmouseenter="this.style.transform='translateY(-3px)'; this.style.boxShadow='var(--shadow-md)'; this.style.borderColor='var(--color-primary-alpha)'" onmouseleave="this.style.transform='none'; this.style.boxShadow='var(--shadow-xs)'; this.style.borderColor='var(--color-border)'">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px">
+                <span style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; letter-spacing:0.5px">P50 Trajectory</span>
+                <i data-lucide="target" style="width:14px; height:14px; color:var(--color-primary); opacity:0.85"></i>
+              </div>
+              <div style="font-size:17px; font-weight:900; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:6px">${forecastDateStr}</div>
+              <div style="display:inline-flex; align-items:center; gap:5px; padding:2.5px 8px; border-radius:12px; background:${forecastBg}; border:1px solid ${forecastColor}44">
+                <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:${forecastColor}; box-shadow:0 0 6px ${forecastColor}"></span>
+                <span style="font-size:9.5px; font-weight:800; color:${forecastColor}">${forecastStatus}</span>
+              </div>
+            </div>
+          `;
 
-          // Right panel: Interactive Tabbed Panel for Analytics Overview
+          // Right panel: Premium Interactive Tabbed Visualization Hub
           const anVizPanel = document.createElement('div');
-          anVizPanel.style = "flex:1; min-width:300px; display:flex; flex-direction:column; background:var(--color-surface-1); border-radius:12px; border:1px solid var(--color-border); padding:16px; box-shadow:var(--shadow-sm); justify-content:space-between;";
+          anVizPanel.style = "flex:1.1; min-width:320px; display:flex; flex-direction:column; background:var(--color-surface-1); border-radius:var(--radius-lg); border:1px solid var(--color-border); padding:16px; box-shadow:var(--shadow-sm); justify-content:space-between;";
 
           const anTabsHeader = document.createElement('div');
-          anTabsHeader.style = "display: flex; gap: 8px; border-bottom: 1px solid var(--color-border-faint); padding-bottom: 8px; margin-bottom: 12px;";
+          anTabsHeader.style = "display: flex; gap: 6px; background:var(--color-surface-2); padding:4px; border-radius:var(--radius-md); border:1px solid var(--color-border-faint); margin-bottom: 14px;";
 
-          const anBtnVel = document.createElement('button');
-          anBtnVel.innerText = 'Velocity Bar';
-          anBtnVel.style = "background: var(--color-primary); color: white; border: none; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s; outline: none; border: 1px solid transparent;";
+          const createTabBtn = (label, iconName, isActive) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.innerHTML = `<i data-lucide="${iconName}" style="width:12px;height:12px;"></i> ${label}`;
+            btn.style = `flex:1; display:flex; align-items:center; justify-content:center; gap:6px; background:${isActive ? 'var(--color-surface-1)' : 'transparent'}; color:${isActive ? 'var(--color-primary)' : 'var(--color-text-muted)'}; border:none; padding:7px 10px; border-radius:var(--radius-sm); font-size:11px; font-weight:700; cursor:pointer; transition:all 0.2s cubic-bezier(0.4, 0, 0.2, 1); ${isActive ? 'box-shadow:var(--shadow-xs); border:1px solid var(--color-border)' : ''}`;
+            return btn;
+          };
 
-          const anBtnWip = document.createElement('button');
-          anBtnWip.innerText = 'Active WIP';
-          anBtnWip.style = "background: transparent; color: var(--color-text-muted); border: 1px solid var(--color-border); padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s; outline: none;";
-
-          const anBtnScenario = document.createElement('button');
-          anBtnScenario.innerText = 'Forecast Scenarios';
-          anBtnScenario.style = "background: transparent; color: var(--color-text-muted); border: 1px solid var(--color-border); padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s; outline: none;";
+          const anBtnVel = createTabBtn('Velocity Trend', 'bar-chart-2', true);
+          const anBtnWip = createTabBtn('WIP Flow', 'layers', false);
+          const anBtnScenario = createTabBtn('Scenarios', 'sliders', false);
 
           anTabsHeader.appendChild(anBtnVel);
           anTabsHeader.appendChild(anBtnWip);
@@ -33441,77 +33527,95 @@
             [anBtnVel, anBtnWip, anBtnScenario].forEach(b => {
               b.style.background = 'transparent';
               b.style.color = 'var(--color-text-muted)';
-              b.style.borderColor = 'var(--color-border)';
+              b.style.border = 'none';
+              b.style.boxShadow = 'none';
             });
             [anTabVel, anTabWip, anTabScenario].forEach(t => t.style.display = 'none');
-            activeBtn.style.background = 'var(--color-primary)';
-            activeBtn.style.color = 'white';
-            activeBtn.style.borderColor = 'transparent';
+            activeBtn.style.background = 'var(--color-surface-1)';
+            activeBtn.style.color = 'var(--color-primary)';
+            activeBtn.style.border = '1px solid var(--color-border)';
+            activeBtn.style.boxShadow = 'var(--shadow-xs)';
             showTab.style.display = 'block';
           };
           anBtnVel.onclick = () => setAnTabActive(anBtnVel, anTabVel);
           anBtnWip.onclick = () => setAnTabActive(anBtnWip, anTabWip);
           anBtnScenario.onclick = () => setAnTabActive(anBtnScenario, anTabScenario);
 
-          // 1. Weekly Velocity Bar chart content
+          // 1. Velocity Trend Bar Chart with Glow & Benchmark Line
           const lastVelocityPoints = velocity.slice(-6);
           const maxVVal = Math.max(...lastVelocityPoints, 1);
           let barsHtml = '';
           lastVelocityPoints.forEach((v, idx) => {
-            const barHeight = (v / maxVVal) * 60;
-            const x = 30 + idx * 38;
-            const y = 80 - barHeight;
+            const barHeight = (v / maxVVal) * 58;
+            const x = 32 + idx * 40;
+            const y = 82 - barHeight;
             barsHtml += `
-                      <rect x="${x}" y="${y}" width="16" height="${barHeight}" rx="3" fill="var(--color-primary)" opacity="0.85"/>
-                      <text x="${x + 8}" y="${y - 4}" font-size="7" fill="var(--color-text)" font-weight="700" text-anchor="middle">${v.toFixed(0)}d</text>
-                      <text x="${x + 8}" y="95" font-size="7" fill="var(--color-text-faint)" text-anchor="middle">Wk ${lastWeeks[lastWeeks.length - lastVelocityPoints.length + idx].w}</text>
-                    `;
+              <rect x="${x}" y="${y}" width="18" height="${barHeight}" rx="4" fill="url(#velBarGrad)" opacity="0.9" />
+              <text x="${x + 9}" y="${y - 5}" font-size="8.5" fill="var(--color-text)" font-weight="800" text-anchor="middle">${v.toFixed(0)}d</text>
+              <text x="${x + 9}" y="98" font-size="8" fill="var(--color-text-faint)" font-weight="600" text-anchor="middle">Wk ${lastWeeks[lastWeeks.length - lastVelocityPoints.length + idx].w}</text>
+            `;
           });
-          const trendPointsStr = lastVelocityPoints.map((v, idx) => `${30 + idx * 38 + 8},${80 - (v / maxVVal) * 60}`);
-          anTabVel.innerHTML = `
-                    <div style="font-size:12px; font-weight:700; color:var(--color-text); margin-bottom:8px">Work Velocity per Week (Trend)</div>
-                    <svg viewBox="0 0 280 110" style="width:100%; height:110px; overflow:visible;">
-                      <line x1="25" y1="80" x2="255" y2="80" stroke="var(--color-border)" stroke-width="1"/>
-                      <line x1="25" y1="40" x2="255" y2="40" stroke="var(--color-border-faint)" stroke-dasharray="2,2"/>
-                      ${barsHtml}
-                      <path d="M ${trendPointsStr.join(' L ')}" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                  `;
+          const trendPointsStr = lastVelocityPoints.map((v, idx) => `${32 + idx * 40 + 9},${82 - (v / maxVVal) * 58}`);
+          const avgY = 82 - (avgVel / maxVVal) * 58;
 
-          // 2. Active WIP list content
+          anTabVel.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+              <span style="font-size:11.5px; font-weight:700; color:var(--color-text)">Weekly Velocity Trend</span>
+              <span style="font-size:9.5px; font-weight:700; color:var(--green)">Avg Benchmark: ${avgVel.toFixed(1)}d</span>
+            </div>
+            <svg viewBox="0 0 280 115" style="width:100%; height:115px; overflow:visible;">
+              <defs>
+                <linearGradient id="velBarGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="var(--color-primary)" />
+                  <stop offset="100%" stop-color="var(--color-primary-highlight)" stop-opacity="0.4" />
+                </linearGradient>
+              </defs>
+              <!-- Horizontal baseline & benchmark -->
+              <line x1="20" y1="82" x2="265" y2="82" stroke="var(--color-border)" stroke-width="1"/>
+              <line x1="20" y1="${avgY}" x2="265" y2="${avgY}" stroke="var(--green)" stroke-dasharray="3,3" stroke-width="1.2" opacity="0.7"/>
+              ${barsHtml}
+              <path d="M ${trendPointsStr.join(' L ')}" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          `;
+
+          // 2. Active WIP Flow List
           const activeWips = tasks.filter(t => t.status === 'In Progress' || t.status === 'Under Review').slice(0, 3);
           let wipListHtml = '';
           if (activeWips.length === 0) {
             wipListHtml = `
-                      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:80px; color:var(--color-text-faint)">
-                        <div style="font-size:20px">📭</div>
-                        <div style="font-size:10px; margin-top:4px">No active In-Progress or Review tasks.</div>
-                      </div>
-                    `;
+              <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:90px; color:var(--color-text-faint)">
+                <i data-lucide="check-circle-2" style="width:22px; height:22px; color:var(--green); margin-bottom:4px"></i>
+                <div style="font-size:11px; font-weight:600">No bottlenecks — zero active WIP tasks</div>
+              </div>
+            `;
           } else {
             activeWips.forEach(t => {
               const color = t.status === 'In Progress' ? 'var(--amber)' : 'var(--color-primary)';
+              const bg = t.status === 'In Progress' ? 'rgba(234,88,12,0.1)' : 'rgba(99,102,241,0.1)';
               wipListHtml += `
-                        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--color-surface-2); padding:6px 10px; border-radius:6px; font-size:10px; border:1px solid var(--color-border-faint); margin-bottom:4px">
-                          <span style="font-weight:700; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px">${t.name || ('Task #' + t.id)}</span>
-                          <span style="background:${color}; color:white; font-size:8px; font-weight:bold; padding:2px 6px; border-radius:10px">${t.status}</span>
-                        </div>
-                      `;
+                <div style="display:flex; justify-content:space-between; align-items:center; background:var(--color-surface-2); padding:8px 12px; border-radius:var(--radius-md); font-size:11px; border:1px solid var(--color-border-faint); margin-bottom:6px">
+                  <div style="display:flex; align-items:center; gap:8px; overflow:hidden">
+                    <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:${color}"></span>
+                    <span style="font-weight:700; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px">${esc(t.name || ('Task #' + t.id))}</span>
+                  </div>
+                  <span style="background:${bg}; color:${color}; font-size:9px; font-weight:800; padding:2.5px 8px; border-radius:10px; border:1px solid ${color}33">${t.status}</span>
+                </div>
+              `;
             });
           }
           anTabWip.innerHTML = `
-                    <div style="font-size:12px; font-weight:700; color:var(--color-text); margin-bottom:8px">Current Work In Progress</div>
-                    <div style="display:flex; flex-direction:column">${wipListHtml}</div>
-                  `;
+            <div style="font-size:11.5px; font-weight:700; color:var(--color-text); margin-bottom:8px">Active Work In Progress</div>
+            <div style="display:flex; flex-direction:column">${wipListHtml}</div>
+          `;
 
-          // 3. Scenario Timeline content
+          // 3. Trajectory Forecast Scenarios
           let scenariosHtml = '';
           if (weeksToComplete === null || weeksToComplete === Infinity) {
             scenariosHtml = `
-                      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:80px; color:var(--color-text-faint)">
-                        <div style="font-size:10px">Not enough velocity data to run forecasting scenarios.</div>
-                      </div>
-                    `;
+              <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:90px; color:var(--color-text-faint)">
+                <div style="font-size:11px">Not enough velocity data for forecasting scenarios</div>
+              </div>
+            `;
           } else {
             const getScenarioDateStr = (ratio) => {
               const w = weeksToComplete / ratio;
@@ -33520,30 +33624,40 @@
               return fd.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
             };
             scenariosHtml = `
-                      <div style="display:flex; flex-direction:column; gap:6px">
-                        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--color-surface-2); padding:6px 10px; border-radius:6px; font-size:10px; border:1px solid var(--color-border-faint)">
-                          <span style="font-weight:700; color:var(--green)">Optimistic (150% Velocity)</span>
-                          <span style="font-weight:bold; color:var(--color-text)">${getScenarioDateStr(1.5)}</span>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--color-surface-2); padding:6px 10px; border-radius:6px; font-size:10px; border:1px solid var(--color-border-faint)">
-                          <span style="font-weight:700; color:var(--color-primary)">Expected (100% Velocity)</span>
-                          <span style="font-weight:bold; color:var(--color-text)">${getScenarioDateStr(1.0)}</span>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--color-surface-2); padding:6px 10px; border-radius:6px; font-size:10px; border:1px solid var(--color-border-faint)">
-                          <span style="font-weight:700; color:var(--red)">Pessimistic (50% Velocity)</span>
-                          <span style="font-weight:bold; color:var(--color-text)">${getScenarioDateStr(0.5)}</span>
-                        </div>
-                      </div>
-                    `;
+              <div style="display:flex; flex-direction:column; gap:6px">
+                <div style="display:flex; justify-content:space-between; align-items:center; background:linear-gradient(90deg, rgba(34,197,94,0.08) 0%, var(--color-surface-2) 100%); padding:8px 12px; border-radius:var(--radius-md); font-size:11px; border:1px solid rgba(34,197,94,0.25)">
+                  <div style="display:flex; align-items:center; gap:6px">
+                    <span style="color:var(--green); font-weight:800">⚡ Optimistic</span>
+                    <span style="font-size:9.5px; color:var(--color-text-muted); font-weight:600">(150% Velocity)</span>
+                  </div>
+                  <span style="font-weight:900; color:var(--color-text)">${getScenarioDateStr(1.5)}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; background:linear-gradient(90deg, rgba(99,102,241,0.08) 0%, var(--color-surface-2) 100%); padding:8px 12px; border-radius:var(--radius-md); font-size:11px; border:1px solid rgba(99,102,241,0.25)">
+                  <div style="display:flex; align-items:center; gap:6px">
+                    <span style="color:var(--color-primary); font-weight:800">🎯 Expected</span>
+                    <span style="font-size:9.5px; color:var(--color-text-muted); font-weight:600">(100% Velocity)</span>
+                  </div>
+                  <span style="font-weight:900; color:var(--color-text)">${getScenarioDateStr(1.0)}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; background:linear-gradient(90deg, rgba(220,38,38,0.08) 0%, var(--color-surface-2) 100%); padding:8px 12px; border-radius:var(--radius-md); font-size:11px; border:1px solid rgba(220,38,38,0.25)">
+                  <div style="display:flex; align-items:center; gap:6px">
+                    <span style="color:var(--red); font-weight:800">⚠️ Conservative</span>
+                    <span style="font-size:9.5px; color:var(--color-text-muted); font-weight:600">(50% Velocity)</span>
+                  </div>
+                  <span style="font-weight:900; color:var(--color-text)">${getScenarioDateStr(0.5)}</span>
+                </div>
+              </div>
+            `;
           }
           anTabScenario.innerHTML = `
-                    <div style="font-size:12px; font-weight:700; color:var(--color-text); margin-bottom:8px">Predictive Trajectory Forecasts</div>
-                    ${scenariosHtml}
-                  `;
+            <div style="font-size:11.5px; font-weight:700; color:var(--color-text); margin-bottom:8px">Forecast Scenarios & Pacing</div>
+            ${scenariosHtml}
+          `;
 
           summaryContent.appendChild(overviewGrid);
           summaryContent.appendChild(anVizPanel);
           anCard.querySelector('.cb').appendChild(summaryContent);
+          if (window.lucide) lucide.createIcons({ context: summaryContent });
         } else if (sec.id === 'evm_analytics') {
           addST(inner, 'Earned Value Management (EVM)');
           const grid = addGrid(inner);
