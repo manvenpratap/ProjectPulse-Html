@@ -11930,7 +11930,7 @@
               style="position:relative;flex:1;max-width:280px;margin-right:4px">
               <i data-lucide="search"
                 style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px;opacity:0.6"></i>
-              <input class="finp" id="global-search" placeholder="Search tasks, IDs, notes..."
+              <input class="finp" id="global-search" placeholder="Search tasks, subtasks, screens, IDs..."
                 oninput="P.search=this.value; if (P.view === 'tasks') renderTable(); else if (P.view === 'defects') { if (window.renderDefectsTable) window.renderDefectsTable(); } else render();"
                 style="padding-left:36px;height:32px;background:var(--color-surface-2);border:1px solid var(--color-border);font-size:12px;border-radius:var(--radius-md);width:100%;outline:none;transition:border-color 0.2s">
             </div>
@@ -18025,17 +18025,50 @@
     function getFiltered() {
       let t = [...P.tasks];
       if (P.search) {
-        const q = P.search.toLowerCase();
-        t = t.filter(x =>
-          x.name.toLowerCase().includes(q) ||
-          x.id.toLowerCase().includes(q) ||
-          (x.notes || '').toLowerCase().includes(q) ||
-          (x.assignee || '').toLowerCase().includes(q) ||
-          (x.feature || '').toLowerCase().includes(q) ||
-          (x.windowName || '').toLowerCase().includes(q) ||
-          (x.technicalWindowName || '').toLowerCase().includes(q) ||
-          (x.subtasks || []).some(s => s.name.toLowerCase().includes(q))
-        );
+        const q = P.search.toLowerCase().trim();
+        if (q) {
+          t = t.filter(x => {
+            // Task level fields
+            if ((x.name || '').toLowerCase().includes(q)) return true;
+            if ((x.id || '').toLowerCase().includes(q)) return true;
+            if ((x.notes || '').toLowerCase().includes(q)) return true;
+            if ((x.assignee || '').toLowerCase().includes(q)) return true;
+            if ((x.feature || '').toLowerCase().includes(q)) return true;
+            if ((x.module || '').toLowerCase().includes(q)) return true;
+            if ((x.moduleType || '').toLowerCase().includes(q)) return true;
+            if ((x.category || '').toLowerCase().includes(q)) return true;
+            if ((x.releaseVersion || x.release || '').toLowerCase().includes(q)) return true;
+
+            // Screen level fields (task window/screen properties & screen arrays)
+            if ((x.windowName || '').toLowerCase().includes(q)) return true;
+            if ((x.technicalWindowName || '').toLowerCase().includes(q)) return true;
+            if ((x.screenName || '').toLowerCase().includes(q)) return true;
+            if ((x.screen || '').toLowerCase().includes(q)) return true;
+            if ((x.guiScreen || '').toLowerCase().includes(q)) return true;
+            if (Array.isArray(x.guiScreens) && x.guiScreens.some(sc => String(sc || '').toLowerCase().includes(q))) return true;
+            if (Array.isArray(x.screens) && x.screens.some(sc => String(sc || '').toLowerCase().includes(q))) return true;
+            if (typeof x.screens === 'string' && x.screens.toLowerCase().includes(q)) return true;
+
+            // Sub-task level fields & subtask screens
+            if (Array.isArray(x.subtasks) && x.subtasks.some(s => {
+              if ((s.name || '').toLowerCase().includes(q)) return true;
+              if ((s.id || '').toLowerCase().includes(q)) return true;
+              if ((s.notes || '').toLowerCase().includes(q)) return true;
+              if ((s.assignee || '').toLowerCase().includes(q)) return true;
+              if ((s.status || '').toLowerCase().includes(q)) return true;
+              if ((s.category || '').toLowerCase().includes(q)) return true;
+              if ((s.screenName || '').toLowerCase().includes(q)) return true;
+              if ((s.type || '').toLowerCase().includes(q)) return true;
+              if (Array.isArray(s.workflow) && s.workflow.some(wf => {
+                if (typeof wf === 'string') return wf.toLowerCase().includes(q);
+                return (wf.name || wf.screen || wf.step || '').toLowerCase().includes(q);
+              })) return true;
+              return false;
+            })) return true;
+
+            return false;
+          });
+        }
       }
       if (P.displayLevel === 0) {
         const modMs = getModuleMilestones();
@@ -18697,7 +18730,20 @@
           const isMilestone = (task.startDate && task.startDate === task.dueDate) || moduleMilestones.has(task.id) || hasMilestoneSubtask;
           if (isOverdue) tr.classList.add('overdue');
           if (isMilestone) tr.classList.add('milestone-row');
-          const hasSubs = (task.subtasks || []).length > 0; const isExp = P.expanded.has(task.id);
+          const hasSubMatch = P.search && (task.subtasks || []).some(s => {
+            const q = P.search.toLowerCase().trim();
+            if (!q) return false;
+            return (s.name || '').toLowerCase().includes(q) ||
+                   (s.id || '').toLowerCase().includes(q) ||
+                   (s.notes || '').toLowerCase().includes(q) ||
+                   (s.assignee || '').toLowerCase().includes(q) ||
+                   (s.status || '').toLowerCase().includes(q) ||
+                   (s.category || '').toLowerCase().includes(q) ||
+                   (s.screenName || '').toLowerCase().includes(q) ||
+                   (s.type === 'screen' && (s.name || '').toLowerCase().includes(q)) ||
+                   (Array.isArray(s.workflow) && s.workflow.some(wf => (typeof wf === 'string' ? wf : wf.name || wf.screen || '').toLowerCase().includes(q)));
+          });
+          const hasSubs = (task.subtasks || []).length > 0; const isExp = P.expanded.has(task.id) || !!hasSubMatch;
           // Bulk
           let bTd = document.createElement('td'); bTd.style.textAlign = 'center'; bTd.innerHTML = `<input type="checkbox" class="bulk-cb" onchange="toggleBulkTask('${task.id}')" onclick="event.stopPropagation()">`; tr.appendChild(bTd);
           // Actions
