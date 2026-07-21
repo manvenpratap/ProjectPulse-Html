@@ -18098,7 +18098,27 @@
         P.tasks.forEach(task => taskByIdMap[task.id] = task);
         t = t.filter(x => x.status === 'On Hold' || x.status === 'Blocked' || isBlocked(x, taskByIdMap));
       }
-      if (P.colFilters) {
+    function getTaskScreenText(task) {
+      if (!task) return '';
+      let screens = [];
+      if (task.screenName) screens.push(task.screenName);
+      if (task.windowName) screens.push(task.windowName);
+      if (task.technicalWindowName) screens.push(task.technicalWindowName);
+      if (task.screen) screens.push(task.screen);
+      if (task.guiScreen) screens.push(task.guiScreen);
+      if (Array.isArray(task.guiScreens)) screens.push(...task.guiScreens);
+      if (Array.isArray(task.screens)) screens.push(...task.screens);
+      if (typeof task.screens === 'string') screens.push(task.screens);
+      if (Array.isArray(task.subtasks)) {
+        task.subtasks.forEach(st => {
+          if (st.name && (st.type === 'screen' || st.screenName)) screens.push(st.name);
+          if (st.screenName) screens.push(st.screenName);
+        });
+      }
+      return screens.filter(Boolean).join(' ');
+    }
+
+    if (P.colFilters) {
         Object.entries(P.colFilters).forEach(([k, v]) => {
           if (!v) return;
           const type = getFieldType(k);
@@ -18119,7 +18139,14 @@
             const q = v.trim().toLowerCase();
             const c = [...P.cols, ...P.customFields.map(cf => ({ ...cf, key: cf.name }))].find(col => col.key === k);
             const isExact = c && (c.type === 'select' || c.type === 'dropdown' || c.key === 'status' || c.key === 'priority' || c.key === 'assignee');
-            t = t.filter(x => { let val = x[k]; if (Array.isArray(val)) val = val.join(' '); if (isExact) return String(val || '').toLowerCase() === q; return String(val || '').toLowerCase().includes(q); });
+            t = t.filter(x => {
+              if (k === 'name') {
+                const nameStr = String(x.name || '').toLowerCase();
+                const screenStr = getTaskScreenText(x).toLowerCase();
+                return nameStr.includes(q) || screenStr.includes(q);
+              }
+              let val = x[k]; if (Array.isArray(val)) val = val.join(' '); if (isExact) return String(val || '').toLowerCase() === q; return String(val || '').toLowerCase().includes(q);
+            });
           }
         });
       }
@@ -18154,7 +18181,7 @@
       }
       return l;
     }
-    function getSorted(t) { const { col, dir } = P.sort; return [...t].sort((a, b) => { let va = a[col], vb = b[col]; if (['progress', 'estEffort', 'actEffort'].includes(col)) { va = parseFloat(va) || 0; vb = parseFloat(vb) || 0; } else if (col === 'priority') { va = PRIORITIES.indexOf(va); vb = PRIORITIES.indexOf(vb); } else if (col === 'status') { va = STATUSES.indexOf(va); vb = STATUSES.indexOf(vb); } else { va = String(va || '').toLowerCase(); vb = String(vb || '').toLowerCase(); } return (va < vb ? -1 : va > vb ? 1 : 0) * (dir === 'asc' ? 1 : -1); }); }
+    function getSorted(t) { const { col, dir } = P.sort; return [...t].sort((a, b) => { let va = a[col], vb = b[col]; if (['progress', 'estEffort', 'actEffort'].includes(col)) { va = parseFloat(va) || 0; vb = parseFloat(vb) || 0; } else if (col === 'priority') { va = PRIORITIES.indexOf(va); vb = PRIORITIES.indexOf(vb); } else if (col === 'status') { va = STATUSES.indexOf(va); vb = STATUSES.indexOf(vb); } else if (col === 'name') { va = (String(a.name || '') + ' ' + getTaskScreenText(a)).toLowerCase(); vb = (String(b.name || '') + ' ' + getTaskScreenText(b)).toLowerCase(); } else { va = String(va || '').toLowerCase(); vb = String(vb || '').toLowerCase(); } return (va < vb ? -1 : va > vb ? 1 : 0) * (dir === 'asc' ? 1 : -1); }); }
 
     // ══════ RENDER TABLE ══════
     function setTaskViewMode(m) {
@@ -18730,8 +18757,10 @@
           const isMilestone = (task.startDate && task.startDate === task.dueDate) || moduleMilestones.has(task.id) || hasMilestoneSubtask;
           if (isOverdue) tr.classList.add('overdue');
           if (isMilestone) tr.classList.add('milestone-row');
-          const hasSubMatch = P.search && (task.subtasks || []).some(s => {
-            const q = P.search.toLowerCase().trim();
+          const colNameQuery = (P.colFilters && P.colFilters.name ? P.colFilters.name : '').toLowerCase().trim();
+          const filterTerm = P.search || colNameQuery;
+          const hasSubMatch = filterTerm && (task.subtasks || []).some(s => {
+            const q = filterTerm.toLowerCase().trim();
             if (!q) return false;
             return (s.name || '').toLowerCase().includes(q) ||
                    (s.id || '').toLowerCase().includes(q) ||
