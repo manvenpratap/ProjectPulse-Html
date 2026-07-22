@@ -25294,10 +25294,8 @@
       });
 
       // Step 3: Synthesize feature names & auto-populate planned release
-      const activeRel = (P.releases || []).find(r => r.status === 'Active') || (P.releases && P.releases[0]);
-      const defaultRelName = activeRel ? activeRel.name : '';
-
       // Build a release ordering index: higher index = later/more recent planned release
+      // Only releases present in this map are considered deterministic for auto-population.
       const releaseOrderMap = new Map();
       (P.releases || []).forEach((r, i) => { if (r.name) releaseOrderMap.set(r.name, i); });
 
@@ -25318,17 +25316,16 @@
           const clusterModules = Array.from(c.modules);
           const parentModTasks = (P.tasks || []).filter(t => clusterModules.includes(t.module));
 
-          // Collect all release names referenced by these module tasks (releaseVersion preferred, then release)
+          // Only populate if a known release (present in P.releases) is found on a module task.
+          // Unrecognized strings and guessed defaults are intentionally excluded.
           let bestIdx = -1;
           parentModTasks.forEach(t => {
             const rv = (t.releaseVersion || t.release || '').trim();
-            if (!rv) return;
-            const ord = releaseOrderMap.has(rv) ? releaseOrderMap.get(rv) : -1;
+            if (!rv || !releaseOrderMap.has(rv)) return;          // must exist in P.releases
+            const ord = releaseOrderMap.get(rv);
             if (ord > bestIdx) { bestIdx = ord; plannedRelease = rv; }
           });
-
-          // If none of the module tasks had a recognized release, fall back to active/first release
-          if (!plannedRelease) plannedRelease = defaultRelName;
+          // plannedRelease stays '' when no deterministic data is available
         }
 
         // Default category: starred option from options library first, then keyword heuristic
