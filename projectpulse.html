@@ -12530,6 +12530,11 @@
           <table class="tbl" style="width:100%; min-width:1060px; border-collapse:collapse; font-size:13px">
             <thead>
               <tr style="border-bottom:1px solid var(--color-divider); text-align:left; background:var(--color-surface-2)">
+                <th style="padding:10px 12px; width:40px; text-align:center">
+                  <input type="checkbox" id="auto-feat-select-all" title="Select / deselect all"
+                    onchange="toggleAutoFeatAll(this.checked)"
+                    style="width:15px;height:15px;cursor:pointer;accent-color:var(--color-primary)">
+                </th>
                 <th style="padding:10px 12px; white-space:nowrap; min-width:180px">Proposed Feature Name</th>
                 <th style="padding:10px 12px; min-width:240px">Grouped Screens</th>
                 <th style="padding:10px 12px; white-space:nowrap; min-width:140px">Source Modules</th>
@@ -12544,8 +12549,9 @@
       <div class="tf-footer" style="padding:16px 20px; display:flex; align-items:center; gap:10px">
         <button class="btn outline" onclick="closeAutoFeatFlyout()">Cancel</button>
         <div style="flex:1"></div>
-        <button class="btn primary" onclick="window.applyAutoFeatures()" title="Merge auto-built features into existing matrix">
-          <i data-lucide="git-merge" style="margin-right:6px"></i> Merge Features into Matrix
+        <span id="auto-feat-sel-count" style="font-size:12px; color:var(--color-text-muted); white-space:nowrap"></span>
+        <button id="auto-feat-merge-btn" class="btn primary" onclick="window.applyAutoFeatures()" title="Merge selected features into existing matrix" disabled style="opacity:0.45;cursor:not-allowed">
+          <i data-lucide="git-merge" style="margin-right:6px"></i> Merge Selected
         </button>
       </div>
     </div>
@@ -25650,7 +25656,12 @@
       const tbody = $id('auto-feat-preview-tbody');
       if (tbody) {
         tbody.innerHTML = features.map((f, i) => `
-          <tr style="border-bottom:1px solid var(--color-divider)">
+          <tr style="border-bottom:1px solid var(--color-divider)" id="auto-feat-row-${i}">
+            <td style="padding:10px 12px; text-align:center; width:40px">
+              <input type="checkbox" class="auto-feat-cb" data-idx="${i}" checked
+                onchange="updateAutoFeatMergeBtn()"
+                style="width:15px;height:15px;cursor:pointer;accent-color:var(--color-primary)">
+            </td>
             <td style="padding:10px 12px; font-weight:600; min-width:160px">
               <input type="text" class="inp" value="${esc(f.name)}" onchange="P._pendingAutoFeatures[${i}].name = this.value" style="width:100%; min-width:140px; font-size:12px; font-weight:600">
             </td>
@@ -25678,6 +25689,11 @@
         `).join('');
       }
 
+      // Tick select-all and refresh merge button after rendering
+      const selAll = $id('auto-feat-select-all');
+      if (selAll) selAll.checked = true;
+      updateAutoFeatMergeBtn();
+
       flyout.classList.add('on');
       $id('flyout-overlay').classList.add('on');
       if (window.lucide) lucide.createIcons(flyout);
@@ -25690,14 +25706,53 @@
       if (overlay) overlay.classList.remove('on');
     };
 
+    // ── Checkbox helpers ──────────────────────────────────────────────────────
+
+    window.toggleAutoFeatAll = function(checked) {
+      document.querySelectorAll('.auto-feat-cb').forEach(cb => { cb.checked = checked; });
+      updateAutoFeatMergeBtn();
+    };
+
+    window.updateAutoFeatMergeBtn = function() {
+      const cbs    = document.querySelectorAll('.auto-feat-cb');
+      const total  = cbs.length;
+      const checked = Array.from(cbs).filter(cb => cb.checked).length;
+
+      // Update select-all indeterminate state
+      const selAll = $id('auto-feat-select-all');
+      if (selAll) {
+        selAll.checked       = checked === total && total > 0;
+        selAll.indeterminate = checked > 0 && checked < total;
+      }
+
+      // Update counter label
+      const label = $id('auto-feat-sel-count');
+      if (label) label.textContent = total ? `${checked} of ${total} selected` : '';
+
+      // Enable / disable merge button
+      const btn = $id('auto-feat-merge-btn');
+      if (btn) {
+        btn.disabled = checked === 0;
+        btn.style.opacity  = checked === 0 ? '0.45' : '1';
+        btn.style.cursor   = checked === 0 ? 'not-allowed' : 'pointer';
+      }
+    };
+
     window.applyAutoFeatures = function() {
       if (!P._pendingAutoFeatures || !P._pendingAutoFeatures.length) return;
       if (!P.features) P.features = [];
 
+      // Only merge features whose checkbox is checked
+      const checkedIdxs = new Set(
+        Array.from(document.querySelectorAll('.auto-feat-cb:checked')).map(cb => parseInt(cb.dataset.idx))
+      );
+      const toMerge = P._pendingAutoFeatures.filter((_, i) => checkedIdxs.has(i));
+      if (!toMerge.length) { notify('No features selected — tick at least one checkbox to merge.', 'amber'); return; }
+
       let mergedCount = 0;
       let newCount = 0;
 
-      P._pendingAutoFeatures.forEach(af => {
+      toMerge.forEach(af => {
         // Find existing feature by exact name match or case-insensitive match
         const existing = P.features.find(ef => ef.name && ef.name.trim().toLowerCase() === af.name.trim().toLowerCase());
         
@@ -25725,7 +25780,7 @@
 
       window.closeAutoFeatFlyout();
       if (P.view === 'features' || (P.view === 'admin' && P._adminActiveTab === 'features')) renderFeatureHub();
-      notify(`Merged auto-built features into matrix (${newCount} new added, ${mergedCount} existing updated)`, 'success');
+      notify(`Merged ${toMerge.length} feature(s) into matrix (${newCount} new, ${mergedCount} updated)`, 'success');
       save();
     };
 
