@@ -21023,15 +21023,17 @@
 
     // ══════ TEAM ══════
     function getTeamNames() { return P.members.length ? P.members.filter(m => m.status === 'Active').map(m => m.name) : []; }
-    function openAddMember(editId) {
-      if (P.readonly) { notify('Action disabled in View-Only mode', 'amber'); return; }
+    function openAddMember(editId, isReadOnly = false) {
+      const readonlyMode = Boolean(isReadOnly || P.readonly);
+      if (P.readonly && !isReadOnly && !editId) { notify('Action disabled in View-Only mode', 'amber'); return; }
       P._editingMemberId = editId || null; const m = editId ? P.members.find(x => String(x.id) === String(editId)) : null;
-      $id('member-flyout-title').textContent = m ? 'Edit Team Member' : 'Add Team Member';
+      $id('member-flyout-title').textContent = m ? (readonlyMode ? 'Team Member Profile (View-Only)' : 'Edit Team Member') : 'Add Team Member';
       const f = $id('member-fields'); f.innerHTML = '';
+      const disAttr = readonlyMode ? 'disabled' : '';
       [{ k: 'name', l: 'Full Name', type: 'text' }, { k: 'phone', l: 'Phone', type: 'text' }, { k: 'birthday', l: 'Birthday (Day Month)', type: 'text', ph: 'e.g. 15 Mar' }, { k: 'role', l: 'Role', type: 'select', opts: ROLES }, { k: 'reportsTo', l: 'Reports To', type: 'select', opts: ['', ...P.members.filter(x => x.id !== editId).map(x => x.name)] }, { k: 'email', l: 'Email', type: 'text' }, { k: 'status', l: 'Status', type: 'select', opts: MEMBER_STATUSES }, { k: 'skills', l: 'Skills (comma-separated)', type: 'text', ph: 'e.g. JavaScript, CSS, Python' }].forEach(col => {
         const val = m ? (col.k === 'skills' ? (Array.isArray(m[col.k]) ? m[col.k].join(', ') : m[col.k] || '') : m[col.k] || '') : ''; const wrap = document.createElement('div'); wrap.className = 'fg';
-        let inp; if (col.type === 'select') inp = `<select class="fsel" id="mf_${col.k}"><option value="">Select…</option>${col.opts.map(o => `<option value="${esc(o)}" ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
-        else inp = `<input type="text" class="finp" id="mf_${col.k}" value="${esc(val)}" placeholder="${col.ph || col.l}">`;
+        let inp; if (col.type === 'select') inp = `<select class="fsel" id="mf_${col.k}" ${disAttr}><option value="">Select…</option>${col.opts.map(o => `<option value="${esc(o)}" ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+        else inp = `<input type="text" class="finp" id="mf_${col.k}" value="${esc(val)}" placeholder="${col.ph || col.l}" ${disAttr}>`;
         wrap.innerHTML = `<label class="flbl">${col.l}</label>${inp}`; f.appendChild(wrap);
       });
       // Planned Leaves section
@@ -21041,16 +21043,32 @@
       if (!Array.isArray(existingLeaves)) existingLeaves = [];
       plDiv.innerHTML = `<label class="flbl">Planned Leaves</label>
         <div id="mf-leaves-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
-          ${existingLeaves.map((lv, i) => `<div style="display:flex;gap:6px;align-items:center; background:var(--color-surface-2); padding:8px; border-radius:8px; border:1px solid var(--color-divider)">
-            <input type="date" class="finp mf-leave-from" value="${lv.from || ''}" max="9999-12-31" style="flex:1; height:32px; font-size:11px">
+          ${existingLeaves.length ? existingLeaves.map((lv, i) => `<div style="display:flex;gap:6px;align-items:center; background:var(--color-surface-2); padding:8px; border-radius:8px; border:1px solid var(--color-divider)">
+            <input type="date" class="finp mf-leave-from" value="${lv.from || ''}" max="9999-12-31" style="flex:1; height:32px; font-size:11px" ${disAttr}>
             <span style="font-size:10px;color:var(--color-text-muted)">to</span>
-            <input type="date" class="finp mf-leave-to" value="${lv.to || ''}" max="9999-12-31" style="flex:1; height:32px; font-size:11px">
-            <input type="text" class="finp mf-leave-reason" value="${esc(lv.reason || '')}" placeholder="Reason" style="flex:1.5; height:32px; font-size:11px">
-            <button class="btn ghost mini danger" onclick="this.parentElement.remove()" title="Remove this leave entry"><i data-lucide="x"></i></button>
-          </div>`).join('')}
+            <input type="date" class="finp mf-leave-to" value="${lv.to || ''}" max="9999-12-31" style="flex:1; height:32px; font-size:11px" ${disAttr}>
+            <input type="text" class="finp mf-leave-reason" value="${esc(lv.reason || '')}" placeholder="Reason" style="flex:1.5; height:32px; font-size:11px" ${disAttr}>
+            ${!readonlyMode ? `<button class="btn ghost mini danger" onclick="this.parentElement.remove()" title="Remove this leave entry"><i data-lucide="x"></i></button>` : ''}
+          </div>`).join('') : '<div style="font-size:11px;color:var(--color-text-muted)">No planned leaves</div>'}
         </div>
-        <button class="btn ghost" style="font-size:11px;height:32px; width:100%; border:1px dashed var(--color-divider)" onclick="addLeaveRow()" title="Add another leave period">+ Add Leave Entry</button>`;
+        ${!readonlyMode ? `<button class="btn ghost" style="font-size:11px;height:32px; width:100%; border:1px dashed var(--color-divider)" onclick="addLeaveRow()" title="Add another leave period">+ Add Leave Entry</button>` : ''}`;
       f.appendChild(plDiv);
+
+      const flyout = $id('member-flyout');
+      if (flyout) {
+        const footerBtns = flyout.querySelectorAll('.tf-body + div button');
+        if (footerBtns.length >= 2) {
+          if (readonlyMode) {
+            footerBtns[0].textContent = 'Close';
+            footerBtns[1].style.display = 'none';
+          } else {
+            footerBtns[0].textContent = 'Cancel';
+            footerBtns[1].style.display = '';
+            footerBtns[1].textContent = 'Save Member';
+          }
+        }
+      }
+
       $id('member-flyout').classList.add('on');
       $id('flyout-overlay').classList.add('on');
     }
@@ -59084,7 +59102,16 @@ Earned Value Management measures project performance and progress by comparing p
                   let theta = Math.atan2(my, mx);
                   if (theta < 0) theta += 2 * Math.PI;
                   if (theta >= n.startAngle && theta <= n.endAngle) {
-                    openAddMember(n.id);
+                    const hasReportees = n.children.length > 0 || P.members.some(m => m.reportsTo === n.name);
+                    const sid = String(n.id);
+                    if (hasReportees) {
+                      if (P.collapsedNodes.has(sid)) {
+                        P.collapsedNodes.delete(sid);
+                      }
+                      renderCanvas();
+                    } else {
+                      openAddMember(n.id, true);
+                    }
                     return;
                   }
                 }
@@ -59099,14 +59126,38 @@ Earned Value Management measures project performance and progress by comparing p
                     return;
                   }
                 }
-                // Card hit
+
+                // Member Icon / Avatar hit (circle centered at px + 20, py + 22)
+                const avatarX = px + 20;
+                const avatarY = py + 22;
+                if (Math.hypot(mx - avatarX, my - avatarY) <= 16) {
+                  openAddMember(n.id, true);
+                  return;
+                }
+
+                // Node Card hit
                 if (mx >= px && mx <= px + n.nodeW && my >= py && my <= py + n.nodeH) {
-                  if (P._org.mode === 'neighborhood' && n.id !== P._org.focusId) {
-                    P._org.focusId = n.id;
-                    P._org.isCentered = false;
+                  const hasReportees = n.children.length > 0 || P.members.some(m => m.reportsTo === n.name);
+                  const sid = String(n.id);
+                  if (hasReportees) {
+                    // Uncollapse if branch is collapsed
+                    if (P.collapsedNodes.has(sid)) {
+                      P.collapsedNodes.delete(sid);
+                    }
+                    // Focus on node to reveal reportees below it
+                    if (P._org.mode === 'neighborhood') {
+                      P._org.focusId = n.id;
+                      P._org.isCentered = false;
+                    }
                     renderCanvas();
                   } else {
-                    openAddMember(n.id);
+                    if (P._org.mode === 'neighborhood' && n.id !== P._org.focusId) {
+                      P._org.focusId = n.id;
+                      P._org.isCentered = false;
+                      renderCanvas();
+                    } else {
+                      openAddMember(n.id, true);
+                    }
                   }
                   return;
                 }
