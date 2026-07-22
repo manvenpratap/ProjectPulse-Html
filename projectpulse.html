@@ -58689,57 +58689,57 @@ Earned Value Management measures project performance and progress by comparing p
               ctx.restore();
             }
 
-            // Department classification
-            const getDepartment = (node) => {
+            // Distinct color palettes pool for team sub-groups
+            const SUBGROUP_PALETTES = [
+              { banner: '#2563eb', bg: '#eff6ff', border: '#93c5fd', text: '#ffffff' }, // Royal Blue
+              { banner: '#7c3aed', bg: '#f5f3ff', border: '#c4b5fd', text: '#ffffff' }, // Deep Purple
+              { banner: '#059669', bg: '#ecfdf5', border: '#6ee7b7', text: '#ffffff' }, // Emerald Green
+              { banner: '#ea580c', bg: '#fff7ed', border: '#fdba74', text: '#ffffff' }, // Bright Orange
+              { banner: '#db2777', bg: '#fdf2f8', border: '#f9a8d4', text: '#ffffff' }, // Hot Pink
+              { banner: '#0891b2', bg: '#ecfeff', border: '#67e8f9', text: '#ffffff' }, // Cyan / Teal
+              { banner: '#d97706', bg: '#fffbeb', border: '#fcd34d', text: '#ffffff' }, // Amber / Gold
+              { banner: '#4f46e5', bg: '#eef2ff', border: '#a5b4fc', text: '#ffffff' }, // Indigo
+              { banner: '#dc2626', bg: '#fef2f2', border: '#fca5a5', text: '#ffffff' }, // Crimson
+              { banner: '#65a30d', bg: '#f7fee7', border: '#bef264', text: '#ffffff' }, // Lime Green
+              { banner: '#9333ea', bg: '#faf5ff', border: '#d8b4fe', text: '#ffffff' }, // Violet
+              { banner: '#0284c7', bg: '#f0f9ff', border: '#7dd3fc', text: '#ffffff' }  // Sky Blue
+            ];
+            const ROOT_PALETTE = { banner: '#831843', bg: '#fdf2f8', border: '#fbcfe8', text: '#ffffff' }; // Executive Plum
+
+            // Map each manager to a distinct sub-group color palette index
+            const managerMap = new Map();
+            let managerCount = 0;
+            P.members.forEach(m => {
+              if (m.reportsTo && m.reportsTo.trim()) {
+                const mgrKey = m.reportsTo.trim().toLowerCase();
+                if (!managerMap.has(mgrKey)) {
+                  managerMap.set(mgrKey, managerCount % SUBGROUP_PALETTES.length);
+                  managerCount++;
+                }
+              }
+            });
+
+            const getSubgroupInfo = (node) => {
               const m = node.m;
-              const name = (node.name || '').toLowerCase();
-              const role = (node.role || '').toLowerCase();
-              const mgr = (m && m.reportsTo ? m.reportsTo : '').toLowerCase();
-
-              const classify = (strRole, strName, strMgr) => {
-                if (strRole.includes('customer') || strRole.includes('support') || strMgr.includes('kay') || strMgr.includes('customer')) return 'Customer';
-                if (strRole.includes('technology') || strRole.includes('tech') || strRole.includes('engineer') || strRole.includes('developer') || strRole.includes('product') || strRole.includes('design') || strMgr.includes('andrea') || strMgr.includes('tech')) return 'Engineering';
-                if (strRole.includes('marketing') || strRole.includes('mktg') || strRole.includes('mkt') || strMgr.includes('kelly') || strMgr.includes('marketing')) return 'Marketing';
-                if (strRole.includes('operating') || strRole.includes('operation') || strRole.includes('ops') || strMgr.includes('stephanie') || strMgr.includes('ops')) return 'Operations';
-                if (strRole.includes('people') || strRole.includes('hr') || strRole.includes('talent') || strRole.includes('recruiting') || strMgr.includes('joelle') || strMgr.includes('people')) return 'People';
-                if (strRole.includes('financial') || strRole.includes('finance') || strRole.includes('revenue') || strRole.includes('sales') || strMgr.includes('barry') || strMgr.includes('revenue') || strMgr.includes('finance')) return 'Revenue';
-                return null;
+              const reportsTo = m ? m.reportsTo : (node.parent ? node.parent.name : null);
+              if (!reportsTo || !reportsTo.trim()) {
+                return {
+                  deptLabel: 'EXECUTIVE',
+                  style: ROOT_PALETTE
+                };
+              }
+              const mgrKey = reportsTo.trim().toLowerCase();
+              const mgrIndex = managerMap.has(mgrKey) ? managerMap.get(mgrKey) : 0;
+              const mgrFirstName = reportsTo.trim().split(' ')[0].toUpperCase();
+              return {
+                deptLabel: `TEAM ${mgrFirstName}`,
+                style: SUBGROUP_PALETTES[mgrIndex]
               };
-
-              let dept = classify('', '', mgr);
-              if (dept) return dept;
-
-              dept = classify(role, name, '');
-              if (dept) return dept;
-
-              if (!m || !m.reportsTo) {
-                if (role.includes('executive') || role.includes('ceo') || role.includes('president') || role.includes('chief executive')) return 'Executive';
-              }
-
-              if (m && m.reportsTo) {
-                return m.reportsTo.split(' ')[0];
-              }
-              return 'Team';
-            };
-
-            const DEPT_COLORS = {
-              'Executive': { banner: '#9d174d', bg: '#fdf2f8', text: '#fff' }, // Rose/Plum
-              'Customer': { banner: '#d97706', bg: '#fffbeb', text: '#fff' }, // Amber
-              'Engineering': { banner: '#2563eb', bg: '#eff6ff', text: '#fff' }, // Blue
-              'Marketing': { banner: '#ea580c', bg: '#fff5f1', text: '#fff' }, // Orange-red
-              'Operations': { banner: '#dc2626', bg: '#fef2f2', text: '#fff' }, // Crimson
-              'People': { banner: '#4f46e5', bg: '#f5f3ff', text: '#fff' }, // Indigo
-              'Revenue': { banner: '#16a34a', bg: '#f0fdf4', text: '#fff' }  // Green
-            };
-
-            const getDeptStyle = (deptName) => {
-              return DEPT_COLORS[deptName] || { banner: '#4b5563', bg: '#f9fafb', text: '#fff' }; // Default gray
             };
 
             // Draw Cards / Wedges
             const drawNodes = (n) => {
-              const dept = getDepartment(n);
-              const style = getDeptStyle(dept);
+              const { deptLabel, style } = getSubgroupInfo(n);
 
               if (P._org.mode === 'radial') {
                 // Sunburst wedge rendering
@@ -58934,13 +58934,13 @@ Earned Value Management measures project performance and progress by comparing p
                 ctx.fillText(initials, px + 20, py + 22);
                 ctx.restore();
 
-                // Department text centered in bottom banner
+                // Sub-group / Department text centered in bottom banner
                 ctx.save();
                 ctx.fillStyle = '#ffffff';
                 ctx.font = 'bold 7px var(--font-body), sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(dept.toUpperCase(), px + n.nodeW / 2, py + n.nodeH - 10);
+                ctx.fillText(deptLabel, px + n.nodeW / 2, py + n.nodeH - 10);
                 ctx.restore();
 
                 // +X reports indicator in neighborhood mode (pill badge in top-right corner)
