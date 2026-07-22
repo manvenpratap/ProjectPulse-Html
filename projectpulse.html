@@ -12504,6 +12504,50 @@
       </div>
     </div>
 
+    <!-- Auto-Build Feature Matrix Modal -->
+    <div mbg id="auto-feat-matrix-modal" class="mbg">
+      <div class="modal wide" style="max-width:920px; width:92vw">
+        <div class="mtit">
+          <span style="display:flex; align-items:center; gap:8px">
+            <i data-lucide="wand2" style="color:var(--color-primary); width:20px; height:20px"></i>
+            Auto-Build Feature Matrix
+          </span>
+          <span class="mcl" onclick="closeModal('auto-feat-matrix-modal')">×</span>
+        </div>
+        <div style="padding:0 24px 20px">
+          <p style="font-size:13px; color:var(--color-text-muted); margin-bottom:16px; line-height:1.5">
+            Screens were analyzed for name similarity, token stems, and module associations. Grouped features and planned releases have been automatically mapped based on module schedules.
+          </p>
+          <div id="auto-feat-stats-banner" style="display:flex; align-items:center; gap:16px; padding:12px 16px; background:var(--color-surface-2); border-radius:10px; border:1px solid var(--color-divider); margin-bottom:16px"></div>
+          
+          <div style="max-height:420px; overflow-y:auto; border:1px solid var(--color-divider); border-radius:12px; background:var(--color-bg)">
+            <table class="tbl" style="width:100%; border-collapse:collapse; font-size:13px">
+              <thead>
+                <tr style="border-bottom:1px solid var(--color-divider); text-align:left; background:var(--color-surface-2)">
+                  <th style="padding:10px 12px">Proposed Feature Name</th>
+                  <th style="padding:10px 12px">Grouped Screens</th>
+                  <th style="padding:10px 12px">Source Modules</th>
+                  <th style="padding:10px 12px">Planned Release</th>
+                  <th style="padding:10px 12px">Category</th>
+                </tr>
+              </thead>
+              <tbody id="auto-feat-preview-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="mact" style="display:flex; align-items:center; gap:10px; padding:16px 24px; border-top:1px solid var(--color-divider)">
+          <button class="btn outline" onclick="closeModal('auto-feat-matrix-modal')">Cancel</button>
+          <div style="flex:1"></div>
+          <button class="btn secondary" onclick="window.applyAutoFeatures('merge')" title="Merge auto-built features into existing matrix">
+            <i data-lucide="git-merge" style="margin-right:6px"></i> Merge with Existing
+          </button>
+          <button class="btn primary" onclick="window.applyAutoFeatures('replace')" title="Replace entire feature matrix with auto-built features">
+            <i data-lucide="sparkles" style="margin-right:6px"></i> Replace Matrix & Apply
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- RAID FLYOUT -->
     <div id="raid-flyout" class="view-flyout" style="width:600px; z-index:11000">
       <div class="fly-header">
@@ -25139,6 +25183,259 @@
         notify('Feature removed');
       }
     }
+
+    // Automatic Feature Matrix Builder Algorithm
+    window.autoBuildFeatureMatrix = function() {
+      const dashCache = buildDashCache(P.tasks, P.log);
+      const screenByName = dashCache.screenByName || {};
+
+      // If no screens found via dashCache, try scanning P.tasks subtasks/guiScreens directly
+      if (!Object.keys(screenByName).length && P.tasks && P.tasks.length) {
+        P.tasks.forEach(t => {
+          if (t.subtasks) {
+            t.subtasks.forEach(st => {
+              if (st.name) {
+                if (!screenByName[st.name]) screenByName[st.name] = { name: st.name, parentTasks: [t], module: t.module || 'General' };
+              }
+            });
+          }
+          if (t.guiScreens && Array.isArray(t.guiScreens)) {
+            t.guiScreens.forEach(s => {
+              if (s) {
+                if (!screenByName[s]) screenByName[s] = { name: s, parentTasks: [t], module: t.module || 'General' };
+              }
+            });
+          }
+        });
+      }
+
+      const screens = Object.keys(screenByName);
+      if (!screens.length) {
+        notify('No screens found in tasks or subtasks to build feature matrix', 'warn');
+        return;
+      }
+
+      // Step 1: Normalize & tokenise screen names
+      const stopWords = new Set(['screen', 'view', 'page', 'modal', 'form', 'ui', 'tab', 'component', 'dialog', 'popup', 'panel', 'widget', 'list', 'details', 'overview', 'manage', 'management', 'settings', 'setting', 'edit', 'create', 'add', 'new', 'v1', 'v2', 'the', 'a', 'and', 'for', 'to', 'module']);
+
+      const getStemTokens = (name) => {
+        return name.toLowerCase()
+          .replace(/[^a-z0-9\s]/g, ' ')
+          .split(/\s+/)
+          .filter(t => t.length > 1 && !stopWords.has(t));
+      };
+
+      // Step 2: Cluster screens by name similarity & module affinity
+      const clusters = []; // { tokens, screens: [], modules: Set, primaryModule: string, releases: Map }
+
+      screens.forEach(scName => {
+        const scObj = screenByName[scName];
+        const parentTasks = scObj.parentTasks || [];
+        const scTokens = getStemTokens(scName);
+        
+        let bestCluster = null;
+        let maxOverlap = 0;
+
+        clusters.forEach(c => {
+          let overlap = 0;
+          c.tokens.forEach(t => {
+            if (scTokens.includes(t)) overlap++;
+          });
+          if (overlap > maxOverlap) {
+            maxOverlap = overlap;
+            bestCluster = c;
+          }
+        });
+
+        if (bestCluster && maxOverlap >= 1) {
+          bestCluster.screens.push(scName);
+          scTokens.forEach(t => bestCluster.tokens.add(t));
+          parentTasks.forEach(pt => {
+            if (pt.module) bestCluster.modules.add(pt.module);
+            if (pt.release) {
+              const cnt = bestCluster.releases.get(pt.release) || 0;
+              bestCluster.releases.set(pt.release, cnt + 1);
+            }
+          });
+        } else {
+          const scModules = parentTasks.map(pt => pt.module || 'General');
+          const primaryMod = scModules[0] || 'General';
+          
+          let modCluster = clusters.find(c => c.primaryModule === primaryMod && Array.from(c.tokens).some(t => scTokens.includes(t)));
+          if (modCluster) {
+            modCluster.screens.push(scName);
+            scTokens.forEach(t => modCluster.tokens.add(t));
+            parentTasks.forEach(pt => {
+              if (pt.module) modCluster.modules.add(pt.module);
+              if (pt.release) {
+                const cnt = modCluster.releases.get(pt.release) || 0;
+                modCluster.releases.set(pt.release, cnt + 1);
+              }
+            });
+          } else {
+            const newCluster = {
+              tokens: new Set(scTokens),
+              screens: [scName],
+              modules: new Set(parentTasks.map(pt => pt.module || 'General')),
+              primaryModule: primaryMod,
+              releases: new Map()
+            };
+            parentTasks.forEach(pt => {
+              if (pt.release) {
+                const cnt = newCluster.releases.get(pt.release) || 0;
+                newCluster.releases.set(pt.release, cnt + 1);
+              }
+            });
+            clusters.push(newCluster);
+          }
+        }
+      });
+
+      // Step 3: Synthesize feature names & auto-populate planned release
+      const activeRel = (P.releases || []).find(r => r.status === 'Active') || (P.releases && P.releases[0]);
+      const defaultRelName = activeRel ? activeRel.name : '';
+
+      const generatedFeatures = clusters.map((c, idx) => {
+        const tokenList = Array.from(c.tokens);
+        let featName = '';
+        if (tokenList.length > 0) {
+          featName = tokenList.slice(0, 3).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        } else {
+          featName = `${c.primaryModule || 'General'} Feature ${idx + 1}`;
+        }
+        featName = featName.replace(/\b\w/g, l => l.toUpperCase());
+
+        // Determine Planned Release based on module & parent task schedules
+        let plannedRelease = '';
+        if (c.releases.size > 0) {
+          let maxCount = -1;
+          for (let [rel, cnt] of c.releases.entries()) {
+            if (cnt > maxCount) {
+              maxCount = cnt;
+              plannedRelease = rel;
+            }
+          }
+        }
+        if (!plannedRelease) {
+          const modTasks = (P.tasks || []).filter(t => Array.from(c.modules).includes(t.module));
+          const modReleases = modTasks.map(t => t.release).filter(Boolean);
+          if (modReleases.length > 0) plannedRelease = modReleases[0];
+          else plannedRelease = defaultRelName;
+        }
+
+        let category = 'Core';
+        const nameLower = featName.toLowerCase();
+        if (nameLower.includes('auth') || nameLower.includes('login') || nameLower.includes('security')) category = 'Security';
+        else if (nameLower.includes('dash') || nameLower.includes('report') || nameLower.includes('analytic')) category = 'Analytics';
+        else if (nameLower.includes('setting') || nameLower.includes('admin') || nameLower.includes('config')) category = 'Admin';
+        else if (nameLower.includes('task') || nameLower.includes('project') || nameLower.includes('work')) category = 'Operations';
+
+        return {
+          name: featName,
+          desc: `Auto-grouped feature containing ${c.screens.length} screen(s) from ${Array.from(c.modules).join(', ')} module(s).`,
+          release: plannedRelease,
+          category: category,
+          screens: c.screens,
+          modules: Array.from(c.modules)
+        };
+      });
+
+      P._pendingAutoFeatures = generatedFeatures;
+      window.openAutoFeatureMatrixModal(generatedFeatures, screens.length);
+    };
+
+    window.openAutoFeatureMatrixModal = function(features, totalScreensCount) {
+      const modal = $id('auto-feat-matrix-modal');
+      if (!modal) return;
+
+      const banner = $id('auto-feat-stats-banner');
+      if (banner) {
+        const uniqueMods = new Set();
+        features.forEach(f => (f.modules || []).forEach(m => uniqueMods.add(m)));
+        banner.innerHTML = `
+          <div style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600; color:var(--color-primary)">
+            <i data-lucide="sparkles" style="width:16px; height:16px"></i>
+            <span>${features.length} Features Auto-Identified</span>
+          </div>
+          <div style="color:var(--color-divider)">|</div>
+          <div style="font-size:13px; color:var(--color-text-muted)">${totalScreensCount} Screens Grouped</div>
+          <div style="color:var(--color-divider)">|</div>
+          <div style="font-size:13px; color:var(--color-text-muted)">${uniqueMods.size} Source Modules</div>
+        `;
+      }
+
+      const tbody = $id('auto-feat-preview-tbody');
+      if (tbody) {
+        tbody.innerHTML = features.map((f, i) => `
+          <tr style="border-bottom:1px solid var(--color-divider)">
+            <td style="padding:10px 12px; font-weight:600; min-width:180px">
+              <input type="text" class="inp" value="${esc(f.name)}" onchange="P._pendingAutoFeatures[${i}].name = this.value" style="width:100%; font-size:12px; font-weight:600">
+            </td>
+            <td style="padding:10px 12px; max-width:260px">
+              <div style="display:flex; flex-wrap:wrap; gap:4px">
+                ${f.screens.map(s => `<span class="chip" style="font-size:10.5px; padding:2px 6px; background:var(--color-surface-2); border:1px solid var(--color-divider)">${esc(s)}</span>`).join('')}
+              </div>
+            </td>
+            <td style="padding:10px 12px">
+              <span style="font-size:11px; font-weight:600; color:var(--color-text-muted)">${esc((f.modules || []).join(', ') || 'General')}</span>
+            </td>
+            <td style="padding:10px 12px">
+              <select class="inp" onchange="P._pendingAutoFeatures[${i}].release = this.value" style="font-size:12px; padding:4px 8px">
+                <option value="">-- No Release --</option>
+                ${(P.releases || []).map(r => `<option value="${r.name}" ${r.name === f.release ? 'selected' : ''}>${r.name}</option>`).join('')}
+              </select>
+            </td>
+            <td style="padding:10px 12px">
+              <select class="inp" onchange="P._pendingAutoFeatures[${i}].category = this.value" style="font-size:12px; padding:4px 8px">
+                <option value="">-- No Category --</option>
+                ${(P.dropdowns.featureCategory || ['Core', 'Security', 'Analytics', 'Admin', 'Operations']).map(c => `<option value="${c}" ${c === f.category ? 'selected' : ''}>${c}</option>`).join('')}
+              </select>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      openModal('auto-feat-matrix-modal');
+      if (window.lucide) lucide.createIcons(modal);
+    };
+
+    window.applyAutoFeatures = function(mode) {
+      if (!P._pendingAutoFeatures || !P._pendingAutoFeatures.length) return;
+
+      if (mode === 'replace') {
+        P.features = P._pendingAutoFeatures.map(f => ({
+          name: f.name,
+          desc: f.desc,
+          release: f.release,
+          category: f.category,
+          screens: f.screens
+        }));
+      } else {
+        P._pendingAutoFeatures.forEach(af => {
+          const existing = P.features.find(ef => ef.name.toLowerCase() === af.name.toLowerCase());
+          if (existing) {
+            existing.release = af.release || existing.release;
+            existing.category = af.category || existing.category;
+            const screenSet = new Set(existing.screens || []);
+            af.screens.forEach(s => screenSet.add(s));
+            existing.screens = Array.from(screenSet);
+          } else {
+            P.features.push({
+              name: af.name,
+              desc: af.desc,
+              release: af.release,
+              category: af.category,
+              screens: af.screens
+            });
+          }
+        });
+      }
+
+      closeModal('auto-feat-matrix-modal');
+      if (P.view === 'features' || (P.view === 'admin' && P._adminActiveTab === 'features')) renderFeatureHub();
+      notify(`Successfully ${mode === 'replace' ? 'built' : 'merged'} ${P._pendingAutoFeatures.length} features auto-mapped to module planned releases!`, 'success');
+      save();
+    };
 
 
 
@@ -47388,6 +47685,10 @@ Earned Value Management measures project performance and progress by comparing p
               <i data-lucide="search" style="position:absolute; left:12px; width:16px; height:16px; color:var(--color-text-muted); pointer-events:none"></i>
               <input type="text" class="inp" placeholder="Search features..." value="${esc(P._featSearch || '')}" oninput="window.handleFeatMatrixSearch(this.value);" style="width:100%; font-size:13px; padding:8px 12px 8px 36px; border-radius:10px; border:1px solid var(--color-divider); background:var(--color-surface-2); color:var(--color-text); height:36px; box-sizing:border-box" onfocus="this.style.borderColor='var(--color-primary)'; this.style.background='var(--color-surface)'" onblur="this.style.borderColor='var(--color-divider)'; this.style.background='var(--color-surface-2)'">
             </div>
+            <div style="width:1px;height:16px;background:var(--color-divider);margin:0 4px"></div>
+            <button class="btn mini primary" onclick="window.autoBuildFeatureMatrix()" title="Auto-build feature matrix from screen similarity & module releases" style="display:flex; align-items:center; gap:6px; background:var(--color-primary); color:#ffffff; font-weight:600; padding:6px 12px; border-radius:8px; white-space:nowrap">
+              <i data-lucide="wand2" style="width:14px; height:14px"></i> Auto-Build Features
+            </button>
           </div>
         `;
         if (window.lucide) lucide.createIcons(vAct);
