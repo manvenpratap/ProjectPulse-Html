@@ -25297,6 +25297,10 @@
       const activeRel = (P.releases || []).find(r => r.status === 'Active') || (P.releases && P.releases[0]);
       const defaultRelName = activeRel ? activeRel.name : '';
 
+      // Build a release ordering index: higher index = later/more recent planned release
+      const releaseOrderMap = new Map();
+      (P.releases || []).forEach((r, i) => { if (r.name) releaseOrderMap.set(r.name, i); });
+
       const generatedFeatures = clusters.map((c, idx) => {
         const tokenList = Array.from(c.tokens);
         let featName = '';
@@ -25307,22 +25311,24 @@
         }
         featName = featName.replace(/\b\w/g, l => l.toUpperCase());
 
-        // Determine Planned Release based on module & parent task schedules
+        // Determine Planned Release: pick the LATEST release (highest index in P.releases)
+        // across all tasks belonging to the parent modules of this cluster's screens.
         let plannedRelease = '';
-        if (c.releases.size > 0) {
-          let maxCount = -1;
-          for (let [rel, cnt] of c.releases.entries()) {
-            if (cnt > maxCount) {
-              maxCount = cnt;
-              plannedRelease = rel;
-            }
-          }
-        }
-        if (!plannedRelease) {
-          const modTasks = (P.tasks || []).filter(t => Array.from(c.modules).includes(t.module));
-          const modReleases = modTasks.map(t => t.release).filter(Boolean);
-          if (modReleases.length > 0) plannedRelease = modReleases[0];
-          else plannedRelease = defaultRelName;
+        {
+          const clusterModules = Array.from(c.modules);
+          const parentModTasks = (P.tasks || []).filter(t => clusterModules.includes(t.module));
+
+          // Collect all release names referenced by these module tasks (releaseVersion preferred, then release)
+          let bestIdx = -1;
+          parentModTasks.forEach(t => {
+            const rv = (t.releaseVersion || t.release || '').trim();
+            if (!rv) return;
+            const ord = releaseOrderMap.has(rv) ? releaseOrderMap.get(rv) : -1;
+            if (ord > bestIdx) { bestIdx = ord; plannedRelease = rv; }
+          });
+
+          // If none of the module tasks had a recognized release, fall back to active/first release
+          if (!plannedRelease) plannedRelease = defaultRelName;
         }
 
         // Default category: starred option from options library first, then keyword heuristic
