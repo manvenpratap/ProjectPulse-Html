@@ -12538,11 +12538,8 @@
         <div class="mact" style="display:flex; align-items:center; gap:10px; padding:16px 24px; border-top:1px solid var(--color-divider)">
           <button class="btn outline" onclick="closeModal('auto-feat-matrix-modal')">Cancel</button>
           <div style="flex:1"></div>
-          <button class="btn secondary" onclick="window.applyAutoFeatures('merge')" title="Merge auto-built features into existing matrix">
-            <i data-lucide="git-merge" style="margin-right:6px"></i> Merge with Existing
-          </button>
-          <button class="btn primary" onclick="window.applyAutoFeatures('replace')" title="Replace entire feature matrix with auto-built features">
-            <i data-lucide="sparkles" style="margin-right:6px"></i> Replace Matrix & Apply
+          <button class="btn primary" onclick="window.applyAutoFeatures()" title="Merge auto-built features into existing matrix">
+            <i data-lucide="git-merge" style="margin-right:6px"></i> Merge Features into Matrix
           </button>
         </div>
       </div>
@@ -25399,41 +25396,42 @@
       if (window.lucide) lucide.createIcons(modal);
     };
 
-    window.applyAutoFeatures = function(mode) {
+    window.applyAutoFeatures = function() {
       if (!P._pendingAutoFeatures || !P._pendingAutoFeatures.length) return;
+      if (!P.features) P.features = [];
 
-      if (mode === 'replace') {
-        P.features = P._pendingAutoFeatures.map(f => ({
-          name: f.name,
-          desc: f.desc,
-          release: f.release,
-          category: f.category,
-          screens: f.screens
-        }));
-      } else {
-        P._pendingAutoFeatures.forEach(af => {
-          const existing = P.features.find(ef => ef.name.toLowerCase() === af.name.toLowerCase());
-          if (existing) {
-            existing.release = af.release || existing.release;
-            existing.category = af.category || existing.category;
-            const screenSet = new Set(existing.screens || []);
-            af.screens.forEach(s => screenSet.add(s));
-            existing.screens = Array.from(screenSet);
-          } else {
-            P.features.push({
-              name: af.name,
-              desc: af.desc,
-              release: af.release,
-              category: af.category,
-              screens: af.screens
-            });
-          }
-        });
-      }
+      let mergedCount = 0;
+      let newCount = 0;
+
+      P._pendingAutoFeatures.forEach(af => {
+        // Find existing feature by exact name match or case-insensitive match
+        const existing = P.features.find(ef => ef.name && ef.name.trim().toLowerCase() === af.name.trim().toLowerCase());
+        
+        if (existing) {
+          // Merge screens without duplicates
+          const screenSet = new Set(existing.screens || []);
+          (af.screens || []).forEach(s => screenSet.add(s));
+          existing.screens = Array.from(screenSet);
+
+          // Populate release or category if not already set
+          if (!existing.release && af.release) existing.release = af.release;
+          if (!existing.category && af.category) existing.category = af.category;
+          mergedCount++;
+        } else {
+          P.features.push({
+            name: af.name,
+            desc: af.desc || '',
+            release: af.release || '',
+            category: af.category || 'Core',
+            screens: Array.from(new Set(af.screens || []))
+          });
+          newCount++;
+        }
+      });
 
       closeModal('auto-feat-matrix-modal');
       if (P.view === 'features' || (P.view === 'admin' && P._adminActiveTab === 'features')) renderFeatureHub();
-      notify(`Successfully ${mode === 'replace' ? 'built' : 'merged'} ${P._pendingAutoFeatures.length} features auto-mapped to module planned releases!`, 'success');
+      notify(`Merged auto-built features into matrix (${newCount} new added, ${mergedCount} existing updated)`, 'success');
       save();
     };
 
