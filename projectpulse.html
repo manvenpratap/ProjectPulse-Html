@@ -25665,10 +25665,8 @@
             <td style="padding:10px 12px; font-weight:600; min-width:160px">
               <input type="text" class="inp" value="${esc(f.name)}" onchange="P._pendingAutoFeatures[${i}].name = this.value" style="width:100%; min-width:140px; font-size:12px; font-weight:600">
             </td>
-            <td style="padding:10px 12px; max-width:240px">
-              <div style="display:flex; flex-wrap:wrap; gap:4px">
-                ${f.screens.map(s => `<span class="chip" style="font-size:10.5px; padding:2px 6px; background:var(--color-surface-2); border:1px solid var(--color-divider)">${esc(s)}</span>`).join('')}
-              </div>
+            <td style="padding:8px 12px; min-width:240px; max-width:300px">
+              <div id="afm-screens-${i}" style="display:flex; flex-direction:column; gap:6px"></div>
             </td>
             <td style="padding:10px 12px">
               <span style="font-size:11px; font-weight:600; color:var(--color-text-muted)">${esc((f.modules || []).join(', ') || 'General')}</span>
@@ -25693,6 +25691,9 @@
       const selAll = $id('auto-feat-select-all');
       if (selAll) selAll.checked = true;
       updateAutoFeatMergeBtn();
+
+      // Hydrate each row's screen editor
+      features.forEach((_, i) => afmRenderScreens(i));
 
       flyout.classList.add('on');
       $id('flyout-overlay').classList.add('on');
@@ -25736,6 +25737,135 @@
         btn.style.opacity  = checked === 0 ? '0.45' : '1';
         btn.style.cursor   = checked === 0 ? 'not-allowed' : 'pointer';
       }
+    };
+
+    // ── Screen chip editor helpers ────────────────────────────────────────────
+
+    window.afmRenderScreens = function(i) {
+      const cont = $id(`afm-screens-${i}`);
+      if (!cont) return;
+      const feat = P._pendingAutoFeatures && P._pendingAutoFeatures[i];
+      if (!feat) return;
+      const screens = feat.screens || [];
+
+      const chipsHtml = screens.length
+        ? `<div style="display:flex; flex-wrap:wrap; gap:4px; align-items:center">
+            ${screens.map((s, si) => `
+              <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;
+                background:var(--color-primary-highlight, rgba(99,102,241,.1));
+                border:1px solid rgba(99,102,241,.35);border-radius:20px;
+                font-size:10.5px;font-weight:600;color:var(--color-primary);white-space:nowrap">
+                ${esc(s)}
+                <span onclick="afmRemoveScreen(${i},${si})"
+                  title="Remove screen"
+                  style="cursor:pointer;display:inline-flex;align-items:center;opacity:.6;transition:opacity .15s"
+                  onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='.6'">
+                  <i data-lucide="x" style="width:11px;height:11px"></i>
+                </span>
+              </span>`).join('')}
+           </div>`
+        : `<div style="font-size:10.5px;color:var(--color-text-faint);font-style:italic">No screens — add below</div>`;
+
+      cont.innerHTML = `
+        ${chipsHtml}
+        <div style="position:relative">
+          <div style="display:flex;align-items:center;gap:4px;background:var(--color-surface-2);
+            border:1px solid var(--color-border);border-radius:7px;padding:3px 6px">
+            <i data-lucide="plus" style="width:11px;height:11px;color:var(--color-text-muted);flex-shrink:0"></i>
+            <input id="afm-inp-${i}" placeholder="Add screen…" autocomplete="off"
+              style="border:none;background:transparent;outline:none;font-size:11.5px;
+                color:var(--color-text);width:100%;min-width:0"
+              oninput="afmFilterDropdown(${i})"
+              onfocus="afmShowDropdown(${i})"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();afmPickScreen(${i})}
+                         else if(event.key==='Escape'){const d=$id('afm-dd-${i}');if(d)d.style.display='none';}">
+          </div>
+          <div id="afm-dd-${i}"
+            style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;
+              max-height:160px;overflow-y:auto;background:var(--color-surface);
+              border:1px solid var(--color-border);border-radius:8px;
+              box-shadow:0 6px 20px rgba(0,0,0,.15);z-index:99999;
+              scrollbar-width:thin"></div>
+        </div>`;
+
+      if (window.lucide) lucide.createIcons(cont);
+
+      // Close dropdown when clicking outside
+      setTimeout(() => {
+        const dd = $id(`afm-dd-${i}`);
+        if (!dd) return;
+        if (!dd._outsideHandler) {
+          dd._outsideHandler = e => { if (!cont.contains(e.target)) dd.style.display = 'none'; };
+          document.addEventListener('mousedown', dd._outsideHandler);
+        }
+      }, 0);
+    };
+
+    window.afmRemoveScreen = function(i, si) {
+      if (!P._pendingAutoFeatures || !P._pendingAutoFeatures[i]) return;
+      P._pendingAutoFeatures[i].screens.splice(si, 1);
+      afmRenderScreens(i);
+    };
+
+    window.afmAddScreen = function(i, name) {
+      name = (name || '').trim();
+      if (!name) return;
+      if (!P._pendingAutoFeatures || !P._pendingAutoFeatures[i]) return;
+      if (!P._pendingAutoFeatures[i].screens) P._pendingAutoFeatures[i].screens = [];
+      if (P._pendingAutoFeatures[i].screens.includes(name)) {
+        notify('Screen already in this feature', 'amber');
+        return;
+      }
+      P._pendingAutoFeatures[i].screens.push(name);
+      afmRenderScreens(i);
+    };
+
+    window.afmPickScreen = function(i) {
+      const inp = $id(`afm-inp-${i}`);
+      if (!inp) return;
+      const val = inp.value.trim();
+      if (!val) return;
+      afmAddScreen(i, val);
+      inp.value = '';
+      const dd = $id(`afm-dd-${i}`);
+      if (dd) dd.style.display = 'none';
+    };
+
+    window.afmShowDropdown = function(i) {
+      afmFilterDropdown(i);
+    };
+
+    window.afmFilterDropdown = function(i) {
+      const inp = $id(`afm-inp-${i}`);
+      const dd  = $id(`afm-dd-${i}`);
+      if (!inp || !dd) return;
+
+      const q       = inp.value.trim().toLowerCase();
+      const current = (P._pendingAutoFeatures && P._pendingAutoFeatures[i] && P._pendingAutoFeatures[i].screens) || [];
+      const all     = (typeof getAllScreens === 'function' ? getAllScreens() : []).filter(s => !current.includes(s));
+      const matches = q ? all.filter(s => s.toLowerCase().includes(q)) : all;
+
+      if (!matches.length && !q) { dd.style.display = 'none'; return; }
+
+      const items = matches.slice(0, 40).map(s =>
+        `<div onclick="afmAddScreen(${i}, '${s.replace(/'/g,"\\'")}')"
+          style="padding:7px 11px;font-size:12px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+            transition:background .1s"
+          onmouseenter="this.style.background='var(--color-surface-2)'"
+          onmouseleave="this.style.background=''">${esc(s)}</div>`
+      );
+
+      // Allow custom entry if typed value not in list
+      if (q && !all.some(s => s.toLowerCase() === q)) {
+        items.push(`<div onclick="afmPickScreen(${i})"
+          style="padding:7px 11px;font-size:12px;cursor:pointer;font-style:italic;
+            color:var(--color-primary);border-top:1px solid var(--color-divider);transition:background .1s"
+          onmouseenter="this.style.background='var(--color-surface-2)'"
+          onmouseleave="this.style.background=''">➕ Add "${esc(inp.value.trim())}" as custom</div>`);
+      }
+
+      dd.innerHTML = items.join('');
+      dd.style.display = items.length ? 'block' : 'none';
     };
 
     window.applyAutoFeatures = function() {
