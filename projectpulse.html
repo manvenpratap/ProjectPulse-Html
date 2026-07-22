@@ -59014,11 +59014,23 @@ Earned Value Management measures project performance and progress by comparing p
             }, 60);
           }
 
-          canvas.onmousedown = (e) => { P._org.drag = true; P._org.lastX = e.clientX; P._org.lastY = e.clientY; canvas.style.cursor = 'grabbing'; };
+          canvas.onmousedown = (e) => {
+            P._org.drag = true;
+            P._org.lastX = e.clientX;
+            P._org.lastY = e.clientY;
+            P._org.moved = false;
+            canvas.style.cursor = 'grabbing';
+          };
           window.onmousemove = (e) => {
             if (P._org.drag) {
-              P._org.panX += (e.clientX - P._org.lastX); P._org.panY += (e.clientY - P._org.lastY);
-              P._org.lastX = e.clientX; P._org.lastY = e.clientY; renderCanvas();
+              const dx = e.clientX - P._org.lastX;
+              const dy = e.clientY - P._org.lastY;
+              if (Math.abs(dx) > 2 || Math.abs(dy) > 2) P._org.moved = true;
+              P._org.panX += dx;
+              P._org.panY += dy;
+              P._org.lastX = e.clientX;
+              P._org.lastY = e.clientY;
+              renderCanvas();
               return;
             }
             const rect = canvas.getBoundingClientRect();
@@ -59027,6 +59039,8 @@ Earned Value Management measures project performance and progress by comparing p
 
             let found = false;
             if (P._org.renderedNodes) {
+              const DIST_X = 145;
+              const DIST_Y = P._org.mode === 'neighborhood' ? 115 : 80;
               for (const n of P._org.renderedNodes) {
                 if (P._org.mode === 'radial') {
                   if (n.nodeW === 0 && n.nodeH === 0) {
@@ -59050,7 +59064,7 @@ Earned Value Management measures project performance and progress by comparing p
                     }
                   }
                 } else {
-                  const px = n.x * 145, py = n.y * 80;
+                  const px = n.x * DIST_X, py = n.y * DIST_Y;
                   if (mx >= px && mx <= px + n.nodeW && my >= py && my <= py + n.nodeH) {
                     found = true;
                     break;
@@ -59058,7 +59072,7 @@ Earned Value Management measures project performance and progress by comparing p
                   if (n.children.length > 0) {
                     const toggleX = px + n.nodeW / 2;
                     const toggleY = py + n.nodeH;
-                    if (Math.hypot(mx - toggleX, my - toggleY) < 10) {
+                    if (Math.hypot(mx - toggleX, my - toggleY) < 16) {
                       found = true;
                       break;
                     }
@@ -59077,12 +59091,17 @@ Earned Value Management measures project performance and progress by comparing p
           };
 
           canvas.onclick = (e) => {
+            if (P._org.moved) {
+              P._org.moved = false;
+              return;
+            }
             const rect = canvas.getBoundingClientRect();
             const mx = (e.offsetX - P._org.panX) / P._org.zoom;
             const my = (e.offsetY - P._org.panY) / P._org.zoom;
 
             if (!P._org.renderedNodes) return;
-            const DIST_X = 145, DIST_Y = 80;
+            const DIST_X = 145;
+            const DIST_Y = P._org.mode === 'neighborhood' ? 115 : 80;
 
             for (const n of P._org.renderedNodes) {
               if (P._org.mode === 'radial' && n.nodeW === 0 && n.nodeH === 0) {
