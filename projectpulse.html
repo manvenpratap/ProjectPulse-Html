@@ -12504,44 +12504,47 @@
       </div>
     </div>
 
-    <!-- Auto-Build Feature Matrix Modal -->
-    <div mbg id="auto-feat-matrix-modal" class="mbg">
-      <div class="modal wide" style="max-width:920px; width:92vw">
-        <div class="mtit">
-          <span style="display:flex; align-items:center; gap:8px">
-            <i data-lucide="wand2" style="color:var(--color-primary); width:20px; height:20px"></i>
-            Auto-Build Feature Matrix
-          </span>
-          <span class="mcl" onclick="closeModal('auto-feat-matrix-modal')">×</span>
-        </div>
-        <div style="padding:0 24px 20px">
-          <p style="font-size:13px; color:var(--color-text-muted); margin-bottom:16px; line-height:1.5">
-            Screens were analyzed for name similarity, token stems, and module associations. Grouped features and planned releases have been automatically mapped based on module schedules.
-          </p>
-          <div id="auto-feat-stats-banner" style="display:flex; align-items:center; gap:16px; padding:12px 16px; background:var(--color-surface-2); border-radius:10px; border:1px solid var(--color-divider); margin-bottom:16px"></div>
-          
-          <div style="max-height:420px; overflow-y:auto; border:1px solid var(--color-divider); border-radius:12px; background:var(--color-bg)">
-            <table class="tbl" style="width:100%; border-collapse:collapse; font-size:13px">
-              <thead>
-                <tr style="border-bottom:1px solid var(--color-divider); text-align:left; background:var(--color-surface-2)">
-                  <th style="padding:10px 12px">Proposed Feature Name</th>
-                  <th style="padding:10px 12px">Grouped Screens</th>
-                  <th style="padding:10px 12px">Source Modules</th>
-                  <th style="padding:10px 12px">Planned Release</th>
-                  <th style="padding:10px 12px">Category</th>
-                </tr>
-              </thead>
-              <tbody id="auto-feat-preview-tbody"></tbody>
-            </table>
+    <!-- Auto-Build Feature Matrix Flyout -->
+    <div id="auto-feat-matrix-flyout" class="view-flyout" style="width:780px; z-index:11000">
+      <div class="fly-header">
+        <div style="display:flex; align-items:center; gap:12px">
+          <div style="width:36px; height:36px; background:rgba(var(--color-primary-rgb),0.1); color:var(--color-primary); border-radius:var(--radius-md); display:flex; align-items:center; justify-content:center">
+            <i data-lucide="wand2" style="width:20px; height:20px"></i>
+          </div>
+          <div>
+            <div style="font-size:18px; font-weight:700; color:var(--color-text)">Auto-Build Feature Matrix</div>
+            <div style="font-size:11px; color:var(--color-text-faint); text-transform:uppercase; letter-spacing:0.5px">Grouped Screen Analysis & Release Mapping</div>
           </div>
         </div>
-        <div class="mact" style="display:flex; align-items:center; gap:10px; padding:16px 24px; border-top:1px solid var(--color-divider)">
-          <button class="btn outline" onclick="closeModal('auto-feat-matrix-modal')">Cancel</button>
-          <div style="flex:1"></div>
-          <button class="btn primary" onclick="window.applyAutoFeatures()" title="Merge auto-built features into existing matrix">
-            <i data-lucide="git-merge" style="margin-right:6px"></i> Merge Features into Matrix
-          </button>
+        <div class="fly-close" onclick="closeAutoFeatureMatrixFlyout()">×</div>
+      </div>
+      <div class="fly-body custom-scroll" style="display:flex; flex-direction:column; gap:16px; padding:20px 24px; height:calc(100vh - 140px); overflow-y:auto">
+        <p style="font-size:13px; color:var(--color-text-muted); line-height:1.5; margin:0">
+          Screens were analyzed for name similarity, token stems, and module associations. Grouped features and planned releases have been automatically mapped based on module schedules. Default categories are populated using Option Libraries defaults.
+        </p>
+        <div id="auto-feat-stats-banner" style="display:flex; align-items:center; gap:16px; padding:12px 16px; background:var(--color-surface-2); border-radius:10px; border:1px solid var(--color-divider)"></div>
+        
+        <div style="border:1px solid var(--color-divider); border-radius:12px; background:var(--color-bg); overflow:hidden">
+          <table class="tbl" style="width:100%; border-collapse:collapse; font-size:12.5px">
+            <thead>
+              <tr style="border-bottom:1px solid var(--color-divider); text-align:left; background:var(--color-surface-2)">
+                <th style="padding:10px 12px">Proposed Feature Name</th>
+                <th style="padding:10px 12px">Grouped Screens</th>
+                <th style="padding:10px 12px">Source Modules</th>
+                <th style="padding:10px 12px">Planned Release</th>
+                <th style="padding:10px 12px">Category</th>
+              </tr>
+            </thead>
+            <tbody id="auto-feat-preview-tbody"></tbody>
+          </table>
         </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; padding:16px 24px; border-top:1px solid var(--color-divider); background:var(--color-surface); position:absolute; bottom:0; left:0; right:0; box-shadow:0 -4px 12px rgba(0,0,0,0.05)">
+        <button class="btn outline" onclick="closeAutoFeatureMatrixFlyout()">Cancel</button>
+        <div style="flex:1"></div>
+        <button class="btn primary" onclick="window.applyAutoFeatures()" title="Merge auto-built features into existing matrix">
+          <i data-lucide="git-merge" style="margin-right:6px"></i> Merge Features into Matrix
+        </button>
       </div>
     </div>
 
@@ -25320,7 +25323,11 @@
           else plannedRelease = defaultRelName;
         }
 
-        let category = 'Core';
+        // Retrieve default category from Option Libraries starred default (P.dropdownDefaults)
+        const starredCat = (P.dropdownDefaults && (P.dropdownDefaults.featureCategory || P.dropdownDefaults.category)) || '';
+        const defaultCatFallback = starredCat || (P.dropdowns && P.dropdowns.featureCategory && P.dropdowns.featureCategory[0]) || 'Core';
+
+        let category = defaultCatFallback;
         const nameLower = featName.toLowerCase();
         if (nameLower.includes('auth') || nameLower.includes('login') || nameLower.includes('security')) category = 'Security';
         else if (nameLower.includes('dash') || nameLower.includes('report') || nameLower.includes('analytic')) category = 'Analytics';
@@ -25338,12 +25345,12 @@
       });
 
       P._pendingAutoFeatures = generatedFeatures;
-      window.openAutoFeatureMatrixModal(generatedFeatures, screens.length);
+      window.openAutoFeatureMatrixFlyout(generatedFeatures, screens.length);
     };
 
-    window.openAutoFeatureMatrixModal = function(features, totalScreensCount) {
-      const modal = $id('auto-feat-matrix-modal');
-      if (!modal) return;
+    window.openAutoFeatureMatrixFlyout = function(features, totalScreensCount) {
+      const flyout = $id('auto-feat-matrix-flyout');
+      if (!flyout) return;
 
       const banner = $id('auto-feat-stats-banner');
       if (banner) {
@@ -25355,20 +25362,23 @@
             <span>${features.length} Features Auto-Identified</span>
           </div>
           <div style="color:var(--color-divider)">|</div>
-          <div style="font-size:13px; color:var(--color-text-muted)">${totalScreensCount} Screens Grouped</div>
+          <div style="font-size:12.5px; color:var(--color-text-muted)">${totalScreensCount} Screens Grouped</div>
           <div style="color:var(--color-divider)">|</div>
-          <div style="font-size:13px; color:var(--color-text-muted)">${uniqueMods.size} Source Modules</div>
+          <div style="font-size:12.5px; color:var(--color-text-muted)">${uniqueMods.size} Source Modules</div>
         `;
       }
+
+      const starredCat = (P.dropdownDefaults && (P.dropdownDefaults.featureCategory || P.dropdownDefaults.category)) || '';
+      const featCategories = (P.dropdowns && (P.dropdowns.featureCategory || P.dropdowns.category)) || ['Product Roadmap', 'One GSP Value Addition', 'Core', 'Security', 'Analytics', 'Admin', 'Operations'];
 
       const tbody = $id('auto-feat-preview-tbody');
       if (tbody) {
         tbody.innerHTML = features.map((f, i) => `
           <tr style="border-bottom:1px solid var(--color-divider)">
-            <td style="padding:10px 12px; font-weight:600; min-width:180px">
+            <td style="padding:10px 12px; font-weight:600; min-width:170px">
               <input type="text" class="inp" value="${esc(f.name)}" onchange="P._pendingAutoFeatures[${i}].name = this.value" style="width:100%; font-size:12px; font-weight:600">
             </td>
-            <td style="padding:10px 12px; max-width:260px">
+            <td style="padding:10px 12px; max-width:220px">
               <div style="display:flex; flex-wrap:wrap; gap:4px">
                 ${f.screens.map(s => `<span class="chip" style="font-size:10.5px; padding:2px 6px; background:var(--color-surface-2); border:1px solid var(--color-divider)">${esc(s)}</span>`).join('')}
               </div>
@@ -25385,15 +25395,29 @@
             <td style="padding:10px 12px">
               <select class="inp" onchange="P._pendingAutoFeatures[${i}].category = this.value" style="font-size:12px; padding:4px 8px">
                 <option value="">-- No Category --</option>
-                ${(P.dropdowns.featureCategory || ['Core', 'Security', 'Analytics', 'Admin', 'Operations']).map(c => `<option value="${c}" ${c === f.category ? 'selected' : ''}>${c}</option>`).join('')}
+                ${featCategories.map(c => `<option value="${c}" ${c === f.category ? 'selected' : ''}>${c}${c === starredCat ? ' ★ (Default)' : ''}</option>`).join('')}
               </select>
             </td>
           </tr>
         `).join('');
       }
 
-      openModal('auto-feat-matrix-modal');
-      if (window.lucide) lucide.createIcons(modal);
+      flyout.classList.add('open');
+      const overlay = $id('flyout-overlay');
+      if (overlay) overlay.classList.add('on');
+      if (window.lucide) lucide.createIcons(flyout);
+    };
+
+    window.closeAutoFeatureMatrixFlyout = function() {
+      const flyout = $id('auto-feat-matrix-flyout');
+      if (flyout) flyout.classList.remove('open');
+      const overlay = $id('flyout-overlay');
+      if (overlay) overlay.classList.remove('on');
+    };
+
+    // Backward compatibility alias for openAutoFeatureMatrixModal
+    window.openAutoFeatureMatrixModal = function(features, totalScreensCount) {
+      window.openAutoFeatureMatrixFlyout(features, totalScreensCount);
     };
 
     window.applyAutoFeatures = function() {
@@ -25422,14 +25446,14 @@
             name: af.name,
             desc: af.desc || '',
             release: af.release || '',
-            category: af.category || 'Core',
+            category: af.category || (P.dropdownDefaults && (P.dropdownDefaults.featureCategory || P.dropdownDefaults.category)) || 'Core',
             screens: Array.from(new Set(af.screens || []))
           });
           newCount++;
         }
       });
 
-      closeModal('auto-feat-matrix-modal');
+      window.closeAutoFeatureMatrixFlyout();
       if (P.view === 'features' || (P.view === 'admin' && P._adminActiveTab === 'features')) renderFeatureHub();
       notify(`Merged auto-built features into matrix (${newCount} new added, ${mergedCount} existing updated)`, 'success');
       save();
