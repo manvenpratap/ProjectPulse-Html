@@ -25089,7 +25089,11 @@
 
       if (!refTokens.size) return [];   // nothing to match against yet
 
-      const allScreens = getAllScreens();
+      // Candidate pool: task-sourced screens + every screen already mapped in any feature.
+      // The second source ensures suggestions work even when task subtasks have no screen data.
+      const screenSet = new Set(getAllScreens());
+      (P.features || []).forEach(f => (f.screens || []).forEach(s => { if (s) screenSet.add(s); }));
+      const allScreens = Array.from(screenSet);
       const scored = [];
       allScreens.forEach(s => {
         if (selected.has(s)) return;    // already added
@@ -25182,9 +25186,12 @@
         if (!inp.contains(e.target) && !dd.contains(e.target)) dd.style.display = 'none';
       }, { once: false });
 
-      // Re-run suggestions whenever the feature name changes
+      // Re-run suggestions whenever the feature name changes (attach only once)
       const nameInp = $id('feat-new-name');
-      if (nameInp) nameInp.addEventListener('input', renderScreenSuggestions);
+      if (nameInp && !nameInp._suggListenerAdded) {
+        nameInp.addEventListener('input', renderScreenSuggestions);
+        nameInp._suggListenerAdded = true;
+      }
     }
 
     function openFeatFlyout() {
