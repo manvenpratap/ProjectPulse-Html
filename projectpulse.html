@@ -12914,15 +12914,37 @@
         </div>
 
         <div class="fg" style="margin-bottom:24px">
-          <label class="flbl">Target Release</label>
-          <select class="finp" id="feat-new-release" style="height:44px; font-size:14px">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px">
+            <label class="flbl" style="margin:0">Target Release</label>
+            <span id="feat-release-auto-badge" onclick="featClearAutoRelease()" title="Auto-inferred from screens — click to clear"
+              style="display:none; align-items:center; gap:4px; font-size:10px; font-weight:700; color:var(--color-primary); cursor:pointer;
+                     background:rgba(var(--color-primary-rgb,99,102,241),.08); border:1px solid rgba(var(--color-primary-rgb,99,102,241),.25);
+                     border-radius:20px; padding:2px 8px; transition:background .15s"
+              onmouseenter="this.style.background='rgba(var(--color-primary-rgb,99,102,241),.18)'"
+              onmouseleave="this.style.background='rgba(var(--color-primary-rgb,99,102,241),.08)'">
+              ✨ Auto &nbsp;<span style="font-size:9px; opacity:.7">✕ clear</span>
+            </span>
+          </div>
+          <select class="finp" id="feat-new-release" style="height:44px; font-size:14px"
+            onchange="featReleaseManuallyChanged()">
             <option value="">-- No specific release --</option>
           </select>
         </div>
 
         <div class="fg" style="margin-bottom:24px">
-          <label class="flbl">Feature Category</label>
-          <select class="finp" id="feat-new-category" style="height:44px; font-size:14px">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px">
+            <label class="flbl" style="margin:0">Feature Category</label>
+            <span id="feat-category-auto-badge" onclick="featClearAutoCategory()" title="Auto-inferred from feature name — click to clear"
+              style="display:none; align-items:center; gap:4px; font-size:10px; font-weight:700; color:var(--color-primary); cursor:pointer;
+                     background:rgba(var(--color-primary-rgb,99,102,241),.08); border:1px solid rgba(var(--color-primary-rgb,99,102,241),.25);
+                     border-radius:20px; padding:2px 8px; transition:background .15s"
+              onmouseenter="this.style.background='rgba(var(--color-primary-rgb,99,102,241),.18)'"
+              onmouseleave="this.style.background='rgba(var(--color-primary-rgb,99,102,241),.08)'">
+              ✨ Auto &nbsp;<span style="font-size:9px; opacity:.7">✕ clear</span>
+            </span>
+          </div>
+          <select class="finp" id="feat-new-category" style="height:44px; font-size:14px"
+            onchange="featCategoryManuallyChanged()">
             <option value="">-- No specific category --</option>
           </select>
         </div>
@@ -25050,6 +25072,7 @@
       P._featSelectedScreens.splice(idx, 1);
       renderFeatScreenChips();
       renderScreenSuggestions();
+      autoInferRelease();
     }
 
     function featAddScreen(name) {
@@ -25060,6 +25083,7 @@
       P._featSelectedScreens.push(name);
       renderFeatScreenChips();
       renderScreenSuggestions();
+      autoInferRelease();
       const inp = $id('feat-screen-search');
       if (inp) { inp.value = ''; inp.focus(); }
       const dd = $id('feat-screen-dropdown');
@@ -25078,6 +25102,152 @@
         .split(/\s+/)
         .filter(t => t.length > 1 && !_featStopWords.has(t));
     }
+
+    // ── Auto-inference helpers ──────────────────────────────────────────────
+
+    /**
+     * Auto-infer the Target Release based on parent tasks of currently-selected
+     * screens.  Only fires when the user has NOT manually chosen a release
+     * (guard: P._featReleaseUserSet).  Uses the same algorithm as
+     * autoBuildFeatureMatrix: picks the LATEST release (by index in P.releases)
+     * found on any task that owns one of the selected screens.
+     */
+    function autoInferRelease() {
+      if (P._featReleaseUserSet) return;              // user chose manually — don't override
+
+      const relSelect = $id('feat-new-release');
+      const badge     = $id('feat-release-auto-badge');
+      if (!relSelect) return;
+
+      const selected = new Set(P._featSelectedScreens || []);
+      if (!selected.size) {
+        // No screens — clear the auto value
+        relSelect.value = '';
+        if (badge) badge.style.display = 'none';
+        return;
+      }
+
+      // Build release ordering (same logic as autoBuildFeatureMatrix)
+      const releaseOrderMap = new Map();
+      (P.releases || []).forEach((r, i) => { if (r.name) releaseOrderMap.set(r.name, i); });
+
+      // Gather parent tasks for each selected screen
+      const dashCache = (typeof buildDashCache === 'function')
+        ? buildDashCache(P.tasks, P.log)
+        : { screenByName: {} };
+      const screenByName = dashCache.screenByName || {};
+
+      let bestIdx = -1;
+      let bestRelease = '';
+
+      selected.forEach(scName => {
+        // Primary: dashCache parent tasks
+        const scObj = screenByName[scName];
+        const parentTasks = (scObj && scObj.parentTasks) ? scObj.parentTasks : [];
+
+        // Fallback: scan tasks directly for guiScreens / subtask names
+        if (!parentTasks.length) {
+          (P.tasks || []).forEach(t => {
+            const ownsScreen =
+              (t.guiScreens || []).includes(scName) ||
+              (t.subtasks || []).some(st => st.name === scName);
+            if (ownsScreen) parentTasks.push(t);
+          });
+        }
+
+        parentTasks.forEach(t => {
+          const rv = (t.releaseVersion || t.release || '').trim();
+          if (!rv || !releaseOrderMap.has(rv)) return;
+          const ord = releaseOrderMap.get(rv);
+          if (ord > bestIdx) { bestIdx = ord; bestRelease = rv; }
+        });
+      });
+
+      if (bestRelease) {
+        relSelect.value = bestRelease;
+        if (badge) { badge.style.display = 'inline-flex'; }
+      } else {
+        relSelect.value = '';
+        if (badge) badge.style.display = 'none';
+      }
+    }
+
+    /**
+     * Auto-infer the Feature Category from the feature name keywords.
+     * Mirrors the heuristic in autoBuildFeatureMatrix (lines 25423-25432).
+     * Only fires when the user has NOT manually picked a category
+     * (guard: P._featCategoryUserSet).
+     */
+    function autoInferCategory() {
+      if (P._featCategoryUserSet) return;             // user chose manually — don't override
+
+      const catSelect = $id('feat-new-category');
+      const badge     = $id('feat-category-auto-badge');
+      if (!catSelect) return;
+
+      const nameVal = ($id('feat-new-name') || {}).value || '';
+      if (!nameVal.trim()) {
+        catSelect.value = '';
+        if (badge) badge.style.display = 'none';
+        return;
+      }
+
+      // Starred default wins everything
+      const starredCategory = (P.dropdownDefaults && P.dropdownDefaults.featureCategory) || '';
+      let inferred = starredCategory || '';
+
+      if (!inferred) {
+        const nl = nameVal.toLowerCase();
+        if (nl.includes('auth') || nl.includes('login') || nl.includes('security'))          inferred = 'Security';
+        else if (nl.includes('dash') || nl.includes('report') || nl.includes('analytic'))   inferred = 'Analytics';
+        else if (nl.includes('setting') || nl.includes('admin') || nl.includes('config'))   inferred = 'Admin';
+        else if (nl.includes('task') || nl.includes('project') || nl.includes('work'))      inferred = 'Operations';
+        else                                                                                  inferred = 'Core';
+      }
+
+      // Only set if the inferred value exists in the dropdown
+      const hasOption = Array.from(catSelect.options).some(o => o.value === inferred);
+      if (hasOption) {
+        catSelect.value = inferred;
+        if (badge) { badge.style.display = 'inline-flex'; }
+      } else {
+        catSelect.value = '';
+        if (badge) badge.style.display = 'none';
+      }
+    }
+
+    // Called when user manually changes the release dropdown
+    function featReleaseManuallyChanged() {
+      P._featReleaseUserSet = true;
+      const badge = $id('feat-release-auto-badge');
+      if (badge) badge.style.display = 'none';
+    }
+
+    // Called when user manually changes the category dropdown
+    function featCategoryManuallyChanged() {
+      P._featCategoryUserSet = true;
+      const badge = $id('feat-category-auto-badge');
+      if (badge) badge.style.display = 'none';
+    }
+
+    // Badge clear buttons
+    function featClearAutoRelease() {
+      P._featReleaseUserSet = false;
+      const sel = $id('feat-new-release');
+      if (sel) sel.value = '';
+      const badge = $id('feat-release-auto-badge');
+      if (badge) badge.style.display = 'none';
+      autoInferRelease(); // re-run in case screens still warrant an inference
+    }
+
+    function featClearAutoCategory() {
+      P._featCategoryUserSet = false;
+      const sel = $id('feat-new-category');
+      if (sel) sel.value = '';
+      const badge = $id('feat-category-auto-badge');
+      if (badge) badge.style.display = 'none';
+    }
+
 
     function computeScreenSuggestions() {
       const selected = new Set(P._featSelectedScreens || []);
@@ -25187,10 +25357,13 @@
         if (!inp.contains(e.target) && !dd.contains(e.target)) dd.style.display = 'none';
       }, { once: false });
 
-      // Re-run suggestions whenever the feature name changes (attach only once)
+      // Re-run suggestions + category inference whenever the feature name changes (attach only once)
       const nameInp = $id('feat-new-name');
       if (nameInp && !nameInp._suggListenerAdded) {
-        nameInp.addEventListener('input', renderScreenSuggestions);
+        nameInp.addEventListener('input', () => {
+          renderScreenSuggestions();
+          autoInferCategory();
+        });
         nameInp._suggListenerAdded = true;
       }
     }
@@ -25198,6 +25371,9 @@
     function openFeatFlyout() {
       P._editingFeatureIdx = null;
       P._featSelectedScreens = [];
+      // Reset auto-inference guards so the new feature gets fresh inference
+      P._featReleaseUserSet  = false;
+      P._featCategoryUserSet = false;
       $id('feat-new-name').value = '';
       $id('feat-new-desc').value = '';
 
@@ -25208,6 +25384,10 @@
       const catSelect = $id('feat-new-category');
       catSelect.innerHTML = '<option value="">-- No specific category --</option>' + (P.dropdowns.featureCategory || []).map(c => `<option value="${c}">${c}</option>`).join('');
       catSelect.value = '';
+
+      // Hide auto-badges on fresh open
+      const rb = $id('feat-release-auto-badge');  if (rb) rb.style.display = 'none';
+      const cb = $id('feat-category-auto-badge'); if (cb) cb.style.display = 'none';
 
       $id('feat-form-title').innerText = 'Create New Feature';
       $id('feat-add-btn').innerText = 'Save Feature';
