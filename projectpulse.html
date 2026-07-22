@@ -25768,38 +25768,105 @@
 
       cont.innerHTML = `
         ${chipsHtml}
-        <div style="position:relative">
-          <div style="display:flex;align-items:center;gap:4px;background:var(--color-surface-2);
-            border:1px solid var(--color-border);border-radius:7px;padding:3px 6px">
-            <i data-lucide="plus" style="width:11px;height:11px;color:var(--color-text-muted);flex-shrink:0"></i>
-            <input id="afm-inp-${i}" placeholder="Add screen…" autocomplete="off"
-              style="border:none;background:transparent;outline:none;font-size:11.5px;
-                color:var(--color-text);width:100%;min-width:0"
-              oninput="afmFilterDropdown(${i})"
-              onfocus="afmShowDropdown(${i})"
-              onkeydown="if(event.key==='Enter'){event.preventDefault();afmPickScreen(${i})}
-                         else if(event.key==='Escape'){const d=$id('afm-dd-${i}');if(d)d.style.display='none';}">
-          </div>
-          <div id="afm-dd-${i}"
-            style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;
-              max-height:160px;overflow-y:auto;background:var(--color-surface);
-              border:1px solid var(--color-border);border-radius:8px;
-              box-shadow:0 6px 20px rgba(0,0,0,.15);z-index:99999;
-              scrollbar-width:thin"></div>
+        <div style="display:flex;align-items:center;gap:4px;background:var(--color-surface-2);
+          border:1px solid var(--color-border);border-radius:7px;padding:3px 6px">
+          <i data-lucide="plus" style="width:11px;height:11px;color:var(--color-text-muted);flex-shrink:0"></i>
+          <input id="afm-inp-${i}" placeholder="Add screen…" autocomplete="off"
+            style="border:none;background:transparent;outline:none;font-size:11.5px;
+              color:var(--color-text);width:100%;min-width:0"
+            oninput="afmFilterDropdown(${i})"
+            onfocus="afmShowDropdown(${i})"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();afmPickScreen(${i})}
+                       else if(event.key==='Escape'){afmHideDropdown();}">
         </div>`;
 
       if (window.lucide) lucide.createIcons(cont);
-
-      // Close dropdown when clicking outside
-      setTimeout(() => {
-        const dd = $id(`afm-dd-${i}`);
-        if (!dd) return;
-        if (!dd._outsideHandler) {
-          dd._outsideHandler = e => { if (!cont.contains(e.target)) dd.style.display = 'none'; };
-          document.addEventListener('mousedown', dd._outsideHandler);
-        }
-      }, 0);
     };
+
+    // ── Shared body-level dropdown (escapes table overflow clipping) ──────────
+
+    (function() {
+      function getGlobalDD() {
+        let dd = document.getElementById('afm-global-dd');
+        if (!dd) {
+          dd = document.createElement('div');
+          dd.id = 'afm-global-dd';
+          Object.assign(dd.style, {
+            display: 'none', position: 'fixed',
+            maxHeight: '200px', overflowY: 'auto',
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: '8px',
+            boxShadow: '0 8px 24px rgba(0,0,0,.22)',
+            zIndex: '2147483647',
+            scrollbarWidth: 'thin',
+            minWidth: '200px'
+          });
+          document.body.appendChild(dd);
+          document.addEventListener('mousedown', e => {
+            if (!dd.contains(e.target)) afmHideDropdown();
+          }, true);
+        }
+        return dd;
+      }
+
+      window.afmHideDropdown = function() {
+        const dd = document.getElementById('afm-global-dd');
+        if (dd) dd.style.display = 'none';
+      };
+
+      window.afmShowDropdown = function(i) {
+        afmFilterDropdown(i);
+      };
+
+      window.afmFilterDropdown = function(i) {
+        const inp = $id(`afm-inp-${i}`);
+        if (!inp) return;
+        const dd = getGlobalDD();
+
+        const q       = inp.value.trim().toLowerCase();
+        const current = (P._pendingAutoFeatures && P._pendingAutoFeatures[i] && P._pendingAutoFeatures[i].screens) || [];
+        const all     = (typeof getAllScreens === 'function' ? getAllScreens() : []).filter(s => !current.includes(s));
+        const matches = q ? all.filter(s => s.toLowerCase().includes(q)) : all;
+
+        if (!matches.length && !q) { dd.style.display = 'none'; return; }
+
+        const items = matches.slice(0, 40).map(s =>
+          `<div onclick="afmAddScreen(${i}, '${s.replace(/'/g,"\\'")}')"
+            style="padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap;
+              overflow:hidden;text-overflow:ellipsis;transition:background .1s"
+            onmouseenter="this.style.background='var(--color-surface-2)'"
+            onmouseleave="this.style.background=''">${esc(s)}</div>`
+        );
+
+        if (q && !all.some(s => s.toLowerCase() === q)) {
+          items.push(`<div onclick="afmPickScreen(${i})"
+            style="padding:7px 12px;font-size:12px;cursor:pointer;font-style:italic;
+              color:var(--color-primary);border-top:1px solid var(--color-divider);transition:background .1s"
+            onmouseenter="this.style.background='var(--color-surface-2)'"
+            onmouseleave="this.style.background=''">➕ Add "${esc(inp.value.trim())}" as custom</div>`);
+        }
+
+        dd.innerHTML = items.join('');
+
+        // Position using viewport-relative coords so it escapes any overflow:hidden ancestor
+        const rect = inp.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const spaceAbove = rect.top;
+        const ddH = Math.min(200, items.length * 34);
+
+        if (spaceBelow >= ddH || spaceBelow >= spaceAbove) {
+          dd.style.top    = (rect.bottom + 4) + 'px';
+          dd.style.bottom = 'auto';
+        } else {
+          dd.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+          dd.style.top    = 'auto';
+        }
+        dd.style.left  = rect.left + 'px';
+        dd.style.width = Math.max(rect.width, 220) + 'px';
+        dd.style.display = 'block';
+      };
+    })();
 
     window.afmRemoveScreen = function(i, si) {
       if (!P._pendingAutoFeatures || !P._pendingAutoFeatures[i]) return;
@@ -25817,7 +25884,9 @@
         return;
       }
       P._pendingAutoFeatures[i].screens.push(name);
+      afmHideDropdown();
       afmRenderScreens(i);
+      setTimeout(() => { const inp = $id(`afm-inp-${i}`); if (inp) inp.focus(); }, 50);
     };
 
     window.afmPickScreen = function(i) {
@@ -25827,45 +25896,7 @@
       if (!val) return;
       afmAddScreen(i, val);
       inp.value = '';
-      const dd = $id(`afm-dd-${i}`);
-      if (dd) dd.style.display = 'none';
-    };
-
-    window.afmShowDropdown = function(i) {
-      afmFilterDropdown(i);
-    };
-
-    window.afmFilterDropdown = function(i) {
-      const inp = $id(`afm-inp-${i}`);
-      const dd  = $id(`afm-dd-${i}`);
-      if (!inp || !dd) return;
-
-      const q       = inp.value.trim().toLowerCase();
-      const current = (P._pendingAutoFeatures && P._pendingAutoFeatures[i] && P._pendingAutoFeatures[i].screens) || [];
-      const all     = (typeof getAllScreens === 'function' ? getAllScreens() : []).filter(s => !current.includes(s));
-      const matches = q ? all.filter(s => s.toLowerCase().includes(q)) : all;
-
-      if (!matches.length && !q) { dd.style.display = 'none'; return; }
-
-      const items = matches.slice(0, 40).map(s =>
-        `<div onclick="afmAddScreen(${i}, '${s.replace(/'/g,"\\'")}')"
-          style="padding:7px 11px;font-size:12px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-            transition:background .1s"
-          onmouseenter="this.style.background='var(--color-surface-2)'"
-          onmouseleave="this.style.background=''">${esc(s)}</div>`
-      );
-
-      // Allow custom entry if typed value not in list
-      if (q && !all.some(s => s.toLowerCase() === q)) {
-        items.push(`<div onclick="afmPickScreen(${i})"
-          style="padding:7px 11px;font-size:12px;cursor:pointer;font-style:italic;
-            color:var(--color-primary);border-top:1px solid var(--color-divider);transition:background .1s"
-          onmouseenter="this.style.background='var(--color-surface-2)'"
-          onmouseleave="this.style.background=''">➕ Add "${esc(inp.value.trim())}" as custom</div>`);
-      }
-
-      dd.innerHTML = items.join('');
-      dd.style.display = items.length ? 'block' : 'none';
+      afmHideDropdown();
     };
 
     window.applyAutoFeatures = function() {
