@@ -14510,9 +14510,15 @@
         s.startDate = runningDate;
         const e = (s.effort || 1) * compFactor;
         s.dueDate = addBusDays(runningDate, Math.ceil(e));
-        runningDate = s.dueDate;
 
-        if ((s.status === 'Completed' || s.done) && s.actCompletionDate && s.startDate) {
+        const isDone = s.status === 'Completed' || s.done;
+        if (isDone && (!s.actCompletionDate || s.actCompletionDate === '-' || s.actCompletionDate === '—' || s.actCompletionDate === 'null')) {
+          s.actCompletionDate = s.dueDate || todayStr();
+        }
+        const finishDate = (isDone && s.actCompletionDate && s.actCompletionDate !== '-' && s.actCompletionDate !== '—' && s.actCompletionDate !== 'null') ? s.actCompletionDate : s.dueDate;
+        runningDate = getNextBusDay(finishDate);
+
+        if (isDone && s.actCompletionDate && s.startDate) {
           s.actEffort = getBusinessDays(s.startDate, s.actCompletionDate);
         } else {
           s.actEffort = 0;
@@ -17958,9 +17964,13 @@
             const effort = Math.ceil(parseFloat(s.effort) || 1);
             s.startDate = currentDate;
             s.dueDate = addBusDays(currentDate, effort);
-            currentDate = getNextBusDay(s.dueDate);
+            const isDone = s.status === 'Completed' || s.done;
+            const finishDate = (isDone && s.actCompletionDate && s.actCompletionDate !== '-' && s.actCompletionDate !== '—' && s.actCompletionDate !== 'null') ? s.actCompletionDate : s.dueDate;
+            currentDate = getNextBusDay(finishDate);
           });
-          task.dueDate = subs[subs.length - 1].dueDate;
+          if (subs.length > 0) {
+            task.dueDate = subs[subs.length - 1].dueDate;
+          }
         }
       }
       if (task.progress === 100 && task.status !== 'Completed') {
@@ -20705,13 +20715,26 @@
       function recalcServerWorkflowLocal() {
         if (!window._editingServerSubtasks) return;
         const parentTask = P.tasks.find(t => t.id === window._editingServerTaskId);
+        let currentDate = (parentTask && parentTask.startDate) ? parentTask.startDate : todayStr();
         window._editingServerSubtasks.forEach(s => {
-          if (s.status === 'Completed' && s.actCompletionDate) {
+          const isDone = s.status === 'Completed' || s.done;
+          const effort = Math.ceil(parseFloat(s.effort) || 1);
+          s.startDate = currentDate;
+          s.dueDate = addBusDays(currentDate, effort);
+
+          if (isDone) {
+            const hasNoDate = !s.actCompletionDate || s.actCompletionDate === '-' || s.actCompletionDate === '—' || s.actCompletionDate === 'null';
+            if (hasNoDate) {
+              s.actCompletionDate = s.dueDate || todayStr();
+            }
             const effectiveStart = getSubtaskEffectiveStart(s, parentTask);
             s.actEffort = getBusinessDays(effectiveStart, s.actCompletionDate);
-          } else if (s.status !== 'Completed') {
+          } else {
             s.actEffort = 0;
           }
+
+          let finishDate = (isDone && s.actCompletionDate && s.actCompletionDate !== '-' && s.actCompletionDate !== '—' && s.actCompletionDate !== 'null') ? s.actCompletionDate : s.dueDate;
+          currentDate = getNextBusDay(finishDate);
         });
       };
 
@@ -20790,19 +20813,9 @@
         const st = window._editingServerSubtasks.find(s => s.id === stId);
         if (st) {
           st.actCompletionDate = val;
-          if (val) {
-            const parentTask = P.tasks.find(t => t.id === window._editingServerTaskId);
-            const effectiveStart = getSubtaskEffectiveStart(st, parentTask);
-            if (effectiveStart) {
-              st.actEffort = getBusinessDays(effectiveStart, val);
-            } else {
-              st.actEffort = 0;
-            }
-          } else {
-            st.actEffort = 0;
-          }
         }
         window.recalcServerWorkflowLocal();
+        openServerWorkflowFlyout(window._editingServerTaskId);
       };
 
       window.markAllServerSubtasksDoneLocal = markAllServerSubtasksDoneLocal;
