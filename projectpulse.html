@@ -25082,29 +25082,29 @@
     function computeScreenSuggestions() {
       const selected = new Set(P._featSelectedScreens || []);
 
-      // Candidate pool: task-sourced screens + every screen already mapped in any feature.
-      const screenSet = new Set(getAllScreens());
-      (P.features || []).forEach(f => (f.screens || []).forEach(s => { if (s) screenSet.add(s); }));
-      const allScreens = Array.from(screenSet);
-
-      // Nothing to suggest if every known screen is already selected
-      const candidates = allScreens.filter(s => !selected.has(s));
-      if (!candidates.length) return [];
-
       // Build the reference token pool from feature name + already-selected screens
       const featName = ($id('feat-new-name') || {}).value || '';
       const refTokens = new Set(_featTokenise(featName));
       selected.forEach(s => _featTokenise(s).forEach(t => refTokens.add(t)));
 
-      // Score every candidate by token overlap (0 is fine — still shown, sorted last)
-      const scored = candidates.map(s => {
+      // No tokens to match against → hide the panel; user should type a name first
+      if (!refTokens.size) return [];
+
+      // Candidate pool: task-sourced screens + every screen already mapped in any feature.
+      const screenSet = new Set(getAllScreens());
+      (P.features || []).forEach(f => (f.screens || []).forEach(s => { if (s) screenSet.add(s); }));
+
+      // Keep only candidates that share at least 1 token — the rest are searchable
+      const scored = [];
+      screenSet.forEach(s => {
+        if (selected.has(s)) return;          // already a chip
         const sTokens = _featTokenise(s);
         let overlap = 0;
-        if (refTokens.size) sTokens.forEach(t => { if (refTokens.has(t)) overlap++; });
-        return { name: s, score: overlap };
+        sTokens.forEach(t => { if (refTokens.has(t)) overlap++; });
+        if (overlap >= 1) scored.push({ name: s, score: overlap });
       });
 
-      // Sort: highest overlap first, then alphabetical for ties
+      // Best matches first, alphabetical for ties, cap at 8
       scored.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
       return scored.slice(0, 8).map(x => x.name);
     }
