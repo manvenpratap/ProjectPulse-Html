@@ -25081,30 +25081,31 @@
 
     function computeScreenSuggestions() {
       const selected = new Set(P._featSelectedScreens || []);
-      const featName  = ($id('feat-new-name') || {}).value || '';
-
-      // Build the reference token pool: feature name tokens + tokens from every selected screen
-      const refTokens = new Set(_featTokenise(featName));
-      selected.forEach(s => _featTokenise(s).forEach(t => refTokens.add(t)));
-
-      if (!refTokens.size) return [];   // nothing to match against yet
 
       // Candidate pool: task-sourced screens + every screen already mapped in any feature.
-      // The second source ensures suggestions work even when task subtasks have no screen data.
       const screenSet = new Set(getAllScreens());
       (P.features || []).forEach(f => (f.screens || []).forEach(s => { if (s) screenSet.add(s); }));
       const allScreens = Array.from(screenSet);
-      const scored = [];
-      allScreens.forEach(s => {
-        if (selected.has(s)) return;    // already added
+
+      // Nothing to suggest if every known screen is already selected
+      const candidates = allScreens.filter(s => !selected.has(s));
+      if (!candidates.length) return [];
+
+      // Build the reference token pool from feature name + already-selected screens
+      const featName = ($id('feat-new-name') || {}).value || '';
+      const refTokens = new Set(_featTokenise(featName));
+      selected.forEach(s => _featTokenise(s).forEach(t => refTokens.add(t)));
+
+      // Score every candidate by token overlap (0 is fine — still shown, sorted last)
+      const scored = candidates.map(s => {
         const sTokens = _featTokenise(s);
         let overlap = 0;
-        sTokens.forEach(t => { if (refTokens.has(t)) overlap++; });
-        if (overlap >= 1) scored.push({ name: s, score: overlap });
+        if (refTokens.size) sTokens.forEach(t => { if (refTokens.has(t)) overlap++; });
+        return { name: s, score: overlap };
       });
 
-      // Sort descending by overlap count, cap at 8 to keep the UI compact
-      scored.sort((a, b) => b.score - a.score);
+      // Sort: highest overlap first, then alphabetical for ties
+      scored.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
       return scored.slice(0, 8).map(x => x.name);
     }
 
