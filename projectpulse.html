@@ -6874,7 +6874,11 @@
       font-size: 9px;
       font-weight: 600;
       color: var(--color-text-muted);
-      width: 40px;
+      min-width: 44px;
+      max-width: 80px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
@@ -18630,12 +18634,25 @@
       modules.forEach(m => {
         const mTasks = P.tasks.filter(t => t.module === m);
         const total = mTasks.length;
-        const avgProg = Math.round(mTasks.reduce((acc, t) => acc + (parseFloat(t.progress) || 0), 0) / total);
+        const avgProg = Math.round(mTasks.reduce((acc, t) => acc + (parseFloat(t.progress) || 0), 0) / (total || 1));
 
-        const serverTasks = mTasks.filter(t => (t.moduleType || '').startsWith('Server'));
-        const guiTasks = mTasks.filter(t => (t.moduleType || '').startsWith('GUI'));
-        const sProg = serverTasks.length ? Math.round(serverTasks.reduce((acc, t) => acc + (parseFloat(t.progress) || 0), 0) / serverTasks.length) : null;
-        const gProg = guiTasks.length ? Math.round(guiTasks.reduce((acc, t) => acc + (parseFloat(t.progress) || 0), 0) / guiTasks.length) : null;
+        const typeGroups = {};
+        mTasks.forEach(t => {
+          const typeKey = (t.moduleType && t.moduleType.trim()) ? t.moduleType.trim() : ((t.category && t.category.trim()) ? t.category.trim() : 'Other');
+          if (!typeGroups[typeKey]) typeGroups[typeKey] = [];
+          typeGroups[typeKey].push(t);
+        });
+
+        const sidesHtml = Object.entries(typeGroups).map(([typeKey, typeTasks]) => {
+          const typeProg = Math.round(typeTasks.reduce((acc, t) => acc + (parseFloat(t.progress) || 0), 0) / typeTasks.length);
+          return `
+            <div class="m-side" title="${esc(typeKey)} (${typeTasks.length} task${typeTasks.length > 1 ? 's' : ''}): ${typeProg}%">
+              <span class="m-side-label" title="${esc(typeKey)}">${esc(typeKey)}</span>
+              <div class="m-side-bar"><div class="m-side-fill" style="width:${typeProg}%"></div></div>
+              <span class="m-side-val">${typeProg}%</span>
+            </div>
+          `;
+        }).join('');
 
         const card = document.createElement('div');
         const isActive = P.filters.module && P.filters.module.has(m);
@@ -18647,8 +18664,7 @@
             <span class="m-pct">${avgProg}%</span>
           </div>
           <div class="m-sides">
-            ${sProg !== null ? `<div class="m-side"><span class="m-side-label">Server</span><div class="m-side-bar"><div class="m-side-fill" style="width:${sProg}%"></div></div><span class="m-side-val">${sProg}%</span></div>` : ''}
-            ${gProg !== null ? `<div class="m-side"><span class="m-side-label">GUI</span><div class="m-side-bar"><div class="m-side-fill" style="width:${gProg}%"></div></div><span class="m-side-val">${gProg}%</span></div>` : ''}
+            ${sidesHtml}
           </div>
         `;
         cont.appendChild(card);
