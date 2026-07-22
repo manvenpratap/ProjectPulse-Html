@@ -12933,6 +12933,14 @@
             style="display:flex; flex-wrap:wrap; gap:8px; padding:12px; min-height:56px; border:1px solid var(--color-divider); border-radius:12px; background:rgba(var(--color-text-rgb), 0.02); margin-bottom:12px">
           </div>
 
+          <!-- AI-suggested screens (same token-overlap algorithm as Auto-Build) -->
+          <div id="feat-screen-suggestions" style="margin-bottom:12px; display:none">
+            <div style="font-size:10px; font-weight:700; color:var(--color-text-muted); letter-spacing:.05em; text-transform:uppercase; margin-bottom:6px; display:flex; align-items:center; gap:6px">
+              <i data-lucide="sparkles" style="width:12px;height:12px;color:var(--color-primary)"></i> Suggested screens
+            </div>
+            <div id="feat-screen-suggestions-pills" style="display:flex; flex-wrap:wrap; gap:6px"></div>
+          </div>
+
           <div style="position:relative">
             <input class="finp" id="feat-screen-search" placeholder="🔍 Search screens or type custom..."
               autocomplete="off" style="height:44px; padding-right:100px; border-radius:12px">
@@ -25041,6 +25049,7 @@
     function featRemoveScreen(idx) {
       P._featSelectedScreens.splice(idx, 1);
       renderFeatScreenChips();
+      renderScreenSuggestions();
     }
 
     function featAddScreen(name) {
@@ -25050,10 +25059,79 @@
       if (P._featSelectedScreens.includes(name)) { notify('Screen already added', 'amber'); return; }
       P._featSelectedScreens.push(name);
       renderFeatScreenChips();
+      renderScreenSuggestions();
       const inp = $id('feat-screen-search');
       if (inp) { inp.value = ''; inp.focus(); }
       const dd = $id('feat-screen-dropdown');
       if (dd) dd.style.display = 'none';
+    }
+
+    // ── Screen suggestion engine ────────────────────────────────────────────
+    // Uses the same stop-word list + token-overlap algorithm as autoBuildFeatureMatrix.
+    const _featStopWords = new Set(['screen','view','page','modal','form','ui','tab','component',
+      'dialog','popup','panel','widget','list','details','overview','manage','management',
+      'settings','setting','edit','create','add','new','v1','v2','the','a','and','for','to','module']);
+
+    function _featTokenise(str) {
+      return (str || '').toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter(t => t.length > 1 && !_featStopWords.has(t));
+    }
+
+    function computeScreenSuggestions() {
+      const selected = new Set(P._featSelectedScreens || []);
+      const featName  = ($id('feat-new-name') || {}).value || '';
+
+      // Build the reference token pool: feature name tokens + tokens from every selected screen
+      const refTokens = new Set(_featTokenise(featName));
+      selected.forEach(s => _featTokenise(s).forEach(t => refTokens.add(t)));
+
+      if (!refTokens.size) return [];   // nothing to match against yet
+
+      const allScreens = getAllScreens();
+      const scored = [];
+      allScreens.forEach(s => {
+        if (selected.has(s)) return;    // already added
+        const sTokens = _featTokenise(s);
+        let overlap = 0;
+        sTokens.forEach(t => { if (refTokens.has(t)) overlap++; });
+        if (overlap >= 1) scored.push({ name: s, score: overlap });
+      });
+
+      // Sort descending by overlap count, cap at 8 to keep the UI compact
+      scored.sort((a, b) => b.score - a.score);
+      return scored.slice(0, 8).map(x => x.name);
+    }
+
+    function renderScreenSuggestions() {
+      const wrap  = $id('feat-screen-suggestions');
+      const pills = $id('feat-screen-suggestions-pills');
+      if (!wrap || !pills) return;
+
+      const suggestions = computeScreenSuggestions();
+      if (!suggestions.length) { wrap.style.display = 'none'; return; }
+
+      wrap.style.display = 'block';
+      pills.innerHTML = suggestions.map(s => `
+        <span
+          onclick="featAddScreen('${s.replace(/'/g, "\\'")}')"
+          title="Click to add"
+          style="
+            display:inline-flex; align-items:center; gap:5px;
+            padding:4px 10px; cursor:pointer; user-select:none;
+            background:rgba(var(--color-primary-rgb,99,102,241),.07);
+            border:1px dashed var(--color-primary,#6366f1);
+            border-radius:20px; font-size:11px; font-weight:600;
+            color:var(--color-primary,#6366f1);
+            transition:background .15s, transform .1s;"
+          onmouseenter="this.style.background='rgba(var(--color-primary-rgb,99,102,241),.18)';this.style.transform='scale(1.04)'"
+          onmouseleave="this.style.background='rgba(var(--color-primary-rgb,99,102,241),.07)';this.style.transform='none'"
+        >
+          <i data-lucide="plus-circle" style="width:11px;height:11px"></i> ${esc(s)}
+        </span>
+      `).join('');
+      if (window.lucide) lucide.createIcons(pills);
     }
 
     function featAddCustomScreen() {
@@ -25103,6 +25181,10 @@
       document.addEventListener('click', (e) => {
         if (!inp.contains(e.target) && !dd.contains(e.target)) dd.style.display = 'none';
       }, { once: false });
+
+      // Re-run suggestions whenever the feature name changes
+      const nameInp = $id('feat-new-name');
+      if (nameInp) nameInp.addEventListener('input', renderScreenSuggestions);
     }
 
     function openFeatFlyout() {
@@ -25122,6 +25204,7 @@
       $id('feat-form-title').innerText = 'Create New Feature';
       $id('feat-add-btn').innerText = 'Save Feature';
       renderFeatScreenChips();
+      renderScreenSuggestions();
       $id('feat-flyout').classList.add('on');
       $id('flyout-overlay').classList.add('on');
     }
@@ -25167,6 +25250,7 @@
       catSelect.value = feat.category || '';
 
       renderFeatScreenChips();
+      renderScreenSuggestions();
       $id('feat-form-title').innerText = 'Edit Feature Mapping';
       $id('feat-add-btn').innerText = 'Update Feature';
       $id('feat-flyout').classList.add('on');
