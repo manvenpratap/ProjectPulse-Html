@@ -25669,7 +25669,7 @@
               <div id="afm-screens-${i}" style="display:flex; flex-direction:column; gap:6px"></div>
             </td>
             <td style="padding:10px 12px">
-              <span style="font-size:11px; font-weight:600; color:var(--color-text-muted)">${esc((f.modules || []).join(', ') || 'General')}</span>
+              <span id="afm-mod-${i}" style="font-size:11px; font-weight:600; color:var(--color-text-muted)">${esc((f.modules || []).join(', ') || 'General')}</span>
             </td>
             <td style="padding:10px 12px">
               <select class="inp" onchange="P._pendingAutoFeatures[${i}].release = this.value" style="font-size:12px; padding:4px 8px">
@@ -25781,6 +25781,31 @@
         </div>`;
 
       if (window.lucide) lucide.createIcons(cont);
+
+      // Refresh Source Modules cell from current screen list
+      const modSpan = $id(`afm-mod-${i}`);
+      if (modSpan) {
+        const mods = afmComputeModules(feat.screens || []);
+        modSpan.textContent = mods.length ? mods.join(', ') : 'General';
+      }
+    };
+
+    // Derive module names for a given list of screen names by scanning P.tasks
+    window.afmComputeModules = function(screenNames) {
+      const mods = new Set();
+      if (!Array.isArray(screenNames) || !screenNames.length) return [];
+      const nameSet = new Set(screenNames);
+      (P.tasks || []).forEach(t => {
+        let hit = false;
+        if (t.subtasks) {
+          t.subtasks.forEach(st => { if (nameSet.has(st.name)) hit = true; });
+        }
+        if (t.guiScreens && Array.isArray(t.guiScreens)) {
+          t.guiScreens.forEach(s => { if (nameSet.has(s)) hit = true; });
+        }
+        if (hit && t.module) mods.add(t.module);
+      });
+      return Array.from(mods);
     };
 
     // ── Shared body-level dropdown (escapes table overflow clipping) ──────────
