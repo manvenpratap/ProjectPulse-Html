@@ -41970,12 +41970,16 @@ Earned Value Management measures project performance and progress by comparing p
           { header: 'Due Date', key: 'dueDate', width: 15 },
           { header: 'Baseline Start Date', key: 'baselineStartDate', width: 18 },
           { header: 'Baseline Due Date', key: 'baselineDueDate', width: 18 },
+          { header: `Baseline ${effortUnitLabel('col')}`, key: 'baselineEffort', width: 18 },
+          { header: 'Forecast Due Date', key: 'forecastDueDate', width: 18 },
           { header: 'Delay', key: 'delay', width: 12 },
           { header: 'Actual Completion Date', key: 'actCompletionDate', width: 22 },
           { header: `Estimated ${effortUnitLabel('col')}`, key: 'estEffort', width: 18 },
           { header: `Actual ${effortUnitLabel('col')}`, key: 'actEffort', width: 15 },
           { header: 'Variance', key: 'variance', width: 15 },
           { header: 'Complexity', key: 'complexity', width: 15 },
+          { header: 'Slippage Reason', key: 'slippageReason', width: 35 },
+          { header: 'Confidence', key: 'confidence', width: 15 },
           { header: 'Tags', key: 'tags', width: 20 },
           { header: 'Notes', key: 'notes', width: 35 },
           { header: 'Created At', key: 'createdAt', width: 15 },
@@ -42075,11 +42079,16 @@ Earned Value Management measures project performance and progress by comparing p
             startDate: cleanFmtDate(t.startDate), dueDate: cleanFmtDate(t.dueDate),
             baselineStartDate: cleanFmtDate(t.baselineStartDate),
             baselineDueDate: cleanFmtDate(t.baselineDueDate),
+            baselineEffort: t.baselineEffort !== undefined ? t.baselineEffort : '',
+            forecastDueDate: cleanFmtDate(t.forecastDueDate),
             delay: { formula: `IF(AND(K${rowIdx}<>"Completed", O${rowIdx}<TODAY()), TODAY()-O${rowIdx}, 0)` },
             actCompletionDate: cleanFmtDate(t.actCompletionDate), estEffort: t.estEffort || 0,
             actEffort: t.actEffort || 0,
             variance: { formula: `S${rowIdx}-R${rowIdx}` },
-            complexity: S(t.complexity), tags: S((t.tags || []).join(', ')), notes: S(t.notes),
+            complexity: S(t.complexity),
+            slippageReason: S(t.slippageReason || ''),
+            confidence: S(t.confidence || ''),
+            tags: S((t.tags || []).join(', ')), notes: S(t.notes),
             createdAt: cleanFmtDate(t.createdAt), updatedAt: cleanFmtDate(t.updatedAt)
           };
           (P.customFields || []).forEach(f => { rowValues[f.name] = S(t[f.name]); });
@@ -42189,7 +42198,7 @@ Earned Value Management measures project performance and progress by comparing p
             technicalWindowName: S(s.technicalWindowName || ''),
             status: S(s.status),
             assignee: S(s.assignee), startDate: cleanFmtDate(s.startDate), dueDate: cleanFmtDate(s.dueDate),
-            actCompletionDate: cleanFmtDate(s.actCompletionDate), estEffort: s.estEffort || 0,
+            actCompletionDate: cleanFmtDate(s.actCompletionDate), estEffort: s.effort !== undefined ? s.effort : (s.estEffort || 0),
             actEffort: s.actEffort || 0, notes: S(s.notes)
           };
           const row = ws.addRow(rowValues); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
@@ -45499,8 +45508,23 @@ Earned Value Management measures project performance and progress by comparing p
           copy.startDate = fmtD(t.startDate || t['Start Date']); copy.dueDate = fmtD(t.dueDate || t['Due Date']);
           copy.baselineStartDate = fmtD(t.baselineStartDate || t['Baseline Start Date'] || t['Base Start']);
           copy.baselineDueDate = fmtD(t.baselineDueDate || t['Baseline Due Date'] || t['Base End']);
+          if (t.baselineEffort !== undefined || t['Baseline Effort'] !== undefined || t['Baseline Effort (PD)'] !== undefined) {
+            const be = parseFloat(t.baselineEffort || t['Baseline Effort'] || t['Baseline Effort (PD)']);
+            if (!isNaN(be)) copy.baselineEffort = be;
+          }
+          copy.forecastDueDate = fmtD(t.forecastDueDate || t['Forecast Due Date']);
+          if (t.slippageReason || t['Slippage Reason']) copy.slippageReason = S(t.slippageReason || t['Slippage Reason']);
+          if (t.confidence || t['Confidence']) copy.confidence = S(t.confidence || t['Confidence']);
           copy.actCompletionDate = fmtD(t.actCompletionDate || t['Actual Completion Date']); copy.createdAt = fmtD(t.createdAt || t['Created At']); copy.updatedAt = fmtD(t.updatedAt || t['Updated At']);
-          copy.subtasks = rawSub.filter(s => s.parentId === t.id).map(s => { const sub = { ...s }; sub.startDate = fmtD(s.startDate || s['Start Date']); sub.dueDate = fmtD(s.dueDate || s['Due Date']); sub.actCompletionDate = fmtD(s.actCompletionDate || s['Actual Completion Date']); sub.workflow = relTables['Data_SubTaskWorkflows'].filter(sw => sw.subtaskId === s.id).map(sw => ({ name: sw.name, effort: parseFloat(sw.effort) || 0, done: !!sw.done || sw.status === 'Completed', status: sw.status || (sw.done ? 'Completed' : 'Not Started'), progress: parseInt(sw.progress) || (sw.status === 'Completed' || sw.done ? 100 : 0), actCompletionDate: fmtD(sw.actCompletionDate || sw['Actual Completion Date']), actEffort: parseFloat(sw.actEffort) || 0 })); return sub; });
+          copy.subtasks = rawSub.filter(s => s.parentId === t.id).map(s => {
+            const sub = { ...s };
+            sub.startDate = fmtD(s.startDate || s['Start Date']); sub.dueDate = fmtD(s.dueDate || s['Due Date']); sub.actCompletionDate = fmtD(s.actCompletionDate || s['Actual Completion Date']);
+            if (s.effort !== undefined || s.estEffort !== undefined || s['Estimated Effort'] !== undefined) {
+              const eff = parseFloat(s.effort !== undefined ? s.effort : (s.estEffort !== undefined ? s.estEffort : s['Estimated Effort']));
+              if (!isNaN(eff)) sub.effort = eff;
+            }
+            sub.workflow = relTables['Data_SubTaskWorkflows'].filter(sw => sw.subtaskId === s.id).map(sw => ({ name: sw.name, effort: parseFloat(sw.effort) || 0, done: !!sw.done || sw.status === 'Completed', status: sw.status || (sw.done ? 'Completed' : 'Not Started'), progress: parseInt(sw.progress) || (sw.status === 'Completed' || sw.done ? 100 : 0), actCompletionDate: fmtD(sw.actCompletionDate || sw['Actual Completion Date']), actEffort: parseFloat(sw.actEffort) || 0 })); return sub;
+          });
           copy.workflow = relTables['Data_TaskWorkflows'].filter(w => w.taskId === t.id).map(w => ({ name: w.name, effort: parseFloat(w.effort) || 0, done: !!w.done || w.status === 'Completed', status: w.status || (w.done ? 'Completed' : 'Not Started'), progress: parseInt(w.progress) || (w.status === 'Completed' || w.done ? 100 : 0), actCompletionDate: fmtD(w.actCompletionDate || w['Actual Completion Date']), actEffort: parseFloat(w.actEffort) || 0 })); copy.dependsOn = relTables['Data_TaskDependencies'].filter(d => d.taskId === t.id).map(d => d.dependencyId); copy.guiScreens = relTables['Data_TaskGUIScreens'].filter(s => s.taskId === t.id).map(s => s.screen);
           return copy;
         });
