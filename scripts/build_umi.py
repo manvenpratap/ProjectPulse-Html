@@ -916,9 +916,10 @@ def ch_widgets_glossary(doc):
     # 14. cfd
     make_heading(doc,"14.2.14  Cumulative Flow Diagram (cfd)",level=3,color=CLR_NAVY)
     make_body(doc,
-        "• Description: Area chart showing work items in various states over time.\n"
-        "• Interpretation: Band widths show task counts in Not Started, In Progress, QA, and Completed. Bulging bands indicate bottlenecks.\n"
-        "• How to Use: Identifies bottleneck areas. A widening 'QA' band implies a testing resource bottleneck.",space_after=4)
+        "• Description: Multi-mode stacked area chart showing work items across lifecycle status stages over time.\n"
+        "• Controls & Customization: Features a Mode Selector dropdown (Count vs Effort (Days)), a Sub-tasks level checkbox toggle (evaluating individual sub-tasks vs parent task items), and a timeframe selector (8 to 100 weeks).\n"
+        "• Interpretation: Band heights display item counts or effort in Not Started, In Progress, On Hold, Under Review, and Completed. Bulging bands indicate process bottlenecks.\n"
+        "• How to Use: Identifies bottleneck areas and flow health. Toggle between Count and Effort (Days) or enable Sub-tasks mode for granular status lifecycle tracking.",space_after=4)
     add_screenshot(doc, "widgets/cfd", "Figure 14.14 — Cumulative Flow Diagram Widget (cfd)", width_inches=5.5)
 
     # 15. overdue
