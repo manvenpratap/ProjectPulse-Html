@@ -41968,6 +41968,8 @@ Earned Value Management measures project performance and progress by comparing p
           { header: 'Progress', key: 'progress', width: 12 },
           { header: 'Start Date', key: 'startDate', width: 15 },
           { header: 'Due Date', key: 'dueDate', width: 15 },
+          { header: 'Baseline Start Date', key: 'baselineStartDate', width: 18 },
+          { header: 'Baseline Due Date', key: 'baselineDueDate', width: 18 },
           { header: 'Delay', key: 'delay', width: 12 },
           { header: 'Actual Completion Date', key: 'actCompletionDate', width: 22 },
           { header: `Estimated ${effortUnitLabel('col')}`, key: 'estEffort', width: 18 },
@@ -42071,6 +42073,8 @@ Earned Value Management measures project performance and progress by comparing p
             predecessors: S((t.predecessors || []).join(', ')), assignee: S(t.assignee),
             status: S(t.status), priority: S(t.priority), progress: t.progress !== undefined ? t.progress : 0,
             startDate: cleanFmtDate(t.startDate), dueDate: cleanFmtDate(t.dueDate),
+            baselineStartDate: cleanFmtDate(t.baselineStartDate),
+            baselineDueDate: cleanFmtDate(t.baselineDueDate),
             delay: { formula: `IF(AND(K${rowIdx}<>"Completed", O${rowIdx}<TODAY()), TODAY()-O${rowIdx}, 0)` },
             actCompletionDate: cleanFmtDate(t.actCompletionDate), estEffort: t.estEffort || 0,
             actEffort: t.actEffort || 0,
@@ -45425,7 +45429,7 @@ Earned Value Management measures project performance and progress by comparing p
 
         const crRaw = rawData.getTable('Config_Releases');
         if (crRaw && crRaw.length) {
-          P.releases = crRaw.map(r => ({ id: r.id, name: r.name || r['Name'] || '', date: r.date || r['Date'] || '', status: r.status || r['Status'] || 'Planned' }));
+          P.releases = crRaw.map(r => ({ id: r.id, name: r.name || r['Name'] || '', date: r.date || r['Date'] || '', startDate: r.startDate || r['Start Date'] || r.date || r['Date'] || '', endDate: r.endDate || r['End Date'] || '', status: r.status || r['Status'] || 'Planned' }));
         }
       },
 
@@ -45492,7 +45496,10 @@ Earned Value Management measures project performance and progress by comparing p
         P.tasks = rawTasks.map(t => {
           const copy = { ...t }; delete copy['Derived Health']; delete copy['Blocking Issues']; delete copy['Workflow Hints']; delete copy['Suggested Due Date'];
           if (copy.cat && !copy.category) { copy.category = copy.cat; delete copy.cat; }
-          copy.startDate = fmtD(t.startDate || t['Start Date']); copy.dueDate = fmtD(t.dueDate || t['Due Date']); copy.actCompletionDate = fmtD(t.actCompletionDate || t['Actual Completion Date']); copy.createdAt = fmtD(t.createdAt || t['Created At']); copy.updatedAt = fmtD(t.updatedAt || t['Updated At']);
+          copy.startDate = fmtD(t.startDate || t['Start Date']); copy.dueDate = fmtD(t.dueDate || t['Due Date']);
+          copy.baselineStartDate = fmtD(t.baselineStartDate || t['Baseline Start Date'] || t['Base Start']);
+          copy.baselineDueDate = fmtD(t.baselineDueDate || t['Baseline Due Date'] || t['Base End']);
+          copy.actCompletionDate = fmtD(t.actCompletionDate || t['Actual Completion Date']); copy.createdAt = fmtD(t.createdAt || t['Created At']); copy.updatedAt = fmtD(t.updatedAt || t['Updated At']);
           copy.subtasks = rawSub.filter(s => s.parentId === t.id).map(s => { const sub = { ...s }; sub.startDate = fmtD(s.startDate || s['Start Date']); sub.dueDate = fmtD(s.dueDate || s['Due Date']); sub.actCompletionDate = fmtD(s.actCompletionDate || s['Actual Completion Date']); sub.workflow = relTables['Data_SubTaskWorkflows'].filter(sw => sw.subtaskId === s.id).map(sw => ({ name: sw.name, effort: parseFloat(sw.effort) || 0, done: !!sw.done || sw.status === 'Completed', status: sw.status || (sw.done ? 'Completed' : 'Not Started'), progress: parseInt(sw.progress) || (sw.status === 'Completed' || sw.done ? 100 : 0), actCompletionDate: fmtD(sw.actCompletionDate || sw['Actual Completion Date']), actEffort: parseFloat(sw.actEffort) || 0 })); return sub; });
           copy.workflow = relTables['Data_TaskWorkflows'].filter(w => w.taskId === t.id).map(w => ({ name: w.name, effort: parseFloat(w.effort) || 0, done: !!w.done || w.status === 'Completed', status: w.status || (w.done ? 'Completed' : 'Not Started'), progress: parseInt(w.progress) || (w.status === 'Completed' || w.done ? 100 : 0), actCompletionDate: fmtD(w.actCompletionDate || w['Actual Completion Date']), actEffort: parseFloat(w.actEffort) || 0 })); copy.dependsOn = relTables['Data_TaskDependencies'].filter(d => d.taskId === t.id).map(d => d.dependencyId); copy.guiScreens = relTables['Data_TaskGUIScreens'].filter(s => s.taskId === t.id).map(s => s.screen);
           return copy;
@@ -47808,6 +47815,9 @@ Earned Value Management measures project performance and progress by comparing p
         renderReleases();
         syncDropdowns();
         save();
+        if (P.fsHandle && !P._isLoading && !P._fsPermissionError) {
+          saveToFile(true);
+        }
       }
     }
 
