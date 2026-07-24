@@ -13241,6 +13241,32 @@
         return '#888';
       },
 
+      getReleaseDates(releaseVersionName) {
+        if (!releaseVersionName) return { startDate: '', endDate: '' };
+        const stateP = typeof PulseState !== 'undefined' ? PulseState.P : (typeof P !== 'undefined' ? P : null);
+        if (!stateP) return { startDate: '', endDate: '' };
+
+        const relNameNorm = String(releaseVersionName).trim().toLowerCase();
+        const rel = (stateP.releases || []).find(r => String(r.name || r.release || '').trim().toLowerCase() === relNameNorm);
+
+        let startDate = rel ? (rel.startDate || '') : '';
+        let endDate = rel ? (rel.date || rel.endDate || rel.dueDate || '') : '';
+
+        // If missing dates on release object, infer from tasks belonging to this release
+        const relTasks = (stateP.tasks || []).filter(t => String(t.releaseVersion || t.release || '').trim().toLowerCase() === relNameNorm);
+        if (!startDate && relTasks.length > 0) {
+          const starts = relTasks.map(t => t.startDate).filter(Boolean);
+          if (starts.length > 0) startDate = starts.sort()[0];
+        }
+        if (!endDate && relTasks.length > 0) {
+          const ends = relTasks.map(t => t.dueDate || t.actCompletionDate).filter(Boolean);
+          if (ends.length > 0) endDate = ends.sort().reverse()[0];
+        }
+        if (!startDate && endDate) startDate = endDate;
+        if (!endDate && startDate) endDate = startDate;
+        return { startDate, endDate };
+      },
+
       getLogActivityDate(l) {
         if (!l) return new Date();
         let dStr = '';
@@ -15535,6 +15561,20 @@
         if (next) return 'Not Started';
         return t.status;
       },
+      syncTaskBaselineFromRelease(task) {
+        if (!task || !task.releaseVersion) return false;
+        const relDates = PulseUtils.getReleaseDates(task.releaseVersion);
+        let updated = false;
+        if (relDates.startDate && task.baselineStartDate !== relDates.startDate) {
+          task.baselineStartDate = relDates.startDate;
+          updated = true;
+        }
+        if (relDates.endDate && task.baselineDueDate !== relDates.endDate) {
+          task.baselineDueDate = relDates.endDate;
+          updated = true;
+        }
+        return updated;
+      },
       createTask(data) {
         const stateP = PulseState.P;
         const id = 'TASK-' + String(stateP.nextTaskId++).padStart(3, '0');
@@ -15572,6 +15612,9 @@
         stateP.customFields.forEach(cf => { if (!(cf.name in task)) task[cf.name] = data[cf.name] || ''; });
 
         PulseState.syncTaskToTemplate(task);
+        if (task.releaseVersion) {
+          PulseState.syncTaskBaselineFromRelease(task);
+        }
 
         stateP.tasks.push(task);
         PulseState.addLog('Created', id, task.name);
@@ -15713,6 +15756,9 @@
         }
         task[field] = newVal;
         if (field === 'category') PulseState.syncTaskToTemplate(task);
+        if (field === 'releaseVersion' || field === 'release') {
+          PulseState.syncTaskBaselineFromRelease(task);
+        }
         task.updatedAt = nowISO();
 
         if (field === 'startDate') {
@@ -15938,8 +15984,11 @@
         const snapDate = todayStr();
 
         stateP.tasks.forEach(t => {
-          t.baselineStartDate = t.startDate || todayStr();
-          t.baselineDueDate = t.dueDate || todayStr();
+          if (t.releaseVersion) {
+            PulseState.syncTaskBaselineFromRelease(t);
+          }
+          t.baselineStartDate = t.baselineStartDate || t.startDate || todayStr();
+          t.baselineDueDate = t.baselineDueDate || t.dueDate || todayStr();
           t.baselineEffort = parseFloat(t.estEffort) || 0;
 
           const b = {
@@ -16659,7 +16708,10 @@
                 if (t.baselineHours !== undefined && t.baselineEffort === undefined) { t.baselineEffort = t.baselineHours; delete t.baselineHours; }
                 if (t.baseEstHours !== undefined && t.baseEstEffort === undefined) { t.baseEstEffort = t.baseEstHours; delete t.baseEstHours; }
 
-                // Automatically migrate/initialize task-level baseline fields from planned fields
+                // Automatically migrate/initialize task-level baseline fields from release version dates or planned fields
+                if (t.releaseVersion) {
+                  PulseState.syncTaskBaselineFromRelease(t);
+                }
                 if (t.baselineStartDate === undefined || t.baselineStartDate === null || t.baselineStartDate === '') {
                   t.baselineStartDate = t.startDate || todayStr();
                   migratedBaselines = true;
@@ -17788,6 +17840,9 @@
     function updateField(taskId, field, newVal, comment) {
       return PulseState.updateField(taskId, field, newVal, comment);
     }
+    function syncTaskBaselineFromRelease(task) {
+      return PulseState.syncTaskBaselineFromRelease(task);
+    }
     function deleteTask(taskId) {
       return PulseState.deleteTask(taskId);
     }
@@ -17906,6 +17961,7 @@
     window.smartSyncWorkflow = smartSyncWorkflow;
     window.syncTaskToTemplate = syncTaskToTemplate;
     window.syncAllTasksToTemplate = syncAllTasksToTemplate;
+    window.syncTaskBaselineFromRelease = syncTaskBaselineFromRelease;
     window.updateField = updateField;
     window.deleteTask = deleteTask;
     window.duplicateTask = duplicateTask;
@@ -47709,6 +47765,14 @@ Earned Value Management measures project performance and progress by comparing p
         if (prop === 'name' && oldName && oldName !== val) {
           P.features.forEach(f => { if (f.release === oldName) f.release = val; });
           P.tasks.forEach(t => { if (t.releaseVersion === oldName) t.releaseVersion = val; });
+        }
+        if (['startDate', 'date', 'endDate', 'name'].includes(prop)) {
+          const relName = r.name;
+          P.tasks.forEach(t => {
+            if (t.releaseVersion && String(t.releaseVersion).trim().toLowerCase() === String(relName).trim().toLowerCase()) {
+              PulseState.syncTaskBaselineFromRelease(t);
+            }
+          });
         }
         renderReleases();
         syncDropdowns();
