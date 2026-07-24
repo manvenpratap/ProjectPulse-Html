@@ -26591,9 +26591,6 @@
         const swimlanesContainer = document.createElement('div');
         swimlanesContainer.style = "display:flex; flex-direction:column; gap:24px; background:var(--color-surface); border:1px solid var(--color-border-faint); border-radius:16px; padding:24px; box-shadow:0 8px 30px rgba(0,0,0,0.04)";
 
-        const swimlaneDetailPanel = document.createElement('div');
-        swimlaneDetailPanel.style = "margin-top:20px; padding:16px 20px; background:var(--color-surface-2); border-radius:12px; border:1px solid var(--color-border-faint); display:none; animation:fadeIn 0.2s ease; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px";
-
         sortedModules.forEach(mod => {
           const modMilestones = grouped[mod];
           const modAllItems = moduleMap[mod] || [];
@@ -26601,11 +26598,14 @@
           const modProgressPct = modAllItems.length ? (modCompleted / modAllItems.length) * 100 : 0;
 
           const row = document.createElement('div');
-          row.style = "display:flex; align-items:stretch; border-bottom:1px solid var(--color-divider); padding-bottom:16px; min-height:180px; position:relative";
+          row.style = "display:flex; flex-direction:column; border-bottom:1px solid var(--color-divider); padding-bottom:16px; position:relative";
           if (sortedModules[sortedModules.length - 1] === mod) {
             row.style.borderBottom = 'none';
             row.style.paddingBottom = '0';
           }
+
+          const rowMain = document.createElement('div');
+          rowMain.style = "display:flex; align-items:stretch; min-height:160px; width:100%";
 
           const leftCol = document.createElement('div');
           leftCol.style = "width:180px; min-width:180px; display:flex; flex-direction:column; justify-content:center; border-right:1px solid var(--color-divider); padding-right:20px; flex-shrink:0";
@@ -26625,7 +26625,7 @@
               <div style="width:${modProgressPct}%; height:100%; background:${modColor}; border-radius:3px"></div>
             </div>
           `;
-          row.appendChild(leftCol);
+          rowMain.appendChild(leftCol);
 
           const rightCol = document.createElement('div');
           rightCol.className = 'ms-roadmap';
@@ -26639,6 +26639,9 @@
           subProgress.style = `position:absolute; top:0; left:0; height:100%; width:${modProgressPct}%; background:${modColor}; border-radius:2px; transition:width 1s ease-in-out`;
           subTrack.appendChild(subProgress);
           rightCol.appendChild(subTrack);
+
+          const rowDetailPanel = document.createElement('div');
+          rowDetailPanel.style = "margin-top:12px; padding:16px 20px; background:var(--color-surface-2); border-radius:12px; border:1px solid var(--color-border-faint); display:none; animation:fadeIn 0.2s ease; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; width:100%";
 
           // Combined timeline items: culminating subnodes followed by milestones
           const trackItems = [];
@@ -26674,8 +26677,8 @@
                 rightCol.querySelectorAll('.ms-node').forEach(n => n.style.opacity = '0.6');
                 node.style.opacity = '1';
 
-                swimlaneDetailPanel.style.display = 'flex';
-                swimlaneDetailPanel.innerHTML = `
+                rowDetailPanel.style.display = 'flex';
+                rowDetailPanel.innerHTML = `
                   <div style="display:flex; align-items:center; gap:16px">
                     <div style="width:40px; height:40px; border-radius:10px; background:${isCompleted ? 'rgba(34,197,94,0.15)' : modColor + '22'}; display:flex; align-items:center; justify-content:center; color:${markerColor}; font-size:18px; font-weight:bold">
                       <i data-lucide="${item.type === 'screen' ? 'layout' : (item.type === 'subtask' ? 'check-square' : 'code')}" style="width:20px;height:20px"></i>
@@ -26703,7 +26706,7 @@
                     </div>
                   </div>
                 `;
-                if (window.lucide) window.lucide.createIcons({ root: swimlaneDetailPanel });
+                if (window.lucide) window.lucide.createIcons({ root: rowDetailPanel });
               });
 
               node.addEventListener('mouseleave', () => {
@@ -26772,8 +26775,8 @@
                   `;
                 }
 
-                swimlaneDetailPanel.style.display = 'flex';
-                swimlaneDetailPanel.innerHTML = `
+                rowDetailPanel.style.display = 'flex';
+                rowDetailPanel.innerHTML = `
                   <div style="display:flex; align-items:center; gap:16px">
                     <div style="width:40px; height:40px; border-radius:10px; background:${isCompleted ? 'rgba(34,197,94,0.15)' : isInProgress ? modColor + '22' : 'var(--color-surface)'}; display:flex; align-items:center; justify-content:center; color:${markerColor}; font-size:18px; font-weight:bold">
                       <i data-lucide="${isCompleted ? 'check' : isNext ? 'flag' : 'clock'}" style="width:20px;height:20px"></i>
@@ -26806,7 +26809,7 @@
                   </div>
                   ${culminatingHtml}
                 `;
-                if (window.lucide) window.lucide.createIcons({ root: swimlaneDetailPanel });
+                if (window.lucide) window.lucide.createIcons({ root: rowDetailPanel });
               });
 
               node.addEventListener('mouseleave', () => {
@@ -26817,11 +26820,18 @@
             rightCol.appendChild(node);
           });
 
-          row.appendChild(rightCol);
+          rowMain.appendChild(rightCol);
+          row.appendChild(rowMain);
+          row.appendChild(rowDetailPanel);
+
+          row.addEventListener('mouseleave', () => {
+            rowDetailPanel.style.display = 'none';
+            rightCol.querySelectorAll('.ms-node').forEach(n => n.style.opacity = '1');
+          });
+
           swimlanesContainer.appendChild(row);
         });
 
-        swimlanesContainer.appendChild(swimlaneDetailPanel);
         contentWrap.appendChild(swimlanesContainer);
       }
 
