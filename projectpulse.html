@@ -15881,6 +15881,19 @@
         save();
         render();
       },
+      updateCFDMode(m) {
+        const stateP = PulseState.P;
+        if (!stateP.settings) stateP.settings = {};
+        stateP.settings.cfdMode = m;
+        save();
+        render();
+      },
+      updateCFDSubtasks(s) {
+        const stateP = PulseState.P;
+        stateP.cfdSubtasks = !!s;
+        save();
+        render();
+      },
       updateEVMWeeks(w) {
         const stateP = PulseState.P;
         let val = parseInt(w) || 8;
@@ -16167,6 +16180,7 @@
         P.widgetSpans = {};
         P.velocityWeeks = 8;
         P.cfdWeeks = 8;
+        P.cfdSubtasks = false;
         P.defectInflowWeeks = 7;
         P.evmWeeks = 8;
         P.evmSubtasks = false;
@@ -16430,6 +16444,7 @@
               sbOpen: P.sbOpen,
               velocityWeeks: P.velocityWeeks || 8,
               cfdWeeks: P.cfdWeeks || 8,
+              cfdSubtasks: !!P.cfdSubtasks,
               defectInflowWeeks: P.defectInflowWeeks || 7,
               evmWeeks: P.evmWeeks || 8,
               evmSubtasks: !!P.evmSubtasks,
@@ -16499,6 +16514,7 @@
             if (d.sbOpen !== undefined) P.sbOpen = d.sbOpen;
             if (d.velocityWeeks !== undefined) P.velocityWeeks = d.velocityWeeks;
             if (d.cfdWeeks !== undefined) P.cfdWeeks = d.cfdWeeks;
+            if (d.cfdSubtasks !== undefined) P.cfdSubtasks = d.cfdSubtasks;
             if (d.defectInflowWeeks !== undefined) P.defectInflowWeeks = d.defectInflowWeeks;
             if (d.evmWeeks !== undefined) P.evmWeeks = d.evmWeeks;
             if (d.evmSubtasks !== undefined) P.evmSubtasks = d.evmSubtasks;
@@ -17796,6 +17812,12 @@
     function updateCFDWeeks(w) {
       return PulseState.updateCFDWeeks(w);
     }
+    function updateCFDMode(m) {
+      return PulseState.updateCFDMode(m);
+    }
+    function updateCFDSubtasks(s) {
+      return PulseState.updateCFDSubtasks(s);
+    }
     function updateDefectInflowWeeks(w) {
       return PulseState.updateDefectInflowWeeks(w);
     }
@@ -17893,6 +17915,8 @@
     window.updateVelocityWeeks = updateVelocityWeeks;
     window.updateVelocityMode = updateVelocityMode;
     window.updateCFDWeeks = updateCFDWeeks;
+    window.updateCFDMode = updateCFDMode;
+    window.updateCFDSubtasks = updateCFDSubtasks;
     window.updateDefectInflowWeeks = updateDefectInflowWeeks;
     window.updateEVMWeeks = updateEVMWeeks;
     window.updateEVMSubtasks = updateEVMSubtasks;
@@ -33316,9 +33340,23 @@
           let cfdWeeksCount = parseInt(P.cfdWeeks) || 8;
           if (cfdWeeksCount < 8) cfdWeeksCount = 8;
           if (cfdWeeksCount > 100) cfdWeeksCount = 100;
-          const cfdCard = mkCC('Cumulative Flow Diagram', `Status Distribution (${cfdWeeksCount} weeks)`, cfdId, '', 'standard', "Visualizes task lifecycle flow.", 'View Explanation');
+          const useSubtasks = !!P.cfdSubtasks;
+          const cfdCard = mkCC('Cumulative Flow Diagram', `Status Distribution (${cfdWeeksCount} weeks${useSubtasks ? ' · Sub-tasks Level' : ''})`, cfdId, '', 'standard', "Visualizes task lifecycle flow.", 'View Explanation');
           cfdCard.style.gridColumn = `span ${cfdSpan}`;
           grid.appendChild(cfdCard);
+
+          const isEffortMode = ((P.settings && P.settings.cfdMode) || 'count') === 'effort';
+          const cfdModeVal = (P.settings && P.settings.cfdMode) || 'count';
+          const cfdModeSelectHtml = `<select onchange="updateCFDMode(this.value)" style="border:none; background:transparent; color:var(--color-text-muted); font-size:11px; font-weight:700; cursor:pointer; outline:none; padding:2px 4px; margin-right:6px; border-right:1px solid var(--color-border);">
+            <option value="count" ${cfdModeVal === 'count' ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">Count</option>
+            <option value="effort" ${cfdModeVal === 'effort' ? 'selected' : ''} style="background:var(--color-surface); color:var(--color-text);">Effort (Days)</option>
+          </select>`;
+
+          const subChecked = useSubtasks;
+          const cfdSubtasksToggleHtml = `<label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer; font-size:11px; font-weight:700; color:var(--color-text-muted); padding:0 6px; border-right:1px solid var(--color-border); margin-right:6px;">
+            <input type="checkbox" ${subChecked ? 'checked' : ''} onchange="updateCFDSubtasks(this.checked)" style="accent-color:var(--color-primary); width:13px; height:13px; cursor:pointer;" />
+            Sub-tasks
+          </label>`;
 
           const cfdOptWeeks = [8, 12, 16, 20, 24, 32, 40, 48, 52, 64, 76, 88, 100];
           if (!cfdOptWeeks.includes(cfdWeeksCount)) {
@@ -33334,7 +33372,7 @@
           cfdSelectHtml += `</select>`;
           const cfdWeeksToggle = document.createElement('div');
           cfdWeeksToggle.style = "display:inline-flex; background:var(--color-surface-offset); padding:2px 6px; border-radius:7px; border:1px solid var(--color-border); align-items:center; flex-shrink:0; height:fit-content; margin-left:auto;";
-          cfdWeeksToggle.innerHTML = cfdSelectHtml;
+          cfdWeeksToggle.innerHTML = cfdModeSelectHtml + cfdSubtasksToggleHtml + cfdSelectHtml;
           cfdCard.querySelector('.ch').appendChild(cfdWeeksToggle);
 
           const cfdCvs = mkCvs(700, 320); cfdCard.querySelector('.cb').appendChild(cfdCvs);
@@ -33345,18 +33383,50 @@
             const d = new Date(); d.setDate(d.getDate() - i * 7); d.setHours(23, 59, 59, 999);
             cfdLastWeeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d), date: d });
           }
-          const stacks = STATUSES.map(s => cfdLastWeeks.map(w => tasks.filter(t => {
-            if (new Date(t.createdAt || 0) > w.date) return false;
-            const logs = (dashCache.statusLogsByTaskId[t.id] || []).filter(l => l.action === 'Status Changed');
+
+          // Build list of items to evaluate based on subtask granularity preference
+          const cfdItems = [];
+          tasks.forEach(t => {
+            const subs = t.subtasks || [];
+            if (useSubtasks && subs.length > 0) {
+              const parentEst = parseFloat(t.estEffort) || 1;
+              const totalSubEff = subs.reduce((s, st) => s + (parseFloat(st.effort) || 1), 0) || 1;
+              subs.forEach(st => {
+                const stEff = parseFloat(st.effort) || 1;
+                const fraction = stEff / totalSubEff;
+                cfdItems.push({
+                  id: st.id,
+                  taskId: t.id,
+                  isSub: true,
+                  createdAt: st.createdAt || t.createdAt || 0,
+                  status: st.status || (st.done ? 'Completed' : 'Not Started'),
+                  estEffort: isEffortMode ? (st.effort !== undefined ? parseFloat(st.effort) || 1 : parentEst * fraction) : 1
+                });
+              });
+            } else {
+              cfdItems.push({
+                id: t.id,
+                taskId: t.id,
+                isSub: false,
+                createdAt: t.createdAt || 0,
+                status: t.status,
+                estEffort: isEffortMode ? (parseFloat(t.estEffort) || 0) : 1
+              });
+            }
+          });
+
+          const stacks = STATUSES.map(s => cfdLastWeeks.map(w => cfdItems.filter(item => {
+            if (new Date(item.createdAt || 0) > w.date) return false;
+            const logs = (dashCache.statusLogsByTaskId[item.taskId] || []).filter(l => l.action === 'Status Changed' && (item.isSub ? l.subtaskId === item.id : (!l.subtaskId || l.subtaskId === '')));
             const priorLogs = logs.filter(l => new Date(l.ts) <= w.date).sort((a, b) => new Date(b.ts) - new Date(a.ts));
             let statusAtTime = 'Not Started';
             if (priorLogs.length > 0) {
               statusAtTime = priorLogs[0].newVal;
             } else if (logs.length === 0) {
-              statusAtTime = t.status;
+              statusAtTime = item.status;
             }
             return statusAtTime === s;
-          }).length));
+          }).reduce((acc, item) => acc + item.estEffort, 0)));
 
           const totals = cfdLastWeeks.map((_, i) => stacks.reduce((s, st) => s + st[i], 0));
           const latestTotal = totals[totals.length - 1] || 0;
@@ -33367,21 +33437,23 @@
           const compRate = latestTotal > 0 ? ((latestComp / latestTotal) * 100).toFixed(0) : 0;
           const isHealthy = latestComp >= latestIP;
 
+          const unitSuffix = isEffortMode ? 'd' : '';
+          const totalLabel = isEffortMode ? (useSubtasks ? 'Total Sub-task Effort' : 'Total Effort') : (useSubtasks ? 'Total Sub-tasks' : 'Total Tasks');
           const summaryBar = document.createElement('div');
           summaryBar.style = "display:flex; flex-wrap:wrap; gap:16px; padding:16px 20px; background:var(--color-surface-2); border-radius:16px; margin:0 0 20px 0; justify-content:space-between; align-items:center; border:1px solid var(--color-border-faint); box-shadow:0 4px 20px rgba(0,0,0,0.03)";
           summaryBar.innerHTML = `
                   <div style="display:flex; gap:28px; flex-wrap:wrap">
                     <div>
-                      <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:600">Total Tasks</div>
-                      <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--color-text)">${latestTotal}</div>
+                      <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:600">${totalLabel}</div>
+                      <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--color-text)">${isEffortMode ? latestTotal.toFixed(1) : latestTotal}${unitSuffix}</div>
                     </div>
                     <div>
                       <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:600">In Progress (WIP)</div>
-                      <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--color-primary)">${latestIP}</div>
+                      <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--color-primary)">${isEffortMode ? latestIP.toFixed(1) : latestIP}${unitSuffix}</div>
                     </div>
                     <div>
                       <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:600">Completed</div>
-                      <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--green)">${latestComp} (${compRate}%)</div>
+                      <div style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--green)">${isEffortMode ? latestComp.toFixed(1) : latestComp}${unitSuffix} (${compRate}%)</div>
                     </div>
                   </div>
                   <div>
