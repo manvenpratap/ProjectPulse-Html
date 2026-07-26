@@ -10497,6 +10497,17 @@
       transition: background 0.15s ease, transform 0.1s ease;
     }
 
+    .cli-clickable {
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.1s ease;
+      border-radius: 6px;
+    }
+
+    .cli-clickable:hover {
+      background: var(--color-surface-2);
+      transform: translateX(2px);
+    }
+
     .dq-row-clickable:hover {
       background: var(--color-surface-2);
       transform: translateX(2px);
@@ -24387,7 +24398,7 @@
      * Renders a premium vertical legend into `container` (.cleg element).
      * Each row: [swatch] [label + bar] [count badge] [pct]
      */
-    function makeDonutLegend(container, entries, colors) {
+    function makeDonutLegend(container, entries, colors, onItemClick) {
       if (!container || !entries || !entries.length) return;
       const total = entries.reduce((s, [, v]) => s + v, 0) || 1;
       const maxV = Math.max(...entries.map(([, v]) => v), 1);
@@ -24400,7 +24411,7 @@
 
         const row = document.createElement('div');
         row.className = 'cli';
-        row.title = `${label}: ${val} (${pct}%)`;
+        row.title = `${label}: ${val} (${pct}%)` + (onItemClick ? ' — click to filter' : '');
         row.innerHTML = `
           <div class="cdot" style="background:${col};box-shadow:0 0 6px ${resolvedCol}55"></div>
           <span class="cli-label">${label}</span>
@@ -24410,6 +24421,10 @@
           <span class="cli-count">${val}</span>
           <span class="cli-pct">${pct}%</span>
         `;
+        if (typeof onItemClick === 'function') {
+          row.classList.add('cli-clickable');
+          row.addEventListener('click', () => onItemClick(label, val));
+        }
         container.appendChild(row);
       });
     }
@@ -31710,7 +31725,7 @@
           const ePr = Object.entries(prCounts);
           dashDrawQueue.push(() => {
             drawDonut(prCvs, ePr, priColors);
-            makeDonutLegend(prLeg, ePr, priColors);
+            makeDonutLegend(prLeg, ePr, priColors, (label) => filterDashboardMetric('priority', label));
           });
 
           // ── CARD: Data Quality & Completeness ──
@@ -31802,7 +31817,7 @@
             const sevData = Object.entries(sevCounts);
             dashDrawQueue.push(() => {
               drawDonut(sevCvs, sevData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)']);
-              makeDonutLegend(sevLeg, sevData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)']);
+              makeDonutLegend(sevLeg, sevData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)'], (label) => filterDefectsBy('severity', label));
             });
 
             const priId = 'dash-defect-pri';
@@ -31815,7 +31830,7 @@
             const priData = Object.entries(priCounts);
             dashDrawQueue.push(() => {
               drawDonut(priCvs, priData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)']);
-              makeDonutLegend(priLeg, priData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)']);
+              makeDonutLegend(priLeg, priData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)'], (label) => filterDefectsBy('priority', label));
             });
 
             const typeId = 'dash-defect-type';

@@ -10497,6 +10497,17 @@
       transition: background 0.15s ease, transform 0.1s ease;
     }
 
+    .cli-clickable {
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.1s ease;
+      border-radius: 6px;
+    }
+
+    .cli-clickable:hover {
+      background: var(--color-surface-2);
+      transform: translateX(2px);
+    }
+
     .dq-row-clickable:hover {
       background: var(--color-surface-2);
       transform: translateX(2px);
@@ -21271,6 +21282,8 @@
       if (!P.filters.status) P.filters.status = new Set();
 
       P.filters.status.clear();
+      if (!P.filters.priority) P.filters.priority = new Set();
+      P.filters.priority.clear();
       if (!P.colFilters) P.colFilters = {};
       P.colFilters.status = '';
       P.filters.overdueOnly = false;
@@ -21291,6 +21304,8 @@
         P.filters.blockedOnly = true;
       } else if (type === 'missingField') {
         P.filters.missingField = val;
+      } else if (type === 'priority') {
+        if (val) P.filters.priority.add(val);
       }
 
       setView('tasks');
@@ -21299,6 +21314,17 @@
       save();
       render();
     }
+    function filterDefectsBy(field, val) {
+      const key = getGridPK('def', 'colFilters');
+      if (!P[key]) P[key] = {};
+      Object.keys(P[key]).forEach(k => { P[key][k] = ''; });
+      if (field && val) P[key][field] = val;
+      setView('defects');
+      if (typeof renderSidebar === 'function') renderSidebar();
+      save();
+      render();
+    }
+    window.filterDefectsBy = filterDefectsBy;
     function toggleOrgNode(id) {
       const sid = String(id);
       if (P.collapsedNodes.has(sid)) P.collapsedNodes.delete(sid);
@@ -24265,7 +24291,7 @@
      * Renders a premium vertical legend into `container` (.cleg element).
      * Each row: [swatch] [label + bar] [count badge] [pct]
      */
-    function makeDonutLegend(container, entries, colors) {
+    function makeDonutLegend(container, entries, colors, onItemClick) {
       if (!container || !entries || !entries.length) return;
       const total = entries.reduce((s, [, v]) => s + v, 0) || 1;
       const maxV = Math.max(...entries.map(([, v]) => v), 1);
@@ -24278,7 +24304,7 @@
 
         const row = document.createElement('div');
         row.className = 'cli';
-        row.title = `${label}: ${val} (${pct}%)`;
+        row.title = `${label}: ${val} (${pct}%)` + (onItemClick ? ' — click to filter' : '');
         row.innerHTML = `
           <div class="cdot" style="background:${col};box-shadow:0 0 6px ${resolvedCol}55"></div>
           <span class="cli-label">${label}</span>
@@ -24288,6 +24314,10 @@
           <span class="cli-count">${val}</span>
           <span class="cli-pct">${pct}%</span>
         `;
+        if (typeof onItemClick === 'function') {
+          row.classList.add('cli-clickable');
+          row.addEventListener('click', () => onItemClick(label, val));
+        }
         container.appendChild(row);
       });
     }
@@ -30620,6 +30650,21 @@
           const overduePath = generateSparklineSVGPath(sparkData.overdue, false);
           const overdueFill = generateSparklineSVGPath(sparkData.overdue, true);
 
+          // Trend delta badge: compares the last two points of a sparkline series (same data, no new computation source)
+          const mkDeltaBadge = (series, invert = false) => {
+            if (!series || series.length < 2) return '';
+            const prev = series[series.length - 2];
+            const curr = series[series.length - 1];
+            const diff = curr - prev;
+            if (diff === 0) {
+              return `<span style="font-size:10px;color:var(--color-text-muted);font-weight:700;display:inline-flex;align-items:center;gap:2px" title="No change vs prior period"><i data-lucide="minus" style="width:10px;height:10px"></i>0</span>`;
+            }
+            const isGood = invert ? diff < 0 : diff > 0;
+            const color = isGood ? 'var(--green)' : 'var(--red)';
+            const icon = diff > 0 ? 'arrow-up' : 'arrow-down';
+            return `<span style="font-size:10px;color:${color};font-weight:700;display:inline-flex;align-items:center;gap:2px" title="vs prior period"><i data-lucide="${icon}" style="width:10px;height:10px"></i>${Math.abs(diff)}</span>`;
+          };
+
           // Calculate velocity trend
           const lastWeeks = [];
           for (let i = 4; i >= 0; i--) {
@@ -30664,7 +30709,10 @@
                       </svg>
                       <div class="sc-hdr"><i data-lucide="layers"></i> Total Scope</div>
                       <div class="sc-val" data-count="${total}">0</div>
-                      <div class="sc-ftr">Total project backlog</div>
+                      <div class="sc-ftr" style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                        <span>Total project backlog</span>
+                        ${mkDeltaBadge(sparkData.total)}
+                      </div>
                     </div>
                     
                     <!-- 2. Active Scope -->
@@ -30676,7 +30724,10 @@
                       <div class="sc-hdr"><i data-lucide="activity"></i> Active Scope</div>
                       <div class="sc-val" data-count="${activeCount}">0</div>
                       <div class="sc-ftr" style="display:flex; flex-direction:column; gap:4px; font-size:11px; margin-top:2px;">
-                        <div>Tasks currently in flight</div>
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                          <span>Tasks currently in flight</span>
+                          ${mkDeltaBadge(sparkData.inProgress)}
+                        </div>
                         <div style="color:var(--color-text-muted)">Remaining: <b>${remainingWeighted.toFixed(1)}</b> eq. tasks</div>
                       </div>
                     </div>
@@ -30694,7 +30745,10 @@
                           <span class="badge green" style="font-weight:700;" title="Binary completion rate">${completionPct}% Bin</span>
                           <span class="badge blue" style="font-weight:700;" title="Subtask-weighted completion rate">${dashCache.weightedPct}% Wtd</span>
                         </div>
-                        <div style="color:var(--color-text-muted)">Weighted: <b>${dashCache.weightedDone.toFixed(1)}</b> eq. tasks</div>
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;color:var(--color-text-muted)">
+                          <span>Weighted: <b>${dashCache.weightedDone.toFixed(1)}</b> eq. tasks</span>
+                          ${mkDeltaBadge(sparkData.completed)}
+                        </div>
                       </div>
                     </div>
 
@@ -30706,7 +30760,10 @@
                       </svg>
                       <div class="sc-hdr"><i data-lucide="calendar-x"></i> Overdue Delay</div>
                       <div class="sc-val" data-count="${overdueTasks.length}">0</div>
-                      <div class="sc-ftr">${overdueTasks.length > 0 ? '<span class="badge red">Timeline Risk</span>' : 'On schedule'}</div>
+                      <div class="sc-ftr" style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                        <span>${overdueTasks.length > 0 ? '<span class="badge red">Timeline Risk</span>' : 'On schedule'}</span>
+                        ${mkDeltaBadge(sparkData.overdue, true)}
+                      </div>
                     </div>
 
                     <!-- 5. Blocked -->
@@ -30717,7 +30774,10 @@
                       </svg>
                       <div class="sc-hdr"><i data-lucide="alert-octagon"></i> Blocked Items</div>
                       <div class="sc-val" data-count="${blocked}">0</div>
-                      <div class="sc-ftr">${blocked > 0 ? '<span class="badge red">Friction</span>' : 'Zero blockers'}</div>
+                      <div class="sc-ftr" style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                        <span>${blocked > 0 ? '<span class="badge red">Friction</span>' : 'Zero blockers'}</span>
+                        ${mkDeltaBadge(sparkData.blocked, true)}
+                      </div>
                     </div>
 
                     <!-- 6. On Hold -->
@@ -30728,7 +30788,10 @@
                       </svg>
                       <div class="sc-hdr"><i data-lucide="pause-circle"></i> On Hold</div>
                       <div class="sc-val" data-count="${onHold}">0</div>
-                      <div class="sc-ftr">Awaiting steering / info</div>
+                      <div class="sc-ftr" style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                        <span>Awaiting steering / info</span>
+                        ${mkDeltaBadge(sparkData.onHold, true)}
+                      </div>
                     </div>
 
                     <!-- 7. Open Defects -->
@@ -31588,7 +31651,7 @@
           const ePr = Object.entries(prCounts);
           dashDrawQueue.push(() => {
             drawDonut(prCvs, ePr, priColors);
-            makeDonutLegend(prLeg, ePr, priColors);
+            makeDonutLegend(prLeg, ePr, priColors, (label) => filterDashboardMetric('priority', label));
           });
 
           // ── CARD: Data Quality & Completeness ──
@@ -31680,7 +31743,7 @@
             const sevData = Object.entries(sevCounts);
             dashDrawQueue.push(() => {
               drawDonut(sevCvs, sevData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)']);
-              makeDonutLegend(sevLeg, sevData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)']);
+              makeDonutLegend(sevLeg, sevData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)'], (label) => filterDefectsBy('severity', label));
             });
 
             const priId = 'dash-defect-pri';
@@ -31693,7 +31756,7 @@
             const priData = Object.entries(priCounts);
             dashDrawQueue.push(() => {
               drawDonut(priCvs, priData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)']);
-              makeDonutLegend(priLeg, priData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)']);
+              makeDonutLegend(priLeg, priData, ['var(--red)', 'var(--amber)', 'var(--color-primary)', 'var(--color-surface-3)'], (label) => filterDefectsBy('priority', label));
             });
 
             const typeId = 'dash-defect-type';
