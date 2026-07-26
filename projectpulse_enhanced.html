@@ -13634,52 +13634,21 @@
 
         const fourWeeksAgo = new Date();
         fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
-        const now = new Date();
 
+        const recentLogs = log.filter(l => {
+          if (!isTaskCompletionLog(l)) return false;
+          const ts = getLogActivityDate(l);
+          return ts >= fourWeeksAgo && ts <= new Date();
+        });
+
+        const completedTaskIds = [...new Set(recentLogs.map(l => l.taskId))];
         let totalCompletedEffort = 0;
-
-        (tasks || []).forEach(t => {
-          const subs = t.subtasks || [];
-          if (subs.length > 0) {
-            const parentEst = parseFloat(t.estEffort) || 8;
-            const totalSubEff = subs.reduce((s, st) => s + (parseFloat(st.effort) || 1), 0) || 1;
-
-            subs.forEach(st => {
-              const isDone = st.status === 'Completed' || st.done;
-              let compDate = null;
-
-              const subLogs = (log || []).filter(l => (l.subtaskId === st.id || (l.taskId === t.id && l.field === 'subtask.status')) && l.newVal === 'Completed');
-              if (subLogs.length > 0) {
-                const latestLog = subLogs.sort((a, b) => getLogActivityDate(b) - getLogActivityDate(a))[0];
-                compDate = getLogActivityDate(latestLog);
-              } else if (isDone && st.actCompletionDate) {
-                compDate = new Date(st.actCompletionDate);
-              } else if (isDone && t.actCompletionDate) {
-                compDate = new Date(t.actCompletionDate);
-              }
-
-              if (compDate && !isNaN(compDate.getTime()) && compDate >= fourWeeksAgo && compDate <= now) {
-                const stEffort = st.effort !== undefined ? parseFloat(st.effort) || 1 : (parentEst * ((parseFloat(st.effort) || 1) / totalSubEff));
-                totalCompletedEffort += stEffort;
-              }
-            });
+        completedTaskIds.forEach(id => {
+          const t = tasks.find(x => x.id === id);
+          if (t) {
+            totalCompletedEffort += parseFloat(t.estEffort) || 8;
           } else {
-            const isDone = t.status === 'Completed';
-            let compDate = null;
-
-            const taskLogs = (log || []).filter(l => l.taskId === t.id && isTaskCompletionLog(l));
-            if (taskLogs.length > 0) {
-              const latestLog = taskLogs.sort((a, b) => getLogActivityDate(b) - getLogActivityDate(a))[0];
-              compDate = getLogActivityDate(latestLog);
-            } else if (isDone && t.actCompletionDate) {
-              compDate = new Date(t.actCompletionDate);
-            } else if (isDone && t.updatedAt) {
-              compDate = new Date(t.updatedAt);
-            }
-
-            if (compDate && !isNaN(compDate.getTime()) && compDate >= fourWeeksAgo && compDate <= now) {
-              totalCompletedEffort += parseFloat(t.estEffort) || 8;
-            }
+            totalCompletedEffort += 8;
           }
         });
 
@@ -14772,97 +14741,6 @@
       },
     ];
 
-    function renderViewToggle() {
-      if (!P.settings) P.settings = {};
-      if (!P.settings.viewOrder || !Array.isArray(P.settings.viewOrder) || P.settings.viewOrder.length === 0 ||
-        P.settings.viewOrder[2] === 'tasks' || P.settings.viewOrder[5] === 'reports') {
-        P.settings.viewOrder = ALL_VIEWS.map(v => v.id);
-      }
-
-      const vsw = document.querySelector('.vsw');
-      const mobileNav = $id('mobile-nav');
-      const sbNav = $id('sb-nav');
-      if (vsw) vsw.innerHTML = '';
-      if (mobileNav) mobileNav.innerHTML = '';
-      if (sbNav) sbNav.innerHTML = '';
-
-      P.settings.viewOrder.forEach(vid => {
-        const viewDef = ALL_VIEWS.find(v => v.id === vid);
-        if (!viewDef) return;
-
-        // Desktop .vsw
-        if (vsw) {
-          const btn = document.createElement('button');
-          btn.className = 'btn';
-          if (P.view === vid) btn.classList.add('active');
-          btn.setAttribute('data-v', vid);
-          btn.onclick = () => {
-            if (vid === 'reports') P.activeReportId = null;
-            setView(vid);
-          };
-          btn.title = viewDef.title;
-          if (vid === 'log') {
-            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label} <span id="log-badge" class="badge" style="display:none;margin-left:6px;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">0</span>`;
-          } else {
-            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label}`;
-          }
-          vsw.appendChild(btn);
-        }
-
-        // Sidebar #sb-nav
-        if (sbNav) {
-          const btn = document.createElement('button');
-          btn.className = 'sb-nav-item';
-          if (P.view === vid) btn.classList.add('active');
-          btn.setAttribute('data-v', vid);
-          btn.onclick = () => {
-            if (vid === 'reports') P.activeReportId = null;
-            setView(vid);
-          };
-          btn.title = viewDef.title;
-          if (vid === 'log') {
-            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span class="sb-nav-label">${viewDef.label}</span><span id="sb-log-badge" class="badge" style="display:none;margin-left:auto;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">0</span>`;
-          } else {
-            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span class="sb-nav-label">${viewDef.label}</span>`;
-          }
-          sbNav.appendChild(btn);
-        }
-
-
-
-        // Mobile #mobile-nav
-        if (mobileNav) {
-          const mBtn = document.createElement('button');
-          mBtn.className = 'mobile-nav-item';
-          if (P.view === vid) mBtn.classList.add('active');
-          mBtn.setAttribute('data-v', vid);
-          mBtn.onclick = () => {
-            if (vid === 'reports') P.activeReportId = null;
-            setView(vid);
-          };
-          if (vid === 'log') {
-            mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${P.hideLabels ? '' : viewDef.label}</span><span id="log-badge-mobile" class="badge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:white;font-size:9px;padding:1px 4px;border-radius:10px;line-height:1">0</span>`;
-          } else {
-            mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${P.hideLabels ? '' : viewDef.label}</span>`;
-          }
-          mobileNav.appendChild(mBtn);
-        }
-      });
-
-      document.body.classList.toggle('hide-labels', !!P.hideLabels);
-
-      if (window.lucide) window.lucide.createIcons();
-
-      // Update log badge counts dynamically
-      const cnt = P.log.filter(l => l.ts && typeof l.ts === 'string' && l.ts.startsWith(todayStr())).length;
-      ['log-badge', 'log-badge-mobile', 'sb-log-badge'].forEach(id => {
-        const b = $id(id);
-        if (b) {
-          if (cnt > 0) { b.style.display = ''; b.textContent = cnt; }
-          else b.style.display = 'none';
-        }
-      });
-    }
 
 
     // ══════ KEYBOARD SHORTCUTS ══════
@@ -30953,7 +30831,7 @@
               });
             });
           }, 100);
-        } else if (sec.id === 'summary') {
+
           // ─────── AFTER summary cards: inject blocker alert strip ───────
           // This runs as a post-process hook outside the widget loop
           // to inject a full-width strip before the next widget
@@ -42038,18 +41916,12 @@ Earned Value Management measures project performance and progress by comparing p
           { header: 'Progress', key: 'progress', width: 12 },
           { header: 'Start Date', key: 'startDate', width: 15 },
           { header: 'Due Date', key: 'dueDate', width: 15 },
-          { header: 'Baseline Start Date', key: 'baselineStartDate', width: 18 },
-          { header: 'Baseline Due Date', key: 'baselineDueDate', width: 18 },
-          { header: `Baseline ${effortUnitLabel('col')}`, key: 'baselineEffort', width: 18 },
-          { header: 'Forecast Due Date', key: 'forecastDueDate', width: 18 },
           { header: 'Delay', key: 'delay', width: 12 },
           { header: 'Actual Completion Date', key: 'actCompletionDate', width: 22 },
           { header: `Estimated ${effortUnitLabel('col')}`, key: 'estEffort', width: 18 },
           { header: `Actual ${effortUnitLabel('col')}`, key: 'actEffort', width: 15 },
           { header: 'Variance', key: 'variance', width: 15 },
           { header: 'Complexity', key: 'complexity', width: 15 },
-          { header: 'Slippage Reason', key: 'slippageReason', width: 35 },
-          { header: 'Confidence', key: 'confidence', width: 15 },
           { header: 'Tags', key: 'tags', width: 20 },
           { header: 'Notes', key: 'notes', width: 35 },
           { header: 'Created At', key: 'createdAt', width: 15 },
@@ -42147,18 +42019,11 @@ Earned Value Management measures project performance and progress by comparing p
             predecessors: S((t.predecessors || []).join(', ')), assignee: S(t.assignee),
             status: S(t.status), priority: S(t.priority), progress: t.progress !== undefined ? t.progress : 0,
             startDate: cleanFmtDate(t.startDate), dueDate: cleanFmtDate(t.dueDate),
-            baselineStartDate: cleanFmtDate(t.baselineStartDate),
-            baselineDueDate: cleanFmtDate(t.baselineDueDate),
-            baselineEffort: t.baselineEffort !== undefined ? t.baselineEffort : '',
-            forecastDueDate: cleanFmtDate(t.forecastDueDate),
             delay: { formula: `IF(AND(K${rowIdx}<>"Completed", O${rowIdx}<TODAY()), TODAY()-O${rowIdx}, 0)` },
             actCompletionDate: cleanFmtDate(t.actCompletionDate), estEffort: t.estEffort || 0,
             actEffort: t.actEffort || 0,
             variance: { formula: `S${rowIdx}-R${rowIdx}` },
-            complexity: S(t.complexity),
-            slippageReason: S(t.slippageReason || ''),
-            confidence: S(t.confidence || ''),
-            tags: S((t.tags || []).join(', ')), notes: S(t.notes),
+            complexity: S(t.complexity), tags: S((t.tags || []).join(', ')), notes: S(t.notes),
             createdAt: cleanFmtDate(t.createdAt), updatedAt: cleanFmtDate(t.updatedAt)
           };
           (P.customFields || []).forEach(f => { rowValues[f.name] = S(t[f.name]); });
@@ -42268,7 +42133,7 @@ Earned Value Management measures project performance and progress by comparing p
             technicalWindowName: S(s.technicalWindowName || ''),
             status: S(s.status),
             assignee: S(s.assignee), startDate: cleanFmtDate(s.startDate), dueDate: cleanFmtDate(s.dueDate),
-            actCompletionDate: cleanFmtDate(s.actCompletionDate), estEffort: s.effort !== undefined ? s.effort : (s.estEffort || 0),
+            actCompletionDate: cleanFmtDate(s.actCompletionDate), estEffort: s.estEffort || 0,
             actEffort: s.actEffort || 0, notes: S(s.notes)
           };
           const row = ws.addRow(rowValues); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
@@ -45558,7 +45423,7 @@ Earned Value Management measures project performance and progress by comparing p
 
         const crRaw = rawData.getTable('Config_Releases');
         if (crRaw && crRaw.length) {
-          P.releases = crRaw.map(r => ({ id: r.id, name: r.name || r['Name'] || '', date: r.date || r['Date'] || '', startDate: r.startDate || r['Start Date'] || r.date || r['Date'] || '', endDate: r.endDate || r['End Date'] || '', status: r.status || r['Status'] || 'Planned' }));
+          P.releases = crRaw.map(r => ({ id: r.id, name: r.name || r['Name'] || '', date: r.date || r['Date'] || '', status: r.status || r['Status'] || 'Planned' }));
         }
       },
 
@@ -45625,26 +45490,8 @@ Earned Value Management measures project performance and progress by comparing p
         P.tasks = rawTasks.map(t => {
           const copy = { ...t }; delete copy['Derived Health']; delete copy['Blocking Issues']; delete copy['Workflow Hints']; delete copy['Suggested Due Date'];
           if (copy.cat && !copy.category) { copy.category = copy.cat; delete copy.cat; }
-          copy.startDate = fmtD(t.startDate || t['Start Date']); copy.dueDate = fmtD(t.dueDate || t['Due Date']);
-          copy.baselineStartDate = fmtD(t.baselineStartDate || t['Baseline Start Date'] || t['Base Start']);
-          copy.baselineDueDate = fmtD(t.baselineDueDate || t['Baseline Due Date'] || t['Base End']);
-          if (t.baselineEffort !== undefined || t['Baseline Effort'] !== undefined || t['Baseline Effort (PD)'] !== undefined) {
-            const be = parseFloat(t.baselineEffort || t['Baseline Effort'] || t['Baseline Effort (PD)']);
-            if (!isNaN(be)) copy.baselineEffort = be;
-          }
-          copy.forecastDueDate = fmtD(t.forecastDueDate || t['Forecast Due Date']);
-          if (t.slippageReason || t['Slippage Reason']) copy.slippageReason = S(t.slippageReason || t['Slippage Reason']);
-          if (t.confidence || t['Confidence']) copy.confidence = S(t.confidence || t['Confidence']);
-          copy.actCompletionDate = fmtD(t.actCompletionDate || t['Actual Completion Date']); copy.createdAt = fmtD(t.createdAt || t['Created At']); copy.updatedAt = fmtD(t.updatedAt || t['Updated At']);
-          copy.subtasks = rawSub.filter(s => s.parentId === t.id).map(s => {
-            const sub = { ...s };
-            sub.startDate = fmtD(s.startDate || s['Start Date']); sub.dueDate = fmtD(s.dueDate || s['Due Date']); sub.actCompletionDate = fmtD(s.actCompletionDate || s['Actual Completion Date']);
-            if (s.effort !== undefined || s.estEffort !== undefined || s['Estimated Effort'] !== undefined) {
-              const eff = parseFloat(s.effort !== undefined ? s.effort : (s.estEffort !== undefined ? s.estEffort : s['Estimated Effort']));
-              if (!isNaN(eff)) sub.effort = eff;
-            }
-            sub.workflow = relTables['Data_SubTaskWorkflows'].filter(sw => sw.subtaskId === s.id).map(sw => ({ name: sw.name, effort: parseFloat(sw.effort) || 0, done: !!sw.done || sw.status === 'Completed', status: sw.status || (sw.done ? 'Completed' : 'Not Started'), progress: parseInt(sw.progress) || (sw.status === 'Completed' || sw.done ? 100 : 0), actCompletionDate: fmtD(sw.actCompletionDate || sw['Actual Completion Date']), actEffort: parseFloat(sw.actEffort) || 0 })); return sub;
-          });
+          copy.startDate = fmtD(t.startDate || t['Start Date']); copy.dueDate = fmtD(t.dueDate || t['Due Date']); copy.actCompletionDate = fmtD(t.actCompletionDate || t['Actual Completion Date']); copy.createdAt = fmtD(t.createdAt || t['Created At']); copy.updatedAt = fmtD(t.updatedAt || t['Updated At']);
+          copy.subtasks = rawSub.filter(s => s.parentId === t.id).map(s => { const sub = { ...s }; sub.startDate = fmtD(s.startDate || s['Start Date']); sub.dueDate = fmtD(s.dueDate || s['Due Date']); sub.actCompletionDate = fmtD(s.actCompletionDate || s['Actual Completion Date']); sub.workflow = relTables['Data_SubTaskWorkflows'].filter(sw => sw.subtaskId === s.id).map(sw => ({ name: sw.name, effort: parseFloat(sw.effort) || 0, done: !!sw.done || sw.status === 'Completed', status: sw.status || (sw.done ? 'Completed' : 'Not Started'), progress: parseInt(sw.progress) || (sw.status === 'Completed' || sw.done ? 100 : 0), actCompletionDate: fmtD(sw.actCompletionDate || sw['Actual Completion Date']), actEffort: parseFloat(sw.actEffort) || 0 })); return sub; });
           copy.workflow = relTables['Data_TaskWorkflows'].filter(w => w.taskId === t.id).map(w => ({ name: w.name, effort: parseFloat(w.effort) || 0, done: !!w.done || w.status === 'Completed', status: w.status || (w.done ? 'Completed' : 'Not Started'), progress: parseInt(w.progress) || (w.status === 'Completed' || w.done ? 100 : 0), actCompletionDate: fmtD(w.actCompletionDate || w['Actual Completion Date']), actEffort: parseFloat(w.actEffort) || 0 })); copy.dependsOn = relTables['Data_TaskDependencies'].filter(d => d.taskId === t.id).map(d => d.dependencyId); copy.guiScreens = relTables['Data_TaskGUIScreens'].filter(s => s.taskId === t.id).map(s => s.screen);
           return copy;
         });
@@ -47959,9 +47806,6 @@ Earned Value Management measures project performance and progress by comparing p
         renderReleases();
         syncDropdowns();
         save();
-        if (P.fsHandle && !P._isLoading && !P._fsPermissionError) {
-          saveToFile(true);
-        }
       }
     }
 
