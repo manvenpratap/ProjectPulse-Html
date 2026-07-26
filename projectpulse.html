@@ -30757,6 +30757,21 @@
           const overduePath = generateSparklineSVGPath(sparkData.overdue, false);
           const overdueFill = generateSparklineSVGPath(sparkData.overdue, true);
 
+          // Trend delta badge: compares the last two points of a sparkline series (same data, no new computation source)
+          const mkDeltaBadge = (series, invert = false) => {
+            if (!series || series.length < 2) return '';
+            const prev = series[series.length - 2];
+            const curr = series[series.length - 1];
+            const diff = curr - prev;
+            if (diff === 0) {
+              return `<span style="font-size:10px;color:var(--color-text-muted);font-weight:700;display:inline-flex;align-items:center;gap:2px" title="No change vs prior period"><i data-lucide="minus" style="width:10px;height:10px"></i>0</span>`;
+            }
+            const isGood = invert ? diff < 0 : diff > 0;
+            const color = isGood ? 'var(--green)' : 'var(--red)';
+            const icon = diff > 0 ? 'arrow-up' : 'arrow-down';
+            return `<span style="font-size:10px;color:${color};font-weight:700;display:inline-flex;align-items:center;gap:2px" title="vs prior period"><i data-lucide="${icon}" style="width:10px;height:10px"></i>${Math.abs(diff)}</span>`;
+          };
+
           // Calculate velocity trend
           const lastWeeks = [];
           for (let i = 4; i >= 0; i--) {
@@ -30801,7 +30816,10 @@
                       </svg>
                       <div class="sc-hdr"><i data-lucide="layers"></i> Total Scope</div>
                       <div class="sc-val" data-count="${total}">0</div>
-                      <div class="sc-ftr">Total project backlog</div>
+                      <div class="sc-ftr" style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                        <span>Total project backlog</span>
+                        ${mkDeltaBadge(sparkData.total)}
+                      </div>
                     </div>
                     
                     <!-- 2. Active Scope -->
@@ -30813,7 +30831,10 @@
                       <div class="sc-hdr"><i data-lucide="activity"></i> Active Scope</div>
                       <div class="sc-val" data-count="${activeCount}">0</div>
                       <div class="sc-ftr" style="display:flex; flex-direction:column; gap:4px; font-size:11px; margin-top:2px;">
-                        <div>Tasks currently in flight</div>
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                          <span>Tasks currently in flight</span>
+                          ${mkDeltaBadge(sparkData.inProgress)}
+                        </div>
                         <div style="color:var(--color-text-muted)">Remaining: <b>${remainingWeighted.toFixed(1)}</b> eq. tasks</div>
                       </div>
                     </div>
@@ -30831,7 +30852,10 @@
                           <span class="badge green" style="font-weight:700;" title="Binary completion rate">${completionPct}% Bin</span>
                           <span class="badge blue" style="font-weight:700;" title="Subtask-weighted completion rate">${dashCache.weightedPct}% Wtd</span>
                         </div>
-                        <div style="color:var(--color-text-muted)">Weighted: <b>${dashCache.weightedDone.toFixed(1)}</b> eq. tasks</div>
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;color:var(--color-text-muted)">
+                          <span>Weighted: <b>${dashCache.weightedDone.toFixed(1)}</b> eq. tasks</span>
+                          ${mkDeltaBadge(sparkData.completed)}
+                        </div>
                       </div>
                     </div>
 
@@ -30843,7 +30867,10 @@
                       </svg>
                       <div class="sc-hdr"><i data-lucide="calendar-x"></i> Overdue Delay</div>
                       <div class="sc-val" data-count="${overdueTasks.length}">0</div>
-                      <div class="sc-ftr">${overdueTasks.length > 0 ? '<span class="badge red">Timeline Risk</span>' : 'On schedule'}</div>
+                      <div class="sc-ftr" style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                        <span>${overdueTasks.length > 0 ? '<span class="badge red">Timeline Risk</span>' : 'On schedule'}</span>
+                        ${mkDeltaBadge(sparkData.overdue, true)}
+                      </div>
                     </div>
 
                     <!-- 5. Blocked -->
@@ -30854,7 +30881,10 @@
                       </svg>
                       <div class="sc-hdr"><i data-lucide="alert-octagon"></i> Blocked Items</div>
                       <div class="sc-val" data-count="${blocked}">0</div>
-                      <div class="sc-ftr">${blocked > 0 ? '<span class="badge red">Friction</span>' : 'Zero blockers'}</div>
+                      <div class="sc-ftr" style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                        <span>${blocked > 0 ? '<span class="badge red">Friction</span>' : 'Zero blockers'}</span>
+                        ${mkDeltaBadge(sparkData.blocked, true)}
+                      </div>
                     </div>
 
                     <!-- 6. On Hold -->
@@ -30865,7 +30895,10 @@
                       </svg>
                       <div class="sc-hdr"><i data-lucide="pause-circle"></i> On Hold</div>
                       <div class="sc-val" data-count="${onHold}">0</div>
-                      <div class="sc-ftr">Awaiting steering / info</div>
+                      <div class="sc-ftr" style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                        <span>Awaiting steering / info</span>
+                        ${mkDeltaBadge(sparkData.onHold, true)}
+                      </div>
                     </div>
 
                     <!-- 7. Open Defects -->
@@ -44045,7 +44078,23 @@ Earned Value Management measures project performance and progress by comparing p
             const capacity = (P.settings && P.settings.daysPerWeek) ? P.settings.daysPerWeek * 4 : 20;
             const utilization = capacity > 0 ? Math.round((mAct / capacity) * 100) : 0;
             const utilColor = utilization > 100 ? COLORS.rose : utilization > 80 ? COLORS.amber : COLORS.emerald;
-            drawTableRow(curRow + 1 + i, [m.name, m.role || '—', mActive, mDone, mEst.toFixed(1), mAct.toFixed(1), styledVal(utilization + '%', utilColor, true)], 2, i % 2 === 1);
+            const utilRow = curRow + 1 + i;
+            drawTableRow(utilRow, [m.name, m.role || '—', mActive, mDone, mEst.toFixed(1), mAct.toFixed(1), styledVal(utilization + '%', utilColor, true)], 2, i % 2 === 1);
+            // Overwrite Utilization% cell (col H) with a numeric value so a data bar can render (drawTableRow's shared S() coercion writes text)
+            const utilCell = ds.getCell('H' + utilRow);
+            utilCell.value = utilization;
+            utilCell.numFmt = '0"%"';
+            try {
+              ds.addConditionalFormatting({
+                ref: 'H' + utilRow + ':H' + utilRow,
+                rules: [{
+                  type: 'dataBar',
+                  cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 150 }],
+                  color: { argb: utilization > 100 ? COLORS.rose : COLORS.indigo },
+                  showValue: true
+                }]
+              });
+            } catch (e) { }
           });
           curRow += members.slice(0, 12).length + 2;
         }
@@ -44059,7 +44108,24 @@ Earned Value Management measures project performance and progress by comparing p
           const mOver = mt.filter(t => t.dueDate && t.status !== 'Completed' && t.status !== 'Cancelled' && new Date(t.dueDate) < new Date()).length;
           const mAvg = mt.length ? Math.round(mt.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / mt.length) : 0;
           const mOverColor = mOver > 0 ? COLORS.rose : COLORS.emerald;
-          drawTableRow(curRow + 1 + i, [m, mt.length, styledVal(mDone, COLORS.emerald, true), styledVal(mOver, mOverColor, true), mAvg + '%'], 2, i % 2 === 1);
+          const mAvgRow = curRow + 1 + i;
+          drawTableRow(mAvgRow, [m, mt.length, styledVal(mDone, COLORS.emerald, true), styledVal(mOver, mOverColor, true), mAvg + '%'], 2, i % 2 === 1);
+          // Overwrite Avg Progress cell (col F) with a numeric value so the data bar below can actually render it —
+          // drawTableRow's shared S() coercion writes every value as text, which breaks Excel dataBar rules.
+          const mAvgCell = ds.getCell('F' + mAvgRow);
+          mAvgCell.value = mAvg;
+          mAvgCell.numFmt = '0"%"';
+          try {
+            ds.addConditionalFormatting({
+              ref: 'F' + mAvgRow + ':F' + mAvgRow,
+              rules: [{
+                type: 'dataBar',
+                cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 100 }],
+                color: { argb: COLORS.emerald },
+                showValue: true
+              }]
+            });
+          } catch (e) { }
           try {
             ds.addConditionalFormatting({
               ref: 'F' + (curRow + 1 + i) + ':F' + (curRow + 1 + i),
@@ -44650,12 +44716,13 @@ Earned Value Management measures project performance and progress by comparing p
             { v: cumDone, color: COLORS.indigo, bold: false },
             { v: remaining, color: remaining > totalTasks * 0.5 ? COLORS.amber : COLORS.emerald, bold: false },
             { v: +avg4.toFixed(1), color: COLORS.blue, bold: false },
-            { v: burnPct + '%', color: burnPct >= 80 ? COLORS.emerald : burnPct >= 50 ? COLORS.amber : COLORS.rose, bold: burnPct >= 100 }
+            { v: burnPct, color: burnPct >= 80 ? COLORS.emerald : burnPct >= 50 ? COLORS.amber : COLORS.rose, bold: burnPct >= 100, numFmt: '0"%"' }
           ];
 
           vals.forEach((item, ci) => {
             const cell = ws.getCell(rowIdx, 2 + ci);
             cell.value = item.v;
+            if (item.numFmt) cell.numFmt = item.numFmt;
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
             cell.font = { name: 'Segoe UI', size: 10, color: { argb: item.color }, bold: item.bold };
             cell.alignment = { vertical: 'middle', horizontal: ci === 0 ? 'left' : 'center', indent: ci === 0 ? 1 : 0 };
@@ -44970,20 +45037,21 @@ Earned Value Management measures project performance and progress by comparing p
           const rowBg = ri % 2 === 0 ? (COLORS.getThemeTint ? (COLORS.getThemeTint ? COLORS.getThemeTint(COLORS.indigo, 0.06) : 'FFF0F4FF') : 'FFF0F4FF') : (COLORS.getThemeTint ? COLORS.getThemeTint(COLORS.indigo, 0.02) : 'FFFAFBFF');
           ws.getRow(rowIdx).height = 22;
 
-          const vals = [S(rel), total, done, inProg, overdue, progress + '%', estEff.toFixed(1), actEff.toFixed(1), targetDate ? targetDate.toISOString().split('T')[0] : '-', S(rag)];
+          const vals = [S(rel), total, done, inProg, overdue, progress, estEff.toFixed(1), actEff.toFixed(1), targetDate ? targetDate.toISOString().split('T')[0] : '-', S(rag)];
           vals.forEach((v, ci) => {
             const cell = ws.getCell(rowIdx, 2 + ci);
             cell.value = v;
+            if (ci === 5) cell.numFmt = '0"%"'; // Progress% column — numeric so the data bar below renders correctly
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
             cell.font = { name: 'Segoe UI', size: 10, color: { argb: ci === vals.length - 1 ? ragColor : COLORS.textDark }, bold: ci === 0 || ci === vals.length - 1 };
             cell.alignment = { vertical: 'middle', horizontal: ci === 0 ? 'left' : 'center', indent: ci === 0 ? 1 : 0 };
             cell.border = { top: { style: 'thin', color: { argb: COLORS.divider } }, bottom: { style: 'thin', color: { argb: COLORS.divider } }, left: { style: 'thin', color: { argb: COLORS.divider } }, right: { style: 'thin', color: { argb: COLORS.divider } } };
           });
 
-          // Progress data bar on Progress% column
+          // Progress data bar on Progress% column (G) — was previously mis-targeting column H (Est Effort)
           try {
             ws.addConditionalFormatting({
-              ref: `H${rowIdx}:H${rowIdx}`,
+              ref: `G${rowIdx}:G${rowIdx}`,
               rules: [{ type: 'dataBar', cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 100 }], color: { argb: COLORS.emerald }, showValue: true }]
             });
           } catch (e) { }
