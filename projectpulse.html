@@ -50006,8 +50006,24 @@ Earned Value Management measures project performance and progress by comparing p
             const bw  = Math.max(x2 - x1, dayW * 2);
 
             parentBarCoords[i] = { x1, yCenter: barY + BAR_H / 2 };
-            featBarPositions[f.name] = { x: x1, x2: x1 + bw, y: barY + BAR_H / 2, id: f.name };
-            if (f.id != null) featBarPositions[f.id] = featBarPositions[f.name];
+            const fPos = { x: x1, x2: x1 + bw, y: barY + BAR_H / 2, id: f.name };
+            featBarPositions[f.name] = fPos;
+            if (f.id != null) featBarPositions[f.id] = fPos;
+
+            // Map all constituent tasks of feature f to fPos
+            fTasks.forEach(t => {
+              if (t.id != null) {
+                const sId = String(t.id).trim();
+                featBarPositions[sId] = fPos;
+                const num = sId.replace(/^(TASK|TSK)-0*/i, '');
+                if (num) {
+                  featBarPositions[num] = fPos;
+                  featBarPositions['TASK-' + num.padStart(3, '0')] = fPos;
+                  featBarPositions['TSK-' + num.padStart(3, '0')] = fPos;
+                }
+              }
+              if (t.name) featBarPositions[t.name] = fPos;
+            });
 
             // ── MONTE CARLO PROBABILISTIC FORECAST BAND OVERLAY ──
             let mcP90Date = null;
@@ -50212,7 +50228,23 @@ Earned Value Management measures project performance and progress by comparing p
             const tot = scTasks.length;
             const avgP = tot ? Math.round(scTasks.reduce((st, t) => st + (t.progress || 0), 0) / tot) : 0;
 
-            featBarPositions[row.screenName] = { x: x1, x2: x1 + bw, y: subY + subH / 2, id: row.screenName };
+            const scPos = { x: x1, x2: x1 + bw, y: subY + subH / 2, id: row.screenName };
+            featBarPositions[row.screenName] = scPos;
+
+            // Map all constituent tasks of screen to scPos
+            scTasks.forEach(t => {
+              if (t.id != null) {
+                const sId = String(t.id).trim();
+                featBarPositions[sId] = scPos;
+                const num = sId.replace(/^(TASK|TSK)-0*/i, '');
+                if (num) {
+                  featBarPositions[num] = scPos;
+                  featBarPositions['TASK-' + num.padStart(3, '0')] = scPos;
+                  featBarPositions['TSK-' + num.padStart(3, '0')] = scPos;
+                }
+              }
+              if (t.name) featBarPositions[t.name] = scPos;
+            });
 
             // Monte Carlo Band for screen
             if (P.showMonteCarlo && mcResults && scTasks.length) {
@@ -50347,30 +50379,62 @@ Earned Value Management measures project performance and progress by comparing p
 
       // ── DRAW FEATURE & SCREEN DEPENDENCY ARROWS OVERLAY ──
       if (P.showGanttDeps) {
+        const drawnConnections = new Set();
         visibleTimelineRows.forEach(row => {
           let deps = [];
           let toPos = null;
           if (row.type === 'feature') {
             const f = row.feature;
-            deps = Array.isArray(f.dependsOn) ? f.dependsOn : (f.dependsOn ? String(f.dependsOn).split(',').map(s => s.trim()).filter(Boolean) : []);
+            const mObj = row.mObj;
+            if (f.dependsOn) {
+              const fDeps = Array.isArray(f.dependsOn) ? f.dependsOn : String(f.dependsOn).split(',').map(s => s.trim()).filter(Boolean);
+              deps.push(...fDeps);
+            }
+            if (mObj && mObj.fScreens) {
+              mObj.fScreens.forEach(t => {
+                if (t.dependsOn) {
+                  const tDeps = Array.isArray(t.dependsOn) ? t.dependsOn : String(t.dependsOn).split(',').map(s => s.trim()).filter(Boolean);
+                  deps.push(...tDeps);
+                }
+              });
+            }
             toPos = featBarPositions[f.name] || (f.id != null ? featBarPositions[f.id] : null);
           } else if (row.type === 'screen') {
-            (row.scTasks || []).forEach(t => {
-              const tDeps = Array.isArray(t.dependsOn) ? t.dependsOn : (t.dependsOn ? String(t.dependsOn).split(',').map(s => s.trim()).filter(Boolean) : []);
-              deps.push(...tDeps);
-            });
             toPos = featBarPositions[row.screenName];
+            (row.scTasks || []).forEach(t => {
+              if (t.dependsOn) {
+                const tDeps = Array.isArray(t.dependsOn) ? t.dependsOn : String(t.dependsOn).split(',').map(s => s.trim()).filter(Boolean);
+                deps.push(...tDeps);
+              }
+            });
           }
 
           if (!toPos) return;
 
-          deps.forEach(depId => {
+          const uniqueDeps = [...new Set(deps)];
+
+          uniqueDeps.forEach(depId => {
             let fromPos = featBarPositions[depId];
+            if (!fromPos) {
+              const num = String(depId).replace(/^(TASK|TSK)-0*/i, '');
+              if (num) {
+                fromPos = featBarPositions[num] || featBarPositions['TASK-' + num.padStart(3, '0')] || featBarPositions['TSK-' + num.padStart(3, '0')];
+              }
+            }
             if (!fromPos) {
               const matchingFeat = P.features.find(x => x.name === depId || x.id == depId);
               if (matchingFeat) fromPos = featBarPositions[matchingFeat.name];
+              else {
+                const matchingTask = P.tasks.find(x => x.id == depId || x.name === depId);
+                if (matchingTask) fromPos = featBarPositions[matchingTask.id] || featBarPositions[matchingTask.name];
+              }
             }
+
             if (!fromPos || fromPos === toPos) return;
+
+            const connKey = `${fromPos.id}-->${toPos.id}`;
+            if (drawnConnections.has(connKey)) return;
+            drawnConnections.add(connKey);
 
             const startX = fromPos.x2;
             const startY = fromPos.y;
