@@ -13645,52 +13645,21 @@
 
         const fourWeeksAgo = new Date();
         fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
-        const now = new Date();
 
+        const recentLogs = log.filter(l => {
+          if (!isTaskCompletionLog(l)) return false;
+          const ts = getLogActivityDate(l);
+          return ts >= fourWeeksAgo && ts <= new Date();
+        });
+
+        const completedTaskIds = [...new Set(recentLogs.map(l => l.taskId))];
         let totalCompletedEffort = 0;
-
-        (tasks || []).forEach(t => {
-          const subs = t.subtasks || [];
-          if (subs.length > 0) {
-            const parentEst = parseFloat(t.estEffort) || 8;
-            const totalSubEff = subs.reduce((s, st) => s + (parseFloat(st.effort) || 1), 0) || 1;
-
-            subs.forEach(st => {
-              const isDone = st.status === 'Completed' || st.done;
-              let compDate = null;
-
-              const subLogs = (log || []).filter(l => (l.subtaskId === st.id || (l.taskId === t.id && l.field === 'subtask.status')) && l.newVal === 'Completed');
-              if (subLogs.length > 0) {
-                const latestLog = subLogs.sort((a, b) => getLogActivityDate(b) - getLogActivityDate(a))[0];
-                compDate = getLogActivityDate(latestLog);
-              } else if (isDone && st.actCompletionDate) {
-                compDate = new Date(st.actCompletionDate);
-              } else if (isDone && t.actCompletionDate) {
-                compDate = new Date(t.actCompletionDate);
-              }
-
-              if (compDate && !isNaN(compDate.getTime()) && compDate >= fourWeeksAgo && compDate <= now) {
-                const stEffort = st.effort !== undefined ? parseFloat(st.effort) || 1 : (parentEst * ((parseFloat(st.effort) || 1) / totalSubEff));
-                totalCompletedEffort += stEffort;
-              }
-            });
+        completedTaskIds.forEach(id => {
+          const t = tasks.find(x => x.id === id);
+          if (t) {
+            totalCompletedEffort += parseFloat(t.estEffort) || 8;
           } else {
-            const isDone = t.status === 'Completed';
-            let compDate = null;
-
-            const taskLogs = (log || []).filter(l => l.taskId === t.id && isTaskCompletionLog(l));
-            if (taskLogs.length > 0) {
-              const latestLog = taskLogs.sort((a, b) => getLogActivityDate(b) - getLogActivityDate(a))[0];
-              compDate = getLogActivityDate(latestLog);
-            } else if (isDone && t.actCompletionDate) {
-              compDate = new Date(t.actCompletionDate);
-            } else if (isDone && t.updatedAt) {
-              compDate = new Date(t.updatedAt);
-            }
-
-            if (compDate && !isNaN(compDate.getTime()) && compDate >= fourWeeksAgo && compDate <= now) {
-              totalCompletedEffort += parseFloat(t.estEffort) || 8;
-            }
+            totalCompletedEffort += 8;
           }
         });
 
@@ -14783,97 +14752,6 @@
       },
     ];
 
-    function renderViewToggle() {
-      if (!P.settings) P.settings = {};
-      if (!P.settings.viewOrder || !Array.isArray(P.settings.viewOrder) || P.settings.viewOrder.length === 0 ||
-        P.settings.viewOrder[2] === 'tasks' || P.settings.viewOrder[5] === 'reports') {
-        P.settings.viewOrder = ALL_VIEWS.map(v => v.id);
-      }
-
-      const vsw = document.querySelector('.vsw');
-      const mobileNav = $id('mobile-nav');
-      const sbNav = $id('sb-nav');
-      if (vsw) vsw.innerHTML = '';
-      if (mobileNav) mobileNav.innerHTML = '';
-      if (sbNav) sbNav.innerHTML = '';
-
-      P.settings.viewOrder.forEach(vid => {
-        const viewDef = ALL_VIEWS.find(v => v.id === vid);
-        if (!viewDef) return;
-
-        // Desktop .vsw
-        if (vsw) {
-          const btn = document.createElement('button');
-          btn.className = 'btn';
-          if (P.view === vid) btn.classList.add('active');
-          btn.setAttribute('data-v', vid);
-          btn.onclick = () => {
-            if (vid === 'reports') P.activeReportId = null;
-            setView(vid);
-          };
-          btn.title = viewDef.title;
-          if (vid === 'log') {
-            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label} <span id="log-badge" class="badge" style="display:none;margin-left:6px;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">0</span>`;
-          } else {
-            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label}`;
-          }
-          vsw.appendChild(btn);
-        }
-
-        // Sidebar #sb-nav
-        if (sbNav) {
-          const btn = document.createElement('button');
-          btn.className = 'sb-nav-item';
-          if (P.view === vid) btn.classList.add('active');
-          btn.setAttribute('data-v', vid);
-          btn.onclick = () => {
-            if (vid === 'reports') P.activeReportId = null;
-            setView(vid);
-          };
-          btn.title = viewDef.title;
-          if (vid === 'log') {
-            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span class="sb-nav-label">${viewDef.label}</span><span id="sb-log-badge" class="badge" style="display:none;margin-left:auto;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">0</span>`;
-          } else {
-            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span class="sb-nav-label">${viewDef.label}</span>`;
-          }
-          sbNav.appendChild(btn);
-        }
-
-
-
-        // Mobile #mobile-nav
-        if (mobileNav) {
-          const mBtn = document.createElement('button');
-          mBtn.className = 'mobile-nav-item';
-          if (P.view === vid) mBtn.classList.add('active');
-          mBtn.setAttribute('data-v', vid);
-          mBtn.onclick = () => {
-            if (vid === 'reports') P.activeReportId = null;
-            setView(vid);
-          };
-          if (vid === 'log') {
-            mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${P.hideLabels ? '' : viewDef.label}</span><span id="log-badge-mobile" class="badge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:white;font-size:9px;padding:1px 4px;border-radius:10px;line-height:1">0</span>`;
-          } else {
-            mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${P.hideLabels ? '' : viewDef.label}</span>`;
-          }
-          mobileNav.appendChild(mBtn);
-        }
-      });
-
-      document.body.classList.toggle('hide-labels', !!P.hideLabels);
-
-      if (window.lucide) window.lucide.createIcons();
-
-      // Update log badge counts dynamically
-      const cnt = P.log.filter(l => l.ts && typeof l.ts === 'string' && l.ts.startsWith(todayStr())).length;
-      ['log-badge', 'log-badge-mobile', 'sb-log-badge'].forEach(id => {
-        const b = $id(id);
-        if (b) {
-          if (cnt > 0) { b.style.display = ''; b.textContent = cnt; }
-          else b.style.display = 'none';
-        }
-      });
-    }
 
 
     // ══════ KEYBOARD SHORTCUTS ══════
@@ -18707,7 +18585,7 @@
             fInp = `<select data-col="${c.key}" onchange="updateGridColFilter('${prefix}','${c.key}',this.value)" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" style="${cStyle}">${optsHtml}</select>`;
           } else if (c.type === 'date') {
             const f = typeof cVal === 'object' ? cVal : {};
-            fInp = `<div style="display:flex;gap:2px" onclick="event.stopPropagation()"><input type="date" placeholder="Min" value="${esc(f.min)}" max="9999-12-31" onchange="updateGridColRangeFilter('${prefix}','${c.key}','min',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"><input type="date" placeholder="Max" value="${esc(f.max)}" max="9999-12-31" onchange="updateGridColRangeFilter('${prefix}','${c.key}','max',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"></div>`;
+            fInp = `<div style="display:flex;gap:2px" onclick="event.stopPropagation()"><input type="date" placeholder="Min" value="${esc(f.min)}" max="9999-12-31" oninput="updateGridColRangeFilter('${prefix}','${c.key}','min',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"><input type="date" placeholder="Max" value="${esc(f.max)}" max="9999-12-31" oninput="updateGridColRangeFilter('${prefix}','${c.key}','max',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"></div>`;
           } else if (c.type === 'number' || c.key === 'progress' || c.type === 'progress') {
             const f = typeof cVal === 'object' ? cVal : {};
             fInp = `<div style="display:flex;gap:2px" onclick="event.stopPropagation()"><input type="number" placeholder="Min" value="${esc(f.min)}" oninput="updateGridColRangeFilter('${prefix}','${c.key}','min',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"><input type="number" placeholder="Max" value="${esc(f.max)}" oninput="updateGridColRangeFilter('${prefix}','${c.key}','max',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"></div>`;
@@ -18957,7 +18835,7 @@
               fInp = `<select data-col="${c.key}" onchange="updateColFilter('${c.key}',this.value)" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" style="${cStyle}">${optsHtml}</select>`;
             } else if (c.type === 'date') {
               const f = cVal || {};
-              fInp = `<div style="display:flex;gap:2px" onclick="event.stopPropagation()"><input type="date" placeholder="Min" value="${esc(f.min)}" max="9999-12-31" onchange="updateColRangeFilter('${c.key}','min',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"><input type="date" placeholder="Max" value="${esc(f.max)}" max="9999-12-31" onchange="updateColRangeFilter('${c.key}','max',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"></div>`;
+              fInp = `<div style="display:flex;gap:2px" onclick="event.stopPropagation()"><input type="date" placeholder="Min" value="${esc(f.min)}" max="9999-12-31" oninput="updateColRangeFilter('${c.key}','min',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"><input type="date" placeholder="Max" value="${esc(f.max)}" max="9999-12-31" oninput="updateColRangeFilter('${c.key}','max',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"></div>`;
             } else if (c.type === 'number' || c.key === 'progress' || c.type === 'progress') {
               const f = cVal || {};
               fInp = `<div style="display:flex;gap:2px" onclick="event.stopPropagation()"><input type="number" placeholder="Min" value="${esc(f.min)}" oninput="updateColRangeFilter('${c.key}','min',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"><input type="number" placeholder="Max" value="${esc(f.max)}" oninput="updateColRangeFilter('${c.key}','max',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"></div>`;
@@ -19492,27 +19370,6 @@
         openScreenFlyout(window._editingTaskId, window._editingSubtaskId, 'edit');
       };
 
-      window.updateSubtaskStartDateLocal = updateSubtaskStartDateLocal;
-      function updateSubtaskStartDateLocal(val) {
-        if (!window._editingSubtask) return;
-        window._editingSubtask.startDate = val;
-        window.recalcGUIScreenLocal();
-        const dueInp = $id('subtask_edit_due_date');
-        if (dueInp && window._editingSubtask.type === 'screen') {
-          dueInp.value = window._editingSubtask.dueDate ? fmtDate(window._editingSubtask.dueDate) : '';
-        }
-        const actInp = $id('subtask_edit_act_date');
-        if (actInp && window._editingSubtask.type === 'screen') {
-          actInp.value = window._editingSubtask.actCompletionDate ? fmtDate(window._editingSubtask.actCompletionDate) : '';
-        }
-        (window._editingSubtask.workflow || []).forEach((step, idx) => {
-          const schedEl = $id(`gui_step_sched_${idx}`);
-          if (schedEl) {
-            schedEl.innerHTML = `${step.startDate ? fmtDate(step.startDate) : '?'} <span style="opacity:0.4;">→</span> ${step.dueDate ? fmtDate(step.dueDate) : '?'}`;
-          }
-        });
-      };
-
       window.updateGUIStepCompletionDateLocal = updateGUIStepCompletionDateLocal;
       function updateGUIStepCompletionDateLocal(idx, val) {
         if (!window._editingSubtask) return;
@@ -19520,11 +19377,7 @@
         if (!step) return;
         step.actCompletionDate = val;
         window.recalcGUIScreenLocal();
-        const badge = $id(`step_act_hours_${idx}`);
-        if (badge) {
-          badge.style.display = step.actEffort ? 'inline-flex' : 'none';
-          badge.textContent = `${step.actEffort || 0}d act`;
-        }
+        openScreenFlyout(window._editingTaskId, window._editingSubtaskId, 'edit');
       };
 
       window.markAllGUIStepsDoneLocal = markAllGUIStepsDoneLocal;
@@ -19702,7 +19555,7 @@
                 <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px">
                    <div class="fg" style="margin:0">
                       <label class="flbl">Start Date</label>
-                      <input type="date" id="subtask_edit_start_date" class="finp" value="${stEdit.startDate || ''}" max="9999-12-31" oninput="window._editingSubtask.startDate = this.value;" onchange="window.updateSubtaskStartDateLocal(this.value)" style="background:var(--color-surface)">
+                      <input type="date" id="subtask_edit_start_date" class="finp" value="${stEdit.startDate || ''}" max="9999-12-31" oninput="window._editingSubtask.startDate = this.value; window.recalcGUIScreenLocal(); openScreenFlyout(window._editingTaskId, window._editingSubtaskId, 'edit');" style="background:var(--color-surface)">
                    </div>
                    <div class="fg" style="margin:0">
                       <label class="flbl">${isScreen ? 'Due Date (Auto)' : 'Due Date'}</label>
@@ -19790,7 +19643,7 @@
                   <div style="display:flex; flex-direction:column; gap:4px;">
                      <span style="font-size:8px; text-transform:uppercase; letter-spacing:0.05em; opacity:0.6; font-weight:700;">Actual Completion</span>
                      <div style="display:flex; align-items:center; gap:6px;">
-                        <input type="date" id="gui_step_act_${idx}" value="${step.actCompletionDate || ''}" max="9999-12-31" style="background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; width:110px;" oninput="if(window._editingSubtask && window._editingSubtask.workflow[${idx}]) window._editingSubtask.workflow[${idx}].actCompletionDate = this.value;" onchange="window.updateGUIStepCompletionDateLocal(${idx},this.value)">
+                        <input type="date" id="gui_step_act_${idx}" value="${step.actCompletionDate || ''}" max="9999-12-31" style="background:var(--color-surface-2); border:1px solid var(--color-border); color:inherit; font-size:10px; padding:2px 4px; border-radius:4px; width:110px;" oninput="window.updateGUIStepCompletionDateLocal(${idx},this.value)" onblur="window.openScreenFlyout(window._editingTaskId,window._editingSubtaskId,'edit')">
                         <span id="step_act_hours_${idx}" class="badge success" style="font-weight:700; font-size:8px; display:${step.actEffort ? 'inline-flex' : 'none'}; padding: 1px 4px; border-radius: 3px; white-space:nowrap">${step.actEffort || 0}d act</span>
                      </div>
                   </div>
@@ -20281,9 +20134,7 @@
       } else if (col.type === 'date') {
         const inp = document.createElement('input'); inp.type = 'date'; inp.className = 'cell-input'; inp.value = val; inner.appendChild(inp); inp.focus();
         commit = () => { if (finished) return; finished = true; updateField(task.id, col.key, inp.value); render(); };
-        inp.addEventListener('change', commit);
-        inp.addEventListener('blur', () => { setTimeout(() => { if (!finished) commit(); }, 200); });
-        inp.addEventListener('keydown', e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { finished = true; renderTable(); } });
+        inp.addEventListener('blur', commit); inp.addEventListener('keydown', e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { finished = true; renderTable(); } });
       } else if (col.type === 'progress' || col.type === 'number') {
         const inp = document.createElement('input'); inp.type = 'number'; inp.className = 'cell-input'; inp.value = val; if (col.type === 'progress') { inp.min = 0; inp.max = 100; inp.step = 5; } inner.appendChild(inp); inp.focus(); inp.select();
         commit = () => { if (finished) return; finished = true; let v = parseFloat(inp.value) || 0; if (col.type === 'progress') v = Math.max(0, Math.min(100, Math.round(v))); updateField(task.id, col.key, v); render(); };
@@ -20313,8 +20164,7 @@
         sel.addEventListener('blur', () => { if (!finished) renderTable(); });
       } else if (col.type === 'date') {
         const inp = document.createElement('input'); inp.type = 'date'; inp.className = 'cell-input'; inp.value = val; inner.appendChild(inp); inp.focus();
-        inp.addEventListener('change', () => finish(inp.value));
-        inp.addEventListener('blur', () => { setTimeout(() => { if (!finished) finish(inp.value); }, 200); });
+        inp.addEventListener('blur', () => finish(inp.value));
         inp.addEventListener('keydown', e => { if (e.key === 'Enter') finish(inp.value); if (e.key === 'Escape') { finished = true; renderTable(); } });
       } else if (col.key === 'estEffort') {
         const inp = document.createElement('input'); inp.type = 'number'; inp.className = 'cell-input'; inp.value = val; inner.appendChild(inp); inp.focus();
@@ -21084,11 +20934,7 @@
           st.actCompletionDate = val;
         }
         window.recalcServerWorkflowLocal();
-        const badge = $id(`server_act_hours_${stId}`);
-        if (badge) {
-          badge.style.display = st.actEffort ? 'inline-flex' : 'none';
-          badge.textContent = `${st.actEffort || 0}d act`;
-        }
+        openServerWorkflowFlyout(window._editingServerTaskId);
       };
 
       window.markAllServerSubtasksDoneLocal = markAllServerSubtasksDoneLocal;
@@ -31048,7 +30894,7 @@
               });
             });
           }, 100);
-        } else if (sec.id === 'summary') {
+
           // ─────── AFTER summary cards: inject blocker alert strip ───────
           // This runs as a post-process hook outside the widget loop
           // to inject a full-width strip before the next widget
@@ -42133,18 +41979,12 @@ Earned Value Management measures project performance and progress by comparing p
           { header: 'Progress', key: 'progress', width: 12 },
           { header: 'Start Date', key: 'startDate', width: 15 },
           { header: 'Due Date', key: 'dueDate', width: 15 },
-          { header: 'Baseline Start Date', key: 'baselineStartDate', width: 18 },
-          { header: 'Baseline Due Date', key: 'baselineDueDate', width: 18 },
-          { header: `Baseline ${effortUnitLabel('col')}`, key: 'baselineEffort', width: 18 },
-          { header: 'Forecast Due Date', key: 'forecastDueDate', width: 18 },
           { header: 'Delay', key: 'delay', width: 12 },
           { header: 'Actual Completion Date', key: 'actCompletionDate', width: 22 },
           { header: `Estimated ${effortUnitLabel('col')}`, key: 'estEffort', width: 18 },
           { header: `Actual ${effortUnitLabel('col')}`, key: 'actEffort', width: 15 },
           { header: 'Variance', key: 'variance', width: 15 },
           { header: 'Complexity', key: 'complexity', width: 15 },
-          { header: 'Slippage Reason', key: 'slippageReason', width: 35 },
-          { header: 'Confidence', key: 'confidence', width: 15 },
           { header: 'Tags', key: 'tags', width: 20 },
           { header: 'Notes', key: 'notes', width: 35 },
           { header: 'Created At', key: 'createdAt', width: 15 },
@@ -42242,18 +42082,11 @@ Earned Value Management measures project performance and progress by comparing p
             predecessors: S((t.predecessors || []).join(', ')), assignee: S(t.assignee),
             status: S(t.status), priority: S(t.priority), progress: t.progress !== undefined ? t.progress : 0,
             startDate: cleanFmtDate(t.startDate), dueDate: cleanFmtDate(t.dueDate),
-            baselineStartDate: cleanFmtDate(t.baselineStartDate),
-            baselineDueDate: cleanFmtDate(t.baselineDueDate),
-            baselineEffort: t.baselineEffort !== undefined ? t.baselineEffort : '',
-            forecastDueDate: cleanFmtDate(t.forecastDueDate),
             delay: { formula: `IF(AND(K${rowIdx}<>"Completed", O${rowIdx}<TODAY()), TODAY()-O${rowIdx}, 0)` },
             actCompletionDate: cleanFmtDate(t.actCompletionDate), estEffort: t.estEffort || 0,
             actEffort: t.actEffort || 0,
             variance: { formula: `S${rowIdx}-R${rowIdx}` },
-            complexity: S(t.complexity),
-            slippageReason: S(t.slippageReason || ''),
-            confidence: S(t.confidence || ''),
-            tags: S((t.tags || []).join(', ')), notes: S(t.notes),
+            complexity: S(t.complexity), tags: S((t.tags || []).join(', ')), notes: S(t.notes),
             createdAt: cleanFmtDate(t.createdAt), updatedAt: cleanFmtDate(t.updatedAt)
           };
           (P.customFields || []).forEach(f => { rowValues[f.name] = S(t[f.name]); });
@@ -42363,7 +42196,7 @@ Earned Value Management measures project performance and progress by comparing p
             technicalWindowName: S(s.technicalWindowName || ''),
             status: S(s.status),
             assignee: S(s.assignee), startDate: cleanFmtDate(s.startDate), dueDate: cleanFmtDate(s.dueDate),
-            actCompletionDate: cleanFmtDate(s.actCompletionDate), estEffort: s.effort !== undefined ? s.effort : (s.estEffort || 0),
+            actCompletionDate: cleanFmtDate(s.actCompletionDate), estEffort: s.estEffort || 0,
             actEffort: s.actEffort || 0, notes: S(s.notes)
           };
           const row = ws.addRow(rowValues); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
@@ -42400,21 +42233,21 @@ Earned Value Management measures project performance and progress by comparing p
         const memberCount = (P.members || []).length;
         if (memberCount > 0) {
           const statusColors = {
-            Active: COLORS.emerald,
+            'Active': COLORS.emerald,
             'On Leave': COLORS.amber,
-            Inactive: COLORS.rose
+            'Other Assignment': COLORS.blue,
+            'Serving Notice Period': 'FFEA580C',
+            'Departed': COLORS.muted
           };
-          Object.entries(statusColors).forEach(([stVal, colHex]) => {
+          Object.entries(statusColors).forEach(([status, color]) => {
             try {
               ws.addConditionalFormatting({
                 ref: `F2:F${1 + memberCount}`,
                 rules: [{
-                  type: 'cellIs',
-                  operator: 'equal',
-                  formulae: [`"${stVal}"`],
+                  type: 'cellIs', operator: 'equal', formulae: [`"${status}"`],
                   style: {
-                    font: { bold: true, color: { argb: colHex } },
-                    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.getThemeTint ? COLORS.getThemeTint(colHex, 0.12) : 'FFF1F5F9' } }
+                    font: { bold: true, color: { argb: color } },
+                    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.getThemeTint ? COLORS.getThemeTint(color, 0.12) : 'FFF5F5F5' } }
                   }
                 }]
               });
@@ -42589,8 +42422,8 @@ Earned Value Management measures project performance and progress by comparing p
             priorityCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.isDark ? 'FF7F1D1D' : 'FFFFD8D8' } };
             priorityCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: COLORS.isDark ? 'FFFEE2E2' : 'FF990000' } };
           } else if (pri === 'High') {
-            priorityCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.isDark ? 'FF78350F' : 'FFFFFBEB' } };
-            priorityCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: COLORS.isDark ? 'FFFDE68A' : 'FFB45309' } };
+            priorityCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.isDark ? 'FF78350F' : 'FFFEF3C7' } };
+            priorityCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: COLORS.isDark ? 'FFFDE68A' : 'FF92400E' } };
           }
         });
 
@@ -42635,27 +42468,25 @@ Earned Value Management measures project performance and progress by comparing p
         const raidCount = (P.raids || []).length;
         if (raidCount > 0) {
           const lastRow = 1 + raidCount;
-          const mapColors = (colLetter, colorMap) => {
-            Object.entries(colorMap).forEach(([val, colHex]) => {
+          const applyTextCF = (colLetter, colorMap) => {
+            Object.entries(colorMap).forEach(([val, color]) => {
               try {
                 ws.addConditionalFormatting({
                   ref: `${colLetter}2:${colLetter}${lastRow}`,
                   rules: [{
-                    type: 'cellIs',
-                    operator: 'equal',
-                    formulae: [`"${val}"`],
+                    type: 'cellIs', operator: 'equal', formulae: [`"${val}"`],
                     style: {
-                      font: { bold: true, color: { argb: colHex } },
-                      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.getThemeTint ? COLORS.getThemeTint(colHex, 0.12) : 'FFF1F5F9' } }
+                      font: { bold: true, color: { argb: color } },
+                      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.getThemeTint ? COLORS.getThemeTint(color, 0.12) : 'FFF5F5F5' } }
                     }
                   }]
                 });
               } catch (e) { }
             });
           };
-          mapColors('D', { Open: COLORS.amber, Closed: COLORS.slate, Mitigated: COLORS.emerald, Escalated: COLORS.rose }); // Status
-          mapColors('E', { High: COLORS.rose, Medium: COLORS.amber, Low: COLORS.slate, Critical: COLORS.rose }); // Impact
-          mapColors('F', { High: COLORS.rose, Medium: COLORS.amber, Low: COLORS.slate, Critical: COLORS.rose }); // Probability
+          applyTextCF('D', { 'Identified': COLORS.blue, 'Active': COLORS.rose, 'Mitigated': COLORS.amber, 'Closed': COLORS.muted, 'Realized': 'FFEA580C' });
+          applyTextCF('E', { 'High': COLORS.rose, 'Medium': COLORS.amber, 'Low': COLORS.emerald });
+          applyTextCF('F', { 'High': COLORS.rose, 'Medium': COLORS.amber, 'Low': COLORS.emerald });
         }
       },
 
@@ -44237,17 +44068,6 @@ Earned Value Management measures project performance and progress by comparing p
               }]
             });
           } catch (e) { }
-          try {
-            ds.addConditionalFormatting({
-              ref: 'F' + (curRow + 1 + i) + ':F' + (curRow + 1 + i),
-              rules: [{
-                type: 'dataBar',
-                cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 100 }],
-                color: { argb: COLORS.emerald },
-                showValue: true
-              }]
-            });
-          } catch (e) { }
         });
 
         const feats = (P.features || []).slice(0, 12);
@@ -44640,6 +44460,7 @@ Earned Value Management measures project performance and progress by comparing p
           sevCounts[sev] = (sevCounts[sev] || 0) + 1;
         });
         let sevRow = sumStartRow + 2;
+        const sevRowStart = sevRow;
         Object.entries(sevCounts).sort().forEach(([sev, cnt]) => {
           const pct = Math.round(cnt / defects.length * 100);
           const cell2 = ws.getCell(sevRow, 2);
@@ -44650,12 +44471,20 @@ Earned Value Management measures project performance and progress by comparing p
           cell3.value = cnt;
           cell3.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: COLORS.textDark } };
           cell3.alignment = { horizontal: 'center' };
-          cell4.value = pct + '%';
+          cell4.value = pct;
+          cell4.numFmt = '0"%"';
           cell4.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.muted } };
           cell4.alignment = { horizontal: 'center' };
           ws.getRow(sevRow).height = 18;
           sevRow++;
         });
+        // Visual data bar on the percentage column, matching the Metrics/Velocity sheet convention
+        if (sevRow > sevRowStart) {
+          ws.addConditionalFormatting({
+            ref: `D${sevRowStart}:D${sevRow - 1}`,
+            rules: [{ type: 'dataBar', cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 100 }], color: { argb: COLORS.rose }, showValue: true }]
+          });
+        }
 
         // Autofilter
         try { ws.autoFilter = { from: { row: 3, column: 2 }, to: { row: 3, column: 9 } }; } catch (e) { }
@@ -45018,6 +44847,7 @@ Earned Value Management measures project performance and progress by comparing p
         const dqOverallRow = r;
         addMetricRow(r++, 'Overall Data Completeness', dqAvgCompleteXl, 'Quality', dqAvgCompleteXl >= 90 ? COLORS.emerald : dqAvgCompleteXl >= 70 ? COLORS.amber : COLORS.rose);
         ws.getCell(dqOverallRow, 3).numFmt = '0"%"';
+        const dqFieldRowStart = r;
         dqFieldsXl.forEach(f => {
           const pct = total ? Math.round(((total - f.missing) / total) * 100) : 100;
           addMetricRow(r++, f.label, pct, f.missing > 0 ? `${f.missing} missing` : 'Complete', pct >= 90 ? COLORS.emerald : pct >= 70 ? COLORS.amber : COLORS.rose);
@@ -45788,7 +45618,7 @@ Earned Value Management measures project performance and progress by comparing p
 
         const crRaw = rawData.getTable('Config_Releases');
         if (crRaw && crRaw.length) {
-          P.releases = crRaw.map(r => ({ id: r.id, name: r.name || r['Name'] || '', date: r.date || r['Date'] || '', startDate: r.startDate || r['Start Date'] || r.date || r['Date'] || '', endDate: r.endDate || r['End Date'] || '', status: r.status || r['Status'] || 'Planned' }));
+          P.releases = crRaw.map(r => ({ id: r.id, name: r.name || r['Name'] || '', date: r.date || r['Date'] || '', status: r.status || r['Status'] || 'Planned' }));
         }
       },
 
@@ -45855,26 +45685,8 @@ Earned Value Management measures project performance and progress by comparing p
         P.tasks = rawTasks.map(t => {
           const copy = { ...t }; delete copy['Derived Health']; delete copy['Blocking Issues']; delete copy['Workflow Hints']; delete copy['Suggested Due Date'];
           if (copy.cat && !copy.category) { copy.category = copy.cat; delete copy.cat; }
-          copy.startDate = fmtD(t.startDate || t['Start Date']); copy.dueDate = fmtD(t.dueDate || t['Due Date']);
-          copy.baselineStartDate = fmtD(t.baselineStartDate || t['Baseline Start Date'] || t['Base Start']);
-          copy.baselineDueDate = fmtD(t.baselineDueDate || t['Baseline Due Date'] || t['Base End']);
-          if (t.baselineEffort !== undefined || t['Baseline Effort'] !== undefined || t['Baseline Effort (PD)'] !== undefined) {
-            const be = parseFloat(t.baselineEffort || t['Baseline Effort'] || t['Baseline Effort (PD)']);
-            if (!isNaN(be)) copy.baselineEffort = be;
-          }
-          copy.forecastDueDate = fmtD(t.forecastDueDate || t['Forecast Due Date']);
-          if (t.slippageReason || t['Slippage Reason']) copy.slippageReason = S(t.slippageReason || t['Slippage Reason']);
-          if (t.confidence || t['Confidence']) copy.confidence = S(t.confidence || t['Confidence']);
-          copy.actCompletionDate = fmtD(t.actCompletionDate || t['Actual Completion Date']); copy.createdAt = fmtD(t.createdAt || t['Created At']); copy.updatedAt = fmtD(t.updatedAt || t['Updated At']);
-          copy.subtasks = rawSub.filter(s => s.parentId === t.id).map(s => {
-            const sub = { ...s };
-            sub.startDate = fmtD(s.startDate || s['Start Date']); sub.dueDate = fmtD(s.dueDate || s['Due Date']); sub.actCompletionDate = fmtD(s.actCompletionDate || s['Actual Completion Date']);
-            if (s.effort !== undefined || s.estEffort !== undefined || s['Estimated Effort'] !== undefined) {
-              const eff = parseFloat(s.effort !== undefined ? s.effort : (s.estEffort !== undefined ? s.estEffort : s['Estimated Effort']));
-              if (!isNaN(eff)) sub.effort = eff;
-            }
-            sub.workflow = relTables['Data_SubTaskWorkflows'].filter(sw => sw.subtaskId === s.id).map(sw => ({ name: sw.name, effort: parseFloat(sw.effort) || 0, done: !!sw.done || sw.status === 'Completed', status: sw.status || (sw.done ? 'Completed' : 'Not Started'), progress: parseInt(sw.progress) || (sw.status === 'Completed' || sw.done ? 100 : 0), actCompletionDate: fmtD(sw.actCompletionDate || sw['Actual Completion Date']), actEffort: parseFloat(sw.actEffort) || 0 })); return sub;
-          });
+          copy.startDate = fmtD(t.startDate || t['Start Date']); copy.dueDate = fmtD(t.dueDate || t['Due Date']); copy.actCompletionDate = fmtD(t.actCompletionDate || t['Actual Completion Date']); copy.createdAt = fmtD(t.createdAt || t['Created At']); copy.updatedAt = fmtD(t.updatedAt || t['Updated At']);
+          copy.subtasks = rawSub.filter(s => s.parentId === t.id).map(s => { const sub = { ...s }; sub.startDate = fmtD(s.startDate || s['Start Date']); sub.dueDate = fmtD(s.dueDate || s['Due Date']); sub.actCompletionDate = fmtD(s.actCompletionDate || s['Actual Completion Date']); sub.workflow = relTables['Data_SubTaskWorkflows'].filter(sw => sw.subtaskId === s.id).map(sw => ({ name: sw.name, effort: parseFloat(sw.effort) || 0, done: !!sw.done || sw.status === 'Completed', status: sw.status || (sw.done ? 'Completed' : 'Not Started'), progress: parseInt(sw.progress) || (sw.status === 'Completed' || sw.done ? 100 : 0), actCompletionDate: fmtD(sw.actCompletionDate || sw['Actual Completion Date']), actEffort: parseFloat(sw.actEffort) || 0 })); return sub; });
           copy.workflow = relTables['Data_TaskWorkflows'].filter(w => w.taskId === t.id).map(w => ({ name: w.name, effort: parseFloat(w.effort) || 0, done: !!w.done || w.status === 'Completed', status: w.status || (w.done ? 'Completed' : 'Not Started'), progress: parseInt(w.progress) || (w.status === 'Completed' || w.done ? 100 : 0), actCompletionDate: fmtD(w.actCompletionDate || w['Actual Completion Date']), actEffort: parseFloat(w.actEffort) || 0 })); copy.dependsOn = relTables['Data_TaskDependencies'].filter(d => d.taskId === t.id).map(d => d.dependencyId); copy.guiScreens = relTables['Data_TaskGUIScreens'].filter(s => s.taskId === t.id).map(s => s.screen);
           return copy;
         });
@@ -48189,9 +48001,6 @@ Earned Value Management measures project performance and progress by comparing p
         renderReleases();
         syncDropdowns();
         save();
-        if (P.fsHandle && !P._isLoading && !P._fsPermissionError) {
-          saveToFile(true);
-        }
       }
     }
 
