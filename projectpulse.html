@@ -42262,6 +42262,21 @@ Earned Value Management measures project performance and progress by comparing p
           row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
           COLORS.styleRow(row, i);
 
+          // Progress: value is raw 0-100 in this sheet (not divided by 100), so use a literal "%" suffix
+          // format rather than Excel's native '0%' format, which would multiply by 100 again.
+          row.getCell('progress').numFmt = '0"%"';
+
+          // Priority coloring — previously left completely unstyled in this sheet
+          const priorityCell = row.getCell('priority');
+          const pri = S(t.priority);
+          if (pri === 'Critical') {
+            priorityCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.isDark ? 'FF7F1D1D' : 'FFFFD8D8' } };
+            priorityCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: COLORS.isDark ? 'FFFEE2E2' : 'FF990000' } };
+          } else if (pri === 'High') {
+            priorityCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.isDark ? 'FF78350F' : 'FFFEF3C7' } };
+            priorityCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: COLORS.isDark ? 'FFFDE68A' : 'FF92400E' } };
+          }
+
           // Conditional highlights
           const delayCell = row.getCell('delay');
           const varianceCell = row.getCell('variance');
@@ -42370,6 +42385,34 @@ Earned Value Management measures project performance and progress by comparing p
           COLORS.styleRow(row, i);
         });
 
+        // Status color coding — this sheet previously had zero conditional formatting
+        if (subs.length > 0) {
+          const statusColors = {
+            'Completed': COLORS.emerald,
+            'In Progress': COLORS.blue,
+            'Under Review': COLORS.indigo,
+            'On Hold': COLORS.amber,
+            'Blocked': COLORS.rose,
+            'Not Started': COLORS.muted,
+            'Deferred': COLORS.slate,
+            'Cancelled': COLORS.slate
+          };
+          Object.entries(statusColors).forEach(([status, color]) => {
+            try {
+              ws.addConditionalFormatting({
+                ref: `E2:E${1 + subs.length}`,
+                rules: [{
+                  type: 'cellIs', operator: 'equal', formulae: [`"${status}"`],
+                  style: {
+                    font: { bold: true, color: { argb: color } },
+                    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.getThemeTint ? COLORS.getThemeTint(color, 0.12) : 'FFF5F5F5' } }
+                  }
+                }]
+              });
+            } catch (e) { }
+          });
+        }
+
         const subCount = Math.max(100, subs.length + 50);
         for (let r = 2; r <= subCount; r++) {
           ws.getCell(`D${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['"step,screen"'] };
@@ -42400,9 +42443,12 @@ Earned Value Management measures project performance and progress by comparing p
         const memberCount = (P.members || []).length;
         if (memberCount > 0) {
           const statusColors = {
-            Active: COLORS.emerald,
+            'Active': COLORS.emerald,
             'On Leave': COLORS.amber,
-            Inactive: COLORS.rose
+            'Inactive': COLORS.rose,
+            'Other Assignment': COLORS.blue,
+            'Serving Notice Period': 'FFEA580C',
+            'Departed': COLORS.muted
           };
           Object.entries(statusColors).forEach(([stVal, colHex]) => {
             try {
@@ -42589,8 +42635,8 @@ Earned Value Management measures project performance and progress by comparing p
             priorityCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.isDark ? 'FF7F1D1D' : 'FFFFD8D8' } };
             priorityCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: COLORS.isDark ? 'FFFEE2E2' : 'FF990000' } };
           } else if (pri === 'High') {
-            priorityCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.isDark ? 'FF78350F' : 'FFFFFBEB' } };
-            priorityCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: COLORS.isDark ? 'FFFDE68A' : 'FFB45309' } };
+            priorityCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.isDark ? 'FF78350F' : 'FFFEF3C7' } };
+            priorityCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: COLORS.isDark ? 'FFFDE68A' : 'FF92400E' } };
           }
         });
 
@@ -42653,9 +42699,9 @@ Earned Value Management measures project performance and progress by comparing p
               } catch (e) { }
             });
           };
-          mapColors('D', { Open: COLORS.amber, Closed: COLORS.slate, Mitigated: COLORS.emerald, Escalated: COLORS.rose }); // Status
-          mapColors('E', { High: COLORS.rose, Medium: COLORS.amber, Low: COLORS.slate, Critical: COLORS.rose }); // Impact
-          mapColors('F', { High: COLORS.rose, Medium: COLORS.amber, Low: COLORS.slate, Critical: COLORS.rose }); // Probability
+          mapColors('D', { 'Identified': COLORS.blue, 'Active': COLORS.rose, 'Mitigated': COLORS.amber, 'Closed': COLORS.muted, 'Realized': 'FFEA580C' });
+          mapColors('E', { 'High': COLORS.rose, 'Medium': COLORS.amber, 'Low': COLORS.emerald });
+          mapColors('F', { 'High': COLORS.rose, 'Medium': COLORS.amber, 'Low': COLORS.emerald });
         }
       },
 
