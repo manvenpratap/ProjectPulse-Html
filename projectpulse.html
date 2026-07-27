@@ -43110,7 +43110,12 @@ Earned Value Management measures project performance and progress by comparing p
           { key: 'CFD Weeks', val: P.cfdWeeks || 8 },
           { key: 'Defect Inflow Weeks', val: P.defectInflowWeeks || 7 },
           { key: 'Admin Active Tab', val: P._adminActiveTab || '' },
-          { key: 'Dropdown Defaults', val: JSON.stringify(P.dropdownDefaults || {}) }
+          { key: 'Dropdown Defaults', val: JSON.stringify(P.dropdownDefaults || {}) },
+          { key: 'Current Raid Filter', val: P._currentRaidFilter || 'All' },
+          { key: 'Matrix Filter', val: JSON.stringify(P._matrixFilter || null) },
+          { key: 'Board Pack Preset', val: P._currentBoardPackPreset || '' },
+          { key: 'Feature Display Level', val: P._featDisplayLevel !== undefined ? P._featDisplayLevel : 0 },
+          { key: 'Feature Search Query', val: P._featSearch || '' }
         ];
         projMeta.forEach((r, i) => {
           r.val = S(r.val);
@@ -43128,6 +43133,13 @@ Earned Value Management measures project performance and progress by comparing p
           { key: 'daysPerWeek', val: P.settings.daysPerWeek },
           { key: 'hoursPerWeek', val: P.settings.hoursPerWeek }, { key: 'workDays', val: P.settings.workDays },
           { key: 'viewOrder', val: JSON.stringify(P.settings.viewOrder || []) },
+          { key: 'velocityMode', val: P.settings.velocityMode || 'weighted' },
+          { key: 'cfdMode', val: P.settings.cfdMode || 'cumulative' },
+          { key: 'roadmapViewMode', val: P.settings.roadmapViewMode || 'unified' },
+          { key: 'moduleBreakdownSelected', val: JSON.stringify(P.settings.moduleBreakdownSelected || null) },
+          { key: 'moduleBreakdownTypesSelected', val: JSON.stringify(P.settings.moduleBreakdownTypesSelected || null) },
+          { key: 'roadmapModulesSelected', val: JSON.stringify(P.settings.roadmapModulesSelected || null) },
+          { key: 'roadmapModuleTypesSelected', val: JSON.stringify(P.settings.roadmapModuleTypesSelected || null) },
           ...Object.entries(P.settings.alertPrefs || {}).map(([k, v]) => ({ key: `alert_${k}`, val: v }))
         ];
         setMeta.forEach((r, i) => {
@@ -45864,6 +45876,11 @@ Earned Value Management measures project performance and progress by comparing p
         P.cfdWeeks = parseInt(stateMap['CFD Weeks']) || 8;
         P.defectInflowWeeks = parseInt(stateMap['Defect Inflow Weeks']) || 7;
         P._adminActiveTab = stateMap['Admin Active Tab'] || '';
+        P._currentRaidFilter = stateMap['Current Raid Filter'] || 'All';
+        if (stateMap['Matrix Filter'] && stateMap['Matrix Filter'] !== 'null') { try { P._matrixFilter = JSON.parse(stateMap['Matrix Filter']); } catch (e) { P._matrixFilter = null; } } else { P._matrixFilter = null; }
+        if (stateMap['Board Pack Preset']) P._currentBoardPackPreset = stateMap['Board Pack Preset'];
+        if (stateMap['Feature Display Level'] !== undefined) P._featDisplayLevel = parseInt(stateMap['Feature Display Level']) || 0;
+        if (stateMap['Feature Search Query']) P._featSearch = stateMap['Feature Search Query'];
         try {
           P.dropdownDefaults = stateMap['Dropdown Defaults'] ? JSON.parse(stateMap['Dropdown Defaults']) : {};
         } catch (e) {
@@ -45885,6 +45902,13 @@ Earned Value Management measures project performance and progress by comparing p
           else if (k === 'hoursPerWeek') P.settings.hoursPerWeek = parseFloat(val);
           else if (k === 'workDays') P.settings.workDays = parseInt(val);
           else if (k === 'viewOrder') { try { P.settings.viewOrder = typeof val === 'string' ? JSON.parse(val) : val; } catch (e) { } }
+          else if (k === 'velocityMode') { if (val) P.settings.velocityMode = val; }
+          else if (k === 'cfdMode') { if (val) P.settings.cfdMode = val; }
+          else if (k === 'roadmapViewMode') { if (val) P.settings.roadmapViewMode = val; }
+          else if (k === 'moduleBreakdownSelected') { try { const v2 = typeof val === 'string' ? JSON.parse(val) : val; if (Array.isArray(v2)) P.settings.moduleBreakdownSelected = v2; } catch (e) { } }
+          else if (k === 'moduleBreakdownTypesSelected') { try { const v2 = typeof val === 'string' ? JSON.parse(val) : val; if (Array.isArray(v2)) P.settings.moduleBreakdownTypesSelected = v2; } catch (e) { } }
+          else if (k === 'roadmapModulesSelected') { try { const v2 = typeof val === 'string' ? JSON.parse(val) : val; if (Array.isArray(v2)) P.settings.roadmapModulesSelected = v2; } catch (e) { } }
+          else if (k === 'roadmapModuleTypesSelected') { try { const v2 = typeof val === 'string' ? JSON.parse(val) : val; if (Array.isArray(v2)) P.settings.roadmapModuleTypesSelected = v2; } catch (e) { } }
           else if (k && k.startsWith('alert_')) {
             const prefK = k.replace('alert_', '');
             if (P.settings.alertPrefs) P.settings.alertPrefs[prefK] = (val === 'true' || val === true || (!isNaN(val) && val !== ''));
@@ -45944,6 +45968,8 @@ Earned Value Management measures project performance and progress by comparing p
           if (cat) {
             if (cat === 'overdueOnly' || cat === 'blockedOnly') {
               P.filters[cat] = (val === 'true' || val === true);
+            } else if (cat === 'missingField') {
+              P.filters.missingField = val || '';
             } else {
               if (!P.filters[cat]) P.filters[cat] = new Set();
               if (P.filters[cat] instanceof Set) {
