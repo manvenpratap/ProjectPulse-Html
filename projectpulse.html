@@ -40770,8 +40770,10 @@ Earned Value Management measures project performance and progress by comparing p
           }
         }
 
+        const ganttLastRow = 7 + totalGanttRows; // rowIdx runs from 8 to 7+totalGanttRows inclusive
+
         wsGantt.addConditionalFormatting({
-          ref: `H8:${wsGantt.getColumn(8 + numWeeksVal - 1).letter}200`,
+          ref: `H8:${wsGantt.getColumn(8 + numWeeksVal - 1).letter}${ganttLastRow}`,
           rules: [
             // Code 5: Green (\u226580%)
             {
@@ -40802,7 +40804,7 @@ Earned Value Management measures project performance and progress by comparing p
 
         // Dynamic Today/Current Week highlighting — red dotted left border + light red tint
         wsGantt.addConditionalFormatting({
-          ref: `H6:${wsGantt.getColumn(8 + numWeeksVal - 1).letter}200`,
+          ref: `H6:${wsGantt.getColumn(8 + numWeeksVal - 1).letter}${ganttLastRow}`,
           rules: [
             {
               type: 'expression',
@@ -40947,8 +40949,10 @@ Earned Value Management measures project performance and progress by comparing p
           swimRowIdx++;
         });
 
+        const swimLastRow = swimRowIdx - 1; // last row actually used by the swimlane blocks built above
+
         wsSwim.addConditionalFormatting({
-          ref: `H8:${wsSwim.getColumn(8 + numWeeksVal - 1).letter}200`,
+          ref: `H8:${wsSwim.getColumn(8 + numWeeksVal - 1).letter}${swimLastRow}`,
           rules: [
             // Code 5: Green (\u226580%)
             {
@@ -40979,7 +40983,7 @@ Earned Value Management measures project performance and progress by comparing p
 
         // Dynamic Today/Current Week highlighting — red dotted left border + light red tint
         wsSwim.addConditionalFormatting({
-          ref: `H6:${wsSwim.getColumn(8 + numWeeksVal - 1).letter}200`,
+          ref: `H6:${wsSwim.getColumn(8 + numWeeksVal - 1).letter}${swimLastRow}`,
           rules: [
             {
               type: 'expression',
@@ -41434,6 +41438,23 @@ Earned Value Management measures project performance and progress by comparing p
               statusCell.alignment = { horizontal: 'center', vertical: 'middle' };
             } else {
               statusCell.alignment = { horizontal: 'center', vertical: 'middle' };
+            }
+          }
+
+          // Priority coloring — previously left completely unstyled in this sheet
+          const priorityCell = row.getCell('priority');
+          if (priorityCell && priorityCell.value) {
+            const PRIORITY_STYLES = isDark ? {
+              'Critical': { fill: 'FF7F1D1D', fontColor: 'FFFEE2E2' },
+              'High': { fill: 'FF78350F', fontColor: 'FFFDE68A' }
+            } : {
+              'Critical': { fill: 'FFFFD8D8', fontColor: 'FF990000' },
+              'High': { fill: 'FFFEF3C7', fontColor: 'FF92400E' }
+            };
+            const style = PRIORITY_STYLES[priorityCell.value];
+            if (style) {
+              priorityCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: style.fill } };
+              priorityCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: style.fontColor } };
             }
           }
         };
