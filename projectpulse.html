@@ -27370,6 +27370,64 @@
       save();
     }
 
+    // Feature Tree Navigation helpers
+    window.toggleFeatTreeNode = function(key) {
+      if (!P._expandedFeatTree) P._expandedFeatTree = new Set();
+      if (P._expandedFeatTree.has(key)) P._expandedFeatTree.delete(key);
+      else P._expandedFeatTree.add(key);
+      renderSidebar();
+    };
+
+    window.expandAllFeatTree = function() {
+      if (!P._expandedFeatTree) P._expandedFeatTree = new Set();
+      (P.features || []).forEach((f, idx) => {
+        P._expandedFeatTree.add(`feat-${idx}`);
+        (f.screens || []).forEach((sc, scIdx) => {
+          P._expandedFeatTree.add(`feat-${idx}-sc-${scIdx}`);
+        });
+      });
+      renderSidebar();
+    };
+
+    window.collapseAllFeatTree = function() {
+      P._expandedFeatTree = new Set();
+      renderSidebar();
+    };
+
+    window.focusFeatureInMatrix = function(idx) {
+      const card = document.getElementById('feat-card-' + idx);
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
+        card.style.borderColor = 'var(--color-primary)';
+        card.style.boxShadow = '0 0 0 3px rgba(var(--color-primary-rgb), 0.3)';
+        setTimeout(() => {
+          card.style.borderColor = '';
+          card.style.boxShadow = '';
+        }, 2000);
+      } else if (typeof startEditFeature === 'function') {
+        startEditFeature(idx);
+      }
+    };
+
+    window.toggleFeatTimelineNode = function(featKey) {
+      if (!P._expandedFeatTimeline) P._expandedFeatTimeline = new Set();
+      if (P._expandedFeatTimeline.has(featKey)) P._expandedFeatTimeline.delete(featKey);
+      else P._expandedFeatTimeline.add(featKey);
+      renderFeatureHub();
+    };
+
+    window.expandAllFeatTimeline = function() {
+      if (!P._expandedFeatTimeline) P._expandedFeatTimeline = new Set();
+      (P.features || []).forEach((_, idx) => P._expandedFeatTimeline.add(`feat-${idx}`));
+      renderFeatureHub();
+    };
+
+    window.collapseAllFeatTimeline = function() {
+      P._expandedFeatTimeline = new Set();
+      renderFeatureHub();
+    };
+
     function renderSidebar() {
       const sbInner = $id('sb-inner');
       const sbStats = $id('sb-stats');
@@ -27994,6 +28052,112 @@
             <input class="finp" id="feat-sb-search" type="text" placeholder="Filter by name..." style="height:32px; font-size:12px; width:100%" value="${esc(P._featSearch || '')}" oninput="P._featSearch = this.value; renderFeatureHub()">
           </div>`;
         sbInner.appendChild(dSearch);
+
+        // Feature Tree Navigation Section
+        if (!P._expandedFeatTree) P._expandedFeatTree = new Set();
+        const treeSec = document.createElement('div'); treeSec.className = 'sb-sec';
+        treeSec.innerHTML = `
+          <div class="sb-stit" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <span style="display:flex;align-items:center;gap:6px">
+              <i data-lucide="folder-tree" style="width:14px;height:14px;color:var(--color-primary)"></i>
+              <span>Feature Hierarchy</span>
+            </span>
+            <div style="display:flex;gap:4px">
+              <button class="btn mini" onclick="window.expandAllFeatTree()" style="font-size:10px;padding:2px 6px;border-radius:4px" title="Expand All Nodes">Expand</button>
+              <button class="btn mini" onclick="window.collapseAllFeatTree()" style="font-size:10px;padding:2px 6px;border-radius:4px" title="Collapse All Nodes">Collapse</button>
+            </div>
+          </div>
+          <div id="feat-sidebar-tree-container" style="max-height:340px;overflow-y:auto;padding:4px;border:1px solid var(--color-divider);border-radius:var(--radius-md);background:var(--color-surface-2);margin-bottom:12px"></div>
+        `;
+        sbInner.appendChild(treeSec);
+
+        // Populate tree content
+        (() => {
+          const container = treeSec.querySelector('#feat-sidebar-tree-container');
+          if (!container) return;
+          const search = (P._featSearch || '').toLowerCase();
+          let filtered = P.features.filter(f => (f.name || '').toLowerCase().includes(search));
+
+          if (!filtered.length) {
+            container.innerHTML = `<div style="padding:12px;font-size:11px;color:var(--color-text-muted);text-align:center">No features match filter</div>`;
+            return;
+          }
+
+          let html = `<div style="display:flex;flex-direction:column;gap:2px;font-size:11px">`;
+          filtered.forEach((f, idx) => {
+            const featKey = `feat-${idx}`;
+            const isExpanded = P._expandedFeatTree.has(featKey);
+            const screens = f.screens || [];
+            const hasChildren = screens.length > 0;
+
+            let fScreens = [];
+            screens.forEach(scName => {
+              if (dashCache.subtasksByScreen[scName] && dashCache.subtasksByScreen[scName].length > 0) {
+                fScreens.push(...dashCache.subtasksByScreen[scName]);
+              } else if (dashCache.screenByName[scName] && dashCache.screenByName[scName].parentTasks) {
+                fScreens.push(...dashCache.screenByName[scName].parentTasks);
+              }
+            });
+            const tot = fScreens.length;
+            const avgP = tot ? Math.round(fScreens.reduce((s, sc) => s + (sc.progress || 0), 0) / tot) : 0;
+            const progColor = avgP === 100 ? 'var(--green)' : avgP > 0 ? 'var(--color-primary)' : 'var(--color-text-muted)';
+
+            html += `
+              <div class="feat-tree-row" style="display:flex;align-items:center;padding:4px 6px;border-radius:6px;cursor:pointer;user-select:none;transition:background 0.15s" onmouseenter="this.style.background='var(--color-surface-3)'" onmouseleave="this.style.background='transparent'">
+                <span onclick="event.stopPropagation(); window.toggleFeatTreeNode('${featKey}')" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-right:2px;color:var(--color-text-muted);cursor:pointer;flex-shrink:0">
+                  ${hasChildren ? (isExpanded ? '<i data-lucide="chevron-down" style="width:13px;height:13px"></i>' : '<i data-lucide="chevron-right" style="width:13px;height:13px"></i>') : '<span style="width:13px;height:13px;display:inline-block"></span>'}
+                </span>
+                <span onclick="window.focusFeatureInMatrix(${idx})" style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;overflow:hidden" title="Click to view/focus feature">
+                  <i data-lucide="sparkles" style="width:12px;height:12px;color:var(--color-primary);flex-shrink:0"></i>
+                  <span style="font-weight:700;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(f.name)}</span>
+                </span>
+                <span style="font-size:9px;font-weight:800;color:${progColor};background:var(--color-surface);padding:1px 5px;border-radius:8px;border:1px solid var(--color-divider);margin-left:4px;flex-shrink:0">${avgP}%</span>
+              </div>
+            `;
+
+            if (hasChildren && isExpanded) {
+              screens.forEach((scName, scIdx) => {
+                const scKey = `feat-${idx}-sc-${scIdx}`;
+                const isScExpanded = P._expandedFeatTree.has(scKey);
+                const scTasks = dashCache.subtasksByScreen[scName] || (dashCache.screenByName[scName] && dashCache.screenByName[scName].parentTasks) || [];
+                const hasScTasks = scTasks.length > 0;
+                const isLastSc = scIdx === screens.length - 1;
+                const treeSymbol = isLastSc ? '└─' : '├─';
+
+                html += `
+                  <div class="feat-tree-row" style="display:flex;align-items:center;padding:3px 6px 3px 20px;border-radius:6px;cursor:pointer;user-select:none;transition:background 0.15s;position:relative" onmouseenter="this.style.background='var(--color-surface-3)'" onmouseleave="this.style.background='transparent'">
+                    <span style="position:absolute;left:10px;font-family:var(--font-mono);font-size:10px;color:var(--color-text-faint);pointer-events:none">${treeSymbol}</span>
+                    <span onclick="event.stopPropagation(); window.toggleFeatTreeNode('${scKey}')" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;margin-right:2px;color:var(--color-text-muted);cursor:pointer;flex-shrink:0">
+                      ${hasScTasks ? (isScExpanded ? '<i data-lucide="chevron-down" style="width:11px;height:11px"></i>' : '<i data-lucide="chevron-right" style="width:11px;height:11px"></i>') : '<span style="width:11px;height:11px;display:inline-block"></span>'}
+                    </span>
+                    <span style="display:flex;align-items:center;gap:4px;flex:1;min-width:0;overflow:hidden" title="${esc(scName)}">
+                      <i data-lucide="monitor" style="width:11px;height:11px;color:var(--color-text-muted);flex-shrink:0"></i>
+                      <span style="font-weight:600;color:var(--color-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(scName)}</span>
+                    </span>
+                  </div>
+                `;
+
+                if (hasScTasks && isScExpanded) {
+                  scTasks.forEach((t, tIdx) => {
+                    const isLastT = tIdx === scTasks.length - 1;
+                    const subTreeSymbol = isLastT ? '└─' : '├─';
+                    const stCls = (t.status || 'Not Started').toLowerCase().replace(/\s+/g, '-');
+                    html += `
+                      <div class="feat-tree-row" onclick="openFlyout('${t.id}')" style="display:flex;align-items:center;padding:2px 6px 2px 38px;border-radius:4px;cursor:pointer;user-select:none;transition:background 0.15s;position:relative" onmouseenter="this.style.background='var(--color-surface-3)'" onmouseleave="this.style.background='transparent'">
+                        <span style="position:absolute;left:26px;font-family:var(--font-mono);font-size:9px;color:var(--color-text-faint);pointer-events:none">${subTreeSymbol}</span>
+                        <span style="width:6px;height:6px;border-radius:50%;background:var(--color-primary);margin-right:6px;flex-shrink:0"></span>
+                        <span style="font-weight:500;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">${esc(t.title || t.id)}</span>
+                        <span class="badge ${stCls}" style="font-size:8px;padding:1px 4px;margin-left:4px;flex-shrink:0">${esc(t.status || 'Not Started')}</span>
+                      </div>
+                    `;
+                  });
+                }
+              });
+            }
+          });
+          html += `</div>`;
+          container.innerHTML = html;
+        })();
 
         // Complexity Filter
         mkChips('feat-complexity-chips', 'featComplexity', ['Simple (0-2)', 'Moderate (3-5)', 'Complex (6+)'], 'Unit Complexity', 'Filter by functional mapping density');
@@ -48932,6 +49096,7 @@ Earned Value Management measures project performance and progress by comparing p
       const pnl = $id('admin-features-tab'); if (pnl) pnl.style.background = 'var(--color-bg)';
 
       const dashCache = buildDashCache(P.tasks, P.log);
+      window.lastDashCache = dashCache;
 
       // Populate Global Top Action Bar
       const vAct = $id('view-actions');
@@ -49354,7 +49519,7 @@ Earned Value Management measures project performance and progress by comparing p
       `;
 
       if (P._featViewMode === 'timeline') {
-        renderFeatureGantt(filtered, featMetricsMap);
+        renderFeatureGantt(filtered, featMetricsMap, dashCache);
       } else if (P._featViewMode === 'swimlane') {
         renderFeatureSwimlane(filtered, featMetricsMap);
       } else {
@@ -49365,7 +49530,47 @@ Earned Value Management measures project performance and progress by comparing p
       if (window.lucide) lucide.createIcons(cont);
     }
 
-    function renderFeatureGantt(filteredFeatures, featMetricsMap) {
+    function renderFeatureGantt(filteredFeatures, featMetricsMap, dashCacheParam) {
+      const dash = dashCacheParam || window.lastDashCache || (typeof buildDashCache === 'function' ? buildDashCache(P.tasks, P.log) : null);
+      // ── Build visible rows (Features + optional expanded Screen children) ──
+      if (!P._expandedFeatTimeline) P._expandedFeatTimeline = new Set();
+      const visibleTimelineRows = [];
+      filteredFeatures.forEach((f, featIdx) => {
+        const mObj = featMetricsMap[f.name] || { avgP: 0, tot: 0, done: 0, overdue: 0, fScreens: [] };
+        const featKey = `feat-${featIdx}`;
+        const screens = f.screens || [];
+        const hasChildren = screens.length > 0;
+        const isExpanded = P._expandedFeatTimeline.has(featKey);
+
+        const featRowIdx = visibleTimelineRows.length;
+        visibleTimelineRows.push({
+          type: 'feature',
+          feature: f,
+          featIdx,
+          featKey,
+          mObj,
+          hasChildren,
+          isExpanded
+        });
+
+        if (hasChildren && isExpanded) {
+          screens.forEach((scName, scIdx) => {
+            const scTasks = (mObj.fScreens || []).filter(t => t.screen === scName || t.name === scName || (dash && dash.screenByName && dash.screenByName[scName] && dash.screenByName[scName].parentTasks && dash.screenByName[scName].parentTasks.includes(t)));
+            const isLastSc = scIdx === screens.length - 1;
+            visibleTimelineRows.push({
+              type: 'screen',
+              feature: f,
+              screenName: scName,
+              scTasks,
+              featIdx,
+              scIdx,
+              isLastSc,
+              parentRowIdx: featRowIdx
+            });
+          });
+        }
+      });
+
       // ── Date range ──────────────────────────────────────────────────────────
       let allDates = [];
       filteredFeatures.forEach(f => {
@@ -49377,9 +49582,7 @@ Earned Value Management measures project performance and progress by comparing p
           });
         }
       });
-      // Also include release dates so release markers are always visible
       (P.releases || []).forEach(r => { if (r.date) allDates.push(new Date(r.date + 'T00:00:00')); });
-      // Include today's date dynamically
       allDates.push(new Date());
       let minDate = new Date(Math.min(...allDates));
       let maxDate = new Date(Math.max(...allDates));
@@ -49390,13 +49593,13 @@ Earned Value Management measures project performance and progress by comparing p
       const zoom  = P.ganttZoom || 'week';
       const dayW  = zoom === 'day' ? 30 : zoom === 'week' ? 14 : zoom === 'quarter' ? 2 : 4;
       const totalDays = Math.ceil((maxDate - minDate) / 864e5);
-      const ROW_H  = 48;   // taller rows for 2-line content
+      const ROW_H  = 48;   // row height
       const HEAD_H = 56;   // dual-row header height
       const SUB_H  = 20;   // sub-label row inside header
       const PAD_L  = 4;
       const BAR_H  = 22;
       const W = totalDays * dayW + PAD_L * 2;
-      const H = HEAD_H + filteredFeatures.length * ROW_H;
+      const H = HEAD_H + visibleTimelineRows.length * ROW_H;
 
       // ── Color helpers ───────────────────────────────────────────────────────
       const RELEASE_STATUS_COLORS = { Released: '#10b981', Active: '#3b82f6', Planned: '#f59e0b' };
@@ -49415,89 +49618,148 @@ Earned Value Management measures project performance and progress by comparing p
         // Header row
         const lh = document.createElement('div');
         lh.className = 'gl-head';
-        lh.style.cssText = `height:${HEAD_H}px;display:flex;align-items:center;padding:0 16px;
+        lh.style.cssText = `height:${HEAD_H}px;display:flex;align-items:center;padding:0 12px;
           font-weight:800;font-size:11px;color:var(--color-text-faint);text-transform:uppercase;
-          letter-spacing:0.6px;border-bottom:2px solid var(--color-border);background:var(--color-surface-2);flex-shrink:0;`;
-        lh.innerHTML = `<i data-lucide="layers" style="width:13px;height:13px;margin-right:6px;opacity:0.5"></i> Feature / Release`;
+          letter-spacing:0.6px;border-bottom:2px solid var(--color-border);background:var(--color-surface-2);flex-shrink:0;justify-content:space-between;`;
+        lh.innerHTML = `
+          <span style="display:flex;align-items:center;gap:6px">
+            <i data-lucide="layers" style="width:13px;height:13px;opacity:0.5"></i> Feature / Screen
+          </span>
+          <div style="display:flex;gap:4px">
+            <button class="btn mini" onclick="window.expandAllFeatTimeline()" style="font-size:9px;padding:1px 5px;border-radius:4px" title="Expand All Features">Expand</button>
+            <button class="btn mini" onclick="window.collapseAllFeatTimeline()" style="font-size:9px;padding:1px 5px;border-radius:4px" title="Collapse All Features">Collapse</button>
+          </div>
+        `;
         left.appendChild(lh);
 
-        filteredFeatures.forEach((f, i) => {
-          const mObj = featMetricsMap[f.name] || { avgP: 0, tot: 0, done: 0, overdue: 0 };
-          const bc   = barColor(mObj, i);
+        visibleTimelineRows.forEach((row, i) => {
+          if (row.type === 'feature') {
+            const f = row.feature;
+            const mObj = row.mObj;
+            const bc   = barColor(mObj, row.featIdx);
 
-          const r = document.createElement('div');
-          r.className = 'gl-row';
-          r.style.cssText = `height:${ROW_H}px;display:flex;align-items:center;padding:0 12px 0 0;
-            border-bottom:1px solid var(--color-divider);cursor:pointer;transition:background 0.15s;
-            ${i % 2 === 1 ? 'background:rgba(0,0,0,0.013)' : ''}`;
+            const r = document.createElement('div');
+            r.className = 'gl-row';
+            r.style.cssText = `height:${ROW_H}px;display:flex;align-items:center;padding:0 12px 0 0;
+              border-bottom:1px solid var(--color-divider);cursor:pointer;transition:background 0.15s;
+              ${i % 2 === 1 ? 'background:rgba(0,0,0,0.013)' : ''}`;
 
-          r.onclick = () => startEditFeature(P.features.indexOf(f));
-          r.onmouseenter = () => r.style.background = 'var(--color-surface-2)';
-          r.onmouseleave = () => r.style.background = i % 2 === 1 ? 'rgba(0,0,0,0.013)' : 'transparent';
+            r.onclick = () => startEditFeature(P.features.indexOf(f));
+            r.onmouseenter = () => r.style.background = 'var(--color-surface-2)';
+            r.onmouseleave = () => r.style.background = i % 2 === 1 ? 'rgba(0,0,0,0.013)' : 'transparent';
 
-          // Left-border accent stripe
-          const stripe = document.createElement('div');
-          stripe.style.cssText = `width:3px;height:100%;background:${bc};flex-shrink:0;border-radius:0 2px 2px 0;margin-right:10px;opacity:0.8;`;
-          r.appendChild(stripe);
+            // Chevron expand button
+            const expandBtn = document.createElement('span');
+            expandBtn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-right:2px;color:var(--color-text-muted);cursor:pointer;flex-shrink:0;';
+            expandBtn.onclick = (e) => { e.stopPropagation(); window.toggleFeatTimelineNode(row.featKey); };
+            expandBtn.innerHTML = row.hasChildren ? (row.isExpanded ? '<i data-lucide="chevron-down" style="width:13px;height:13px"></i>' : '<i data-lucide="chevron-right" style="width:13px;height:13px"></i>') : '<span style="width:13px;height:13px;display:inline-block"></span>';
+            r.appendChild(expandBtn);
 
-          const info = document.createElement('div');
-          info.style.cssText = 'flex:1;min-width:0;overflow:hidden;';
+            // Accent stripe
+            const stripe = document.createElement('div');
+            stripe.style.cssText = `width:3px;height:100%;background:${bc};flex-shrink:0;border-radius:0 2px 2px 0;margin-right:8px;opacity:0.8;`;
+            r.appendChild(stripe);
 
-          // Row 1: name
-          const nameEl = document.createElement('div');
-          nameEl.style.cssText = `font-weight:700;font-size:12px;color:var(--color-text);
-            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;`;
-          nameEl.textContent = f.name;
+            const info = document.createElement('div');
+            info.style.cssText = 'flex:1;min-width:0;overflow:hidden;';
 
-          // Row 2: release badge + progress %
-          const meta = document.createElement('div');
-          meta.style.cssText = 'display:flex;align-items:center;gap:5px;margin-top:3px;';
+            // Row 1: name
+            const nameEl = document.createElement('div');
+            nameEl.style.cssText = `font-weight:700;font-size:12px;color:var(--color-text);
+              white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;`;
+            nameEl.textContent = f.name;
 
-          if (f.release) {
-            const relObj    = (P.releases || []).find(r => r.name === f.release);
-            const relColor  = RELEASE_STATUS_COLORS[relObj && relObj.status] || '#94a3b8';
-            const relBadge  = document.createElement('span');
-            relBadge.style.cssText = `font-size:9px;font-weight:700;padding:1px 6px;
-              border-radius:10px;background:${relColor}18;border:1px solid ${relColor}55;color:${relColor};
-              white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis;`;
-            relBadge.textContent = f.release;
-            meta.appendChild(relBadge);
+            // Row 2: release badge + progress %
+            const meta = document.createElement('div');
+            meta.style.cssText = 'display:flex;align-items:center;gap:5px;margin-top:3px;';
+
+            if (f.release) {
+              const relObj    = (P.releases || []).find(r => r.name === f.release);
+              const relColor  = RELEASE_STATUS_COLORS[relObj && relObj.status] || '#94a3b8';
+              const relBadge  = document.createElement('span');
+              relBadge.style.cssText = `font-size:9px;font-weight:700;padding:1px 6px;
+                border-radius:10px;background:${relColor}18;border:1px solid ${relColor}55;color:${relColor};
+                white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis;`;
+              relBadge.textContent = f.release;
+              meta.appendChild(relBadge);
+            }
+
+            if (f.category) {
+              const catBadge = document.createElement('span');
+              catBadge.style.cssText = `font-size:9px;font-weight:700;padding:1px 6px;
+                border-radius:10px;background:rgba(124,58,237,0.07);border:1px solid rgba(124,58,237,0.2);color:#7c3aed;
+                white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis;`;
+              catBadge.textContent = f.category;
+              meta.appendChild(catBadge);
+            }
+
+            const progSpan = document.createElement('span');
+            progSpan.style.cssText = `font-size:9px;font-weight:700;color:${bc};opacity:0.85;`;
+            progSpan.textContent = `${mObj.avgP}%`;
+            meta.appendChild(progSpan);
+
+            if (mObj.overdue > 0) {
+              const risk = document.createElement('span');
+              risk.style.cssText = 'font-size:9px;color:#ef4444;font-weight:700;';
+              risk.textContent = '⚠ Overdue';
+              meta.appendChild(risk);
+            }
+
+            info.appendChild(nameEl);
+            info.appendChild(meta);
+            r.appendChild(info);
+
+            // Screen count badge on right
+            const scBadge = document.createElement('div');
+            scBadge.style.cssText = `flex-shrink:0;font-size:9px;font-weight:700;
+              color:var(--color-text-faint);background:rgba(128,128,128,0.07);
+              border-radius:6px;padding:2px 6px;margin-left:6px;`;
+            scBadge.textContent = `${f.screens ? f.screens.length : 0} scr`;
+            r.appendChild(scBadge);
+
+            left.appendChild(r);
+          } else {
+            // Child Screen row
+            const r = document.createElement('div');
+            r.className = 'gl-row gl-row-sub';
+            r.style.cssText = `height:${ROW_H}px;display:flex;align-items:center;padding:0 12px 0 24px;
+              border-bottom:1px solid var(--color-divider);cursor:pointer;transition:background 0.15s;
+              background:var(--color-surface-2);position:relative;`;
+
+            r.onmouseenter = () => r.style.background = 'var(--color-surface-3)';
+            r.onmouseleave = () => r.style.background = 'var(--color-surface-2)';
+
+            // Tree guide symbol
+            const conn = document.createElement('span');
+            conn.style.cssText = 'position:absolute;left:12px;font-family:var(--font-mono);font-size:10px;color:var(--color-text-faint);pointer-events:none;';
+            conn.textContent = row.isLastSc ? '└─' : '├─';
+            r.appendChild(conn);
+
+            const iconSpan = document.createElement('span');
+            iconSpan.style.cssText = 'display:inline-flex;align-items:center;margin-right:6px;color:var(--color-text-muted);';
+            iconSpan.innerHTML = '<i data-lucide="monitor" style="width:12px;height:12px"></i>';
+            r.appendChild(iconSpan);
+
+            const info = document.createElement('div');
+            info.style.cssText = 'flex:1;min-width:0;overflow:hidden;';
+
+            const nameEl = document.createElement('div');
+            nameEl.style.cssText = `font-weight:600;font-size:11px;color:var(--color-text-muted);
+              white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+            nameEl.textContent = row.screenName;
+
+            info.appendChild(nameEl);
+            r.appendChild(info);
+
+            const tskBadge = document.createElement('div');
+            tskBadge.style.cssText = `flex-shrink:0;font-size:9px;font-weight:700;
+              color:var(--color-text-faint);background:var(--color-surface);
+              border-radius:6px;padding:2px 6px;margin-left:6px;border:1px solid var(--color-divider);`;
+            tskBadge.textContent = `${row.scTasks.length} tsk`;
+            r.appendChild(tskBadge);
+
+            left.appendChild(r);
           }
-
-          if (f.category) {
-            const catBadge = document.createElement('span');
-            catBadge.style.cssText = `font-size:9px;font-weight:700;padding:1px 6px;
-              border-radius:10px;background:rgba(124,58,237,0.07);border:1px solid rgba(124,58,237,0.2);color:#7c3aed;
-              white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis;`;
-            catBadge.textContent = f.category;
-            meta.appendChild(catBadge);
-          }
-
-          const progSpan = document.createElement('span');
-          progSpan.style.cssText = `font-size:9px;font-weight:700;color:${bc};opacity:0.85;`;
-          progSpan.textContent = `${mObj.avgP}%`;
-          meta.appendChild(progSpan);
-
-          if (mObj.overdue > 0) {
-            const risk = document.createElement('span');
-            risk.style.cssText = 'font-size:9px;color:#ef4444;font-weight:700;';
-            risk.textContent = '⚠ Overdue';
-            meta.appendChild(risk);
-          }
-
-          info.appendChild(nameEl);
-          info.appendChild(meta);
-          r.appendChild(info);
-
-          // Screen count badge on right
-          const scBadge = document.createElement('div');
-          scBadge.style.cssText = `flex-shrink:0;font-size:9px;font-weight:700;
-            color:var(--color-text-faint);background:rgba(128,128,128,0.07);
-            border-radius:6px;padding:2px 6px;margin-left:6px;`;
-          scBadge.textContent = `${f.screens ? f.screens.length : 0} scr`;
-          r.appendChild(scBadge);
-
-          left.appendChild(r);
         });
 
         // Init lucide icons for left panel
@@ -49562,9 +49824,12 @@ Earned Value Management measures project performance and progress by comparing p
       });
 
       // ── Alternating row bands ───────────────────────────────────────────────
-      filteredFeatures.forEach((_, i) => {
-        if (i % 2 === 1) {
-          ctx.fillStyle = 'rgba(128,128,128,0.025)';
+      visibleTimelineRows.forEach((row, i) => {
+        if (row.type === 'screen') {
+          ctx.fillStyle = 'rgba(128,128,128,0.035)';
+          ctx.fillRect(0, HEAD_H + i * ROW_H, W, ROW_H);
+        } else if (i % 2 === 1) {
+          ctx.fillStyle = 'rgba(128,128,128,0.018)';
           ctx.fillRect(0, HEAD_H + i * ROW_H, W, ROW_H);
         }
       });
@@ -49639,16 +49904,11 @@ Earned Value Management measures project performance and progress by comparing p
           ctx.fillStyle = themeMuted;
           ctx.font = `9px ${themeFont}`;
           ctx.fillText(dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), x + 3, HEAD_H - 5);
-        } else if (zoom === 'month' && isMonthStart) {
-          // already shown above
-        } else if (zoom === 'quarter' && isQuarterStart) {
-          // already shown above
         }
       }
 
-      // ── Release version marker lines (bold start & end) ─────────────────────
+      // ── Release version marker lines ───────────────────────────────────────
       (P.releases || []).forEach(rel => {
-        // Find screens of features assigned to this release
         const relScreens = [];
         P.features.forEach(f => {
           if (f.release === rel.name) {
@@ -49681,17 +49941,15 @@ Earned Value Management measures project performance and progress by comparing p
           if (date < minDate || date > maxDate) return;
           const rx = PAD_L + Math.floor((date - minDate) / 864e5) * dayW;
 
-          // Bold vertical separator line through full chart
           ctx.save();
           ctx.strokeStyle = relC;
-          ctx.lineWidth   = 2.5; // Bold
+          ctx.lineWidth   = 2.5;
           ctx.beginPath();
           ctx.moveTo(rx, 0);
           ctx.lineTo(rx, H);
           ctx.stroke();
           ctx.restore();
 
-          // Release label badge drawn on header
           const lbl = `${rel.name} ${suffix}`;
           ctx.font = `bold 9px ${themeFont}`;
           const lblW = ctx.measureText(lbl).width + 10;
@@ -49718,23 +49976,21 @@ Earned Value Management measures project performance and progress by comparing p
         }
       });
 
-      // ── TODAY line (prominent, dotted) ──────────────────────────────────────
+      // ── TODAY line ──────────────────────────────────────────────────────────
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       if (today >= minDate && today <= maxDate) {
         const tx = PAD_L + Math.floor((today - minDate) / 864e5) * dayW;
-        // Dotted red line
         ctx.save();
         ctx.strokeStyle = '#ef4444';
         ctx.lineWidth   = 1.5;
-        ctx.setLineDash([2, 3]); // dotted red line
+        ctx.setLineDash([2, 3]);
         ctx.beginPath();
         ctx.moveTo(tx, HEAD_H);
         ctx.lineTo(tx, H);
         ctx.stroke();
         ctx.restore();
-        
-        // Small "Today" pill
+
         const todayLbl = 'Today';
         ctx.font = `bold 8px ${themeFont}`;
         const tlW = ctx.measureText(todayLbl).width + 8;
@@ -49752,7 +50008,7 @@ Earned Value Management measures project performance and progress by comparing p
       // ── Row separator lines ────────────────────────────────────────────────
       ctx.strokeStyle = themeBorder;
       ctx.lineWidth   = 0.5;
-      for (let i = 0; i <= filteredFeatures.length; i++) {
+      for (let i = 0; i <= visibleTimelineRows.length; i++) {
         const y = HEAD_H + i * ROW_H;
         ctx.beginPath();
         ctx.moveTo(0, y);
@@ -49760,139 +50016,237 @@ Earned Value Management measures project performance and progress by comparing p
         ctx.stroke();
       }
 
-      // ── FEATURE BARS ───────────────────────────────────────────────────────
+      // ── FEATURE & SCREEN BARS + TREE CONNECTORS ─────────────────────────────
       const hitAreas = [];
-      filteredFeatures.forEach((f, i) => {
-        const mObj  = featMetricsMap[f.name];
-        const fTasks = mObj ? (mObj.fScreens || []).filter(t => t.startDate && t.dueDate) : [];
-        const bc    = barColor(mObj, i);
+      const parentBarCoords = {}; // Store { x1, yCenter } for parent feature rows
 
-        let hasDates = false, s = null, e = null;
-        if (fTasks.length > 0) {
-          const dates = fTasks.flatMap(t => [new Date(t.startDate), new Date(t.dueDate)]);
-          s = new Date(Math.min(...dates)); s.setHours(0,0,0,0);
-          e = new Date(Math.max(...dates)); e.setHours(0,0,0,0);
-          hasDates = true;
-        }
-
+      visibleTimelineRows.forEach((row, i) => {
         const barY = HEAD_H + i * ROW_H + (ROW_H - BAR_H) / 2;
 
-        if (hasDates) {
-          const x1 = PAD_L + Math.max(0, Math.floor((s - minDate) / 864e5)) * dayW;
-          const x2 = PAD_L + Math.floor((e - minDate) / 864e5) * dayW + dayW;
-          const bw  = Math.max(x2 - x1, dayW * 2);
+        if (row.type === 'feature') {
+          const f = row.feature;
+          const mObj  = row.mObj;
+          const fTasks = mObj ? (mObj.fScreens || []).filter(t => t.startDate && t.dueDate) : [];
+          const bc    = barColor(mObj, row.featIdx);
 
-          hitAreas.push({ x: x1, x2: x1 + bw, y: HEAD_H + i * ROW_H, y2: HEAD_H + (i + 1) * ROW_H,
-            id: f.name, idx: i, feature: f, metrics: mObj, s, e });
-
-          // ── Background ghost (full span, light) ──
-          ctx.fillStyle = bc;
-          ctx.globalAlpha = 0.1;
-          ctx.beginPath();
-          if (ctx.roundRect) ctx.roundRect(x1, barY, bw, BAR_H, 6);
-          else ctx.rect(x1, barY, bw, BAR_H);
-          ctx.fill();
-
-          // ── Progress fill with gradient ──
-          const pw = Math.max(bw * ((mObj && mObj.avgP) || 0) / 100, 0);
-          if (pw > 0) {
-            ctx.globalAlpha = 1;
-            const grad = ctx.createLinearGradient(x1, barY, x1 + pw, barY + BAR_H);
-            grad.addColorStop(0, bc);
-            grad.addColorStop(1, bc + 'bb');
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            if (ctx.roundRect) ctx.roundRect(x1, barY, pw, BAR_H, 6);
-            else ctx.rect(x1, barY, pw, BAR_H);
-            ctx.fill();
+          let hasDates = false, s = null, e = null;
+          if (fTasks.length > 0) {
+            const dates = fTasks.flatMap(t => [new Date(t.startDate), new Date(t.dueDate)]);
+            s = new Date(Math.min(...dates)); s.setHours(0,0,0,0);
+            e = new Date(Math.max(...dates)); e.setHours(0,0,0,0);
+            hasDates = true;
           }
 
-          // ── Outline border ──
-          ctx.globalAlpha = 0.6;
-          ctx.strokeStyle = bc;
-          ctx.lineWidth   = 1.5;
-          ctx.beginPath();
-          if (ctx.roundRect) ctx.roundRect(x1, barY, bw, BAR_H, 6);
-          else ctx.rect(x1, barY, bw, BAR_H);
-          ctx.stroke();
-          ctx.globalAlpha = 1;
+          if (hasDates) {
+            const x1 = PAD_L + Math.max(0, Math.floor((s - minDate) / 864e5)) * dayW;
+            const x2 = PAD_L + Math.floor((e - minDate) / 864e5) * dayW + dayW;
+            const bw  = Math.max(x2 - x1, dayW * 2);
 
-          // ── Inline bar label (name + %) ──
-          const label = `${f.name}  ${(mObj && mObj.avgP) || 0}%`;
-          ctx.font     = `bold 10px ${themeFont}`;
-          const lblMeasure = ctx.measureText(label).width;
-          if (bw > lblMeasure + 16) {
-            ctx.fillStyle = '#fff';
-            ctx.globalAlpha = 0.9;
-            ctx.textAlign   = 'left';
-            // Clip to bar
-            ctx.save();
+            parentBarCoords[i] = { x1, yCenter: barY + BAR_H / 2 };
+
+            hitAreas.push({ x: x1, x2: x1 + bw, y: HEAD_H + i * ROW_H, y2: HEAD_H + (i + 1) * ROW_H,
+              id: f.name, idx: i, feature: f, metrics: mObj, s, e });
+
+            // Background ghost
+            ctx.fillStyle = bc;
+            ctx.globalAlpha = 0.12;
             ctx.beginPath();
             if (ctx.roundRect) ctx.roundRect(x1, barY, bw, BAR_H, 6);
             else ctx.rect(x1, barY, bw, BAR_H);
-            ctx.clip();
-            ctx.fillText(label, x1 + 8, barY + BAR_H / 2 + 3);
-            ctx.restore();
-            ctx.globalAlpha = 1;
-          }
+            ctx.fill();
 
-          // ── Release version chip on bar right edge ──
-          if (f.release) {
-            const relObj = (P.releases || []).find(r => r.name === f.release);
-            const rc = RELEASE_STATUS_COLORS[relObj && relObj.status] || '#94a3b8';
-            ctx.font     = `bold 8px ${themeFont}`;
-            const chipLbl = f.release;
-            const chipW   = ctx.measureText(chipLbl).width + 10;
-            const chipX   = Math.min(x1 + bw - chipW - 4, W - chipW - 6);
-            const chipY   = barY + 3;
-            const chipH   = BAR_H - 6;
-            if (chipX > x1 + 4) {
-              ctx.fillStyle = rc;
-              ctx.globalAlpha = 0.25;
-              ctx.beginPath();
-              if (ctx.roundRect) ctx.roundRect(chipX, chipY, chipW, chipH, 4);
-              else ctx.rect(chipX, chipY, chipW, chipH);
-              ctx.fill();
+            // Progress fill with gradient
+            const pw = Math.max(bw * ((mObj && mObj.avgP) || 0) / 100, 0);
+            if (pw > 0) {
               ctx.globalAlpha = 1;
-              ctx.fillStyle = rc;
-              ctx.textAlign = 'left';
-              ctx.fillText(chipLbl, chipX + 5, chipY + chipH / 2 + 3);
+              const grad = ctx.createLinearGradient(x1, barY, x1 + pw, barY + BAR_H);
+              grad.addColorStop(0, bc);
+              grad.addColorStop(1, bc + 'bb');
+              ctx.fillStyle = grad;
+              ctx.beginPath();
+              if (ctx.roundRect) ctx.roundRect(x1, barY, pw, BAR_H, 6);
+              else ctx.rect(x1, barY, pw, BAR_H);
+              ctx.fill();
             }
+
+            // Outline border
+            ctx.globalAlpha = 0.7;
+            ctx.strokeStyle = bc;
+            ctx.lineWidth   = 1.5;
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(x1, barY, bw, BAR_H, 6);
+            else ctx.rect(x1, barY, bw, BAR_H);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+
+            // Inline bar label
+            const label = `${f.name}  ${(mObj && mObj.avgP) || 0}%`;
+            ctx.font     = `bold 10px ${themeFont}`;
+            const lblMeasure = ctx.measureText(label).width;
+            if (bw > lblMeasure + 16) {
+              ctx.fillStyle = '#fff';
+              ctx.globalAlpha = 0.9;
+              ctx.textAlign   = 'left';
+              ctx.save();
+              ctx.beginPath();
+              if (ctx.roundRect) ctx.roundRect(x1, barY, bw, BAR_H, 6);
+              else ctx.rect(x1, barY, bw, BAR_H);
+              ctx.clip();
+              ctx.fillText(label, x1 + 8, barY + BAR_H / 2 + 3);
+              ctx.restore();
+              ctx.globalAlpha = 1;
+            }
+
+            // Release version chip on bar right edge
+            if (f.release) {
+              const relObj = (P.releases || []).find(r => r.name === f.release);
+              const rc = RELEASE_STATUS_COLORS[relObj && relObj.status] || '#94a3b8';
+              ctx.font     = `bold 8px ${themeFont}`;
+              const chipLbl = f.release;
+              const chipW   = ctx.measureText(chipLbl).width + 10;
+              const chipX   = Math.min(x1 + bw - chipW - 4, W - chipW - 6);
+              const chipY   = barY + 3;
+              const chipH   = BAR_H - 6;
+              if (chipX > x1 + 4) {
+                ctx.fillStyle = rc;
+                ctx.globalAlpha = 0.25;
+                ctx.beginPath();
+                if (ctx.roundRect) ctx.roundRect(chipX, chipY, chipW, chipH, 4);
+                else ctx.rect(chipX, chipY, chipW, chipH);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = rc;
+                ctx.textAlign = 'left';
+                ctx.fillText(chipLbl, chipX + 5, chipY + chipH / 2 + 3);
+              }
+            }
+
+            // Completion diamond marker
+            if (mObj && mObj.avgP === 100) {
+              const dx = x1 + bw + 6;
+              const dy = barY + BAR_H / 2;
+              const ds = 5;
+              ctx.fillStyle = '#10b981';
+              ctx.strokeStyle = '#fff';
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.moveTo(dx, dy - ds);
+              ctx.lineTo(dx + ds, dy);
+              ctx.lineTo(dx, dy + ds);
+              ctx.lineTo(dx - ds, dy);
+              ctx.closePath();
+              ctx.fill();
+              ctx.stroke();
+            }
+          } else {
+            // Unscheduled placeholder
+            ctx.fillStyle = themeFaint;
+            ctx.globalAlpha = 0.5;
+            const phW = Math.min(W - PAD_L - 30, 260);
+            ctx.fillStyle = 'rgba(128,128,128,0.07)';
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(PAD_L + 8, barY, phW, BAR_H, 6);
+            else ctx.rect(PAD_L + 8, barY, phW, BAR_H);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = themeFaint;
+            ctx.font = `italic 10px ${themeFont}`;
+            ctx.textAlign = 'left';
+            ctx.fillText('No tasks with dates mapped', PAD_L + 18, barY + BAR_H / 2 + 3);
+          }
+        } else if (row.type === 'screen') {
+          // Sub-row: Screen Bar
+          const scTasks = (row.scTasks || []).filter(t => t.startDate && t.dueDate);
+          const subH = 16;
+          const subY = HEAD_H + i * ROW_H + (ROW_H - subH) / 2;
+          const bc = barColor(row.feature.metrics, row.featIdx);
+
+          let hasDates = false, s = null, e = null;
+          if (scTasks.length > 0) {
+            const dates = scTasks.flatMap(t => [new Date(t.startDate), new Date(t.dueDate)]);
+            s = new Date(Math.min(...dates)); s.setHours(0,0,0,0);
+            e = new Date(Math.max(...dates)); e.setHours(0,0,0,0);
+            hasDates = true;
           }
 
-          // ── Completion diamond marker ──
-          if (mObj && mObj.avgP === 100) {
-            const dx = x1 + bw + 6;
-            const dy = barY + BAR_H / 2;
-            const ds = 5;
-            ctx.fillStyle = '#10b981';
-            ctx.strokeStyle = '#fff';
+          const parentCoord = parentBarCoords[row.parentRowIdx];
+
+          if (hasDates) {
+            const x1 = PAD_L + Math.max(0, Math.floor((s - minDate) / 864e5)) * dayW;
+            const x2 = PAD_L + Math.floor((e - minDate) / 864e5) * dayW + dayW;
+            const bw  = Math.max(x2 - x1, dayW * 2);
+
+            const tot = scTasks.length;
+            const avgP = tot ? Math.round(scTasks.reduce((st, t) => st + (t.progress || 0), 0) / tot) : 0;
+
+            // Draw dashed connector line from parent bar to child screen bar
+            if (parentCoord) {
+              ctx.save();
+              ctx.strokeStyle = bc;
+              ctx.globalAlpha = 0.4;
+              ctx.lineWidth = 1;
+              ctx.setLineDash([2, 2]);
+              ctx.beginPath();
+              ctx.moveTo(parentCoord.x1 + 10, parentCoord.yCenter);
+              ctx.lineTo(parentCoord.x1 + 10, subY + subH / 2);
+              ctx.lineTo(x1, subY + subH / 2);
+              ctx.stroke();
+              ctx.restore();
+            }
+
+            // Screen bar ghost
+            ctx.fillStyle = bc;
+            ctx.globalAlpha = 0.15;
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(x1, subY, bw, subH, 4);
+            else ctx.rect(x1, subY, bw, subH);
+            ctx.fill();
+
+            // Progress fill
+            const pw = Math.max(bw * avgP / 100, 0);
+            if (pw > 0) {
+              ctx.globalAlpha = 0.85;
+              ctx.fillStyle = bc;
+              ctx.beginPath();
+              if (ctx.roundRect) ctx.roundRect(x1, subY, pw, subH, 4);
+              else ctx.rect(x1, subY, pw, subH);
+              ctx.fill();
+            }
+
+            // Border
+            ctx.globalAlpha = 0.6;
+            ctx.strokeStyle = bc;
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.moveTo(dx, dy - ds);
-            ctx.lineTo(dx + ds, dy);
-            ctx.lineTo(dx, dy + ds);
-            ctx.lineTo(dx - ds, dy);
-            ctx.closePath();
-            ctx.fill();
+            if (ctx.roundRect) ctx.roundRect(x1, subY, bw, subH, 4);
+            else ctx.rect(x1, subY, bw, subH);
             ctx.stroke();
-          }
+            ctx.globalAlpha = 1;
 
-        } else {
-          // Unscheduled placeholder
-          ctx.fillStyle = themeFaint;
-          ctx.globalAlpha = 0.5;
-          const phW = Math.min(W - PAD_L - 30, 260);
-          ctx.fillStyle = 'rgba(128,128,128,0.07)';
-          ctx.beginPath();
-          if (ctx.roundRect) ctx.roundRect(PAD_L + 8, barY, phW, BAR_H, 6);
-          else ctx.rect(PAD_L + 8, barY, phW, BAR_H);
-          ctx.fill();
-          ctx.globalAlpha = 1;
-          ctx.fillStyle = themeFaint;
-          ctx.font = `italic 10px ${themeFont}`;
-          ctx.textAlign = 'left';
-          ctx.fillText('No tasks with dates mapped', PAD_L + 18, barY + BAR_H / 2 + 3);
+            // Label
+            const label = `${row.screenName} (${avgP}%)`;
+            ctx.font = `bold 9px ${themeFont}`;
+            const lblMeasure = ctx.measureText(label).width;
+            if (bw > lblMeasure + 10) {
+              ctx.fillStyle = '#fff';
+              ctx.textAlign = 'left';
+              ctx.save();
+              ctx.beginPath();
+              if (ctx.roundRect) ctx.roundRect(x1, subY, bw, subH, 4);
+              else ctx.rect(x1, subY, bw, subH);
+              ctx.clip();
+              ctx.fillText(label, x1 + 6, subY + subH / 2 + 3);
+              ctx.restore();
+            }
+          } else {
+            // Unscheduled screen
+            ctx.fillStyle = themeFaint;
+            ctx.globalAlpha = 0.4;
+            ctx.font = `italic 9px ${themeFont}`;
+            ctx.textAlign = 'left';
+            ctx.fillText(`Screen '${row.screenName}' — unscheduled`, PAD_L + 28, subY + subH / 2 + 3);
+            ctx.globalAlpha = 1;
+          }
         }
       });
 
