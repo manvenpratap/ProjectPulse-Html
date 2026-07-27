@@ -18397,6 +18397,105 @@
       return t;
     }
 
+    function getTasksForDisplayLevel(filteredTasks) {
+      const lvl = P.displayLevel !== undefined ? P.displayLevel : 1;
+
+      if (lvl === 0) {
+        // Milestones only
+        const modMs = getModuleMilestones();
+        return filteredTasks.filter(x => (x.startDate && x.startDate === x.dueDate) || x.category === 'Milestone' || modMs.has(x.id) || (x.subtasks && x.subtasks.some(st => modMs.has(st.id))));
+      }
+
+      if (lvl === 1) {
+        // Top-level module tasks
+        return filteredTasks;
+      }
+
+      if (lvl === 2) {
+        // Screens level breakdown
+        const result = [];
+        filteredTasks.forEach(t => {
+          const screenSubs = (t.subtasks || []).filter(st => st.type === 'screen');
+          const guiScreens = Array.isArray(t.guiScreens) ? t.guiScreens : [];
+
+          if (screenSubs.length > 0) {
+            screenSubs.forEach(st => {
+              result.push({
+                ...t,
+                id: st.id || `${t.id}-scr-${st.name}`,
+                name: `📺 ${st.name}`,
+                parentName: t.name,
+                parentId: t.id,
+                status: st.status || t.status,
+                progress: st.progress !== undefined ? st.progress : (st.status === 'Completed' ? 100 : t.progress || 0),
+                startDate: st.startDate || t.startDate,
+                dueDate: st.dueDate || t.dueDate,
+                assignee: st.assignee || t.assignee,
+                estEffort: st.estEffort || Math.round((t.estEffort || 0) / Math.max(1, screenSubs.length)),
+                actCompletionDate: st.actCompletionDate || (st.status === 'Completed' ? t.actCompletionDate : null),
+                isSubtaskItem: true,
+                subtaskType: 'screen'
+              });
+            });
+          } else if (guiScreens.length > 0) {
+            guiScreens.forEach((scrName, idx) => {
+              result.push({
+                ...t,
+                id: `${t.id}-gui-${idx}`,
+                name: `📺 ${scrName}`,
+                parentName: t.name,
+                parentId: t.id,
+                status: t.status,
+                progress: t.progress,
+                startDate: t.startDate,
+                dueDate: t.dueDate,
+                assignee: t.assignee,
+                isSubtaskItem: true,
+                subtaskType: 'screen'
+              });
+            });
+          } else {
+            result.push(t);
+          }
+        });
+        return result;
+      }
+
+      if (lvl === 3) {
+        // Full task & sub-task details
+        const result = [];
+        filteredTasks.forEach(t => {
+          const subs = t.subtasks || [];
+          if (subs.length > 0) {
+            subs.forEach((st, idx) => {
+              const isScr = st.type === 'screen';
+              result.push({
+                ...t,
+                id: st.id || `${t.id}-st-${idx}`,
+                name: (isScr ? `📺 ` : `↳ `) + st.name,
+                parentName: t.name,
+                parentId: t.id,
+                status: st.status || t.status,
+                progress: st.progress !== undefined ? st.progress : (st.status === 'Completed' ? 100 : (t.progress || 0)),
+                startDate: st.startDate || t.startDate,
+                dueDate: st.dueDate || t.dueDate,
+                assignee: st.assignee || t.assignee,
+                estEffort: st.estEffort || Math.round((t.estEffort || 0) / Math.max(1, subs.length)),
+                actCompletionDate: st.actCompletionDate || (st.status === 'Completed' ? t.actCompletionDate : null),
+                isSubtaskItem: true,
+                subtaskType: st.type || 'subtask'
+              });
+            });
+          } else {
+            result.push(t);
+          }
+        });
+        return result;
+      }
+
+      return filteredTasks;
+    }
+
     function getFilteredLogs() {
       let l = [...P.log];
       if (P.filters.action && P.filters.action.size) l = l.filter(e => P.filters.action.has(e.action));
@@ -18432,6 +18531,7 @@
       if ((m === 'timeline' || m === 'swimlane') && P.taskViewMode !== 'timeline' && P.taskViewMode !== 'swimlane') P._forceGanttCenter = true;
       P.taskViewMode = m;
       renderTasksView();
+      if (typeof renderSidebar === 'function') renderSidebar();
       if (window.lucide) lucide.createIcons();
       if (typeof syncGlobalActions === 'function') syncGlobalActions();
     }
@@ -18447,27 +18547,6 @@
       `;
 
       let extraActions = '';
-      if (P.taskViewMode === 'timeline' || P.taskViewMode === 'swimlane') {
-        extraActions = `
-          <div style="width:1px;height:16px;background:var(--color-divider);margin:0 8px"></div>
-          <div class="gantt-zoom" style="display:flex;gap:4px;">
-            <button class="btn mini ${P.ganttZoom === 'day' ? 'active' : ''}" data-z="day" onclick="setGanttZoom('day')" title="View timeline by days">Day</button>
-            <button class="btn mini ${P.ganttZoom === 'week' ? 'active' : ''}" data-z="week" onclick="setGanttZoom('week')" title="View timeline by weeks">Week</button>
-            <button class="btn mini ${P.ganttZoom === 'month' ? 'active' : ''}" data-z="month" onclick="setGanttZoom('month')" title="View timeline by months">Month</button>
-          </div>
-          <div style="width:1px;height:16px;background:var(--color-divider);margin:0 4px"></div>
-          <button class="btn mini ${P.showMonteCarlo ? 'active' : ''}" onclick="toggleMonteCarlo()" title="Toggle Monte Carlo Probabilistic Forecasting Bands (P90/P50/P10)">
-            <i data-lucide="cpu"></i> MC
-          </button>
-          <button class="btn mini ${P.showGanttDeps ? 'active' : ''}" onclick="toggleGanttDeps()" title="Show or hide task dependency arrows">
-            <i data-lucide="chevron-right"></i> Deps
-          </button>
-          <button class="btn mini ${P.showGanttActuals ? 'active' : ''}" onclick="toggleGanttActuals()" title="Show or hide actual completion dates">
-            <i data-lucide="check-circle-2"></i> Actuals
-          </button>
-
-        `;
-      }
 
       const afWrap = $id('autofit-cols-wrap');
       if (afWrap) {
@@ -18536,17 +18615,32 @@
       const taskId = e.dataTransfer.getData('text/plain');
       if (!taskId) return;
       const task = P.tasks.find(t => t.id === taskId);
-      if (task && task.status !== newStatus) {
-        updateField(taskId, 'status', newStatus);
+      if (task) {
+        if (task.status !== newStatus) updateField(taskId, 'status', newStatus);
+      } else {
+        for (const t of P.tasks) {
+          if (t.subtasks) {
+            const st = t.subtasks.find(s => s.id === taskId || `${t.id}-scr-${s.name}` === taskId || `${t.id}-st-${t.subtasks.indexOf(s)}` === taskId);
+            if (st) {
+              st.status = newStatus;
+              if (newStatus === 'Completed') st.progress = 100;
+              recalcTaskFromSubtasks(t);
+              render();
+              break;
+            }
+          }
+        }
       }
     }
 
     function renderKanban() {
       const wrap = $id('kanban-wrap');
       if (!wrap) return;
-      const flt = getFiltered(), srt = getSorted(flt);
+      const rawFlt = getFiltered();
+      const flt = getTasksForDisplayLevel(rawFlt);
+      const srt = getSorted(flt);
       const taskInfoEl = $id('task-info');
-      if (taskInfoEl) taskInfoEl.innerHTML = `<strong>${srt.length}</strong> / ${P.tasks.length} tasks (Kanban)`;
+      if (taskInfoEl) taskInfoEl.innerHTML = `<strong>${srt.length}</strong> / ${P.tasks.length} items (Kanban)`;
 
       const stColors = { 'Not Started': 'var(--color-text-muted)', 'In Progress': 'var(--color-primary)', 'On Hold': 'var(--amber)', 'Under Review': '#8b5cf6', 'Completed': 'var(--green)', 'Cancelled': 'var(--red)' };
 
@@ -18567,8 +18661,11 @@
         const colTasks = srt.filter(t => t.status === status);
         let cardsHtml = '';
         colTasks.forEach(t => {
+          const targetId = t.parentId || t.id;
+          const parentBadge = t.isSubtaskItem && t.parentName ? `<div style="font-size:10px;color:var(--color-primary);font-weight:700;margin-bottom:2px">Parent: ${esc(t.parentName)}</div>` : '';
           cardsHtml += `
-            <div class="kanban-card" data-id="${t.id}" draggable="true" ondragstart="event.dataTransfer.setData('text/plain', '${t.id}')" onclick="openFlyout('${t.id}')" style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:14px;box-shadow:var(--shadow-sm);cursor:pointer;transition:all 0.2s;display:flex;flex-direction:column;gap:10px;position:relative">
+            <div class="kanban-card" data-id="${t.id}" draggable="true" ondragstart="event.dataTransfer.setData('text/plain', '${t.id}')" onclick="openFlyout('${targetId}')" style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:14px;box-shadow:var(--shadow-sm);cursor:pointer;transition:all 0.2s;display:flex;flex-direction:column;gap:10px;position:relative">
+              ${parentBadge}
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
                 <span style="font-weight:600;font-size:13px;color:var(--color-text);line-height:1.4">${esc(t.name)}</span>
                 ${t.priority ? `<span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600;background:var(--color-surface-3);color:var(--color-text-muted)">${esc(t.priority)}</span>` : ''}
@@ -27486,16 +27583,40 @@
         }
 
 
-        // Level toggle in sidebar (inserted before filters via DOM)
+        // View Mode toggle, Display Level, Timeline Zoom & Overlays in sidebar
         const lvlSec = document.createElement('div');
         lvlSec.className = 'sb-sec';
-        lvlSec.innerHTML = '<div style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:6px">Display Level</div>' +
+        let lvlHtml = '<div style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:6px">Task View Mode</div>' +
+          '<div class="sb-level-toggle" style="margin-bottom:10px">' +
+          '<button class="' + (P.taskViewMode !== 'kanban' && P.taskViewMode !== 'timeline' && P.taskViewMode !== 'swimlane' ? 'active' : '') + '" onclick="setTaskViewMode(\'table\')" title="Table View">Table</button>' +
+          '<button class="' + (P.taskViewMode === 'kanban' ? 'active' : '') + '" onclick="setTaskViewMode(\'kanban\')" title="Kanban Board View">Board</button>' +
+          '<button class="' + (P.taskViewMode === 'timeline' ? 'active' : '') + '" onclick="setTaskViewMode(\'timeline\')" title="Gantt Timeline View">Timeline</button>' +
+          '<button class="' + (P.taskViewMode === 'swimlane' ? 'active' : '') + '" onclick="setTaskViewMode(\'swimlane\')" title="Swimlane View">Swimlane</button>' +
+          '</div>' +
+          '<div style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:6px">Display Level</div>' +
           '<div class="sb-level-toggle">' +
           '<button class="' + (P.displayLevel === 0 ? 'active' : '') + '" onclick="setDisplayLevel(0)" title="Show only milestones">Milestones</button>' +
           '<button class="' + (P.displayLevel === 1 ? 'active' : '') + '" onclick="setDisplayLevel(1)" title="Show only top-level module tasks">Modules</button>' +
           '<button class="' + (P.displayLevel === 2 ? 'active' : '') + '" onclick="setDisplayLevel(2)" title="Show GUI screen-level breakdown">Screens</button>' +
           '<button class="' + (P.displayLevel === 3 ? 'active' : '') + '" onclick="setDisplayLevel(3)" title="Show full task &amp; sub-task details">Sub-Tasks</button>' +
           '</div>';
+
+        if (P.taskViewMode === 'timeline' || P.taskViewMode === 'swimlane') {
+          lvlHtml += '<div style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.7px;margin-top:10px;margin-bottom:6px">Timeline Zoom</div>' +
+            '<div class="sb-level-toggle gantt-zoom">' +
+            '<button class="' + (P.ganttZoom === 'day' ? 'active' : '') + '" data-z="day" onclick="setGanttZoom(\'day\')" title="View timeline by days">Day</button>' +
+            '<button class="' + (P.ganttZoom === 'week' ? 'active' : '') + '" data-z="week" onclick="setGanttZoom(\'week\')" title="View timeline by weeks">Week</button>' +
+            '<button class="' + (P.ganttZoom === 'month' ? 'active' : '') + '" data-z="month" onclick="setGanttZoom(\'month\')" title="View timeline by months">Month</button>' +
+            '</div>' +
+            '<div style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.7px;margin-top:10px;margin-bottom:6px">Timeline Overlays</div>' +
+            '<div class="sb-level-toggle" style="gap:4px">' +
+            '<button class="' + (P.showGanttDeps ? 'active' : '') + '" onclick="toggleGanttDeps()" title="Show or hide task dependency arrows"><i data-lucide="chevron-right" style="width:11px;height:11px;margin-right:2px"></i>Deps</button>' +
+            '<button class="' + (P.showGanttActuals ? 'active' : '') + '" onclick="toggleGanttActuals()" title="Show or hide actual completion dates"><i data-lucide="calendar-check-2" style="width:11px;height:11px;margin-right:2px"></i>Actuals</button>' +
+            '<button class="' + (P.showMonteCarlo ? 'active' : '') + '" onclick="toggleMonteCarlo()" title="Toggle Monte Carlo Probabilistic Forecasting Bands"><i data-lucide="cpu" style="width:11px;height:11px;margin-right:2px"></i>MC</button>' +
+            '</div>';
+        }
+
+        lvlSec.innerHTML = lvlHtml;
         sbInner.insertBefore(lvlSec, sbInner.firstChild);
         const divider = document.createElement('div');
         divider.className = 'sb-divider';
@@ -51144,10 +51265,10 @@ Earned Value Management measures project performance and progress by comparing p
     }
 
     // ══════ GANTT / TIMELINE ══════
-    function setGanttZoom(z) { P.ganttZoom = z; document.querySelectorAll('.gantt-zoom .btn').forEach(b => b.classList.toggle('active', b.dataset.z === z)); if (P.taskViewMode === 'swimlane') renderTaskSwimlane(); else renderGantt(); }
-    function toggleGanttDeps() { P.showGanttDeps = !P.showGanttDeps; renderTasksView(); }
-    function toggleGanttActuals() { P.showGanttActuals = !P.showGanttActuals; renderTasksView(); }
-    function toggleMonteCarlo() { P.showMonteCarlo = !P.showMonteCarlo; renderTasksView(); }
+    function setGanttZoom(z) { P.ganttZoom = z; document.querySelectorAll('.gantt-zoom button, .gantt-zoom .btn').forEach(b => b.classList.toggle('active', b.dataset.z === z)); if (P.taskViewMode === 'swimlane') renderTaskSwimlane(); else renderGantt(); }
+    function toggleGanttDeps() { P.showGanttDeps = !P.showGanttDeps; renderTasksView(); if (typeof renderSidebar === 'function') renderSidebar(); }
+    function toggleGanttActuals() { P.showGanttActuals = !P.showGanttActuals; renderTasksView(); if (typeof renderSidebar === 'function') renderSidebar(); }
+    function toggleMonteCarlo() { P.showMonteCarlo = !P.showMonteCarlo; renderTasksView(); if (typeof renderSidebar === 'function') renderSidebar(); }
 
     function runMonteCarloSimulation(tasks, iterations = 100) {
       const results = {};
@@ -51202,7 +51323,8 @@ Earned Value Management measures project performance and progress by comparing p
       swimOuter.innerHTML = '';
       slHitAreas = [];
 
-      const tasks = getFiltered().filter(t => t.startDate && t.dueDate).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+      const rawTasks = getFiltered().filter(t => t.startDate && t.dueDate);
+      const tasks = getTasksForDisplayLevel(rawTasks).filter(t => t.startDate && t.dueDate).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
       if (!tasks.length) {
         swimOuter.innerHTML = '<div style="padding:40px 16px;text-align:center;color:var(--color-text-muted)"><div style="font-size:24px;margin-bottom:6px">📅</div>No tasks with dates</div>';
         return;
@@ -51567,7 +51689,7 @@ Earned Value Management measures project performance and progress by comparing p
           }
         };
 
-        // Draw task bars
+        const slTaskPositions = {};
         laneItems.forEach((t, i) => {
           const s = new Date(t.startDate);
           const e = new Date(t.dueDate);
@@ -51578,6 +51700,19 @@ Earned Value Management measures project performance and progress by comparing p
           const x2 = PAD_L + Math.floor((e - minDate) / 864e5) * dayW + dayW;
           const y = HEAD_H + i * ROW_H + (ROW_H - BAR_H) / 2;
           const bw = Math.max(x2 - x1, dayW);
+          const pos = { x: x1, x2: x1 + bw, y: y + BAR_H / 2, id: t.id, name: t.name };
+
+          if (t.id != null) {
+            const sId = String(t.id).trim();
+            slTaskPositions[sId] = pos;
+            const num = sId.replace(/^(TASK|TSK)-0*/i, '');
+            if (num) {
+              slTaskPositions[num] = pos;
+              slTaskPositions['TASK-' + num.padStart(3, '0')] = pos;
+              slTaskPositions['TSK-' + num.padStart(3, '0')] = pos;
+            }
+          }
+          if (t.name) slTaskPositions[t.name] = pos;
 
           // Add hit area for interaction
           slHitAreas.push({
@@ -51703,6 +51838,69 @@ Earned Value Management measures project performance and progress by comparing p
           }
         });
 
+        if (P.showGanttDeps) {
+          const getSlTaskPos = (depId) => {
+            if (!depId) return null;
+            if (slTaskPositions[depId]) return slTaskPositions[depId];
+            const s = String(depId).trim();
+            if (slTaskPositions[s]) return slTaskPositions[s];
+            const num = s.replace(/^(TASK|TSK)-0*/i, '');
+            if (num && slTaskPositions[num]) return slTaskPositions[num];
+            const found = laneItems.find(x => x.id == depId || x.name === depId || (x.id && String(x.id).replace(/^(TASK|TSK)-0*/i, '') === num));
+            return found ? (slTaskPositions[found.id] || slTaskPositions[found.name]) : null;
+          };
+
+          laneItems.forEach(t => {
+            const deps = Array.isArray(t.dependsOn) ? t.dependsOn : (t.dependsOn ? String(t.dependsOn).split(',').map(s => s.trim()).filter(Boolean) : []);
+            deps.forEach(depId => {
+              const from = getSlTaskPos(depId);
+              const to = getSlTaskPos(t.id);
+              if (!from || !to || from === to) return;
+
+              const startX = from.x2;
+              const startY = from.y;
+              const endX = to.x;
+              const endY = to.y;
+
+              ctx.save();
+              ctx.strokeStyle = '#f59e0b';
+              ctx.fillStyle = '#f59e0b';
+              ctx.lineWidth = 1.8;
+              ctx.globalAlpha = 0.85;
+
+              if (endX >= startX + 12) {
+                const midX = Math.round((startX + endX) / 2);
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(midX, startY);
+                ctx.lineTo(midX, endY);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+              } else {
+                const offsetRight = startX + 10;
+                const offsetLeft = endX - 10;
+                const midY = Math.round((startY + endY) / 2);
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(offsetRight, startY);
+                ctx.lineTo(offsetRight, midY);
+                ctx.lineTo(offsetLeft, midY);
+                ctx.lineTo(offsetLeft, endY);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+              }
+
+              ctx.beginPath();
+              ctx.moveTo(endX, endY);
+              ctx.lineTo(endX - 6, endY - 4);
+              ctx.lineTo(endX - 6, endY + 4);
+              ctx.closePath();
+              ctx.fill();
+              ctx.restore();
+            });
+          });
+        }
+
         laneIdx++;
       });
 
@@ -51818,7 +52016,7 @@ Earned Value Management measures project performance and progress by comparing p
           const mouseX = e.clientX - rect.left;
           const mouseY = e.clientY - rect.top;
           if (mouseX >= h.x && mouseX <= h.x2 && mouseY >= h.y && mouseY <= h.y2) {
-            openFlyout(h.item.id);
+            openFlyout(h.item.parentId || h.item.id);
             break;
           }
         }
@@ -51827,7 +52025,8 @@ Earned Value Management measures project performance and progress by comparing p
 
     function renderGantt() {
       withScroll(() => {
-        const tasks = getFiltered().filter(t => t.startDate && t.dueDate).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+        const rawTasks = getFiltered().filter(t => t.startDate && t.dueDate);
+        const tasks = getTasksForDisplayLevel(rawTasks).filter(t => t.startDate && t.dueDate).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
         if (!tasks.length) { $id('gantt-left').innerHTML = '<div style="padding:40px 16px;text-align:center;color:var(--color-text-muted)"><div style="font-size:24px;margin-bottom:6px">📅</div>No tasks with dates</div>'; $id('gantt-canvas').width = 0; return; }
         const allDates = tasks.flatMap(t => [new Date(t.startDate + 'T00:00:00'), new Date(t.dueDate + 'T00:00:00'), ...(P.showGanttActuals && t.actCompletionDate ? [new Date(t.actCompletionDate + 'T00:00:00')] : [])]);
         (P.releases || []).forEach(r => { if (r.date) allDates.push(new Date(r.date + 'T00:00:00')); });
@@ -51905,6 +52104,7 @@ Earned Value Management measures project performance and progress by comparing p
           r.innerHTML = `<span style="overflow:hidden;text-overflow:ellipsis;flex:1;display:flex;align-items:center">${nameHtml}</span>`;
           r.onmouseenter = () => { if (!isMS) r.style.background = 'var(--color-surface-2)'; };
           r.onmouseleave = () => { if (!isMS) r.style.background = i % 2 === 1 ? 'rgba(0,0,0,0.02)' : 'transparent'; };
+          r.onclick = () => openFlyout(t.parentId || t.id);
           left.appendChild(r);
         });
         // Canvas
@@ -52009,7 +52209,7 @@ Earned Value Management measures project performance and progress by comparing p
           const rect = cvs.getBoundingClientRect();
           const mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;
           hitAreas.forEach(h => {
-            if (mouseX >= h.x && mouseX <= h.x2 && mouseY >= h.y && mouseY <= h.y2) openFlyout(h.id);
+            if (mouseX >= h.x && mouseX <= h.x2 && mouseY >= h.y && mouseY <= h.y2) openFlyout(h.task?.parentId || h.id);
           });
         };
         // Header dates
@@ -52099,7 +52299,22 @@ Earned Value Management measures project performance and progress by comparing p
           const x2 = PAD_L + Math.floor((e - minDate) / 864e5) * dayW + dayW;
           const y = HEAD_H + i * ROW_H + (ROW_H - BAR_H) / 2;
           const bw = Math.max(x2 - x1, dayW);
-          taskPositions[t.id] = { x: x1, x2: x1 + bw, y: y + BAR_H / 2 };
+          const pos = { x: x1, x2: x1 + bw, y: y + BAR_H / 2, id: t.id, name: t.name };
+
+          if (t.id != null) {
+            const sId = String(t.id).trim();
+            taskPositions[sId] = pos;
+            const num = sId.replace(/^(TASK|TSK)-0*/i, '');
+            if (num) {
+              taskPositions[num] = pos;
+              taskPositions['TASK-' + num.padStart(3, '0')] = pos;
+              taskPositions['TSK-' + num.padStart(3, '0')] = pos;
+            }
+          }
+          if (t.name) {
+            taskPositions[t.name] = pos;
+          }
+
           hitAreas.push({ x: x1, x2: x1 + bw, y: HEAD_H + i * ROW_H, y2: HEAD_H + (i + 1) * ROW_H, id: t.id, idx: i, task: t });
 
           const modMs = getModuleMilestones();
@@ -52231,15 +52446,67 @@ Earned Value Management measures project performance and progress by comparing p
             ctx.fillText(t.assignee, textX + 6, y + BAR_H / 2 + 3);
           }
         });
+
+        const getTaskPos = (depId) => {
+          if (!depId) return null;
+          if (taskPositions[depId]) return taskPositions[depId];
+          const s = String(depId).trim();
+          if (taskPositions[s]) return taskPositions[s];
+          const num = s.replace(/^(TASK|TSK)-0*/i, '');
+          if (num && taskPositions[num]) return taskPositions[num];
+          const found = tasks.find(x => x.id == depId || x.name === depId || (x.id && String(x.id).replace(/^(TASK|TSK)-0*/i, '') === num));
+          return found ? (taskPositions[found.id] || taskPositions[found.name]) : null;
+        };
+
         if (P.showGanttDeps) {
-          ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1.2; ctx.globalAlpha = .7;
           tasks.forEach(t => {
             const deps = Array.isArray(t.dependsOn) ? t.dependsOn : (t.dependsOn ? String(t.dependsOn).split(',').map(s => s.trim()).filter(Boolean) : []);
             deps.forEach(depId => {
-              const from = taskPositions[depId], to = taskPositions[t.id];
-              if (!from || !to) return; ctx.beginPath(); ctx.moveTo(from.x2, from.y); ctx.lineTo(from.x2 + 8, from.y); ctx.lineTo(from.x2 + 8, to.y); ctx.lineTo(to.x, to.y); ctx.stroke();
+              const from = getTaskPos(depId);
+              const to = getTaskPos(t.id);
+              if (!from || !to || from === to) return;
+
+              const startX = from.x2;
+              const startY = from.y;
+              const endX = to.x;
+              const endY = to.y;
+
+              ctx.save();
+              ctx.strokeStyle = '#f59e0b';
+              ctx.fillStyle = '#f59e0b';
+              ctx.lineWidth = 1.8;
+              ctx.globalAlpha = 0.85;
+
+              if (endX >= startX + 12) {
+                const midX = Math.round((startX + endX) / 2);
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(midX, startY);
+                ctx.lineTo(midX, endY);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+              } else {
+                const offsetRight = startX + 10;
+                const offsetLeft = endX - 10;
+                const midY = Math.round((startY + endY) / 2);
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(offsetRight, startY);
+                ctx.lineTo(offsetRight, midY);
+                ctx.lineTo(offsetLeft, midY);
+                ctx.lineTo(offsetLeft, endY);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+              }
+
               // Arrowhead
-              ctx.beginPath(); ctx.moveTo(to.x, to.y); ctx.lineTo(to.x - 5, to.y - 3); ctx.lineTo(to.x - 5, to.y + 3); ctx.closePath(); ctx.fillStyle = '#f59e0b'; ctx.fill();
+              ctx.beginPath();
+              ctx.moveTo(endX, endY);
+              ctx.lineTo(endX - 6, endY - 4);
+              ctx.lineTo(endX - 6, endY + 4);
+              ctx.closePath();
+              ctx.fill();
+              ctx.restore();
             });
           });
         }
