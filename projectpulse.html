@@ -28067,6 +28067,12 @@
             '<button class="' + (P.ganttZoom === 'day' ? 'active' : '') + '" data-z="day" onclick="setFeatGanttZoom(\'day\')" title="View timeline by days">Day</button>' +
             '<button class="' + (P.ganttZoom === 'week' ? 'active' : '') + '" data-z="week" onclick="setFeatGanttZoom(\'week\')" title="View timeline by weeks">Week</button>' +
             '<button class="' + (P.ganttZoom === 'month' ? 'active' : '') + '" data-z="month" onclick="setFeatGanttZoom(\'month\')" title="View timeline by months">Month</button>' +
+            '</div>' +
+            '<div style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.7px;margin-top:10px;margin-bottom:6px">Timeline Overlays</div>' +
+            '<div class="sb-level-toggle" style="gap:4px">' +
+            '<button class="' + (P.showGanttDeps ? 'active' : '') + '" onclick="toggleGanttDeps()" title="Show or hide task dependency arrows"><i data-lucide="chevron-right" style="width:11px;height:11px;margin-right:2px"></i>Deps</button>' +
+            '<button class="' + (P.showGanttActuals ? 'active' : '') + '" onclick="toggleGanttActuals()" title="Show or hide actual completion dates"><i data-lucide="calendar-check-2" style="width:11px;height:11px;margin-right:2px"></i>Actuals</button>' +
+            '<button class="' + (P.showMonteCarlo ? 'active' : '') + '" onclick="toggleMonteCarlo()" title="Toggle Monte Carlo Probabilistic Forecasting Bands"><i data-lucide="cpu" style="width:11px;height:11px;margin-right:2px"></i>MC</button>' +
             '</div>';
         }
 
@@ -49969,9 +49975,13 @@ Earned Value Management measures project performance and progress by comparing p
         ctx.stroke();
       }
 
-      // ── FEATURE & SCREEN BARS + TREE CONNECTORS ─────────────────────────────
+      // ── FEATURE & SCREEN BARS + TREE CONNECTORS + OVERLAYS ───────────────────
       const hitAreas = [];
       const parentBarCoords = {}; // Store { x1, yCenter } for parent feature rows
+      const featBarPositions = {}; // Store { x, x2, y, id } for dependency arrow drawing
+
+      // Run Monte Carlo simulation if overlay enabled
+      const mcResults = P.showMonteCarlo ? runMonteCarloSimulation(P.tasks, 100) : null;
 
       visibleTimelineRows.forEach((row, i) => {
         const barY = HEAD_H + i * ROW_H + (ROW_H - BAR_H) / 2;
@@ -49996,9 +50006,79 @@ Earned Value Management measures project performance and progress by comparing p
             const bw  = Math.max(x2 - x1, dayW * 2);
 
             parentBarCoords[i] = { x1, yCenter: barY + BAR_H / 2 };
+            featBarPositions[f.name] = { x: x1, x2: x1 + bw, y: barY + BAR_H / 2, id: f.name };
+            if (f.id != null) featBarPositions[f.id] = featBarPositions[f.name];
+
+            // ── MONTE CARLO PROBABILISTIC FORECAST BAND OVERLAY ──
+            let mcP90Date = null;
+            if (P.showMonteCarlo && mcResults && fTasks.length) {
+              const mcP10s = fTasks.map(t => mcResults[t.id]?.p10).filter(Boolean);
+              const mcP90s = fTasks.map(t => mcResults[t.id]?.p90).filter(Boolean);
+              if (mcP90s.length > 0) {
+                const minP10 = new Date(Math.min(...mcP10s));
+                const maxP90 = new Date(Math.max(...mcP90s));
+                mcP90Date = maxP90;
+                const p10X = PAD_L + Math.max(0, Math.floor((minP10 - minDate) / 864e5)) * dayW;
+                const p90X = PAD_L + Math.floor((maxP90 - minDate) / 864e5) * dayW + dayW;
+
+                ctx.fillStyle = 'rgba(139, 92, 246, 0.16)';
+                if (ctx.roundRect) ctx.roundRect(p10X, barY - 3, Math.max(6, p90X - p10X), BAR_H + 6, 6);
+                else ctx.fillRect(p10X, barY - 3, Math.max(6, p90X - p10X), BAR_H + 6);
+                ctx.fill();
+
+                ctx.strokeStyle = '#8b5cf6';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([2, 2]);
+                ctx.beginPath();
+                ctx.moveTo(p90X, barY - 5);
+                ctx.lineTo(p90X, barY + BAR_H + 5);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = '#8b5cf6';
+                ctx.font = `bold 8px ${themeFont}`;
+                ctx.fillText('P90', p90X + 2, barY - 2);
+              }
+            }
+
+            // ── ACTUAL COMPLETION DATE OVERLAY ──
+            let actDoneDate = null;
+            if (P.showGanttActuals) {
+              const actDates = fTasks.map(t => t.actCompletionDate ? new Date(t.actCompletionDate + 'T00:00:00') : null).filter(Boolean);
+              if (f.actCompletionDate) actDates.push(new Date(f.actCompletionDate + 'T00:00:00'));
+              if (actDates.length > 0) {
+                actDoneDate = new Date(Math.max(...actDates));
+                const actX = PAD_L + Math.floor((actDoneDate - minDate) / 864e5) * dayW + dayW / 2;
+
+                ctx.save();
+                ctx.strokeStyle = '#10b981';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([2, 2]);
+                ctx.beginPath();
+                ctx.moveTo(x2, barY + BAR_H / 2);
+                ctx.lineTo(actX, barY + BAR_H / 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                const ds = 5;
+                const dy = barY + BAR_H / 2;
+                ctx.fillStyle = '#10b981';
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(actX, dy - ds);
+                ctx.lineTo(actX + ds, dy);
+                ctx.lineTo(actX, dy + ds);
+                ctx.lineTo(actX - ds, dy);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+              }
+            }
 
             hitAreas.push({ x: x1, x2: x1 + bw, y: HEAD_H + i * ROW_H, y2: HEAD_H + (i + 1) * ROW_H,
-              id: f.name, idx: i, feature: f, metrics: mObj, s, e });
+              id: f.name, idx: i, feature: f, metrics: mObj, s, e, mcP90Date, actDoneDate });
 
             // Background ghost
             ctx.fillStyle = bc;
@@ -50132,6 +50212,68 @@ Earned Value Management measures project performance and progress by comparing p
             const tot = scTasks.length;
             const avgP = tot ? Math.round(scTasks.reduce((st, t) => st + (t.progress || 0), 0) / tot) : 0;
 
+            featBarPositions[row.screenName] = { x: x1, x2: x1 + bw, y: subY + subH / 2, id: row.screenName };
+
+            // Monte Carlo Band for screen
+            if (P.showMonteCarlo && mcResults && scTasks.length) {
+              const mcP10s = scTasks.map(t => mcResults[t.id]?.p10).filter(Boolean);
+              const mcP90s = scTasks.map(t => mcResults[t.id]?.p90).filter(Boolean);
+              if (mcP90s.length > 0) {
+                const minP10 = new Date(Math.min(...mcP10s));
+                const maxP90 = new Date(Math.max(...mcP90s));
+                const p10X = PAD_L + Math.max(0, Math.floor((minP10 - minDate) / 864e5)) * dayW;
+                const p90X = PAD_L + Math.floor((maxP90 - minDate) / 864e5) * dayW + dayW;
+
+                ctx.fillStyle = 'rgba(139, 92, 246, 0.15)';
+                if (ctx.roundRect) ctx.roundRect(p10X, subY - 2, Math.max(4, p90X - p10X), subH + 4, 3);
+                else ctx.fillRect(p10X, subY - 2, Math.max(4, p90X - p10X), subH + 4);
+                ctx.fill();
+
+                ctx.strokeStyle = '#8b5cf6';
+                ctx.lineWidth = 1.2;
+                ctx.setLineDash([2, 2]);
+                ctx.beginPath();
+                ctx.moveTo(p90X, subY - 3);
+                ctx.lineTo(p90X, subY + subH + 3);
+                ctx.stroke();
+                ctx.setLineDash([]);
+              }
+            }
+
+            // Actual completion date marker for screen
+            if (P.showGanttActuals) {
+              const actDates = scTasks.map(t => t.actCompletionDate ? new Date(t.actCompletionDate + 'T00:00:00') : null).filter(Boolean);
+              if (actDates.length > 0) {
+                const maxActD = new Date(Math.max(...actDates));
+                const actX = PAD_L + Math.floor((maxActD - minDate) / 864e5) * dayW + dayW / 2;
+
+                ctx.save();
+                ctx.strokeStyle = '#10b981';
+                ctx.lineWidth = 1.2;
+                ctx.setLineDash([2, 2]);
+                ctx.beginPath();
+                ctx.moveTo(x2, subY + subH / 2);
+                ctx.lineTo(actX, subY + subH / 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                const ds = 4;
+                const dy = subY + subH / 2;
+                ctx.fillStyle = '#10b981';
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(actX, dy - ds);
+                ctx.lineTo(actX + ds, dy);
+                ctx.lineTo(actX, dy + ds);
+                ctx.lineTo(actX - ds, dy);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+              }
+            }
+
             // Draw dashed connector line from parent bar to child screen bar
             if (parentCoord) {
               ctx.save();
@@ -50203,6 +50345,78 @@ Earned Value Management measures project performance and progress by comparing p
         }
       });
 
+      // ── DRAW FEATURE & SCREEN DEPENDENCY ARROWS OVERLAY ──
+      if (P.showGanttDeps) {
+        visibleTimelineRows.forEach(row => {
+          let deps = [];
+          let toPos = null;
+          if (row.type === 'feature') {
+            const f = row.feature;
+            deps = Array.isArray(f.dependsOn) ? f.dependsOn : (f.dependsOn ? String(f.dependsOn).split(',').map(s => s.trim()).filter(Boolean) : []);
+            toPos = featBarPositions[f.name] || (f.id != null ? featBarPositions[f.id] : null);
+          } else if (row.type === 'screen') {
+            (row.scTasks || []).forEach(t => {
+              const tDeps = Array.isArray(t.dependsOn) ? t.dependsOn : (t.dependsOn ? String(t.dependsOn).split(',').map(s => s.trim()).filter(Boolean) : []);
+              deps.push(...tDeps);
+            });
+            toPos = featBarPositions[row.screenName];
+          }
+
+          if (!toPos) return;
+
+          deps.forEach(depId => {
+            let fromPos = featBarPositions[depId];
+            if (!fromPos) {
+              const matchingFeat = P.features.find(x => x.name === depId || x.id == depId);
+              if (matchingFeat) fromPos = featBarPositions[matchingFeat.name];
+            }
+            if (!fromPos || fromPos === toPos) return;
+
+            const startX = fromPos.x2;
+            const startY = fromPos.y;
+            const endX = toPos.x;
+            const endY = toPos.y;
+
+            ctx.save();
+            ctx.strokeStyle = '#f59e0b';
+            ctx.fillStyle = '#f59e0b';
+            ctx.lineWidth = 1.8;
+            ctx.globalAlpha = 0.85;
+
+            if (endX >= startX + 12) {
+              const midX = Math.round((startX + endX) / 2);
+              ctx.beginPath();
+              ctx.moveTo(startX, startY);
+              ctx.lineTo(midX, startY);
+              ctx.lineTo(midX, endY);
+              ctx.lineTo(endX, endY);
+              ctx.stroke();
+            } else {
+              const offsetRight = startX + 10;
+              const offsetLeft = endX - 10;
+              const midY = Math.round((startY + endY) / 2);
+              ctx.beginPath();
+              ctx.moveTo(startX, startY);
+              ctx.lineTo(offsetRight, startY);
+              ctx.lineTo(offsetRight, midY);
+              ctx.lineTo(offsetLeft, midY);
+              ctx.lineTo(offsetLeft, endY);
+              ctx.lineTo(endX, endY);
+              ctx.stroke();
+            }
+
+            // Arrowhead
+            ctx.beginPath();
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - 6, endY - 4);
+            ctx.lineTo(endX - 6, endY + 4);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+          });
+        });
+      }
+
       // ── RICH TOOLTIP ───────────────────────────────────────────────────────
       let tooltip = $id('feat-gantt-tooltip');
       if (!tooltip) {
@@ -50261,6 +50475,9 @@ Earned Value Management measures project performance and progress by comparing p
           const pct = m.avgP || 0;
           const progressBarColor = m.overdue > 0 ? '#ef4444' : pct > 80 ? '#10b981' : pct > 40 ? bc : '#f59e0b';
 
+          const mcTxt = hit.mcP90Date ? `<span>Monte Carlo P90:</span><span style="color:#8b5cf6;font-weight:700">${fmtDate(hit.mcP90Date)}</span>` : '';
+          const actTxt = hit.actDoneDate ? `<span>Actual Done:</span><span style="color:#10b981;font-weight:700">${fmtDate(hit.actDoneDate)}</span>` : '';
+
           tooltip.innerHTML = `
             <div style="padding:12px 14px 8px;border-bottom:1px solid var(--color-divider)">
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
@@ -50275,6 +50492,8 @@ Earned Value Management measures project performance and progress by comparing p
             <div style="padding:10px 14px;display:grid;grid-template-columns:auto 1fr;gap:5px 10px;font-size:10px;color:var(--color-text-muted)">
               <span>Schedule:</span>
               <span style="color:var(--color-text);font-weight:600">${fmtDate(hit.s)} → ${fmtDate(hit.e)}</span>
+              ${actTxt}
+              ${mcTxt}
               <span>Screens:</span>
               <span style="color:var(--color-text);font-weight:600">${f.screens ? f.screens.length : 0} mapped</span>
               <span>Delivered:</span>
@@ -51573,9 +51792,9 @@ Earned Value Management measures project performance and progress by comparing p
 
     // ══════ GANTT / TIMELINE ══════
     function setGanttZoom(z) { P.ganttZoom = z; document.querySelectorAll('.gantt-zoom button, .gantt-zoom .btn').forEach(b => b.classList.toggle('active', b.dataset.z === z)); if (P.taskViewMode === 'swimlane') renderTaskSwimlane(); else renderGantt(); }
-    function toggleGanttDeps() { P.showGanttDeps = !P.showGanttDeps; renderTasksView(); if (typeof renderSidebar === 'function') renderSidebar(); }
-    function toggleGanttActuals() { P.showGanttActuals = !P.showGanttActuals; renderTasksView(); if (typeof renderSidebar === 'function') renderSidebar(); }
-    function toggleMonteCarlo() { P.showMonteCarlo = !P.showMonteCarlo; renderTasksView(); if (typeof renderSidebar === 'function') renderSidebar(); }
+    function toggleGanttDeps() { P.showGanttDeps = !P.showGanttDeps; if (P.view === 'features' || (P.view === 'admin' && P._adminActiveTab === 'features')) renderFeatureHub(); else renderTasksView(); if (typeof renderSidebar === 'function') renderSidebar(); }
+    function toggleGanttActuals() { P.showGanttActuals = !P.showGanttActuals; if (P.view === 'features' || (P.view === 'admin' && P._adminActiveTab === 'features')) renderFeatureHub(); else renderTasksView(); if (typeof renderSidebar === 'function') renderSidebar(); }
+    function toggleMonteCarlo() { P.showMonteCarlo = !P.showMonteCarlo; if (P.view === 'features' || (P.view === 'admin' && P._adminActiveTab === 'features')) renderFeatureHub(); else renderTasksView(); if (typeof renderSidebar === 'function') renderSidebar(); }
 
     function runMonteCarloSimulation(tasks, iterations = 100) {
       const results = {};
