@@ -28045,6 +28045,37 @@
         sbStats.style.display = 'grid';
         sbStats.innerHTML = `<div class="sb-stat"><span>Features</span><span class="val">${totalF}</span></div><div class="sb-stat"><span>Linked</span><span class="val">${linkedF}</span></div><div class="sb-stat"><span>Maturity</span><span class="val" style="color:var(--color-primary)">${avgMaturity}%</span></div>`;
 
+        // View Mode toggle, Display Level & Timeline Zoom in sidebar (matching Tasks view!)
+        const lvlSec = document.createElement('div');
+        lvlSec.className = 'sb-sec';
+        let lvlHtml = '<div style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:6px">Feature View Mode</div>' +
+          '<div class="sb-level-toggle" style="margin-bottom:10px">' +
+          '<button class="' + (P._featViewMode !== 'timeline' && P._featViewMode !== 'swimlane' ? 'active' : '') + '" onclick="setFeatViewMode(\'matrix\')" title="Grid Matrix View">Matrix</button>' +
+          '<button class="' + (P._featViewMode === 'timeline' ? 'active' : '') + '" onclick="setFeatViewMode(\'timeline\')" title="Gantt Timeline View">Timeline</button>' +
+          '<button class="' + (P._featViewMode === 'swimlane' ? 'active' : '') + '" onclick="setFeatViewMode(\'swimlane\')" title="Swimlane View">Swimlane</button>' +
+          '</div>' +
+          '<div style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:6px">Display Level</div>' +
+          '<div class="sb-level-toggle">' +
+          '<button class="' + (P._featDisplayLevel === 0 || P._featDisplayLevel === undefined ? 'active' : '') + '" onclick="setFeatDisplayLevel(0)" title="Show Features level only">Features</button>' +
+          '<button class="' + (P._featDisplayLevel === 1 ? 'active' : '') + '" onclick="setFeatDisplayLevel(1)" title="Show Feature &amp; Screen hierarchy">Screens</button>' +
+          '<button class="' + (P._featDisplayLevel === 2 ? 'active' : '') + '" onclick="setFeatDisplayLevel(2)" title="Show Feature, Screen &amp; Task hierarchy">Tasks</button>' +
+          '</div>';
+
+        if (P._featViewMode === 'timeline' || P._featViewMode === 'swimlane') {
+          lvlHtml += '<div style="font-size:10px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.7px;margin-top:10px;margin-bottom:6px">Timeline Zoom</div>' +
+            '<div class="sb-level-toggle gantt-zoom">' +
+            '<button class="' + (P.ganttZoom === 'day' ? 'active' : '') + '" data-z="day" onclick="setFeatGanttZoom(\'day\')" title="View timeline by days">Day</button>' +
+            '<button class="' + (P.ganttZoom === 'week' ? 'active' : '') + '" data-z="week" onclick="setFeatGanttZoom(\'week\')" title="View timeline by weeks">Week</button>' +
+            '<button class="' + (P.ganttZoom === 'month' ? 'active' : '') + '" data-z="month" onclick="setFeatGanttZoom(\'month\')" title="View timeline by months">Month</button>' +
+            '</div>';
+        }
+
+        lvlSec.innerHTML = lvlHtml;
+        sbInner.appendChild(lvlSec);
+        const divLvl = document.createElement('div');
+        divLvl.className = 'sb-divider';
+        sbInner.appendChild(divLvl);
+
         // Search Filter
         const dSearch = document.createElement('div'); dSearch.className = 'sb-sec';
         dSearch.innerHTML = `<div class="sb-stit">Search Matrix</div>
@@ -49079,6 +49110,7 @@ Earned Value Management measures project performance and progress by comparing p
     function setFeatViewMode(mode) {
       P._featViewMode = mode;
       renderFeatureHub();
+      if (typeof renderSidebar === 'function') renderSidebar();
       if (typeof syncGlobalActions === 'function') syncGlobalActions();
     }
     window.setFeatViewMode = setFeatViewMode;
@@ -49086,8 +49118,40 @@ Earned Value Management measures project performance and progress by comparing p
     function setFeatGanttZoom(z) {
       P.ganttZoom = z;
       renderFeatureHub();
+      if (typeof renderSidebar === 'function') renderSidebar();
     }
     window.setFeatGanttZoom = setFeatGanttZoom;
+
+    function setFeatDisplayLevel(level) {
+      P._featDisplayLevel = level;
+      if (level === 0) {
+        P._expandedFeatTree = new Set();
+        P._expandedFeatTimeline = new Set();
+      } else if (level === 1) {
+        if (!P._expandedFeatTree) P._expandedFeatTree = new Set();
+        if (!P._expandedFeatTimeline) P._expandedFeatTimeline = new Set();
+        (P.features || []).forEach((f, idx) => {
+          P._expandedFeatTree.add(`feat-${idx}`);
+          P._expandedFeatTimeline.add(`feat-${idx}`);
+          (f.screens || []).forEach((_, scIdx) => {
+            P._expandedFeatTree.delete(`feat-${idx}-sc-${scIdx}`);
+          });
+        });
+      } else if (level === 2) {
+        if (!P._expandedFeatTree) P._expandedFeatTree = new Set();
+        if (!P._expandedFeatTimeline) P._expandedFeatTimeline = new Set();
+        (P.features || []).forEach((f, idx) => {
+          P._expandedFeatTree.add(`feat-${idx}`);
+          P._expandedFeatTimeline.add(`feat-${idx}`);
+          (f.screens || []).forEach((_, scIdx) => {
+            P._expandedFeatTree.add(`feat-${idx}-sc-${scIdx}`);
+          });
+        });
+      }
+      renderFeatureHub();
+      if (typeof renderSidebar === 'function') renderSidebar();
+    }
+    window.setFeatDisplayLevel = setFeatDisplayLevel;
 
     function renderFeatureHub() {
       const cont = $id('feature-hub-container');
@@ -49111,14 +49175,6 @@ Earned Value Management measures project performance and progress by comparing p
               </select>
               <i data-lucide="chevron-down" style="position:absolute; right:8px; width:14px; height:14px; pointer-events:none; color:var(--color-text-muted);"></i>
             </div>
-            ${P._featViewMode === 'timeline' || P._featViewMode === 'swimlane' ? `
-              <div style="width:1px;height:16px;background:var(--color-divider);margin:0 4px"></div>
-              <div class="gantt-zoom" style="display:flex;gap:4px;">
-                <button class="btn mini ${P.ganttZoom === 'day' ? 'active' : ''}" data-z="day" onclick="setFeatGanttZoom('day')" title="View timeline by days">Day</button>
-                <button class="btn mini ${P.ganttZoom === 'week' ? 'active' : ''}" data-z="week" onclick="setFeatGanttZoom('week')" title="View timeline by weeks">Week</button>
-                <button class="btn mini ${P.ganttZoom === 'month' ? 'active' : ''}" data-z="month" onclick="setFeatGanttZoom('month')" title="View timeline by months">Month</button>
-              </div>
-            ` : ''}
             <div style="width:1px;height:16px;background:var(--color-divider);margin:0 4px"></div>
             <div style="position:relative; display:flex; align-items:center; width:220px">
               <i data-lucide="search" style="position:absolute; left:12px; width:16px; height:16px; color:var(--color-text-muted); pointer-events:none"></i>
