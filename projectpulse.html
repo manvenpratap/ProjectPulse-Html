@@ -15137,7 +15137,7 @@
         ],
         a: [
           '<b>Scheduling:</b> Tasks with missing dates will not appear in the timeline. Ensure Start/Due dates are set.',
-          '<b>Milestones:</b> Tasks with identical Start and Due dates appear as diamonds, marking key delivery points.'
+          '<b>Milestones:</b> Tasks with identical Start and Due dates appear as milestone flags (🚩), marking key delivery points.'
         ]
       },
       risks: {
@@ -19366,7 +19366,7 @@
             else {
               let display = esc(val || '—');
               if (col.key === 'name') {
-                if (isMilestone) display = `<span style="color:var(--color-primary);margin-right:6px">💎</span>${display}`;
+                if (isMilestone) display = `<span style="color:var(--color-primary);margin-right:6px">🚩</span>${display}`;
                 if (hasSubs) display = `<span style="font-weight:var(--fw-bold)">${display}</span> <span style="font-size:10px;color:var(--color-text-muted)">(${task.subtasks.length})</span>`;
                 if (task.screenName) {
                   let sDisp = esc(task.screenName);
@@ -20359,7 +20359,7 @@
               if (hasSubs) {
                 suffix = ` (${item.subtasks.length})`;
               }
-              measureText = (isMilestone ? '💎 ' : '') + String(val) + suffix;
+              measureText = (isMilestone ? '🚩 ' : '') + String(val) + suffix;
 
               // Check if we also have screenName subtitle
               if (item.screenName) {
@@ -23642,7 +23642,7 @@
         });
 
         const milestones = allItems.filter(t => {
-          const hasMilestoneKeyword = (t.name || '').toLowerCase().includes('milestone') || (t.name || '').includes('💎');
+          const hasMilestoneKeyword = (t.name || '').toLowerCase().includes('milestone') || (t.name || '').includes('🚩') || (t.name || '').includes('💎');
           const isExplicitMilestone = hasMilestoneKeyword || modMs.has(t.id) || t.confidence;
           return isExplicitMilestone;
         }).sort((a, b) => {
@@ -26727,7 +26727,7 @@
 
       const isMilestone = (item) => {
         if (item.type === 'screen' || item.type === 'subtask') return false;
-        const hasMilestoneKeyword = (item.name || '').toLowerCase().includes('milestone') || (item.name || '').includes('💎');
+        const hasMilestoneKeyword = (item.name || '').toLowerCase().includes('milestone') || (item.name || '').includes('🚩') || (item.name || '').includes('💎');
         return hasMilestoneKeyword || modMs.has(item.id) || item.confidence;
       };
 
@@ -36251,7 +36251,7 @@ Earned Value Management measures project performance and progress by comparing p
       const modVals = Object.values(modMap);
       const moduleProgress = modVals.length > 0 ? Math.round(modVals.reduce((s, m) => s + (m.count > 0 ? m.sum / m.count : 0), 0) / modVals.length) : progress;
 
-      const cpTasks = tasks.filter(t => (t.name || '').includes('Milestone') || (t.name || '').includes('💎') || t.isCritical || (t.category && t.category.toLowerCase().includes('milestone')));
+      const cpTasks = tasks.filter(t => (t.name || '').includes('Milestone') || (t.name || '').includes('🚩') || (t.name || '').includes('💎') || t.isCritical || (t.category && t.category.toLowerCase().includes('milestone')));
       const cpTotal = cpTasks.length;
       const cpCompleted = cpTasks.filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100).length;
 
@@ -51061,21 +51061,27 @@ Earned Value Management measures project performance and progress by comparing p
               }
             }
 
-            // Completion diamond marker
+            // Completion milestone flag marker
             if (mObj && mObj.avgP === 100) {
-              const dx = x1 + bw + 6;
+              const dx = x1 + bw + 8;
               const dy = barY + BAR_H / 2;
-              const ds = 5;
-              ctx.fillStyle = '#10b981';
-              ctx.strokeStyle = '#fff';
-              ctx.lineWidth = 1;
+              const fs = 6;
               ctx.beginPath();
-              ctx.moveTo(dx, dy - ds);
-              ctx.lineTo(dx + ds, dy);
-              ctx.lineTo(dx, dy + ds);
-              ctx.lineTo(dx - ds, dy);
+              ctx.strokeStyle = '#10b981';
+              ctx.lineWidth = 2;
+              ctx.moveTo(dx - 3, dy - fs);
+              ctx.lineTo(dx - 3, dy + fs + 2);
+              ctx.stroke();
+
+              ctx.beginPath();
+              ctx.fillStyle = '#10b981';
+              ctx.moveTo(dx - 3, dy - fs);
+              ctx.lineTo(dx + fs + 3, dy - fs / 2);
+              ctx.lineTo(dx - 3, dy + 1);
               ctx.closePath();
               ctx.fill();
+              ctx.lineWidth = 1;
+              ctx.strokeStyle = '#fff';
               ctx.stroke();
             }
           } else {
@@ -53031,7 +53037,7 @@ Earned Value Management measures project performance and progress by comparing p
           const isMS = t.startDate === t.dueDate || t.category === 'Milestone';
           let nameHtml = '';
           if (isMS) {
-            nameHtml = expandToggle + `<span style="color:var(--color-primary);margin-right:4px">💎</span>${nameStr}`;
+            nameHtml = expandToggle + `<span style="color:var(--color-primary);margin-right:4px">🚩</span>${nameStr}`;
           } else {
             nameHtml = expandToggle + nameStr;
           }
@@ -53692,7 +53698,7 @@ Earned Value Management measures project performance and progress by comparing p
 
           const modTag = (t.moduleType && !t.isSubtaskItem) ? `<span style="opacity:0.5;font-size:9px;margin-right:6px;font-family:var(--mono);font-weight:700;text-transform:uppercase;color:var(--color-primary)">${t.moduleType}</span>` : '';
           let nameHtml = '';
-          if (isMS) nameHtml = expandToggle + `<span style="color:var(--color-primary);margin-right:4px">💎</span>` + nameStr;
+          if (isMS) nameHtml = expandToggle + `<span style="color:var(--color-primary);margin-right:4px">🚩</span>` + nameStr;
           else nameHtml = expandToggle + modTag + nameStr;
 
           r.innerHTML = `<span style="overflow:hidden;text-overflow:ellipsis;flex:1;display:flex;align-items:center">${nameHtml}</span>`;
@@ -53946,19 +53952,33 @@ Earned Value Management measures project performance and progress by comparing p
           }
 
           if (isMilestone) {
-            // Diamond shape for planned milestones
+            // Milestone flag shape for planned milestones
             ctx.globalAlpha = (P.showGanttActuals && t.actCompletionDate) ? 0.4 : 1;
-            ctx.fillStyle = stColors[t.status] || '#94a3b8';
+            const msColor = stColors[t.status] || '#94a3b8';
+            const flagX = x1 + BAR_H / 2;
+            const flagY = y + BAR_H / 2;
+            const flagR = BAR_H / 2;
+
+            // Pole
             ctx.beginPath();
-            ctx.moveTo(x1, y + BAR_H / 2);
-            ctx.lineTo(x1 + BAR_H / 2, y);
-            ctx.lineTo(x1 + BAR_H, y + BAR_H / 2);
-            ctx.lineTo(x1 + BAR_H / 2, y + BAR_H);
+            ctx.strokeStyle = msColor;
+            ctx.lineWidth = 2;
+            ctx.moveTo(flagX - 3, flagY - flagR);
+            ctx.lineTo(flagX - 3, flagY + flagR + 3);
+            ctx.stroke();
+
+            // Pennant Flag
+            ctx.beginPath();
+            ctx.fillStyle = msColor;
+            ctx.moveTo(flagX - 3, flagY - flagR);
+            ctx.lineTo(flagX + flagR + 4, flagY - flagR / 2);
+            ctx.lineTo(flagX - 3, flagY + 1);
             ctx.closePath();
             ctx.fill();
             ctx.lineWidth = 1;
             ctx.strokeStyle = '#ffffff';
             ctx.stroke();
+
             ctx.globalAlpha = 1;
 
             if (actX !== null) {
@@ -53966,18 +53986,25 @@ Earned Value Management measures project performance and progress by comparing p
               ctx.beginPath();
               ctx.strokeStyle = '#10b981';
               ctx.setLineDash([2, 2]);
-              ctx.moveTo(x1 + BAR_H / 2, y + BAR_H / 2);
-              ctx.lineTo(actX, y + BAR_H / 2);
+              ctx.moveTo(flagX, flagY);
+              ctx.lineTo(actX, flagY);
               ctx.stroke();
               ctx.setLineDash([]);
 
-              // Actual completion diamond
-              ctx.fillStyle = '#10b981';
+              // Actual completion milestone flag (Green #10b981)
+              const actColor = '#10b981';
               ctx.beginPath();
-              ctx.moveTo(actX, y + BAR_H / 2 - BAR_H / 2);
-              ctx.lineTo(actX + BAR_H / 2, y + BAR_H / 2);
-              ctx.lineTo(actX, y + BAR_H / 2 + BAR_H / 2);
-              ctx.lineTo(actX - BAR_H / 2, y + BAR_H / 2);
+              ctx.strokeStyle = actColor;
+              ctx.lineWidth = 2;
+              ctx.moveTo(actX - 3, flagY - flagR);
+              ctx.lineTo(actX - 3, flagY + flagR + 3);
+              ctx.stroke();
+
+              ctx.beginPath();
+              ctx.fillStyle = actColor;
+              ctx.moveTo(actX - 3, flagY - flagR);
+              ctx.lineTo(actX + flagR + 4, flagY - flagR / 2);
+              ctx.lineTo(actX - 3, flagY + 1);
               ctx.closePath();
               ctx.fill();
               ctx.lineWidth = 1.5;
@@ -56333,6 +56360,7 @@ Earned Value Management measures project performance and progress by comparing p
             <label class="pp-form-label" for="edit-feat-category">Category</label>
             <input type="text" class="pp-form-input" id="edit-feat-category" placeholder="Category" />
           </div>
+
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
             <div class="pp-form-group">
               <label class="pp-form-label" for="edit-feat-screens-count">Screens Count</label>
@@ -56587,7 +56615,7 @@ Earned Value Management measures project performance and progress by comparing p
 
     window.toggleActuals = function() {
       showActuals = !showActuals;
-      \$id('toggle-actuals-btn').classList.toggle('active', showActuals);
+      $id('toggle-actuals-btn').classList.toggle('active', showActuals);
       if (currentViewMode === 'swimlane') renderSwimlane();
       else renderGantt();
     };
@@ -57937,7 +57965,7 @@ Earned Value Management measures project performance and progress by comparing p
             ctx.textBaseline = 'middle';
             ctx.save();
             ctx.beginPath(); ctx.rect(dotX + 10, y, w - dotX - 12, rowH); ctx.clip();
-            ctx.fillText(isMS ? '💎 ' + t.name : t.name, dotX + 10, dotY);
+            ctx.fillText(isMS ? '🚩 ' + t.name : t.name, dotX + 10, dotY);
             ctx.restore();
           }
 
