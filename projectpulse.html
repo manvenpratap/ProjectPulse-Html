@@ -12571,10 +12571,12 @@
           </div>
         </div>
 
-        <div class="mact" style="padding:16px 24px; border-top:1px solid var(--color-divider); background:var(--color-surface-2); display:flex; justify-content:space-between; align-items:center;">
+        <div class="mact" style="padding:16px 24px; border-top:1px solid var(--color-divider); background:var(--color-surface-2); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
           <button class="btn outline" onclick="closeModal('cxo-email-modal')">Close</button>
-          <div style="display:flex; gap:12px;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button class="btn secondary" onclick="copyCxoPlainTextToClipboard()"><i data-lucide="file-text" style="margin-right:6px"></i> Copy Plain Text</button>
+            <button class="btn secondary" onclick="copyCxoMsoHtmlToClipboard()"><i data-lucide="code" style="margin-right:6px"></i> Copy MSO HTML Code</button>
+            <button class="btn secondary" onclick="downloadCxoHtmlFile()"><i data-lucide="download" style="margin-right:6px"></i> Download .HTML</button>
             <button class="btn primary" onclick="copyCxoEmailToClipboard()" style="font-weight:700;"><i data-lucide="copy" style="margin-right:6px"></i> Copy Rich Text to Email</button>
           </div>
         </div>
@@ -36664,11 +36666,9 @@ Earned Value Management measures project performance and progress by comparing p
       return text;
     }
 
-    async function copyCxoEmailToClipboard() {
+    function getCxoMsoEnvelopeHtml() {
       const rawHtml = generateCxoEmailHtml();
-      const plainText = generateCxoEmailPlainText();
-
-      const fullOutlookHtml = `<!DOCTYPE html>
+      return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -36691,6 +36691,11 @@ Earned Value Management measures project performance and progress by comparing p
 ` + rawHtml + `
 </body>
 </html>`;
+    }
+
+    async function copyCxoEmailToClipboard() {
+      const fullOutlookHtml = getCxoMsoEnvelopeHtml();
+      const plainText = generateCxoEmailPlainText();
 
       try {
         if (navigator.clipboard && window.ClipboardItem) {
@@ -36711,6 +36716,31 @@ Earned Value Management measures project performance and progress by comparing p
         console.error('Error copying rich text:', err);
         copyCxoPlainTextToClipboard();
       }
+    }
+
+    function copyCxoMsoHtmlToClipboard() {
+      const fullHtml = getCxoMsoEnvelopeHtml();
+      navigator.clipboard.writeText(fullHtml).then(() => {
+        toast('Raw Outlook MSO HTML code copied to clipboard!', 'success');
+        closeModal('cxo-email-modal');
+      }).catch(err => {
+        toast('Failed to copy MSO HTML code', 'error');
+      });
+    }
+
+    function downloadCxoHtmlFile() {
+      const fullHtml = getCxoMsoEnvelopeHtml();
+      const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeName = (P.name || 'Project').replace(/[^a-zA-Z0-9_-]/g, '_');
+      a.download = safeName + '_CXO_Executive_Brief.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast('Downloaded Outlook HTML brief file!', 'success');
     }
 
     function copyCxoPlainTextToClipboard() {
