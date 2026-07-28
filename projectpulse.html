@@ -42451,7 +42451,7 @@ Earned Value Management measures project performance and progress by comparing p
               assignee: S(s.assignee),
               status: S(s.status),
               priority: '',
-              progress: s.status === 'Completed' ? 1.0 : 0.0,
+              progress: s.progress !== undefined ? (s.progress > 1 ? s.progress / 100 : s.progress) : (s.status === 'Completed' ? 1.0 : 0.0),
               startDate: cleanFmtDate(s.startDate),
               dueDate: cleanFmtDate(s.dueDate),
               actCompletionDate: cleanFmtDate(s.actCompletionDate),
@@ -44249,7 +44249,14 @@ Earned Value Management measures project performance and progress by comparing p
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
 
-            data.slice(0, 10).forEach(item => {
+            let itemsToDisplay = data;
+            if (data.length > 10) {
+              const top9 = data.slice(0, 9);
+              const remainingVal = data.slice(9).reduce((sum, item) => sum + item.value, 0);
+              itemsToDisplay = [...top9, { label: 'OTHER', value: remainingVal, color: '#94A3B8' }];
+            }
+
+            itemsToDisplay.forEach(item => {
               ctx.fillStyle = toWebColor(item.color);
               ctx.fillRect(legendX, legendY - boxSize / 2, boxSize, boxSize);
 
@@ -44864,20 +44871,20 @@ Earned Value Management measures project performance and progress by comparing p
           color: VIBRANT_ACCENTS[ci % VIBRANT_ACCENTS.length]
         })).filter(item => item.value > 0);
 
-        const modSet = [...new Set(tasks.map(t => t.module).filter(Boolean))].slice(0, 10);
+        const modSet = [...new Set(tasks.map(t => t.module).filter(Boolean))];
         const modChartLabels = [];
         const modChartValues = [];
-        modSet.forEach(m => {
+        modSet.slice(0, 15).forEach(m => {
           const mt = tasks.filter(t => t.module === m);
           const mAvg = mt.length ? Math.round(mt.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / mt.length) : 0;
           modChartLabels.push(m);
           modChartValues.push(mAvg);
         });
 
-        const teamNames = [...new Set(tasks.map(t => t.assignee).filter(Boolean))].slice(0, 10);
+        const teamNames = [...new Set(tasks.map(t => t.assignee).filter(Boolean))];
         const doneMData = [];
         const activeMData = [];
-        teamNames.forEach(m => {
+        teamNames.slice(0, 15).forEach(m => {
           const totalM = tasks.filter(t => t.assignee === m).length;
           const doneM = tasks.filter(t => t.assignee === m && t.status === 'Completed').length;
           doneMData.push(doneM);
@@ -44885,7 +44892,7 @@ Earned Value Management measures project performance and progress by comparing p
         });
 
         const teamWorkloadData = {
-          labels: teamNames,
+          labels: teamNames.slice(0, 15),
           series: [
             { label: 'Done', values: doneMData, color: '#10B981' },
             { label: 'Active', values: activeMData, color: '#4F46E5' }
@@ -45207,7 +45214,7 @@ Earned Value Management measures project performance and progress by comparing p
         if (members.length > 0) {
           drawSectionTitle(curRow, 'Team Directory & Resource Performance'); curRow += 2;
           drawTableHeader(curRow, ['Team Member', 'Role', 'Active Tasks', 'Done', 'Effort (Est)', 'Effort (Act)', 'Utilization%'], 2);
-          members.slice(0, 12).forEach((m, i) => {
+          members.forEach((m, i) => {
             const mTasks = tasks.filter(t => t.assignee === m.name);
             const mActive = mTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
             const mDone = mTasks.filter(t => t.status === 'Completed').length;
@@ -45234,7 +45241,7 @@ Earned Value Management measures project performance and progress by comparing p
               });
             } catch (e) { }
           });
-          curRow += members.slice(0, 12).length + 2;
+          curRow += members.length + 2;
         }
 
         // ── Section: Module & Feature Delivery ──
@@ -45277,7 +45284,7 @@ Earned Value Management measures project performance and progress by comparing p
           } catch (e) { }
         });
 
-        const feats = (P.features || []).slice(0, 12);
+        const feats = (P.features || []);
         if (feats.length) {
           drawTableHeader(curRow, ['Feature', 'Screens', 'Avg Progress'], 10);
           feats.forEach((feat, i) => {
@@ -45286,7 +45293,7 @@ Earned Value Management measures project performance and progress by comparing p
             drawTableRow(curRow + 1 + i, [feat.name, scs.length, fAvg + '%'], 10, i % 2 === 1);
           });
         }
-        curRow += Math.max(modSet.length, feats.length, 10) + 2;
+        curRow += Math.max(modSet.length, feats.length) + 2;
 
         // ── Section: Module Delivery Grid ──
         const mMods = Array.from(new Set(tasks.map(t => t.module).filter(Boolean))).sort();
@@ -45351,12 +45358,12 @@ Earned Value Management measures project performance and progress by comparing p
         if (screens.length) {
           drawSectionTitle(curRow, 'Screen Inventory & Delivery Status'); curRow += 2;
           drawTableHeader(curRow, ['Screen', 'Module', 'Status', 'Progress'], 2);
-          screens.slice(0, 15).forEach((s, i) => { const r = curRow + 1 + i; const p = (parseInt(s.progress) || 0); drawTableRow(r, [s.name, s.module || '-', styledVal(s.status, STATUS_COLORS[s.status] || COLORS.textDark, true), p + '%'], 2, i % 2 === 1); });
-          curRow += Math.min(15, screens.length) + 2;
+          screens.forEach((s, i) => { const r = curRow + 1 + i; const p = (parseInt(s.progress) || 0); drawTableRow(r, [s.name, s.module || '-', styledVal(s.status, STATUS_COLORS[s.status] || COLORS.textDark, true), p + '%'], 2, i % 2 === 1); });
+          curRow += screens.length + 2;
         }
 
         // ── Section: RAID & Defects Snapshots ──
-        const activeRaids = (P.raids || []).filter(r => r.status === 'Open').slice(0, 10);
+        const activeRaids = (P.raids || []).filter(r => r.status === 'Open');
         if (activeRaids.length) {
           drawSectionTitle(curRow, 'RAID Intelligence - Active Open Risks & Issues'); curRow += 2;
 
@@ -45449,7 +45456,7 @@ Earned Value Management measures project performance and progress by comparing p
           curRow += activeRaids.length + 2;
         }
 
-        const openBugs = (P.defects || []).filter(d => d.status !== 'Closed' && d.status !== 'Resolved').slice(0, 10);
+        const openBugs = (P.defects || []).filter(d => d.status !== 'Closed' && d.status !== 'Resolved');
         if (openBugs.length) {
           drawSectionTitle(curRow, 'Quality Intelligence - Open Defects Log Snapshot'); curRow += 2;
 
