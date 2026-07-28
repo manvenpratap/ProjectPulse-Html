@@ -12583,7 +12583,7 @@
         <div class="mact" style="padding:16px 24px; border-top:1px solid var(--color-divider); background:var(--color-surface-2); display:flex; justify-content:space-between; align-items:center;">
           <button class="btn outline" onclick="closeModal('cxo-email-modal')">Close</button>
           <div style="display:flex; gap:12px;">
-            <button class="btn secondary" onclick="copyCxoPlainTextToClipboard()"><i data-lucide="file-text" style="margin-right:6px"></i> Copy Plain Text</button>
+            <button class="btn secondary" onclick="copyCxoRichTextToClipboard()"><i data-lucide="file-text" style="margin-right:6px"></i> Copy Rich Text</button>
             <button class="btn primary" onclick="copyCxoEmailToClipboard()" style="font-weight:700; background:linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); border:none; color:#ffffff; padding:10px 20px;"><i data-lucide="mail" style="margin-right:8px"></i> Copy &amp; Embed Brief in Email</button>
           </div>
         </div>
@@ -36770,18 +36770,64 @@ Earned Value Management measures project performance and progress by comparing p
         toast('Executive brief copied to clipboard! Paste (Cmd+V / Ctrl+V) directly into Outlook email body.', 'success');
         closeModal('cxo-email-modal');
       } else {
-        copyCxoPlainTextToClipboard();
+        copyCxoRichTextToClipboard();
       }
     }
 
-    function copyCxoPlainTextToClipboard() {
-      const plainText = generateCxoEmailPlainText();
-      navigator.clipboard.writeText(plainText).then(() => {
-        toast('Plain text brief copied to clipboard!', 'success');
+    async function copyCxoRichTextToClipboard() {
+      const htmlStr = generateCxoEmailHtml();
+      const textStr = generateCxoEmailPlainText();
+      let success = false;
+
+      if (navigator.clipboard && window.ClipboardItem) {
+        try {
+          const blobHtml = new Blob([htmlStr], { type: 'text/html' });
+          const blobText = new Blob([textStr], { type: 'text/plain' });
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              'text/html': blobHtml,
+              'text/plain': blobText
+            })
+          ]);
+          success = true;
+        } catch (err) {
+          console.warn('Clipboard API write fallback note:', err);
+        }
+      }
+
+      if (!success) {
+        const tempDiv = document.createElement('div');
+        tempDiv.style.position = 'fixed';
+        tempDiv.style.left = '-9999px';
+        tempDiv.style.top = '0';
+        tempDiv.style.background = '#ffffff';
+        tempDiv.style.color = '#1e293b';
+        tempDiv.style.fontFamily = 'Arial, Helvetica, sans-serif';
+        tempDiv.innerHTML = htmlStr;
+        document.body.appendChild(tempDiv);
+
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        const range = document.createRange();
+        range.selectNodeContents(tempDiv);
+        selection.addRange(range);
+
+        try {
+          success = document.execCommand('copy');
+        } catch (e) {
+          success = false;
+        }
+
+        selection.removeAllRanges();
+        if (tempDiv.parentNode) document.body.removeChild(tempDiv);
+      }
+
+      if (success) {
+        toast('Rich text brief copied to clipboard!', 'success');
         closeModal('cxo-email-modal');
-      }).catch(err => {
-        toast('Failed to copy to clipboard', 'error');
-      });
+      } else {
+        toast('Failed to copy rich text to clipboard', 'error');
+      }
     }
     function syncGlobalActions() {
       const v = P.view === 'admin' ? P._adminActiveTab : P.view;
