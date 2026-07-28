@@ -12529,7 +12529,16 @@
         <div style="padding:20px 24px; overflow-y:auto; flex:1; min-height:0; display:flex; flex-direction:column; gap:18px; background:var(--color-bg); -webkit-overflow-scrolling:touch;">
           
           <!-- Brief Options -->
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:var(--color-surface-2); padding:16px; border-radius:12px; border:1px solid var(--color-divider);">
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; background:var(--color-surface-2); padding:16px; border-radius:12px; border:1px solid var(--color-divider);">
+            <div>
+              <label style="font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
+                Report Cadence
+              </label>
+              <select id="cxo-report-cadence" class="finp" style="width:100%" onchange="updateCxoEmailPreview()">
+                <option value="weekly">Weekly Status Report (7 Days)</option>
+                <option value="fortnightly">Fortnightly Status Report (14 Days)</option>
+              </select>
+            </div>
             <div>
               <label style="font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
                 Brief Format Style
@@ -12541,24 +12550,24 @@
             </div>
             <div>
               <label style="font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
-                Include Sections
+                Optional Sections
               </label>
-              <div style="display:flex; flex-wrap:wrap; gap:12px; font-size:12px; color:var(--color-text); margin-top:6px;">
+              <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:11.5px; color:var(--color-text); margin-top:4px;">
                 <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-kpi" checked onchange="updateCxoEmailPreview()"> KPI Table</label>
                 <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-wins" checked onchange="updateCxoEmailPreview()"> Accomplishments</label>
-                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-decisions" checked onchange="updateCxoEmailPreview()"> Decisions Needed</label>
-                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-risks" checked onchange="updateCxoEmailPreview()"> Top Risks</label>
-                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-overdue" checked onchange="updateCxoEmailPreview()"> Module Overdue</label>
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-decisions" checked onchange="updateCxoEmailPreview()"> Decisions</label>
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-risks" checked onchange="updateCxoEmailPreview()"> Risks</label>
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-overdue" checked onchange="updateCxoEmailPreview()"> Overdue</label>
               </div>
             </div>
-            <div style="grid-column:span 2">
+            <div style="grid-column:span 3">
               <label style="font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
                 Custom Executive Commentary / Note (Optional)
               </label>
-              <textarea id="cxo-exec-note" class="finp" rows="2" placeholder="e.g. Hi Team, here is our bi-weekly project status update. Please review pending decision items by EOD Friday." style="width:100%; font-size:13px;" oninput="updateCxoEmailPreview()"></textarea>
+              <textarea id="cxo-exec-note" class="finp" rows="2" placeholder="e.g. Hi Team, here is our project status update. Please review pending decision items by EOD Friday." style="width:100%; font-size:13px;" oninput="updateCxoEmailPreview()"></textarea>
             </div>
           </div>
-
+          
           <!-- Live Preview Window -->
           <div>
             <div style="font-size:12px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
@@ -36276,7 +36285,7 @@ Earned Value Management measures project performance and progress by comparing p
       const incDecisions  = $id('cxo-sec-decisions')?.checked ?? true;
       const incRisks      = style === 'condensed' ? false : ($id('cxo-sec-risks')?.checked ?? true);
       const incOverdue    = style === 'condensed' ? false : ($id('cxo-sec-overdue')?.checked ?? true);
-            const incOutlook    = $id('cxo-sec-outlook')?.checked ?? true;
+      const incOutlook    = $id('cxo-sec-outlook')?.checked ?? true;
       const execNote      = ($id('cxo-exec-note')?.value || '').trim();
 
       const healthColor = stats.health === 'On Track' ? '#16a34a' : stats.health === 'At Risk' ? '#d97706' : '#dc2626';
@@ -36288,9 +36297,12 @@ Earned Value Management measures project performance and progress by comparing p
       const pmObj = members.find(m => m.role && (m.role.toLowerCase().includes('manager') || m.role.toLowerCase().includes('lead') || m.role.toLowerCase().includes('pm'))) || members[0] || {};
       const pmName = pmObj.name || 'Project Lead';
 
-      const rpStart = new Date(); rpStart.setDate(rpStart.getDate() - 7);
+      const cadence      = $id('cxo-report-cadence')?.value || 'weekly';
+      const daysBack     = cadence === 'fortnightly' ? 14 : 7;
+      const cadenceLabel = cadence === 'fortnightly' ? 'Fortnightly Status Report' : 'Weekly Status Report';
+      const rpStart      = new Date(); rpStart.setDate(rpStart.getDate() - daysBack);
       const reportPeriod = formatCxoDate(rpStart) + ' – ' + formatCxoDate(new Date());
-      const cpPct = stats.cpTotal > 0 ? Math.round((stats.cpCompleted / stats.cpTotal) * 100) : 0;
+      const cpPct        = stats.cpTotal > 0 ? Math.round((stats.cpCompleted / stats.cpTotal) * 100) : 0;
 
       const miniBar = function(pct, color) {
         return '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top:5px; background-color:#e2e8f0; height:6px; border-radius:3px;"><tr><td width="' + Math.min(100, Math.max(0, pct)) + '%" bgcolor="' + color + '" style="background-color:' + color + '; height:6px; border-radius:3px; font-size:1px; line-height:1px;">&nbsp;</td><td style="font-size:1px; line-height:1px;">&nbsp;</td></tr></table>';
@@ -36311,14 +36323,14 @@ Earned Value Management measures project performance and progress by comparing p
       html += '<tr><td bgcolor="#0f172a" style="background-color:#0f172a; padding:28px 28px 22px; border-radius:14px 14px 0 0; color:#ffffff;">';
       html += '<table width="100%" border="0" cellpadding="0" cellspacing="0"><tr>';
       html += '<td valign="top" style="color:#ffffff; font-family:Arial, Helvetica, sans-serif;">';
-      html += '<div style="font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:#94a3b8; font-weight:700; margin-bottom:4px;">Executive Status Report</div>';
+      html += '<div style="font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:#94a3b8; font-weight:700; margin-bottom:4px;">' + escapeHTML(cadenceLabel) + '</div>';
       html += '<h1 style="margin:0 0 6px 0; font-size:20px; font-weight:800; color:#ffffff; letter-spacing:-0.3px; line-height:1.25; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(P.name || 'Project Executive Brief') + '</h1>';
       html += '<div style="font-size:11.5px; color:#cbd5e1; line-height:1.5;">Report Period: ' + reportPeriod + ' &nbsp;|&nbsp; Prepared by ' + escapeHTML(pmName) + '</div>';
       html += '</td>';
       html += '<td width="160" align="right" valign="top" style="text-align:right; font-family:Arial, Helvetica, sans-serif;">';
       html += '<div style="display:inline-block; padding:6px 14px; border-radius:20px; font-weight:800; font-size:12px; background-color:' + healthBg + '; color:' + healthColor + '; border:1.5px solid ' + healthColor + ';" bgcolor="' + healthBg + '">' + escapeHTML(stats.health) + '</div>';
       html += '<div style="font-size:24px; font-weight:900; color:#ffffff; margin-top:6px; line-height:1;">' + stats.score + '<span style="font-size:12px; color:#94a3b8; font-weight:500;">/100</span></div>';
-      html += '<div style="font-size:11px; color:' + trendColor + '; font-weight:700; margin-top:3px;">' + trendSymbol + ' vs last week</div>';
+      html += '<div style="font-size:11px; color:' + trendColor + '; font-weight:700; margin-top:3px;">' + trendSymbol + ' vs last cycle</div>';
       html += '</td></tr></table></td></tr>';
       html += '<tr><td height="4" bgcolor="' + healthColor + '" style="background-color:' + healthColor + '; height:4px; font-size:1px; line-height:1px;">&nbsp;</td></tr>';
       html += '<tr><td height="20" style="font-size:1px; line-height:1px;">&nbsp;</td></tr>';
@@ -36330,17 +36342,17 @@ Earned Value Management measures project performance and progress by comparing p
         html += escapeHTML(execNote).replace(/\n/g, '<br>') + '</td></tr></table></td></tr>';
       }
 
-      // Executive Summary (Point-wise bullets)
+      // MANDATORY SECTION: Overall Project Status & Executive Summary
       const summaryPts = generateHealthPoints(stats);
       html += '<tr><td style="padding-bottom:24px;">';
-      html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f8fafc" style="background-color:#f8fafc; border:1px solid #e2e8f0; border-collapse:collapse;"><tr><td style="padding:18px 20px;">';
-      html += secHdr('#475569', 'Executive Summary');
+      html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f8fafc" style="background-color:#f8fafc; border:1px solid #cbd5e1; border-collapse:collapse;"><tr><td style="padding:18px 20px;">';
+      html += secHdr('#0f172a', 'Overall Project Status (' + escapeHTML(cadenceLabel) + ')');
       html += '<ul style="margin:0; padding-left:18px; color:#1e293b; font-size:13.5px; line-height:1.75; font-family:Arial, Helvetica, sans-serif;">';
       summaryPts.forEach(pt => {
         html += '<li style="margin-bottom:8px;">' + pt + '</li>';
       });
       html += '</ul></td></tr></table></td></tr>';
-
+      
       // 1. KPI Grid Table
       if (incKpi) {
         const ovColor = stats.progress >= 70 ? '#16a34a' : stats.progress >= 40 ? '#d97706' : '#dc2626';
@@ -36548,16 +36560,19 @@ Earned Value Management measures project performance and progress by comparing p
       const members = P.members || [];
       const pmObj = members.find(m => m.role && (m.role.toLowerCase().includes('manager') || m.role.toLowerCase().includes('lead') || m.role.toLowerCase().includes('pm'))) || members[0] || {};
       const pmName = pmObj.name || 'Project Lead';
-      const rpStart = new Date(); rpStart.setDate(rpStart.getDate() - 7);
+      const cadence      = $id('cxo-report-cadence')?.value || 'weekly';
+      const daysBack     = cadence === 'fortnightly' ? 14 : 7;
+      const cadenceLabel = cadence === 'fortnightly' ? 'Fortnightly Status Report' : 'Weekly Status Report';
+      const rpStart      = new Date(); rpStart.setDate(rpStart.getDate() - daysBack);
       const reportPeriod = formatCxoDate(rpStart) + ' – ' + formatCxoDate(new Date());
-      const cpPct = stats.cpTotal > 0 ? Math.round((stats.cpCompleted / stats.cpTotal) * 100) : 0;
+      const cpPct        = stats.cpTotal > 0 ? Math.round((stats.cpCompleted / stats.cpTotal) * 100) : 0;
 
       let text = '==================================================\n';
-      text += 'EXECUTIVE STATUS REPORT\n';
+      text += 'EXECUTIVE STATUS REPORT — OVERALL PROJECT STATUS\n';
       text += (P.name || 'Project Status Update') + '\n';
-      text += 'Report Period: ' + reportPeriod + ' | Prepared by: ' + pmName + '\n';
+      text += 'Cadence: ' + cadenceLabel + ' | Period: ' + reportPeriod + ' | Prepared by: ' + pmName + '\n';
       text += 'Health: ' + stats.health + ' (' + stats.score + '/100)';
-      if (stats.trend !== 0) text += ' | Trend: ' + (stats.trend > 0 ? '+' : '') + stats.trend + ' vs last week';
+      if (stats.trend !== 0) text += ' | Trend: ' + (stats.trend > 0 ? '+' : '') + stats.trend + ' vs last cycle';
       text += '\n==================================================\n\n';
 
       if (execNote) {
@@ -36565,14 +36580,14 @@ Earned Value Management measures project performance and progress by comparing p
       }
 
       const summaryPts = generateHealthPoints(stats);
-      text += 'EXECUTIVE SUMMARY:\n';
+      text += 'OVERALL PROJECT STATUS & EXECUTIVE SUMMARY:\n';
       summaryPts.forEach(pt => {
         const cleanPt = pt.replace(/<\/?strong>/g, '');
         text += '  • ' + cleanPt + '\n';
       });
       text += '\n--------------------------------------------------\n\n';
-
-      text += 'KEY PERFORMANCE INDICATORS:\n';
+      
+      KEY PERFORMANCE INDICATORS:\n';
       text += '  Overall Task Progress  : ' + stats.progress + '% (' + stats.completed + '/' + stats.total + ' tasks)\n';
       text += '  Module Delivery Avg    : ' + stats.moduleProgress + '%\n';
       text += '  Critical Path          : ' + stats.cpCompleted + '/' + stats.cpTotal + ' milestones (' + cpPct + '%)\n';
