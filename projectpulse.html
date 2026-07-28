@@ -14671,6 +14671,29 @@
       const d = new Date();
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     };
+    const formatCxoDate = (dateInput) => {
+      if (!dateInput) return '—';
+      let d;
+      if (dateInput instanceof Date) {
+        d = dateInput;
+      } else if (typeof dateInput === 'number') {
+        d = new Date(dateInput);
+      } else if (typeof dateInput === 'string') {
+        const str = dateInput.trim();
+        const parts = str.split('T')[0].split('-');
+        if (parts.length === 3 && parts[0].length === 4) {
+          d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        } else {
+          d = new Date(str);
+        }
+      }
+      if (!d || isNaN(d.getTime())) return String(dateInput);
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    };
+    window.formatCxoDate = formatCxoDate;
+
     const getRaidDateSince = (r) => {
       if (!r) return todayStr();
       const d = r.createdAt || r.dateLogged || r.identifiedDate || r.updatedAt || r.dueDate;
@@ -14684,11 +14707,19 @@
       }
     };
     const formatRaidDateSince = (r) => {
-      const dStr = getRaidDateSince(r);
-      if (!dStr) return '—';
-      const dateObj = new Date(dStr);
-      if (isNaN(dateObj.getTime())) return dStr;
-      return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      if (!r) return '—';
+      const createdStr = r.createdAt || r.dateLogged || r.identifiedDate || r.dueDate || todayStr();
+      const dateFormatted = formatCxoDate(createdStr);
+      let daysAgo = 0;
+      try {
+        const createdDate = new Date(createdStr);
+        createdDate.setHours(0,0,0,0);
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const diffMs = today - createdDate;
+        daysAgo = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+      } catch(e) {}
+      return `${dateFormatted} (${daysAgo}d active)`;
     };
     const getRaidAgeDays = (r) => {
       const dStr = getRaidDateSince(r);
@@ -36127,42 +36158,7 @@ Earned Value Management measures project performance and progress by comparing p
       }
     }
 
-    function formatCxoDate(dateInput) {
-      if (!dateInput) return '—';
-      let d;
-      if (dateInput instanceof Date) {
-        d = dateInput;
-      } else if (typeof dateInput === 'number') {
-        d = new Date(dateInput);
-      } else if (typeof dateInput === 'string') {
-        const str = dateInput.trim();
-        const parts = str.split('T')[0].split('-');
-        if (parts.length === 3 && parts[0].length === 4) {
-          d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-        } else {
-          d = new Date(str);
-        }
-      }
-      if (!d || isNaN(d.getTime())) return String(dateInput);
-      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-    }
 
-    function getRaidDateSince(r) {
-      const createdStr = r.createdAt || r.dueDate || todayStr();
-      const dateFormatted = formatCxoDate(createdStr);
-      let daysAgo = 0;
-      try {
-        const createdDate = new Date(createdStr);
-        createdDate.setHours(0,0,0,0);
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        const diffMs = today - createdDate;
-        daysAgo = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
-      } catch(e) {}
-      return `${dateFormatted} (${daysAgo}d active)`;
-    }
 
     function computeGlobalStats() {
       const tasks = P.tasks || [];
@@ -36449,7 +36445,7 @@ Earned Value Management measures project performance and progress by comparing p
             html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;"><span style="background-color:' + tBg + '; color:' + tCol2 + '; font-weight:700; font-size:11px; padding:2px 8px; border-radius:4px;" bgcolor="' + tBg + '">' + escapeHTML(r.type || 'Risk') + '</span></td>';
             html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(r.owner || '—') + '</td>';
             html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;"><span style="background-color:' + sBg + '; color:' + sCol + '; font-weight:700; font-size:11px; padding:2px 8px; border-radius:4px;" bgcolor="' + sBg + '">' + escapeHTML(r.severity || r.impact || 'High') + '</span></td>';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#64748b; font-size:12px; white-space:nowrap; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(getRaidDateSince(r)) + '</td>';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#64748b; font-size:12px; white-space:nowrap; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(formatRaidDateSince(r)) + '</td>';
             html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:12px; line-height:1.5; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(mit.substring(0, 110)) + (mit.length > 110 ? '…' : '') + '</td></tr>';
           });
           html += '</tbody></table>';
