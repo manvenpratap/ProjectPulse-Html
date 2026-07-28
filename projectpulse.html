@@ -18543,101 +18543,132 @@
 
     function getTasksForDisplayLevel(filteredTasks) {
       const lvl = P.displayLevel !== undefined ? P.displayLevel : 1;
+      if (!P.expanded) P.expanded = new Set();
 
       if (lvl === 0) {
         // Milestones only
         const modMs = getModuleMilestones();
-        return filteredTasks.filter(x => (x.startDate && x.startDate === x.dueDate) || x.category === 'Milestone' || modMs.has(x.id) || (x.subtasks && x.subtasks.some(st => modMs.has(st.id))));
-      }
-
-      if (lvl === 1) {
-        // Top-level module tasks
-        return filteredTasks;
-      }
-
-      if (lvl === 2) {
-        // Screens level breakdown
         const result = [];
         filteredTasks.forEach(t => {
-          const screenSubs = (t.subtasks || []).filter(st => st.type === 'screen');
-          const guiScreens = Array.isArray(t.guiScreens) ? t.guiScreens : [];
-
-          if (screenSubs.length > 0) {
-            screenSubs.forEach(st => {
-              result.push({
-                ...t,
-                id: st.id || `${t.id}-scr-${st.name}`,
-                name: `📺 ${st.name}`,
-                parentName: t.name,
-                parentId: t.id,
-                status: st.status || t.status,
-                progress: st.progress !== undefined ? st.progress : (st.status === 'Completed' ? 100 : t.progress || 0),
-                startDate: st.startDate || t.startDate,
-                dueDate: st.dueDate || t.dueDate,
-                assignee: st.assignee || t.assignee,
-                estEffort: st.estEffort || Math.round((t.estEffort || 0) / Math.max(1, screenSubs.length)),
-                actCompletionDate: st.actCompletionDate || (st.status === 'Completed' ? t.actCompletionDate : null),
-                isSubtaskItem: true,
-                subtaskType: 'screen'
-              });
-            });
-          } else if (guiScreens.length > 0) {
-            guiScreens.forEach((scrName, idx) => {
-              result.push({
-                ...t,
-                id: `${t.id}-gui-${idx}`,
-                name: `📺 ${scrName}`,
-                parentName: t.name,
-                parentId: t.id,
-                status: t.status,
-                progress: t.progress,
-                startDate: t.startDate,
-                dueDate: t.dueDate,
-                assignee: t.assignee,
-                isSubtaskItem: true,
-                subtaskType: 'screen'
-              });
-            });
-          } else {
+          const isMs = (t.startDate && t.startDate === t.dueDate) || t.category === 'Milestone' || modMs.has(t.id);
+          const hasMsSub = t.subtasks && t.subtasks.some(st => modMs.has(st.id));
+          if (isMs || hasMsSub) {
             result.push(t);
+            if (hasMsSub && P.expanded.has(t.id)) {
+              (t.subtasks || []).forEach((st, idx) => {
+                if (modMs.has(st.id)) {
+                  const isScr = st.type === 'screen';
+                  result.push({
+                    ...t,
+                    id: st.id || `${t.id}-st-${idx}`,
+                    name: st.name,
+                    displayName: (isScr ? `📺 ` : `↳ `) + st.name,
+                    parentName: t.name,
+                    parentId: t.id,
+                    status: st.status || t.status,
+                    progress: st.progress !== undefined ? st.progress : (st.status === 'Completed' ? 100 : (t.progress || 0)),
+                    startDate: st.startDate || t.startDate,
+                    dueDate: st.dueDate || t.dueDate,
+                    assignee: st.assignee || t.assignee,
+                    estEffort: st.estEffort || st.effort || Math.round((t.estEffort || 0) / Math.max(1, (t.subtasks || []).length)),
+                    actCompletionDate: st.actCompletionDate || (st.status === 'Completed' ? t.actCompletionDate : null),
+                    isSubtaskItem: true,
+                    subtaskType: st.type || 'subtask',
+                    level: 1
+                  });
+                }
+              });
+            }
           }
         });
         return result;
       }
 
-      if (lvl === 3) {
-        // Full task & sub-task details
-        const result = [];
-        filteredTasks.forEach(t => {
-          const subs = t.subtasks || [];
-          if (subs.length > 0) {
-            subs.forEach((st, idx) => {
-              const isScr = st.type === 'screen';
-              result.push({
-                ...t,
-                id: st.id || `${t.id}-st-${idx}`,
-                name: (isScr ? `📺 ` : `↳ `) + st.name,
-                parentName: t.name,
-                parentId: t.id,
-                status: st.status || t.status,
-                progress: st.progress !== undefined ? st.progress : (st.status === 'Completed' ? 100 : (t.progress || 0)),
-                startDate: st.startDate || t.startDate,
-                dueDate: st.dueDate || t.dueDate,
-                assignee: st.assignee || t.assignee,
-                estEffort: st.estEffort || Math.round((t.estEffort || 0) / Math.max(1, subs.length)),
-                actCompletionDate: st.actCompletionDate || (st.status === 'Completed' ? t.actCompletionDate : null),
-                isSubtaskItem: true,
-                subtaskType: st.type || 'subtask'
-              });
-            });
-          } else {
-            result.push(t);
-          }
-        });
-        return result;
-      }
+      const result = [];
+      filteredTasks.forEach(t => {
+        result.push(t);
 
-      return filteredTasks;
+        const hasSubs = (t.subtasks && t.subtasks.length > 0) || (Array.isArray(t.guiScreens) && t.guiScreens.length > 0);
+        const isExpanded = P.expanded.has(t.id);
+
+        if (hasSubs && isExpanded) {
+          if (lvl === 2) {
+            // Screens level breakdown
+            const screenSubs = (t.subtasks || []).filter(st => st.type === 'screen');
+            const guiScreens = Array.isArray(t.guiScreens) ? t.guiScreens : [];
+
+            if (screenSubs.length > 0) {
+              screenSubs.forEach((st, idx) => {
+                result.push({
+                  ...t,
+                  id: st.id || `${t.id}-scr-${st.name || idx}`,
+                  name: st.name,
+                  displayName: `📺 ${st.name}`,
+                  parentName: t.name,
+                  parentId: t.id,
+                  status: st.status || t.status,
+                  progress: st.progress !== undefined ? st.progress : (st.status === 'Completed' ? 100 : (t.progress || 0)),
+                  startDate: st.startDate || t.startDate,
+                  dueDate: st.dueDate || t.dueDate,
+                  assignee: st.assignee || t.assignee,
+                  estEffort: st.estEffort || st.effort || Math.round((t.estEffort || 0) / Math.max(1, screenSubs.length)),
+                  actCompletionDate: st.actCompletionDate || (st.status === 'Completed' ? t.actCompletionDate : null),
+                  isSubtaskItem: true,
+                  subtaskType: 'screen',
+                  level: 1
+                });
+              });
+            } else if (guiScreens.length > 0) {
+              guiScreens.forEach((scrName, idx) => {
+                result.push({
+                  ...t,
+                  id: `${t.id}-gui-${idx}`,
+                  name: scrName,
+                  displayName: `📺 ${scrName}`,
+                  parentName: t.name,
+                  parentId: t.id,
+                  status: t.status,
+                  progress: t.progress,
+                  startDate: t.startDate,
+                  dueDate: t.dueDate,
+                  assignee: t.assignee,
+                  isSubtaskItem: true,
+                  subtaskType: 'screen',
+                  level: 1
+                });
+              });
+            }
+          } else {
+            // Level 1 (custom expanded) or Level 3 (Sub-tasks level)
+            const subs = t.subtasks || [];
+            if (subs.length > 0) {
+              subs.forEach((st, idx) => {
+                const isScr = st.type === 'screen';
+                result.push({
+                  ...t,
+                  id: st.id || `${t.id}-st-${idx}`,
+                  name: st.name,
+                  displayName: (isScr ? `📺 ` : `↳ `) + st.name,
+                  parentName: t.name,
+                  parentId: t.id,
+                  status: st.status || t.status,
+                  progress: st.progress !== undefined ? st.progress : (st.status === 'Completed' ? 100 : (t.progress || 0)),
+                  startDate: st.startDate || t.startDate,
+                  dueDate: st.dueDate || t.dueDate,
+                  assignee: st.assignee || t.assignee,
+                  estEffort: st.estEffort || st.effort || Math.round((t.estEffort || 0) / Math.max(1, subs.length)),
+                  actCompletionDate: st.actCompletionDate || (st.status === 'Completed' ? t.actCompletionDate : null),
+                  isSubtaskItem: true,
+                  subtaskType: st.type || 'subtask',
+                  level: 1
+                });
+              });
+            }
+          }
+        }
+      });
+
+      return result;
     }
 
     function getFilteredLogs() {
@@ -18691,6 +18722,16 @@
       `;
 
       let extraActions = '';
+      if (P.taskViewMode === 'timeline' || P.taskViewMode === 'swimlane') {
+        const sortMode = P.timelineSort || 'date';
+        const sortLabel = sortMode === 'name-asc' ? 'Sort: Name (A-Z)' : sortMode === 'name-desc' ? 'Sort: Name (Z-A)' : 'Sort: Start Date';
+        extraActions = `
+          <button class="btn mini ${sortMode !== 'date' ? 'primary' : ''}" onclick="toggleGanttSort()" title="Toggle Timeline Task Sorting Mode" style="display:inline-flex;align-items:center;gap:6px;">
+            <i data-lucide="arrow-up-down" style="width:14px;height:14px"></i>
+            <span>${sortLabel}</span>
+          </button>
+        `;
+      }
 
       const afWrap = $id('autofit-cols-wrap');
       if (afWrap) {
@@ -20220,7 +20261,7 @@
       renderDash();
     }
 
-    function toggleExpand(id) { if (P.expanded.has(id)) P.expanded.delete(id); else P.expanded.add(id); renderTable(); }
+    function toggleExpand(id) { if (P.expanded.has(id)) P.expanded.delete(id); else P.expanded.add(id); renderTasksView(); }
     function doSort(col) { if (P.sort.col === col) P.sort.dir = P.sort.dir === 'asc' ? 'desc' : 'asc'; else { P.sort.col = col; P.sort.dir = 'asc'; } renderTable(); }
     function syncColFiltersToFilters(col, val) {
       if (!P.filters) P.filters = {};
@@ -52634,6 +52675,11 @@ Earned Value Management measures project performance and progress by comparing p
 
     // ══════ GANTT / TIMELINE ══════
     function setGanttZoom(z) { P.ganttZoom = z; document.querySelectorAll('.gantt-zoom button, .gantt-zoom .btn').forEach(b => b.classList.toggle('active', b.dataset.z === z)); if (P.taskViewMode === 'swimlane') renderTaskSwimlane(); else renderGantt(); }
+    function toggleGanttSort() {
+      P.timelineSort = (P.timelineSort === 'name-asc') ? 'name-desc' : (P.timelineSort === 'name-desc') ? 'date' : 'name-asc';
+      if (P.taskViewMode === 'swimlane') renderTaskSwimlane();
+      else renderGantt();
+    }
     function toggleGanttDeps() { P.showGanttDeps = !P.showGanttDeps; if (P.view === 'features' || (P.view === 'admin' && P._adminActiveTab === 'features')) renderFeatureHub(); else renderTasksView(); if (typeof renderSidebar === 'function') renderSidebar(); }
     function toggleGanttActuals() { P.showGanttActuals = !P.showGanttActuals; if (P.view === 'features' || (P.view === 'admin' && P._adminActiveTab === 'features')) renderFeatureHub(); else renderTasksView(); if (typeof renderSidebar === 'function') renderSidebar(); }
     function toggleMonteCarlo() { P.showMonteCarlo = !P.showMonteCarlo; if (P.view === 'features' || (P.view === 'admin' && P._adminActiveTab === 'features')) renderFeatureHub(); else renderTasksView(); if (typeof renderSidebar === 'function') renderSidebar(); }
@@ -52678,6 +52724,55 @@ Earned Value Management measures project performance and progress by comparing p
       return results;
     }
 
+    function sortTimelineTasks(tasks) {
+      const sortMode = P.timelineSort || 'date';
+      const parentTasks = [];
+      const childrenMap = new Map();
+
+      tasks.forEach(t => {
+        if (t.isSubtaskItem && t.parentId) {
+          if (!childrenMap.has(t.parentId)) childrenMap.set(t.parentId, []);
+          childrenMap.get(t.parentId).push(t);
+        } else {
+          parentTasks.push(t);
+        }
+      });
+
+      const compareFn = (a, b) => {
+        if (sortMode === 'name-asc') {
+          return String(a.name || '').localeCompare(String(b.name || ''));
+        } else if (sortMode === 'name-desc') {
+          return String(b.name || '').localeCompare(String(a.name || ''));
+        } else {
+          const da = a.startDate ? new Date(a.startDate + 'T00:00:00').getTime() : 0;
+          const db = b.startDate ? new Date(b.startDate + 'T00:00:00').getTime() : 0;
+          return da - db;
+        }
+      };
+
+      parentTasks.sort(compareFn);
+
+      const sortedResult = [];
+      parentTasks.forEach(pt => {
+        sortedResult.push(pt);
+        const children = childrenMap.get(pt.id);
+        if (children && children.length > 0) {
+          children.sort(compareFn);
+          children.forEach(c => sortedResult.push(c));
+        }
+      });
+
+      // Include any orphan subtasks whose parents were not in parentTasks list
+      childrenMap.forEach((children, pId) => {
+        if (!parentTasks.some(pt => pt.id === pId)) {
+          children.sort(compareFn);
+          children.forEach(c => sortedResult.push(c));
+        }
+      });
+
+      return sortedResult;
+    }
+
     function renderTimeline() {
       setTaskViewMode('timeline');
     }
@@ -52692,7 +52787,7 @@ Earned Value Management measures project performance and progress by comparing p
       slHitAreas = [];
 
       const rawTasks = getFiltered().filter(t => t.startDate && t.dueDate);
-      const tasks = getTasksForDisplayLevel(rawTasks).filter(t => t.startDate && t.dueDate).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+      const tasks = sortTimelineTasks(getTasksForDisplayLevel(rawTasks).filter(t => t.startDate && t.dueDate));
       if (!tasks.length) {
         swimOuter.innerHTML = '<div style="padding:40px 16px;text-align:center;color:var(--color-text-muted)"><div style="font-size:24px;margin-bottom:6px">📅</div>No tasks with dates</div>';
         return;
@@ -52823,9 +52918,16 @@ Earned Value Management measures project performance and progress by comparing p
           document.addEventListener('pointerup', onPointerUp);
         });
 
+        const sortMode = P.timelineSort || 'date';
+        const sortIcon = sortMode === 'name-asc' ? '↑' : sortMode === 'name-desc' ? '↓' : '📅';
+        const sortTitle = sortMode === 'name-asc' ? 'Sorted by Task Name (A-Z)' : sortMode === 'name-desc' ? 'Sorted by Task Name (Z-A)' : 'Sorted by Start Date';
         const rowHead = document.createElement('div');
         rowHead.className = 'sl-row-head';
-        rowHead.textContent = 'Task Name';
+        rowHead.style.cursor = 'pointer';
+        rowHead.style.userSelect = 'none';
+        rowHead.title = 'Click to toggle sort mode (' + sortTitle + ')';
+        rowHead.onclick = () => toggleGanttSort();
+        rowHead.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;width:100%"><span>Task Name</span><span style="font-size:11px;opacity:0.8;background:var(--color-surface-2);padding:2px 6px;border-radius:4px">${sortIcon}</span></div>`;
         left.appendChild(rowHead);
 
         laneItems.forEach((t, i) => {
@@ -52834,10 +52936,32 @@ Earned Value Management measures project performance and progress by comparing p
           row.setAttribute('data-id', t.id);
           row.style.height = `${ROW_H}px`;
           
-          let nameHtml = esc(t.name);
+          const hasSubs = !t.isSubtaskItem && ((t.subtasks && t.subtasks.length > 0) || (Array.isArray(t.guiScreens) && t.guiScreens.length > 0));
+          const isExp = P.expanded && P.expanded.has(t.id);
+
+          let expandToggle = '';
+          if (hasSubs) {
+            expandToggle = `<button class="expand-btn${isExp ? ' open' : ''}" onclick="event.stopPropagation();toggleExpand('${t.id}')" title="${isExp ? 'Collapse' : 'Expand'}" style="background:none;border:none;cursor:pointer;font-size:10px;margin-right:6px;padding:0 2px;color:var(--color-text-muted);line-height:1;display:inline-flex;align-items:center;justify-content:center">${isExp ? '▼' : '▶'}</button>`;
+          }
+
+          let nameStr = esc(t.displayName || t.name);
+          if (t.isSubtaskItem) {
+            row.style.paddingLeft = '24px';
+            row.style.fontSize = '12px';
+            row.style.color = 'var(--color-text-muted)';
+            if (t.subtaskType === 'screen') {
+              row.style.fontWeight = '600';
+            }
+          } else {
+            row.style.fontWeight = '600';
+          }
+
           const isMS = t.startDate === t.dueDate || t.category === 'Milestone';
+          let nameHtml = '';
           if (isMS) {
-            nameHtml = `<span style="color:var(--color-primary);margin-right:4px">💎</span>${nameHtml}`;
+            nameHtml = expandToggle + `<span style="color:var(--color-primary);margin-right:4px">💎</span>${nameStr}`;
+          } else {
+            nameHtml = expandToggle + nameStr;
           }
           
           row.innerHTML = `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center">${nameHtml}</span>`;
@@ -52848,7 +52972,7 @@ Earned Value Management measures project performance and progress by comparing p
           row.onmouseleave = () => {
             row.style.background = 'var(--color-surface)';
           };
-          row.onclick = () => openFlyout(t.id);
+          row.onclick = () => openFlyout(t.parentId || t.id);
           left.appendChild(row);
         });
 
@@ -53394,7 +53518,7 @@ Earned Value Management measures project performance and progress by comparing p
     function renderGantt() {
       withScroll(() => {
         const rawTasks = getFiltered().filter(t => t.startDate && t.dueDate);
-        const tasks = getTasksForDisplayLevel(rawTasks).filter(t => t.startDate && t.dueDate).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+        const tasks = sortTimelineTasks(getTasksForDisplayLevel(rawTasks).filter(t => t.startDate && t.dueDate));
         if (!tasks.length) { $id('gantt-left').innerHTML = '<div style="padding:40px 16px;text-align:center;color:var(--color-text-muted)"><div style="font-size:24px;margin-bottom:6px">📅</div>No tasks with dates</div>'; $id('gantt-canvas').width = 0; return; }
         const allDates = tasks.flatMap(t => [new Date(t.startDate + 'T00:00:00'), new Date(t.dueDate + 'T00:00:00'), ...(P.showGanttActuals && t.actCompletionDate ? [new Date(t.actCompletionDate + 'T00:00:00')] : [])]);
         (P.releases || []).forEach(r => { if (r.date) allDates.push(new Date(r.date + 'T00:00:00')); });
@@ -53455,7 +53579,17 @@ Earned Value Management measures project performance and progress by comparing p
 
         // Left panel
         const left = $id('gantt-left'); left.innerHTML = '';
-        const lh = document.createElement('div'); lh.className = 'gl-head'; lh.textContent = 'Task'; left.appendChild(lh);
+        const sortMode = P.timelineSort || 'date';
+        const sortIcon = sortMode === 'name-asc' ? '↑' : sortMode === 'name-desc' ? '↓' : '📅';
+        const sortTitle = sortMode === 'name-asc' ? 'Sorted by Task Name (A-Z)' : sortMode === 'name-desc' ? 'Sorted by Task Name (Z-A)' : 'Sorted by Start Date';
+        const lh = document.createElement('div');
+        lh.className = 'gl-head';
+        lh.style.cursor = 'pointer';
+        lh.style.userSelect = 'none';
+        lh.title = 'Click to toggle sort mode (' + sortTitle + ')';
+        lh.onclick = () => toggleGanttSort();
+        lh.innerHTML = `<div style="display:flex;align-items:center;justify-space-between;width:100%"><span>Task</span><span style="font-size:11px;opacity:0.8;margin-left:auto;background:var(--color-surface-2);padding:2px 6px;border-radius:4px">${sortIcon}</span></div>`;
+        left.appendChild(lh);
         tasks.forEach((t, i) => {
           const r = document.createElement('div');
           r.className = 'gl-row';
@@ -53464,10 +53598,30 @@ Earned Value Management measures project performance and progress by comparing p
           if (isMS) r.classList.add('milestone-row');
           if (i % 2 === 1 && !isMS) r.style.background = 'rgba(0,0,0,0.02)';
 
-          let nameHtml = esc(t.name);
-          const modTag = t.moduleType ? `<span style="opacity:0.5;font-size:9px;margin-right:6px;font-family:var(--mono);font-weight:700;text-transform:uppercase;color:var(--color-primary)">${t.moduleType}</span>` : '';
-          if (isMS) nameHtml = `<span style="color:var(--color-primary);margin-right:4px">💎</span>${nameHtml}`;
-          else nameHtml = modTag + nameHtml;
+          const hasSubs = !t.isSubtaskItem && ((t.subtasks && t.subtasks.length > 0) || (Array.isArray(t.guiScreens) && t.guiScreens.length > 0));
+          const isExp = P.expanded && P.expanded.has(t.id);
+
+          let expandToggle = '';
+          if (hasSubs) {
+            expandToggle = `<button class="expand-btn${isExp ? ' open' : ''}" onclick="event.stopPropagation();toggleExpand('${t.id}')" title="${isExp ? 'Collapse' : 'Expand'}" style="background:none;border:none;cursor:pointer;font-size:10px;margin-right:6px;padding:0 2px;color:var(--color-text-muted);line-height:1;display:inline-flex;align-items:center;justify-content:center">${isExp ? '▼' : '▶'}</button>`;
+          }
+
+          let nameStr = esc(t.displayName || t.name);
+          if (t.isSubtaskItem) {
+            r.style.paddingLeft = '24px';
+            r.style.fontSize = '12px';
+            r.style.color = 'var(--color-text-muted)';
+            if (t.subtaskType === 'screen') {
+              r.style.fontWeight = '600';
+            }
+          } else {
+            r.style.fontWeight = '600';
+          }
+
+          const modTag = (t.moduleType && !t.isSubtaskItem) ? `<span style="opacity:0.5;font-size:9px;margin-right:6px;font-family:var(--mono);font-weight:700;text-transform:uppercase;color:var(--color-primary)">${t.moduleType}</span>` : '';
+          let nameHtml = '';
+          if (isMS) nameHtml = expandToggle + `<span style="color:var(--color-primary);margin-right:4px">💎</span>` + nameStr;
+          else nameHtml = expandToggle + modTag + nameStr;
 
           r.innerHTML = `<span style="overflow:hidden;text-overflow:ellipsis;flex:1;display:flex;align-items:center">${nameHtml}</span>`;
           r.onmouseenter = () => { if (!isMS) r.style.background = 'var(--color-surface-2)'; };
