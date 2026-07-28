@@ -8076,6 +8076,10 @@
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      padding: 24px 16px;
     }
 
     .mbg.open {
@@ -8092,10 +8096,12 @@
       max-width: 95vw;
       max-height: 85vh;
       overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
       transform: scale(0.95) translateY(12px);
       opacity: 0;
       transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1), transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
       box-shadow: 0 24px 48px rgba(0, 0, 0, 0.16), 0 8px 16px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      margin: auto;
     }
 
     .modal.wide {
@@ -12046,6 +12052,9 @@
                 </button>
                 <div class="dd-menu" id="export-dd-menu" style="width:180px;right:0;padding:8px">
                   <div class="dd-group-title">Share View</div>
+                  <button class="dd-item" onclick="triggerGlobalExport('cxo-email')">
+                    <i data-lucide="mail"></i> Copy CXO Email Brief
+                  </button>
                   <button class="dd-item" onclick="triggerGlobalExport('copy')">
                     <i data-lucide="copy"></i> Copy as Image
                   </button>
@@ -12508,6 +12517,70 @@
       </div>
     </div>
 
+    <!-- CXO EMAIL BRIEF MODAL -->
+    <div class="mbg" id="cxo-email-modal">
+      <div class="modal wide" style="max-width:900px; width:92vw; max-height:90vh; display:flex; flex-direction:column; padding:0; overflow:hidden; border-radius:16px;">
+        <div class="mtit" style="padding:16px 24px; border-bottom:1px solid var(--color-divider); background:var(--color-surface-2); display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:17px; font-weight:800; display:flex; align-items:center; gap:10px;">
+            <i data-lucide="mail" style="color:var(--color-primary)"></i> CXO Executive Email Brief Generator
+          </span>
+          <span class="mcl" onclick="closeModal('cxo-email-modal')" style="font-size:24px; cursor:pointer;">×</span>
+        </div>
+        <div style="padding:20px 24px; overflow-y:auto; flex:1; min-height:0; display:flex; flex-direction:column; gap:18px; background:var(--color-bg); -webkit-overflow-scrolling:touch;">
+          
+          <!-- Brief Options -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:var(--color-surface-2); padding:16px; border-radius:12px; border:1px solid var(--color-divider);">
+            <div>
+              <label style="font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
+                Brief Format Style
+              </label>
+              <select id="cxo-brief-style" class="finp" style="width:100%" onchange="updateCxoEmailPreview()">
+                <option value="full">Comprehensive Board Brief (All Sections & Details)</option>
+                <option value="condensed">Condensed Executive Highlights (KPIs & Decisions Only)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
+                Include Sections
+              </label>
+              <div style="display:flex; flex-wrap:wrap; gap:12px; font-size:12px; color:var(--color-text); margin-top:6px;">
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-kpi" checked onchange="updateCxoEmailPreview()"> KPI Table</label>
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-wins" checked onchange="updateCxoEmailPreview()"> Accomplishments</label>
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-decisions" checked onchange="updateCxoEmailPreview()"> Decisions Needed</label>
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-risks" checked onchange="updateCxoEmailPreview()"> Top Risks</label>
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-overdue" checked onchange="updateCxoEmailPreview()"> Module Overdue</label>
+              </div>
+            </div>
+            <div style="grid-column:span 2">
+              <label style="font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
+                Custom Executive Commentary / Note (Optional)
+              </label>
+              <textarea id="cxo-exec-note" class="finp" rows="2" placeholder="e.g. Hi Team, here is our bi-weekly project status update. Please review pending decision items by EOD Friday." style="width:100%; font-size:13px;" oninput="updateCxoEmailPreview()"></textarea>
+            </div>
+          </div>
+
+          <!-- Live Preview Window -->
+          <div>
+            <div style="font-size:12px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+              <span>Live Email Draft Preview (Rich HTML)</span>
+              <span style="font-size:11px; color:var(--color-primary); font-weight:600;"><i data-lucide="sparkles" style="width:12px; height:12px; display:inline-block;"></i> Styled for Outlook, Gmail & Mail</span>
+            </div>
+            <div id="cxo-email-preview-wrap" style="background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; padding:20px; max-height:360px; overflow-y:auto; color:#0f172a; box-shadow:0 4px 12px rgba(0,0,0,0.05)">
+              <div id="cxo-email-preview-content"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mact" style="padding:16px 24px; border-top:1px solid var(--color-divider); background:var(--color-surface-2); display:flex; justify-content:space-between; align-items:center;">
+          <button class="btn outline" onclick="closeModal('cxo-email-modal')">Close</button>
+          <div style="display:flex; gap:12px;">
+            <button class="btn secondary" onclick="copyCxoPlainTextToClipboard()"><i data-lucide="file-text" style="margin-right:6px"></i> Copy Plain Text</button>
+            <button class="btn primary" onclick="copyCxoEmailToClipboard()" style="font-weight:700;"><i data-lucide="copy" style="margin-right:6px"></i> Copy Rich Text to Email</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div mbg id="pv-filter-modal" class="mbg">
       <div class="modal">
         <div class="mtit"><span id="pv-filt-title">Filter Analysis</span><span class="mcl"
@@ -12638,6 +12711,7 @@
               <option value="S4 - Minor">S4 - Minor</option>
             </select>
           </div>
+          <div class="fg"><label class="flbl">Date Logged / Identified</label><input type="date" class="finp" id="raid_created" max="9999-12-31"></div>
           <div class="fg"><label class="flbl">Due Date</label><input type="date" class="finp" id="raid_due" max="9999-12-31"></div>
         </div>
         <div class="fg"><label class="flbl">Status</label>
@@ -14597,6 +14671,36 @@
       const d = new Date();
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     };
+    const getRaidDateSince = (r) => {
+      if (!r) return todayStr();
+      const d = r.createdAt || r.dateLogged || r.identifiedDate || r.updatedAt || r.dueDate;
+      if (!d) return todayStr();
+      try {
+        const dateObj = new Date(d);
+        if (isNaN(dateObj.getTime())) return String(d).split('T')[0];
+        return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+      } catch (e) {
+        return String(d).split('T')[0];
+      }
+    };
+    const formatRaidDateSince = (r) => {
+      const dStr = getRaidDateSince(r);
+      if (!dStr) return '—';
+      const dateObj = new Date(dStr);
+      if (isNaN(dateObj.getTime())) return dStr;
+      return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+    const getRaidAgeDays = (r) => {
+      const dStr = getRaidDateSince(r);
+      const dateObj = new Date(dStr);
+      if (isNaN(dateObj.getTime())) return 0;
+      const now = new Date();
+      const diffMs = now - dateObj;
+      return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+    };
+    window.getRaidDateSince = getRaidDateSince;
+    window.formatRaidDateSince = formatRaidDateSince;
+    window.getRaidAgeDays = getRaidAgeDays;
     // ── PROJECT PULSE SCHEDULER SYSTEM ──
     const PulseScheduler = {
       isWorkDay(date) {
@@ -35837,7 +35941,6 @@ Earned Value Management measures project performance and progress by comparing p
           widgetWrapper.style.gridColumn = 'span ' + fallbackSpan;
         }
       });
-
       // Inner card rearrange logic
       dashFragment.querySelectorAll('.dash-widget-wrapper').forEach(wrapper => {
         const secId = wrapper.dataset.id;
@@ -35990,6 +36093,7 @@ Earned Value Management measures project performance and progress by comparing p
       const contId = viewMap[P.view];
       if (!contId) return;
 
+      if (type === 'cxo-email') openCxoEmailModal();
       if (type === 'copy') copyAllShares(contId);
       if (type === 'gantt-html') downloadGanttAsHtml();
       if (type === 'pdf') printContainer(contId);
@@ -36001,6 +36105,627 @@ Earned Value Management measures project performance and progress by comparing p
       if (type === 'share') shareView(contId);
     }
 
+    function escapeHTML(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    function openCxoEmailModal() {
+      openModal('cxo-email-modal');
+      updateCxoEmailPreview();
+    }
+
+    function updateCxoEmailPreview() {
+      const contentEl = $id('cxo-email-preview-content');
+      if (contentEl) {
+        try {
+          contentEl.innerHTML = generateCxoEmailHtml();
+        } catch(e) {
+          contentEl.innerHTML = '<p style="color:#dc2626; font-size:13px; padding:16px;">Preview error: ' + escapeHTML(e.message) + '</p>';
+          console.error('CXO Preview Error:', e);
+        }
+      }
+    }
+
+    function formatCxoDate(dateInput) {
+      if (!dateInput) return '—';
+      let d;
+      if (dateInput instanceof Date) {
+        d = dateInput;
+      } else if (typeof dateInput === 'number') {
+        d = new Date(dateInput);
+      } else if (typeof dateInput === 'string') {
+        const str = dateInput.trim();
+        const parts = str.split('T')[0].split('-');
+        if (parts.length === 3 && parts[0].length === 4) {
+          d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        } else {
+          d = new Date(str);
+        }
+      }
+      if (!d || isNaN(d.getTime())) return String(dateInput);
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    }
+
+    function getRaidDateSince(r) {
+      const createdStr = r.createdAt || r.dueDate || todayStr();
+      const dateFormatted = formatCxoDate(createdStr);
+      let daysAgo = 0;
+      try {
+        const createdDate = new Date(createdStr);
+        createdDate.setHours(0,0,0,0);
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const diffMs = today - createdDate;
+        daysAgo = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+      } catch(e) {}
+      return `${dateFormatted} (${daysAgo}d active)`;
+    }
+
+    function computeGlobalStats() {
+      const tasks = P.tasks || [];
+      const total = tasks.length;
+      const completed = tasks.filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100).length;
+      const progress = total > 0 ? Math.round(tasks.reduce((s, t) => s + (parseInt(t.progress, 10) || 0), 0) / total) : 0;
+
+      const modMap = {};
+      tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').forEach(t => {
+        const m = t.module || 'General';
+        if (!modMap[m]) modMap[m] = { sum: 0, count: 0 };
+        modMap[m].sum += (parseInt(t.progress, 10) || 0);
+        modMap[m].count++;
+      });
+      const modVals = Object.values(modMap);
+      const moduleProgress = modVals.length > 0 ? Math.round(modVals.reduce((s, m) => s + (m.count > 0 ? m.sum / m.count : 0), 0) / modVals.length) : progress;
+
+      const cpTasks = tasks.filter(t => (t.name || '').includes('Milestone') || (t.name || '').includes('💎') || t.isCritical || (t.category && t.category.toLowerCase().includes('milestone')));
+      const cpTotal = cpTasks.length;
+      const cpCompleted = cpTasks.filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100).length;
+
+      const score = (typeof getHealthScore === 'function') ? getHealthScore(tasks) : Math.min(100, Math.max(0, progress));
+      const health = score >= 80 ? 'On Track' : score >= 55 ? 'At Risk' : 'Critical';
+
+      const history = P.healthHistory || [];
+      let trend = 0;
+      if (history.length >= 2) {
+        const prev = history[history.length - 2]?.score || 0;
+        const curr = history[history.length - 1]?.score || score;
+        trend = curr - prev;
+      }
+
+      const raids = P.raids || [];
+      const highCritRisks = raids.filter(r =>
+        r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated' &&
+        (r.impact === 'High' || r.severity === 'S1 - Critical' || r.severity === 'S2 - Major' || r.severity === 'S1 - Blocker')
+      ).length;
+
+      const defects = P.defects || [];
+      const highCritDefects = defects.filter(d =>
+        d.status !== 'Closed' && d.status !== 'Rejected' && d.status !== 'Resolved' &&
+        (d.severity === 'S1 - Blocker' || d.severity === 'S2 - High' || d.priority === 'Critical')
+      ).length;
+
+      const today = new Date(); today.setHours(0,0,0,0);
+      let overdueTasks = 0, onHoldTasks = 0;
+      tasks.forEach(t => {
+        if (t.status === 'Completed' || t.status === 'Cancelled') return;
+        if (t.dueDate) { const d = new Date(t.dueDate); d.setHours(0,0,0,0); if (d < today) overdueTasks++; }
+        if (String(t.status || '').toLowerCase() === 'on hold') onHoldTasks++;
+      });
+
+      const pendingDecisions = (P.decisions || []).filter(d => d.status !== 'Approved' && d.status !== 'Resolved' && d.status !== 'Closed').length;
+
+      return { progress, moduleProgress, cpTotal, cpCompleted, score, health, trend, highCritRisks, highCritDefects, overdueTasks, onHoldTasks, total, completed, pendingDecisions };
+    }
+
+    function generateHealthPoints(stats) {
+      const projectName = escapeHTML(P.name || 'This project');
+      const dateStr = formatCxoDate(new Date());
+      const cpPct = stats.cpTotal > 0 ? Math.round((stats.cpCompleted / stats.cpTotal) * 100) : 0;
+      const points = [];
+
+      if (stats.health === 'On Track') {
+        points.push('<strong>Portfolio Health:</strong> ' + projectName + ' is operating <strong>On Track</strong> as of ' + dateStr + ', recording a score of <strong>' + stats.score + '/100</strong> with key milestones delivering on schedule.');
+      } else if (stats.health === 'At Risk') {
+        points.push('<strong>Portfolio Health:</strong> ' + projectName + ' is currently flagged <strong>At Risk</strong> as of ' + dateStr + ' (Score: <strong>' + stats.score + '/100</strong>) due to schedule variance and cross-module dependencies.');
+      } else {
+        points.push('<strong>Portfolio Health:</strong> ' + projectName + ' is in <strong>Critical Status</strong> as of ' + dateStr + ' (Score: <strong>' + stats.score + '/100</strong>), requiring active executive escalation to resolve delivery bottlenecks.');
+      }
+
+      points.push('<strong>Delivery Momentum:</strong> Overall completion stands at <strong>' + stats.progress + '%</strong> (' + stats.completed + ' of ' + stats.total + ' total deliverables completed), with module progress averaging <strong>' + stats.moduleProgress + '%</strong>.');
+
+      if (stats.cpTotal > 0) {
+        if (cpPct === 100) {
+          points.push('<strong>Critical Path Milestones:</strong> <strong>100% achieved</strong> (' + stats.cpTotal + ' of ' + stats.cpTotal + ' critical milestones completed on time).');
+        } else {
+          points.push('<strong>Critical Path Milestones:</strong> <strong>' + stats.cpCompleted + ' of ' + stats.cpTotal + '</strong> key milestones (' + cpPct + '%) completed; ' + (stats.cpTotal - stats.cpCompleted) + ' remain under active execution.');
+        }
+      }
+
+      if (stats.highCritRisks > 0 || stats.highCritDefects > 0) {
+        const items = [];
+        if (stats.highCritRisks > 0) items.push('<strong>' + stats.highCritRisks + ' high-impact risk' + (stats.highCritRisks > 1 ? 's' : '') + '</strong> in the RAID register');
+        if (stats.highCritDefects > 0) items.push('<strong>' + stats.highCritDefects + ' critical defect' + (stats.highCritDefects > 1 ? 's' : '') + '</strong> pending fix');
+        points.push('<strong>Quality & Risk Exposure:</strong> Active management is focused on ' + items.join(' and ') + '.');
+      } else {
+        points.push('<strong>Quality & Risk Exposure:</strong> <strong>Zero</strong> unmitigated high-severity risks or critical defects remain open.');
+      }
+
+      if (stats.overdueTasks > 0) {
+        let txt = '<strong>Schedule Variance:</strong> <strong>' + stats.overdueTasks + ' deliverable' + (stats.overdueTasks > 1 ? 's are' : ' is') + ' past due</strong>';
+        if (stats.onHoldTasks > 0) txt += ' and <strong>' + stats.onHoldTasks + '</strong> ' + (stats.onHoldTasks > 1 ? 'are' : 'is') + ' on hold awaiting decisions/resources';
+        txt += '.';
+        points.push(txt);
+      }
+
+      if (stats.pendingDecisions > 0) {
+        points.push('<strong>Executive Action Required:</strong> <strong>' + stats.pendingDecisions + ' decision item' + (stats.pendingDecisions > 1 ? 's require' : ' requires') + '</strong> sign-off to unblock ongoing execution streams.');
+      }
+
+      return points;
+    }
+
+    function generateHealthNarrative(stats) {
+      const points = generateHealthPoints(stats);
+      return points.map(pt => pt.replace(/<\/?strong>/g, '')).join(' ');
+    }
+
+    function generateCxoEmailHtml() {
+      const stats = computeGlobalStats();
+      const style = $id('cxo-brief-style')?.value || 'full';
+      const incKpi        = $id('cxo-sec-kpi')?.checked ?? true;
+      const incWins       = style === 'condensed' ? false : ($id('cxo-sec-wins')?.checked ?? true);
+      const incDecisions  = $id('cxo-sec-decisions')?.checked ?? true;
+      const incRisks      = style === 'condensed' ? false : ($id('cxo-sec-risks')?.checked ?? true);
+      const incOverdue    = style === 'condensed' ? false : ($id('cxo-sec-overdue')?.checked ?? true);
+      const incTeam       = style === 'condensed' ? false : ($id('cxo-sec-team')?.checked ?? true);
+      const incOutlook    = $id('cxo-sec-outlook')?.checked ?? true;
+      const execNote      = ($id('cxo-exec-note')?.value || '').trim();
+
+      const healthColor = stats.health === 'On Track' ? '#16a34a' : stats.health === 'At Risk' ? '#d97706' : '#dc2626';
+      const healthBg    = stats.health === 'On Track' ? '#f0fdf4'  : stats.health === 'At Risk' ? '#fffbeb'  : '#fef2f2';
+      const trendSymbol = stats.trend > 0 ? '▲ +' + stats.trend : stats.trend < 0 ? '▼ ' + stats.trend : '▬ 0';
+      const trendColor  = stats.trend > 0 ? '#16a34a' : stats.trend < 0 ? '#dc2626' : '#64748b';
+
+      const members = P.members || [];
+      const pmObj = members.find(m => m.role && (m.role.toLowerCase().includes('manager') || m.role.toLowerCase().includes('lead') || m.role.toLowerCase().includes('pm'))) || members[0] || {};
+      const pmName = pmObj.name || 'Project Lead';
+
+      const rpStart = new Date(); rpStart.setDate(rpStart.getDate() - 7);
+      const reportPeriod = formatCxoDate(rpStart) + ' – ' + formatCxoDate(new Date());
+      const cpPct = stats.cpTotal > 0 ? Math.round((stats.cpCompleted / stats.cpTotal) * 100) : 0;
+
+      const miniBar = function(pct, color) {
+        return '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top:5px; background-color:#e2e8f0; height:6px; border-radius:3px;"><tr><td width="' + Math.min(100, Math.max(0, pct)) + '%" bgcolor="' + color + '" style="background-color:' + color + '; height:6px; border-radius:3px; font-size:1px; line-height:1px;">&nbsp;</td><td style="font-size:1px; line-height:1px;">&nbsp;</td></tr></table>';
+      };
+
+      const secHdr = function(color, label) {
+        return '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:12px; border-collapse:collapse;"><tr>' +
+               '<td width="4" height="14" bgcolor="' + color + '" style="background-color:' + color + '; width:4px; height:14px; font-size:1px; line-height:1px;">&nbsp;</td>' +
+               '<td style="padding-left:8px; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:' + color + '; font-family:Arial, Helvetica, sans-serif;">' + label + '</td>' +
+               '</tr></table>';
+      };
+
+      let html = '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; background-color:#ffffff; font-family:Arial, Helvetica, sans-serif;">';
+      html += '<tr><td align="center" style="padding:0;">';
+      html += '<table width="700" border="0" cellpadding="0" cellspacing="0" style="width:700px; max-width:700px; border-collapse:collapse; color:#1e293b; font-size:14px; line-height:1.65; font-family:Arial, Helvetica, sans-serif;">';
+
+      // Header Banner Table
+      html += '<tr><td bgcolor="#0f172a" style="background-color:#0f172a; padding:28px 28px 22px; border-radius:14px 14px 0 0; color:#ffffff;">';
+      html += '<table width="100%" border="0" cellpadding="0" cellspacing="0"><tr>';
+      html += '<td valign="top" style="color:#ffffff; font-family:Arial, Helvetica, sans-serif;">';
+      html += '<div style="font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:#94a3b8; font-weight:700; margin-bottom:4px;">Executive Status Report</div>';
+      html += '<h1 style="margin:0 0 6px 0; font-size:20px; font-weight:800; color:#ffffff; letter-spacing:-0.3px; line-height:1.25; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(P.name || 'Project Executive Brief') + '</h1>';
+      html += '<div style="font-size:11.5px; color:#cbd5e1; line-height:1.5;">Report Period: ' + reportPeriod + ' &nbsp;|&nbsp; Prepared by ' + escapeHTML(pmName) + '</div>';
+      html += '</td>';
+      html += '<td width="160" align="right" valign="top" style="text-align:right; font-family:Arial, Helvetica, sans-serif;">';
+      html += '<div style="display:inline-block; padding:6px 14px; border-radius:20px; font-weight:800; font-size:12px; background-color:' + healthBg + '; color:' + healthColor + '; border:1.5px solid ' + healthColor + ';" bgcolor="' + healthBg + '">' + escapeHTML(stats.health) + '</div>';
+      html += '<div style="font-size:24px; font-weight:900; color:#ffffff; margin-top:6px; line-height:1;">' + stats.score + '<span style="font-size:12px; color:#94a3b8; font-weight:500;">/100</span></div>';
+      html += '<div style="font-size:11px; color:' + trendColor + '; font-weight:700; margin-top:3px;">' + trendSymbol + ' vs last week</div>';
+      html += '</td></tr></table></td></tr>';
+      html += '<tr><td height="4" bgcolor="' + healthColor + '" style="background-color:' + healthColor + '; height:4px; font-size:1px; line-height:1px;">&nbsp;</td></tr>';
+      html += '<tr><td height="20" style="font-size:1px; line-height:1px;">&nbsp;</td></tr>';
+
+      // Executive Commentary Note
+      if (execNote) {
+        html += '<tr><td style="padding-bottom:20px;"><table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f8fafc" style="background-color:#f8fafc; border-left:4px solid #3b82f6; border-collapse:collapse;"><tr><td style="padding:14px 18px; font-size:13.5px; color:#334155; line-height:1.65; font-family:Arial, Helvetica, sans-serif;">';
+        html += '<div style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:#3b82f6; margin-bottom:4px;">Executive Commentary</div>';
+        html += escapeHTML(execNote).replace(/\n/g, '<br>') + '</td></tr></table></td></tr>';
+      }
+
+      // Executive Summary (Point-wise bullets)
+      const summaryPts = generateHealthPoints(stats);
+      html += '<tr><td style="padding-bottom:24px;">';
+      html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f8fafc" style="background-color:#f8fafc; border:1px solid #e2e8f0; border-collapse:collapse;"><tr><td style="padding:18px 20px;">';
+      html += secHdr('#475569', 'Executive Summary');
+      html += '<ul style="margin:0; padding-left:18px; color:#1e293b; font-size:13.5px; line-height:1.75; font-family:Arial, Helvetica, sans-serif;">';
+      summaryPts.forEach(pt => {
+        html += '<li style="margin-bottom:8px;">' + pt + '</li>';
+      });
+      html += '</ul></td></tr></table></td></tr>';
+
+      // 1. KPI Grid Table
+      if (incKpi) {
+        const ovColor = stats.progress >= 70 ? '#16a34a' : stats.progress >= 40 ? '#d97706' : '#dc2626';
+        html += '<tr><td style="padding-bottom:24px;">' + secHdr('#475569', 'Key Performance Indicators');
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">';
+        html += '<thead><tr bgcolor="#f8fafc" style="background-color:#f8fafc;">';
+        html += '<th bgcolor="#f8fafc" style="padding:10px 14px; font-weight:700; background-color:#f8fafc; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#64748b; text-align:left; font-family:Arial, Helvetica, sans-serif;">Overall Progress</th>';
+        html += '<th bgcolor="#f8fafc" style="padding:10px 14px; font-weight:700; background-color:#f8fafc; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#64748b; text-align:left; font-family:Arial, Helvetica, sans-serif;">Module Delivery</th>';
+        html += '<th bgcolor="#f8fafc" style="padding:10px 14px; font-weight:700; background-color:#f8fafc; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#64748b; text-align:left; font-family:Arial, Helvetica, sans-serif;">Critical Path</th>';
+        html += '<th bgcolor="#f8fafc" style="padding:10px 14px; font-weight:700; background-color:#f8fafc; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#64748b; text-align:left; font-family:Arial, Helvetica, sans-serif;">Open Risks</th>';
+        html += '<th bgcolor="#f8fafc" style="padding:10px 14px; font-weight:700; background-color:#f8fafc; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#64748b; text-align:left; font-family:Arial, Helvetica, sans-serif;">Open Defects</th></tr></thead>';
+        html += '<tbody><tr bgcolor="#ffffff" style="background-color:#ffffff; font-size:14px; font-weight:800; color:#0f172a;">';
+        html += '<td bgcolor="#ffffff" style="padding:12px 14px; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">' + stats.progress + '%' + miniBar(stats.progress, ovColor) + '</td>';
+        html += '<td bgcolor="#ffffff" style="padding:12px 14px; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">' + stats.moduleProgress + '%' + miniBar(stats.moduleProgress, '#3b82f6') + '</td>';
+        html += '<td bgcolor="#ffffff" style="padding:12px 14px; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">' + stats.cpCompleted + '/' + stats.cpTotal + '&nbsp;(' + cpPct + '%)' + miniBar(cpPct, '#8b5cf6') + '</td>';
+        html += '<td bgcolor="#ffffff" style="padding:12px 14px; border:1px solid #e2e8f0; color:' + (stats.highCritRisks > 0 ? '#dc2626' : '#16a34a') + '; font-family:Arial, Helvetica, sans-serif;">' + stats.highCritRisks + (stats.highCritRisks > 0 ? '&nbsp;⚠️' : '&nbsp;✓') + '</td>';
+        html += '<td bgcolor="#ffffff" style="padding:12px 14px; border:1px solid #e2e8f0; color:' + (stats.highCritDefects > 0 ? '#dc2626' : '#16a34a') + '; font-family:Arial, Helvetica, sans-serif;">' + stats.highCritDefects + (stats.highCritDefects > 0 ? '&nbsp;⚠️' : '&nbsp;✓') + '</td>';
+        html += '</tr></tbody></table></td></tr>';
+      }
+
+      // 2. Accomplishments
+      if (incWins) {
+        const wins = (P.tasks || []).filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100)
+          .sort((a, b) => new Date(b.actCompletionDate || b.updatedAt || 0) - new Date(a.actCompletionDate || a.updatedAt || 0))
+          .slice(0, 5);
+        html += '<tr><td style="padding-bottom:24px;">' + secHdr('#16a34a', 'Recent Accomplishments & Key Wins (' + wins.length + ')');
+        if (wins.length === 0) {
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f8fafc" style="background-color:#f8fafc; border:1px solid #e2e8f0; border-collapse:collapse;"><tr><td style="padding:14px; font-size:13px; color:#94a3b8; font-style:italic; font-family:Arial, Helvetica, sans-serif;">No completed milestones recorded in this reporting cycle.</td></tr></table>';
+        } else {
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">';
+          html += '<thead><tr bgcolor="#f0fdf4" style="background-color:#f0fdf4;">';
+          html += '<th bgcolor="#f0fdf4" style="padding:9px 14px; font-weight:700; background-color:#f0fdf4; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#16a34a; text-align:left; font-family:Arial, Helvetica, sans-serif;">Deliverable</th>';
+          html += '<th bgcolor="#f0fdf4" style="padding:9px 14px; font-weight:700; background-color:#f0fdf4; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#16a34a; text-align:left; font-family:Arial, Helvetica, sans-serif;">Module</th>';
+          html += '<th bgcolor="#f0fdf4" style="padding:9px 14px; font-weight:700; background-color:#f0fdf4; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#16a34a; text-align:left; font-family:Arial, Helvetica, sans-serif;">Completed Date</th></tr></thead><tbody>';
+          wins.forEach((w, i) => {
+            const compDate = (w.actCompletionDate || w.updatedAt) ? formatCxoDate(w.actCompletionDate || w.updatedAt) : '—';
+            const rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
+            html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-weight:600; color:#0f172a; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(w.name || w.title || 'Task') + '</td>';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:12px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(w.module || 'General') + '</td>';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#16a34a; font-weight:600; white-space:nowrap; font-size:12px; font-family:Arial, Helvetica, sans-serif;">✓ ' + compDate + '</td></tr>';
+          });
+          html += '</tbody></table>';
+        }
+        html += '</td></tr>';
+      }
+
+      // 3. Decisions
+      if (incDecisions) {
+        const decisions = (P.decisions || []).filter(d => d.status !== 'Approved' && d.status !== 'Resolved' && d.status !== 'Closed').slice(0, 5);
+        html += '<tr><td style="padding-bottom:24px;">' + secHdr('#2563eb', 'Executive Decisions & Approvals Required (' + decisions.length + ')');
+        if (decisions.length === 0) {
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f8fafc" style="background-color:#f8fafc; border:1px solid #e2e8f0; border-collapse:collapse;"><tr><td style="padding:14px; font-size:13px; color:#94a3b8; font-style:italic; font-family:Arial, Helvetica, sans-serif;">No decisions pending executive review at this time.</td></tr></table>';
+        } else {
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">';
+          html += '<thead><tr bgcolor="#eff6ff" style="background-color:#eff6ff;">';
+          html += '<th bgcolor="#eff6ff" style="padding:9px 14px; font-weight:700; background-color:#eff6ff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#2563eb; text-align:left; font-family:Arial, Helvetica, sans-serif;">Decision Item</th>';
+          html += '<th bgcolor="#eff6ff" style="padding:9px 14px; font-weight:700; background-color:#eff6ff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#2563eb; text-align:left; font-family:Arial, Helvetica, sans-serif;">Decision Maker</th>';
+          html += '<th bgcolor="#eff6ff" style="padding:9px 14px; font-weight:700; background-color:#eff6ff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#2563eb; text-align:left; font-family:Arial, Helvetica, sans-serif;">Scope Impact</th>';
+          html += '<th bgcolor="#eff6ff" style="padding:9px 14px; font-weight:700; background-color:#eff6ff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#2563eb; text-align:left; font-family:Arial, Helvetica, sans-serif;">Status</th></tr></thead><tbody>';
+          decisions.forEach((d, i) => {
+            const sCol = d.status === 'Pending Sign-off' ? '#d97706' : d.status === 'Deferred' ? '#64748b' : '#3b82f6';
+            const sBg  = d.status === 'Pending Sign-off' ? '#fffbeb'  : d.status === 'Deferred' ? '#f8fafc'  : '#eff6ff';
+            const rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
+            html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-weight:600; color:#0f172a; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(d.title || d.description || 'Decision Required') + '</td>';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(d.owner || 'Unassigned') + '</td>';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:12px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(d.affectedScope || d.scope || '—') + '</td>';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;"><span style="background-color:' + sBg + '; color:' + sCol + '; font-weight:700; font-size:11px; padding:3px 9px; border-radius:4px; white-space:nowrap;" bgcolor="' + sBg + '">' + escapeHTML(d.status || 'Pending') + '</span></td></tr>';
+          });
+          html += '</tbody></table>';
+        }
+        html += '</td></tr>';
+      }
+
+      // 4. Risks & Issues
+      if (incRisks) {
+        const topRisks = (P.raids || []).filter(r => r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated' && (r.impact === 'High' || r.severity === 'S1 - Critical' || r.severity === 'S2 - Major' || r.probability === 'High')).slice(0, 4);
+        const openIssues = (P.raids || []).filter(r => r.type === 'Issue' && r.status !== 'Closed' && r.status !== 'Mitigated').slice(0, 2);
+        const allItems = [...topRisks, ...openIssues];
+        html += '<tr><td style="padding-bottom:24px;">' + secHdr('#dc2626', 'Top Risks & Open Issues (' + allItems.length + ')');
+        if (allItems.length === 0) {
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f8fafc" style="background-color:#f8fafc; border:1px solid #e2e8f0; border-collapse:collapse;"><tr><td style="padding:14px; font-size:13px; color:#94a3b8; font-style:italic; font-family:Arial, Helvetica, sans-serif;">No active high or critical risks identified in this cycle.</td></tr></table>';
+        } else {
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">';
+          html += '<thead><tr bgcolor="#fef2f2" style="background-color:#fef2f2;">';
+          html += '<th bgcolor="#fef2f2" style="padding:9px 14px; font-weight:700; background-color:#fef2f2; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#dc2626; text-align:left; font-family:Arial, Helvetica, sans-serif;">Item Description</th>';
+          html += '<th bgcolor="#fef2f2" style="padding:9px 14px; font-weight:700; background-color:#fef2f2; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#dc2626; text-align:left; font-family:Arial, Helvetica, sans-serif;">Type</th>';
+          html += '<th bgcolor="#fef2f2" style="padding:9px 14px; font-weight:700; background-color:#fef2f2; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#dc2626; text-align:left; font-family:Arial, Helvetica, sans-serif;">Owner</th>';
+          html += '<th bgcolor="#fef2f2" style="padding:9px 14px; font-weight:700; background-color:#fef2f2; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#dc2626; text-align:left; font-family:Arial, Helvetica, sans-serif;">Severity</th>';
+          html += '<th bgcolor="#fef2f2" style="padding:9px 14px; font-weight:700; background-color:#fef2f2; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#dc2626; text-align:left; font-family:Arial, Helvetica, sans-serif;">Date Logged</th>';
+          html += '<th bgcolor="#fef2f2" style="padding:9px 14px; font-weight:700; background-color:#fef2f2; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#dc2626; text-align:left; font-family:Arial, Helvetica, sans-serif;">Mitigation Plan</th></tr></thead><tbody>';
+          allItems.forEach((r, i) => {
+            const isCrit = r.severity === 'S1 - Critical' || r.impact === 'High';
+            const sCol = isCrit ? '#dc2626' : '#d97706'; const sBg = isCrit ? '#fef2f2' : '#fffbeb';
+            const tCol2 = r.type === 'Risk' ? '#dc2626' : '#d97706'; const tBg = r.type === 'Risk' ? '#fef2f2' : '#fffbeb';
+            const mit = (r.mitigation || r.desc || 'Mitigation strategy in progress.');
+            const rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
+            html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-weight:600; color:#0f172a; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(r.title || r.name || 'Item') + '</td>';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;"><span style="background-color:' + tBg + '; color:' + tCol2 + '; font-weight:700; font-size:11px; padding:2px 8px; border-radius:4px;" bgcolor="' + tBg + '">' + escapeHTML(r.type || 'Risk') + '</span></td>';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(r.owner || '—') + '</td>';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;"><span style="background-color:' + sBg + '; color:' + sCol + '; font-weight:700; font-size:11px; padding:2px 8px; border-radius:4px;" bgcolor="' + sBg + '">' + escapeHTML(r.severity || r.impact || 'High') + '</span></td>';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#64748b; font-size:12px; white-space:nowrap; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(getRaidDateSince(r)) + '</td>';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:12px; line-height:1.5; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(mit.substring(0, 110)) + (mit.length > 110 ? '…' : '') + '</td></tr>';
+          });
+          html += '</tbody></table>';
+        }
+        html += '</td></tr>';
+      }
+
+      // 5. Overdue Modules
+      if (incOverdue) {
+        const todayOD = new Date(); todayOD.setHours(0,0,0,0);
+        const modMapOD = {};
+        (P.tasks || []).forEach(t => {
+          if (t.status === 'Completed' || t.status === 'Cancelled') return;
+          const mod = t.module || 'General';
+          if (!modMapOD[mod]) modMapOD[mod] = { name: mod, total: 0, psum: 0, overdue: 0, firstItem: '' };
+          modMapOD[mod].total++;
+          modMapOD[mod].psum += (parseInt(t.progress, 10) || 0);
+          if (t.dueDate) { const dd = new Date(t.dueDate); dd.setHours(0,0,0,0); if (dd < todayOD) { modMapOD[mod].overdue++; if (!modMapOD[mod].firstItem) modMapOD[mod].firstItem = t.name || t.title || ''; } }
+        });
+        const overdueMods = Object.values(modMapOD).filter(m => m.overdue > 0).map(m => ({ ...m, avg: m.total > 0 ? Math.round(m.psum / m.total) : 0 })).sort((a,b) => b.overdue - a.overdue).slice(0, 6);
+        if (overdueMods.length > 0) {
+          html += '<tr><td style="padding-bottom:24px;">' + secHdr('#d97706', 'Modules Requiring Management Attention (' + overdueMods.length + ')');
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">';
+          html += '<thead><tr bgcolor="#fffbeb" style="background-color:#fffbeb;">';
+          html += '<th bgcolor="#fffbeb" style="padding:9px 14px; font-weight:700; background-color:#fffbeb; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#d97706; text-align:left; font-family:Arial, Helvetica, sans-serif;">Module Name</th>';
+          html += '<th bgcolor="#fffbeb" style="padding:9px 14px; font-weight:700; background-color:#fffbeb; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#d97706; text-align:left; font-family:Arial, Helvetica, sans-serif;">Progress</th>';
+          html += '<th bgcolor="#fffbeb" style="padding:9px 14px; font-weight:700; background-color:#fffbeb; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#d97706; text-align:left; font-family:Arial, Helvetica, sans-serif;">Overdue Tasks</th>';
+          html += '<th bgcolor="#fffbeb" style="padding:9px 14px; font-weight:700; background-color:#fffbeb; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#d97706; text-align:left; font-family:Arial, Helvetica, sans-serif;">Most Delayed Item</th></tr></thead><tbody>';
+          overdueMods.forEach((m, i) => {
+            const rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
+            html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-weight:600; color:#0f172a; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(m.name) + '</td>';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + m.avg + '%' + miniBar(m.avg, '#d97706') + '</td>';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;"><span style="background-color:#fef2f2; color:#dc2626; font-weight:700; font-size:12px; padding:3px 9px; border-radius:4px;" bgcolor="#fef2f2">⚠️ ' + m.overdue + '</span></td>';
+            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:12px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML((m.firstItem || '—').substring(0, 50)) + (m.firstItem.length > 50 ? '…' : '') + '</td></tr>';
+          });
+          html += '</tbody></table></td></tr>';
+        }
+      }
+
+      // 6. Team Capacity Snapshot Table
+      if (incTeam && members.length > 0) {
+        const activeM  = members.filter(m => m.status === 'Active').length;
+        const onLeaveM = members.filter(m => m.status === 'On Leave').length;
+        const noticeM  = members.filter(m => m.status === 'Serving Notice Period').length;
+        const otherM   = members.filter(m => m.status === 'Other Assignment').length;
+        html += '<tr><td style="padding-bottom:24px;">' + secHdr('#7c3aed', 'Team Capacity Snapshot (' + members.length + ' members)');
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse;"><tr>';
+        html += '<td width="25%" align="center" bgcolor="#f0fdf4" style="background-color:#f0fdf4; border:1px solid #bbf7d0; padding:14px; text-align:center; font-family:Arial, Helvetica, sans-serif;">';
+        html += '<div style="font-size:24px; font-weight:900; color:#16a34a;">' + activeM + '</div>';
+        html += '<div style="font-size:11px; color:#166534; font-weight:700; margin-top:2px; text-transform:uppercase; letter-spacing:0.5px;">Fully Active</div></td>';
+        
+        if (onLeaveM > 0) {
+          html += '<td width="25%" align="center" bgcolor="#fffbeb" style="background-color:#fffbeb; border:1px solid #fde68a; padding:14px; text-align:center; font-family:Arial, Helvetica, sans-serif;">';
+          html += '<div style="font-size:24px; font-weight:900; color:#d97706;">' + onLeaveM + '</div>';
+          html += '<div style="font-size:11px; color:#92400e; font-weight:700; margin-top:2px; text-transform:uppercase; letter-spacing:0.5px;">On Leave</div></td>';
+        }
+        if (noticeM > 0) {
+          html += '<td width="25%" align="center" bgcolor="#fef2f2" style="background-color:#fef2f2; border:1px solid #fecaca; padding:14px; text-align:center; font-family:Arial, Helvetica, sans-serif;">';
+          html += '<div style="font-size:24px; font-weight:900; color:#dc2626;">' + noticeM + '</div>';
+          html += '<div style="font-size:11px; color:#991b1b; font-weight:700; margin-top:2px; text-transform:uppercase; letter-spacing:0.5px;">Serving Notice</div></td>';
+        }
+        if (otherM > 0) {
+          html += '<td width="25%" align="center" bgcolor="#f8fafc" style="background-color:#f8fafc; border:1px solid #e2e8f0; padding:14px; text-align:center; font-family:Arial, Helvetica, sans-serif;">';
+          html += '<div style="font-size:24px; font-weight:900; color:#64748b;">' + otherM + '</div>';
+          html += '<div style="font-size:11px; color:#475569; font-weight:700; margin-top:2px; text-transform:uppercase; letter-spacing:0.5px;">Other Duty</div></td>';
+        }
+        html += '</tr></table></td></tr>';
+      }
+
+      // 7. Upcoming Deadlines Outlook
+      if (incOutlook) {
+        const todayOL = new Date(); todayOL.setHours(0,0,0,0);
+        const in14OL = new Date(todayOL); in14OL.setDate(in14OL.getDate() + 14);
+        const upcoming = (P.tasks || []).filter(t => {
+          if (t.status === 'Completed' || t.status === 'Cancelled' || !t.dueDate) return false;
+          const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
+          return dd >= todayOL && dd <= in14OL;
+        }).sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate)).slice(0, 6);
+        const overdueCount = (P.tasks || []).filter(t => {
+          if (t.status === 'Completed' || t.status === 'Cancelled' || !t.dueDate) return false;
+          const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
+          return dd < todayOL;
+        }).length;
+        if (upcoming.length > 0 || overdueCount > 0) {
+          html += '<tr><td style="padding-bottom:24px;">' + secHdr('#0891b2', 'Upcoming Deadlines — Next 14 Days');
+          if (overdueCount > 0) html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#fef2f2" style="background-color:#fef2f2; border:1px solid #fecaca; margin-bottom:10px; border-collapse:collapse;"><tr><td style="padding:10px 14px; font-size:13px; color:#dc2626; font-weight:600; font-family:Arial, Helvetica, sans-serif;">⚠️ ' + overdueCount + ' task' + (overdueCount > 1 ? 's are' : ' is') + ' currently overdue and require immediate attention.</td></tr></table>';
+          if (upcoming.length > 0) {
+            html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">';
+            html += '<thead><tr bgcolor="#ecfeff" style="background-color:#ecfeff;">';
+            html += '<th bgcolor="#ecfeff" style="padding:9px 14px; font-weight:700; background-color:#ecfeff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#0891b2; text-align:left; font-family:Arial, Helvetica, sans-serif;">Task Deliverable</th>';
+            html += '<th bgcolor="#ecfeff" style="padding:9px 14px; font-weight:700; background-color:#ecfeff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#0891b2; text-align:left; font-family:Arial, Helvetica, sans-serif;">Module</th>';
+            html += '<th bgcolor="#ecfeff" style="padding:9px 14px; font-weight:700; background-color:#ecfeff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#0891b2; text-align:left; font-family:Arial, Helvetica, sans-serif;">Owner</th>';
+            html += '<th bgcolor="#ecfeff" style="padding:9px 14px; font-weight:700; background-color:#ecfeff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#0891b2; text-align:left; font-family:Arial, Helvetica, sans-serif;">Due Date</th>';
+            html += '<th bgcolor="#ecfeff" style="padding:9px 14px; font-weight:700; background-color:#ecfeff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#0891b2; text-align:left; font-family:Arial, Helvetica, sans-serif;">Progress</th></tr></thead><tbody>';
+            upcoming.forEach((t, i) => {
+              const dueD = new Date(t.dueDate); const daysLeft = Math.ceil((dueD - todayOL) / 864e5);
+              const dueStr = formatCxoDate(t.dueDate);
+              const urgCol = daysLeft <= 3 ? '#dc2626' : daysLeft <= 7 ? '#d97706' : '#16a34a';
+              const rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
+              html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
+              html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-weight:600; color:#0f172a; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(t.name || t.title || 'Task') + '</td>';
+              html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:12px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(t.module || '—') + '</td>';
+              html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(t.assignee || '—') + '</td>';
+              html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:' + urgCol + '; font-weight:700; font-size:12px; white-space:nowrap; font-family:Arial, Helvetica, sans-serif;">' + dueStr + '<br><span style="font-weight:500; font-size:11px;">' + (daysLeft === 0 ? 'Due Today' : daysLeft + 'd remaining') + '</span></td>';
+              html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-weight:700; color:#475569; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + (t.progress || 0) + '%</td></tr>';
+            });
+            html += '</tbody></table>';
+          }
+          html += '</td></tr>';
+        }
+      }
+
+      // Footer Table
+      html += '<tr><td style="border-top:2px solid #e2e8f0; padding-top:16px; margin-top:8px;">';
+      html += '<table width="100%" border="0" cellpadding="0" cellspacing="0"><tr>';
+      html += '<td style="font-size:11px; color:#94a3b8; line-height:1.5; font-family:Arial, Helvetica, sans-serif;">Prepared by <strong style="color:#475569;">' + escapeHTML(pmName) + '</strong> &nbsp;|&nbsp; ' + escapeHTML(P.name || 'Project') + ' &nbsp;|&nbsp; ' + formatCxoDate(new Date()) + '</td>';
+      html += '<td align="right" style="font-size:10px; color:#cbd5e1; text-transform:uppercase; letter-spacing:0.8px; font-weight:600; font-family:Arial, Helvetica, sans-serif;">Confidential &amp; Privileged</td>';
+      html += '</tr></table></td></tr>';
+
+      html += '</table></td></tr></table>';
+
+      return html;
+    }
+
+    function generateCxoEmailPlainText() {
+      const stats = computeGlobalStats();
+      const execNote = ($id('cxo-exec-note')?.value || '').trim();
+      const members = P.members || [];
+      const pmObj = members.find(m => m.role && (m.role.toLowerCase().includes('manager') || m.role.toLowerCase().includes('lead') || m.role.toLowerCase().includes('pm'))) || members[0] || {};
+      const pmName = pmObj.name || 'Project Lead';
+      const rpStart = new Date(); rpStart.setDate(rpStart.getDate() - 7);
+      const reportPeriod = formatCxoDate(rpStart) + ' – ' + formatCxoDate(new Date());
+      const cpPct = stats.cpTotal > 0 ? Math.round((stats.cpCompleted / stats.cpTotal) * 100) : 0;
+
+      let text = '==================================================\n';
+      text += 'EXECUTIVE STATUS REPORT\n';
+      text += (P.name || 'Project Status Update') + '\n';
+      text += 'Report Period: ' + reportPeriod + ' | Prepared by: ' + pmName + '\n';
+      text += 'Health: ' + stats.health + ' (' + stats.score + '/100)';
+      if (stats.trend !== 0) text += ' | Trend: ' + (stats.trend > 0 ? '+' : '') + stats.trend + ' vs last week';
+      text += '\n==================================================\n\n';
+
+      if (execNote) {
+        text += 'EXECUTIVE NOTE:\n' + execNote + '\n\n--------------------------------------------------\n\n';
+      }
+
+      const summaryPts = generateHealthPoints(stats);
+      text += 'EXECUTIVE SUMMARY:\n';
+      summaryPts.forEach(pt => {
+        const cleanPt = pt.replace(/<\/?strong>/g, '');
+        text += '  • ' + cleanPt + '\n';
+      });
+      text += '\n--------------------------------------------------\n\n';
+
+      text += 'KEY PERFORMANCE INDICATORS:\n';
+      text += '  Overall Task Progress  : ' + stats.progress + '% (' + stats.completed + '/' + stats.total + ' tasks)\n';
+      text += '  Module Delivery Avg    : ' + stats.moduleProgress + '%\n';
+      text += '  Critical Path          : ' + stats.cpCompleted + '/' + stats.cpTotal + ' milestones (' + cpPct + '%)\n';
+      text += '  Open High/Crit Risks   : ' + stats.highCritRisks + '\n';
+      text += '  Open High/Crit Defects : ' + stats.highCritDefects + '\n';
+      text += '  Overdue Tasks          : ' + stats.overdueTasks + '\n';
+      text += '  Pending Decisions      : ' + stats.pendingDecisions + '\n\n';
+
+      const wins = (P.tasks || []).filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100)
+        .sort((a,b) => new Date(b.actCompletionDate || b.updatedAt || 0) - new Date(a.actCompletionDate || a.updatedAt || 0)).slice(0, 5);
+      if (wins.length > 0) {
+        text += '--------------------------------------------------\nRECENT ACCOMPLISHMENTS (' + wins.length + '):\n';
+        wins.forEach(w => {
+          const compDate = (w.actCompletionDate || w.updatedAt) ? formatCxoDate(w.actCompletionDate || w.updatedAt) : '';
+          text += '  ✓  ' + (w.name || w.title) + ' [' + (w.module || 'General') + ']' + (compDate ? ' — ' + compDate : '') + '\n';
+        });
+        text += '\n';
+      }
+
+      const decisions = (P.decisions || []).filter(d => d.status !== 'Approved' && d.status !== 'Resolved' && d.status !== 'Closed').slice(0, 5);
+      if (decisions.length > 0) {
+        text += '--------------------------------------------------\nEXECUTIVE DECISIONS REQUIRED (' + decisions.length + '):\n';
+        decisions.forEach(d => {
+          text += '  ►  ' + (d.title || d.description) + ' (Owner: ' + (d.owner || 'TBD') + ' | Status: ' + (d.status || 'Pending') + ')';
+          if (d.affectedScope) text += ' | Scope: ' + d.affectedScope;
+          text += '\n';
+        });
+        text += '\n';
+      }
+
+      const topRisks = (P.raids || []).filter(r => r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated' && (r.impact === 'High' || r.severity === 'S1 - Critical' || r.severity === 'S2 - Major' || r.probability === 'High')).slice(0, 5);
+      if (topRisks.length > 0) {
+        text += '--------------------------------------------------\nACTIVE RISKS (' + topRisks.length + '):\n';
+        topRisks.forEach(r => {
+          text += '  ⚠️  [' + (r.severity || r.impact || 'High') + '] ' + (r.title || r.name) + ' (Owner: ' + (r.owner || 'TBD') + ')\n';
+          if (r.mitigation) text += '     Mitigation: ' + r.mitigation.substring(0, 100) + (r.mitigation.length > 100 ? '…' : '') + '\n';
+        });
+        text += '\n';
+      }
+
+      const todayPT = new Date(); todayPT.setHours(0,0,0,0);
+      const in14PT = new Date(todayPT); in14PT.setDate(in14PT.getDate() + 14);
+      const upcoming = (P.tasks || []).filter(t => {
+        if (t.status === 'Completed' || t.status === 'Cancelled' || !t.dueDate) return false;
+        const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
+        return dd >= todayPT && dd <= in14PT;
+      }).sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate)).slice(0, 6);
+      if (upcoming.length > 0) {
+        text += '--------------------------------------------------\nUPCOMING DEADLINES — NEXT 14 DAYS:\n';
+        upcoming.forEach(t => {
+          const dueStr = formatCxoDate(t.dueDate);
+          const daysLeft = Math.ceil((new Date(t.dueDate) - todayPT) / 864e5);
+          text += '  ○  ' + (t.name || t.title) + ' | Due: ' + dueStr + ' (' + (daysLeft === 0 ? 'Today' : daysLeft + 'd') + ') | ' + (t.progress || 0) + '% | ' + (t.assignee || 'Unassigned') + '\n';
+        });
+        text += '\n';
+      }
+
+      text += '==================================================\n';
+      text += 'Prepared by ' + pmName + ' • ' + (P.name || 'Project') + ' • ' + formatCxoDate(new Date()) + ' • CONFIDENTIAL\n';
+      return text;
+    }
+
+    async function copyCxoEmailToClipboard() {
+      const rawHtml = generateCxoEmailHtml();
+      const plainText = generateCxoEmailPlainText();
+
+      const fullOutlookHtml = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<!--[if mso]>
+<noscript>
+<xml>
+  <o:OfficeDocumentSettings>
+    <o:PixelsPerInch>96</o:PixelsPerInch>
+  </o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<![endif]-->
+<style>
+  html, body { margin: 0 !important; padding: 0 !important; font-family: Arial, Helvetica, sans-serif !important; }
+  table { border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important; }
+  td, th { font-family: Arial, Helvetica, sans-serif !important; }
+</style>
+</head>
+<body style="font-family: Arial, Helvetica, sans-serif; color: #1e293b; margin: 0; padding: 0; background-color: #ffffff;">
+` + rawHtml + `
+</body>
+</html>`;
+
+      try {
+        if (navigator.clipboard && window.ClipboardItem) {
+          const blobHtml = new Blob([fullOutlookHtml], { type: 'text/html' });
+          const blobText = new Blob([plainText], { type: 'text/plain' });
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              'text/html': blobHtml,
+              'text/plain': blobText
+            })
+          ]);
+          toast('Executive brief (Outlook MSO & Rich Text) copied to clipboard!', 'success');
+          closeModal('cxo-email-modal');
+        } else {
+          copyCxoPlainTextToClipboard();
+        }
+      } catch (err) {
+        console.error('Error copying rich text:', err);
+        copyCxoPlainTextToClipboard();
+      }
+    }
+
+    function copyCxoPlainTextToClipboard() {
+      const plainText = generateCxoEmailPlainText();
+      navigator.clipboard.writeText(plainText).then(() => {
+        toast('Plain text brief copied to clipboard!', 'success');
+        closeModal('cxo-email-modal');
+      }).catch(err => {
+        toast('Failed to copy to clipboard', 'error');
+      });
+    }
     function syncGlobalActions() {
       const v = P.view === 'admin' ? P._adminActiveTab : P.view;
       const btn = $id('global-action-btn');
@@ -39130,6 +39855,7 @@ Earned Value Management measures project performance and progress by comparing p
       const vTitle = $id('v-title'); if (vTitle) vTitle.innerHTML = `<i data-lucide="presentation" style="margin-right:10px"></i> Executive Overview`;
       const vAct = $id('view-actions');
       if (vAct) vAct.innerHTML = `
+          <button class="btn secondary" onclick="openCxoEmailModal()"><i data-lucide="mail" style="margin-right:6px"></i> Copy CXO Email Brief</button>
           <button class="btn secondary" onclick="toggleWhatIfDrawer()"><i data-lucide="sliders" style="margin-right:6px"></i> What-If Sandbox</button>
           <button class="btn primary" onclick="setView('tasks')"><i data-lucide="layers" style="margin-right:6px"></i> View Delivery Matrix</button>
         `;
@@ -39728,6 +40454,7 @@ Earned Value Management measures project performance and progress by comparing p
       $id('raid_impact').value = r ? r.impact : 'High';
       $id('raid_prob').value = r ? (r.probability || 'High') : 'High';
       $id('raid_severity').value = r ? r.severity : 'S2 - Major';
+      $id('raid_created').value = r ? getRaidDateSince(r) : todayStr();
       $id('raid_due').value = r ? r.dueDate : todayStr();
       $id('raid_status').value = r ? r.status : 'Active';
       $id('raid_mitigation').value = r ? r.mitigation : '';
@@ -39768,6 +40495,7 @@ Earned Value Management measures project performance and progress by comparing p
         impact: $id('raid_impact').value,
         probability: (t === 'Risk' || t === 'Assumption') ? $id('raid_prob').value : null,
         severity: $id('raid_severity').value,
+        createdAt: $id('raid_created').value || todayStr(),
         dueDate: $id('raid_due').value || todayStr(),
         status: $id('raid_status').value,
         mitigation: $id('raid_mitigation').value.trim(),
@@ -39779,7 +40507,7 @@ Earned Value Management measures project performance and progress by comparing p
         if (r) Object.assign(r, data);
       } else {
         data.id = 'RAID-' + String(P.nextRaidId++).padStart(3, '0');
-        data.createdAt = nowISO();
+        if (!data.createdAt) data.createdAt = nowISO();
         data.linkedTasks = [];
         data.linkedMilestones = [];
         P.raids.push(data);
