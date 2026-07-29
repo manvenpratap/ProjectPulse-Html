@@ -22122,8 +22122,9 @@
 
           for (let i = 0; i < 12; i++) {
             const d = new Date(monday); d.setDate(monday.getDate() + i * 7);
-            const wNum = getWeekNumber(d);
-            weeks.push({ date: d, label: `W${wNum}\n${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` });
+            const dayMon = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+            const yr = d.getFullYear();
+            weeks.push({ date: d, label: `${dayMon}<br><span style="opacity:0.55;font-size:9px">${yr}</span>` });
           }
 
           let heatHtml = `<table class="task-tbl glass-table" style="min-width:1000px;border-collapse:collapse;border:1px solid var(--color-border-faint);border-radius:var(--radius-lg);overflow:hidden">
@@ -22233,8 +22234,9 @@
 
           for (let i = 0; i < 12; i++) {
             const d = new Date(monday); d.setDate(monday.getDate() + i * 7);
-            const wNum = getWeekNumber(d);
-            weeks.push({ date: d, label: `W${wNum}\n${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` });
+            const dayMon = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+            const yr = d.getFullYear();
+            weeks.push({ date: d, label: `${dayMon}<br><span style="opacity:0.55;font-size:9px">${yr}</span>` });
           }
 
           let shortHtml = `<div style="padding:16px;display:flex;flex-direction:column;gap:12px">`;
@@ -22428,7 +22430,7 @@
               lastWeeks.push({
                 w: getWeekNumber(d),
                 y: d.getFullYear(),
-                l: 'W' + getWeekNumber(d),
+                l: d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + '\n' + d.getFullYear(),
                 date: new Date(d)
               });
             }
@@ -24844,11 +24846,20 @@
           ctx.fill();
           ctx.restore();
 
-          // X-Axis Labels
+          // X-Axis Labels — support two-line format (split on \n)
           ctx.fillStyle = isHovered ? themeText : themeMuted;
           ctx.textAlign = 'center';
+          const xLblParts = String(label).split('\n');
+          const xLine1 = xLblParts[0].length > 12 ? xLblParts[0].slice(0, 11) + '..' : xLblParts[0];
           ctx.font = (isHovered ? 'bold 10px ' : '600 9px ') + window.bodyFont;
-          ctx.fillText(label.length > 15 ? label.slice(0, 13) + '..' : label, x + bW / 2, pT + aH + 16);
+          ctx.fillText(xLine1, x + bW / 2, pT + aH + 15);
+          if (xLblParts[1]) {
+            ctx.font = '500 7.5px ' + window.monoFont;
+            ctx.fillStyle = themeMuted;
+            ctx.globalAlpha = 0.65;
+            ctx.fillText(xLblParts[1], x + bW / 2, pT + aH + 25);
+            ctx.globalAlpha = 1;
+          }
         });
 
         // Draw Rolling Average Line
@@ -31789,7 +31800,7 @@
           const burnupWeeks = [];
           for (let i = weeksCount - 1; i >= 0; i--) {
             const d = new Date(); d.setDate(d.getDate() - i * 7); d.setHours(23, 59, 59, 999);
-            burnupWeeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d), date: d });
+            burnupWeeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + '\n' + d.getFullYear(), date: d });
           }
           const totalScopeTrend = burnupWeeks.map(w => tasks.filter(t => new Date(t.createdAt || 0) <= w.date).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
           const completedScopeTrend = burnupWeeks.map(w => tasks.reduce((s, t) => {
@@ -33761,7 +33772,7 @@
             const projStart = allStarts.length ? new Date(Math.min(...allStarts)) : new Date();
             const projEnd = allEnds.length ? new Date(Math.max(...allEnds)) : new Date(projStart.getTime() + 30 * 864e5);
             const weeks = Math.max(2, Math.ceil((projEnd - projStart) / (7 * 864e5)) + 1);
-            const labels = Array.from({ length: weeks }, (_, i) => 'W' + (i + 1));
+            const labels = Array.from({ length: weeks }, (_, i) => { const d = new Date(P.startDate || Date.now()); d.setDate(d.getDate() + i * 7); return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + '\n' + d.getFullYear(); });
 
             const totalEffort = effortUnits.reduce((s, u) => s + u.effort, 0);
 
@@ -33917,7 +33928,7 @@
             lastWeeks.push({
               w: getWeekNumber(d),
               y: d.getFullYear(),
-              l: 'W' + getWeekNumber(d),
+              l: d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + '\n' + d.getFullYear(),
               date: new Date(d)
             });
           }
@@ -34030,7 +34041,7 @@
           const cfdLastWeeks = [];
           for (let i = cfdWeeksCount - 1; i >= 0; i--) {
             const d = new Date(); d.setDate(d.getDate() - i * 7); d.setHours(23, 59, 59, 999);
-            cfdLastWeeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d), date: d });
+            cfdLastWeeks.push({ w: getWeekNumber(d), y: d.getFullYear(), l: d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + '\n' + d.getFullYear(), date: d });
           }
 
           // Build list of items to evaluate based on subtask granularity preference
@@ -37827,7 +37838,7 @@ Earned Value Management measures project performance and progress by comparing p
       for (let i = 0; i < 12; i++) {
         const d = new Date(monday); d.setDate(monday.getDate() + i * 7);
         const wNum = getWeekNumber(d);
-        weeks.push({ date: d, label: `W${wNum}\n${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` });
+        weeks.push({ date: d, label: d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + '<br><span style="opacity:0.55;font-size:9px">' + d.getFullYear() + '</span>' });
       }
 
       let heatHtml = `<table class="task-tbl" style="min-width:1000px;border-collapse:collapse;border:1px solid var(--color-divider)">
@@ -44956,12 +44967,12 @@ Earned Value Management measures project performance and progress by comparing p
           color: c === 'Complex' ? COLORS.rose : c === 'Medium' ? COLORS.amber : COLORS.emerald
         })).filter(item => item.value > 0);
 
-        const vLs = []; for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); vLs.push({ w: getWeekNumber(d), y: d.getFullYear(), l: 'W' + getWeekNumber(d) }); }
+        const vLs = []; for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); vLs.push({ w: getWeekNumber(d), y: d.getFullYear(), l: d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + '\n' + d.getFullYear() }); }
         const velData = vLs.map(w => tasks.filter(t => { if (t.status !== 'Completed' || !t.dueDate) return false; const d = new Date(t.dueDate); return getWeekNumber(d) === w.w && d.getFullYear() === w.y; }).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0));
 
         const startDates = tasks.map(t => new Date(t.startDate)).filter(d => !isNaN(d)); const endDates = tasks.map(t => new Date(t.dueDate)).filter(d => !isNaN(d));
         const bStart = startDates.length ? new Date(Math.min(...startDates)) : new Date(); const bEnd = endDates.length ? new Date(Math.max(...endDates)) : new Date(bStart.getTime() + 30 * 864e5);
-        const bWeeks = Math.max(2, Math.ceil((bEnd - bStart) / (7 * 864e5)) + 1); const bLabels = Array.from({ length: bWeeks }, (_, i) => 'W' + (i + 1));
+        const bWeeks = Math.max(2, Math.ceil((bEnd - bStart) / (7 * 864e5)) + 1); const bLabels = Array.from({ length: bWeeks }, (_, i) => { const d = new Date(bStart.getTime() + i * 7 * 864e5); return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + '\n' + d.getFullYear(); });
         const totalEffort = tasks.reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0);
         const bIdeal = bLabels.map((_, i) => Math.max(0, totalEffort - (totalEffort / Math.max(1, bWeeks - 1)) * i));
         const bActual = bLabels.map((_, i) => { const wEnd = new Date(bStart.getTime() + (i + 1) * 7 * 864e5); return tasks.filter(t => t.status !== 'Completed' || new Date(t.updatedAt || t.dueDate) > wEnd).reduce((s, t) => s + (parseFloat(t.estEffort) || 0), 0); });
@@ -45032,7 +45043,7 @@ Earned Value Management measures project performance and progress by comparing p
         })).filter(item => item.value > 0);
 
         const last8WeeksCFD = [];
-        for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); d.setHours(23, 59, 59, 999); last8WeeksCFD.push({ w: getWeekNumber(d), l: 'W' + getWeekNumber(d), date: d }); }
+        for (let i = 7; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i * 7); d.setHours(23, 59, 59, 999); last8WeeksCFD.push({ w: getWeekNumber(d), l: d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + '\n' + d.getFullYear(), date: d }); }
         const cfdStacks = STATUSES.map(s => last8WeeksCFD.map(w => tasks.filter(t => {
           if (new Date(t.createdAt || 0) > w.date) return false;
           const logs = (P.log || []).filter(l => l.taskId === t.id && l.action === 'Status Changed');
@@ -51916,7 +51927,7 @@ Earned Value Management measures project performance and progress by comparing p
             label = tickCursor.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
             tickCursor.setDate(tickCursor.getDate() + 1);
           } else if (zoom === 'week') {
-            label = 'W' + Math.ceil(tickCursor.getDate() / 7) + ' ' + tickCursor.toLocaleDateString('en-GB', { month: 'short' });
+            label = tickCursor.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + '\n' + tickCursor.getFullYear();
             tickCursor.setDate(tickCursor.getDate() + 7);
           } else if (zoom === 'month') {
             label = tickCursor.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
@@ -51924,7 +51935,17 @@ Earned Value Management measures project performance and progress by comparing p
           }
 
           if (tx > PAD_L && tx < W - PAD_L) {
-            ctx.fillText(label, tx, HEAD_H / 2 + 3);
+            const parts = label.split('\n');
+            if (parts.length > 1) {
+              ctx.fillText(parts[0], tx, HEAD_H / 2 - 3);
+              ctx.font = '8px Inter,system-ui,sans-serif';
+              ctx.globalAlpha = 0.55;
+              ctx.fillText(parts[1], tx, HEAD_H / 2 + 9);
+              ctx.globalAlpha = 1;
+              ctx.font = '9px Inter,system-ui,sans-serif';
+            } else {
+              ctx.fillText(label, tx, HEAD_H / 2 + 3);
+            }
           }
         }
 
@@ -54243,7 +54264,15 @@ Earned Value Management measures project performance and progress by comparing p
           if (i % step !== 0) return;
           const x = pL + i * (aW / Math.max(labels.length - 1, 1));
           ctx.fillStyle = mutedText;
-          ctx.font = '8px ' + window.bodyFont; ctx.textAlign = 'center'; ctx.fillText(l, x, pT + aH + 16);
+          const lParts = String(l).split('\n');
+          ctx.font = '8px ' + window.bodyFont; ctx.textAlign = 'center';
+          ctx.fillText(lParts[0], x, pT + aH + 15);
+          if (lParts[1]) {
+            ctx.globalAlpha = 0.55;
+            ctx.font = '7px ' + window.monoFont;
+            ctx.fillText(lParts[1], x, pT + aH + 24);
+            ctx.globalAlpha = 1;
+          }
         });
 
         // Draw each dataset area gradient and line
@@ -54976,7 +55005,7 @@ Earned Value Management measures project performance and progress by comparing p
           ctx.restore();
         }
 
-        // X-Axis Labels
+        // X-Axis Labels — support two-line format (split on \n)
         ctx.save();
         const step = Math.max(1, Math.floor(labels.length / 10));
         labels.forEach((l, i) => {
@@ -54984,9 +55013,16 @@ Earned Value Management measures project performance and progress by comparing p
           const x = pL + i * (aW / Math.max(labels.length - 1, 1));
           const isHovered = cvs._hoverIdx === i;
           ctx.fillStyle = isHovered ? themeText : themeMuted;
+          const lParts = String(l).split('\n');
           ctx.font = (isHovered ? 'bold 10px ' : '600 9px ') + window.bodyFont;
           ctx.textAlign = 'center';
-          ctx.fillText(l, x, pT + aH + 16);
+          ctx.fillText(lParts[0], x, pT + aH + 15);
+          if (lParts[1]) {
+            ctx.globalAlpha = 0.55;
+            ctx.font = '600 7px ' + window.monoFont;
+            ctx.fillText(lParts[1], x, pT + aH + 25);
+            ctx.globalAlpha = 1;
+          }
         });
         ctx.restore();
 
@@ -57568,7 +57604,7 @@ Earned Value Management measures project performance and progress by comparing p
           label = tickCursor.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
           tickCursor.setDate(tickCursor.getDate() + 1);
         } else if (z === 'week') {
-          label = 'W' + Math.ceil(tickCursor.getDate() / 7) + ' ' + tickCursor.toLocaleDateString('en-GB', { month: 'short' });
+          label = tickCursor.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + '\n' + tickCursor.getFullYear();
           tickCursor.setDate(tickCursor.getDate() + 7);
         } else {
           label = tickCursor.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
@@ -57577,7 +57613,17 @@ Earned Value Management measures project performance and progress by comparing p
 
         ctx.fillStyle = colors.muted;
         ctx.font = '500 8.5px var(--font-body), sans-serif';
-        ctx.fillText(label, tx, H / 2);
+        const lParts = label.split('\n');
+        if (lParts.length > 1) {
+          ctx.fillText(lParts[0], tx, H / 2 - 4);
+          ctx.globalAlpha = 0.5;
+          ctx.font = '500 7px var(--font-body), sans-serif';
+          ctx.fillText(lParts[1], tx, H / 2 + 6);
+          ctx.globalAlpha = 1;
+          ctx.font = '500 8.5px var(--font-body), sans-serif';
+        } else {
+          ctx.fillText(label, tx, H / 2);
+        }
       }
 
       // Today line tag
@@ -59645,7 +59691,7 @@ Earned Value Management measures project performance and progress by comparing p
             for (let i = 0; i < state.rangeWeeks; i++) {
               const d = new Date(monday); d.setDate(monday.getDate() + i * 7);
               const wNum = getWeekNumber(d);
-              weeks.push({ date: d, label: `W${wNum}`, dateStr: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), wNum });
+              weeks.push({ date: d, label: d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }), dateStr: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), yr: d.getFullYear(), wNum: getWeekNumber(d) });
             }
 
             const isTodayWeek = (weekStart, weekEnd) => {
@@ -60440,7 +60486,7 @@ Earned Value Management measures project performance and progress by comparing p
           for (let i = 0; i < 12; i++) {
             const d = new Date(monday); d.setDate(monday.getDate() + i * 7);
             const wNum = getWeekNumber(d);
-            weeks.push({ date: d, label: `W${wNum}\n${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` });
+            weeks.push({ date: d, label: d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + '<br><span style="opacity:0.55;font-size:9px">' + d.getFullYear() + '</span>' });
           }
 
           let shortHtml = `<div style="padding:16px;display:flex;flex-direction:column;gap:12px">`;
@@ -60634,7 +60680,7 @@ Earned Value Management measures project performance and progress by comparing p
               lastWeeks.push({
                 w: getWeekNumber(d),
                 y: d.getFullYear(),
-                l: 'W' + getWeekNumber(d),
+                l: d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + '\n' + d.getFullYear(),
                 date: new Date(d)
               });
             }
