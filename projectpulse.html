@@ -14830,9 +14830,12 @@
       const compFactor = (P.complexityFactors && st.complexity) ? (P.complexityFactors[st.complexity] || 1) : 1;
 
       let runningDate = st.startDate || todayStr();
-      st.workflow.forEach(s => {
-        // Only set startDate if it is not already set — do not overwrite manually entered dates
-        if (!s.startDate) s.startDate = runningDate;
+      const startDateChanged = st._lastCalcStartDate && st._lastCalcStartDate !== st.startDate;
+      st.workflow.forEach((s, idx) => {
+        // Only set startDate if missing, if step 0, or if parent screen's startDate changed
+        if (!s.startDate || idx === 0 || startDateChanged) {
+          s.startDate = runningDate;
+        }
         const e = (s.effort || 1) * compFactor;
         s.dueDate = addBusDays(s.startDate, Math.ceil(e));
 
@@ -14849,6 +14852,7 @@
           s.actEffort = 0;
         }
       });
+      st._lastCalcStartDate = st.startDate;
 
       const totalEffort = st.workflow.reduce((sum, s) => sum + ((s.effort || 1) * compFactor), 0);
       const doneEffort = st.workflow.filter(s => s.status === 'Completed' || s.done).reduce((sum, s) => sum + ((s.effort || 1) * compFactor), 0);
@@ -14858,7 +14862,7 @@
       st.actEffort = totalActual;
       st.progress = Math.round((doneEffort / totalEffort) * 100);
       st.status = st.progress === 100 ? 'Completed' : st.progress > 0 ? 'In Progress' : 'Not Started';
-      st.dueDate = runningDate;
+      st.dueDate = (st.workflow && st.workflow.length > 0) ? st.workflow[st.workflow.length - 1].dueDate : runningDate;
 
       if (st.status === 'Completed') {
         const dates = (st.workflow || [])
@@ -16082,6 +16086,24 @@
           }
         }
         st[field] = val;
+        if (field === 'startDate') {
+          st.hasCustomStartDate = true;
+          if (st.type === 'screen') recalcGUIScreen(st);
+          else if (st.effort && st.startDate) st.dueDate = addBusDays(st.startDate, Math.ceil(st.effort));
+        } else if (field === 'complexity') {
+          if (st.type === 'screen') recalcGUIScreen(st);
+          else {
+            const subComp = (stateP.complexityFactors && val) ? (stateP.complexityFactors[val] || 1) : 1;
+            if (st.baseEffort === undefined) st.baseEffort = parseFloat(st.effort) || 1;
+            st.effort = Math.ceil(st.baseEffort * subComp);
+            if (st.startDate) st.dueDate = addBusDays(st.startDate, st.effort);
+          }
+        } else if (field === 'effort') {
+          st.baseEffort = parseFloat(val) || 1;
+          const subComp = (stateP.complexityFactors && st.complexity) ? (stateP.complexityFactors[st.complexity] || 1) : 1;
+          st.effort = Math.ceil(st.baseEffort * subComp);
+          if (st.startDate) st.dueDate = addBusDays(st.startDate, st.effort);
+        }
         if (field === 'status') {
           st.done = (val === 'Completed');
           if (st.done) {
@@ -16100,7 +16122,7 @@
         PulseState.addLog('Updated', taskId, t.name, 'subtask.' + field, String(old), String(val), comment || '', stId, actCompDate);
 
         if (comment) st.notes = (st.notes ? st.notes + '\n' : '') + '[' + val + '] ' + comment;
-        if (['status', 'assignee', 'effort', 'progress', 'actCompletionDate', 'priority', 'complexity'].includes(field)) {
+        if (['status', 'assignee', 'effort', 'progress', 'actCompletionDate', 'priority', 'complexity', 'startDate'].includes(field)) {
           recalcDatesAndStatus(t);
         }
         save();
@@ -18260,9 +18282,7 @@
         if (task.baseEstEffort === undefined) task.baseEstEffort = parseFloat(task.estEffort) || 0;
         task.estEffort = task.baseEstEffort * factor;
         if (task.startDate && task.estEffort) {
-          const sd = new Date(task.startDate);
-          sd.setDate(sd.getDate() + Math.ceil(parseFloat(task.estEffort) || 0));
-          task.dueDate = sd.toISOString().split('T')[0];
+          task.dueDate = addBusDays(task.startDate, Math.ceil(parseFloat(task.estEffort) || 0));
         }
         return;
       }
@@ -19814,7 +19834,12 @@
       function updateSubtaskStartDateLocal(val) {
         if (!window._editingSubtask) return;
         window._editingSubtask.startDate = val;
-        window.recalcGUIScreenLocal();
+        window._editingSubtask.hasCustomStartDate = true;
+        if (window._editingSubtask.type === 'screen') {
+          recalcGUIScreen(window._editingSubtask);
+        } else {
+          window.recalcGUIScreenLocal();
+        }
         const dueInp = $id('subtask_edit_due_date');
         if (dueInp && window._editingSubtask.type === 'screen') {
           dueInp.value = window._editingSubtask.dueDate ? fmtDate(window._editingSubtask.dueDate) : '';
@@ -19891,7 +19916,10 @@
         const effortEl = $id('subtask_edit_effort');
         if (effortEl) window._editingSubtask.effort = parseFloat(effortEl.value) || 0;
         const startEl = $id('subtask_edit_start_date');
-        if (startEl) window._editingSubtask.startDate = startEl.value;
+        if (startEl && startEl.value) {
+          window._editingSubtask.startDate = startEl.value;
+          window._editingSubtask.hasCustomStartDate = true;
+        }
         const dueEl = $id('subtask_edit_due_date');
         if (dueEl && !dueEl.readOnly) window._editingSubtask.dueDate = dueEl.value;
         const actDateEl = $id('subtask_edit_act_date');
@@ -19924,6 +19952,10 @@
             }
           }
         });
+
+        if (window._editingSubtask.type === 'screen') {
+          recalcGUIScreen(window._editingSubtask);
+        }
 
         const task = P.tasks.find(t => t.id === window._editingTaskId);
         if (!task) return;
