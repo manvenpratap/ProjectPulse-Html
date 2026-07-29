@@ -4582,6 +4582,13 @@
       transform: translateX(1px);
     }
 
+    .setup-step-item {
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .setup-step-item:hover:not(.active) {
+      background: rgba(var(--color-text-rgb), 0.04) !important;
+    }
+
     .jump-highlight {
       animation: jump-pulse-glow 2s cubic-bezier(0.4, 0, 0.2, 1);
     }
@@ -13701,7 +13708,7 @@
           impact: 'Impact', probability: 'Probability', owner: 'Owner', mitigation: 'Mitigation Plan',
           linkedTask: 'Linked Task', linkedMilestone: 'Linked Milestone',
           approver: 'Approver', proposedBy: 'Proposed By', rationale: 'Rationale', alternatives: 'Alternatives Considered',
-          baselineStartDate: 'Baseline Start Date', baselineDueDate: 'Baseline Due Date', baselineEffort: 'Baseline Effort',
+          baselineStartDate: 'Baseline Start Date', baselineDueDate: 'Baseline Due Date',
           actStartDate: 'Actual Start Date', actDueDate: 'Actual Due Date', varianceDays: 'Variance Days',
           slippageReason: 'Slippage Reason', snapshotDate: 'Snapshot Date'
         },
@@ -14781,7 +14788,7 @@
       },
       syncEffortColumnLabels() {
         const ul = PulseScheduler.effortUnitLabel('col');
-        const labelMap = { baselineEffort: `Base ${ul}`, estEffort: `Est. ${ul}`, actEffort: `Act. ${ul}` };
+        const labelMap = { estEffort: `Est. ${ul}`, actEffort: `Act. ${ul}` };
         if (P.cols && Array.isArray(P.cols)) {
           P.cols.forEach(c => { if (labelMap[c.key]) c.label = labelMap[c.key]; });
         }
@@ -15525,12 +15532,11 @@
           { key: 'category', label: 'Category', w: 110, type: 'select', opts: [], edit: true },
           { key: 'status', label: 'Status', w: 120, type: 'select', opts: [], edit: true },
           { key: 'priority', label: 'Priority', w: 90, type: 'select', opts: [], edit: true },
-          { key: 'startDate', label: 'Start', w: 95, type: 'date', edit: true, tooltip: 'Planned Start Date: The current execution target for task start.' },
-          { key: 'dueDate', label: 'Due', w: 95, type: 'date', edit: true, tooltip: 'Planned Due Date: The current execution target for task completion.' },
+          { key: 'startDate', label: 'Planned Start', w: 105, type: 'date', edit: true, tooltip: 'Planned Start Date: The feasible planned execution start date for this task.' },
+          { key: 'dueDate', label: 'Feasibility Due Date', w: 130, type: 'date', edit: true, tooltip: 'Planned/Feasible Due Date: Internal estimated target completion date. Evaluated against Baseline Due Date.' },
           { key: 'actCompletionDate', label: 'Comp. Date', w: 95, type: 'date', edit: true, tooltip: 'Actual Completion Date: The real date when this task was completed.' },
-          { key: 'baselineStartDate', label: 'Base Start', w: 95, type: 'date', edit: true, tooltip: 'Baseline Start Date: The approved start date captured at snapshot time.' },
-          { key: 'baselineDueDate', label: 'Base Due', w: 95, type: 'date', edit: true, tooltip: 'Baseline Due Date: The approved completion date captured at snapshot time.' },
-          { key: 'baselineEffort', label: 'Base Days', w: 80, type: 'number', edit: true, tooltip: 'Baseline Effort: The approved effort estimate captured at snapshot time.' },
+          { key: 'baselineStartDate', label: 'Base Start', w: 95, type: 'date', edit: true, tooltip: 'Baseline Start Date: The approved start date.' },
+          { key: 'baselineDueDate', label: 'Base Due', w: 95, type: 'date', edit: true, tooltip: 'Baseline Due Date: The target deadline date.' },
           { key: 'forecastDueDate', label: 'Forecast Due', w: 95, type: 'date', edit: true, tooltip: 'Forecast Due Date: Predictive completion date calculated from progress velocity.' },
           { key: 'slippageReason', label: 'Slippage Rationale', w: 150, type: 'text', edit: true },
           { key: 'complexity', label: 'Complexity', w: 100, type: 'select', opts: ['Easy', 'Medium', 'Complex'], edit: true },
@@ -16810,13 +16816,12 @@
               const dueIdx = P.cols.findIndex(c => c.key === 'dueDate');
               P.cols.splice(dueIdx !== -1 ? dueIdx + 1 : P.cols.length, 0,
                 { key: 'baselineStartDate', label: 'Base Start', w: 95, type: 'date', edit: true, tooltip: 'Baseline Start Date: The approved start date captured at snapshot time.' },
-                { key: 'baselineDueDate', label: 'Base Due', w: 95, type: 'date', edit: true, tooltip: 'Baseline Due Date: The approved completion date captured at snapshot time.' },
-                { key: 'baselineEffort', label: 'Base Days', w: 80, type: 'number', edit: true, tooltip: 'Baseline Effort: The approved effort estimate captured at snapshot time.' }
+                { key: 'baselineDueDate', label: 'Base Due', w: 95, type: 'date', edit: true, tooltip: 'Baseline Due Date: The approved completion date captured at snapshot time.' }
               );
             }
             if (!P.cols.find(c => c.key === 'forecastDueDate')) {
-              const baseEffIdx = P.cols.findIndex(c => c.key === 'baselineEffort');
-              P.cols.splice(baseEffIdx !== -1 ? baseEffIdx + 1 : P.cols.length, 0,
+              const baseDueIdx = P.cols.findIndex(c => c.key === 'baselineDueDate');
+              P.cols.splice(baseDueIdx !== -1 ? baseDueIdx + 1 : P.cols.length, 0,
                 { key: 'forecastDueDate', label: 'Forecast Due', w: 95, type: 'date', edit: true, tooltip: 'Forecast Due Date: Predictive completion date calculated from progress velocity.' }
               );
             }
@@ -18200,9 +18205,36 @@
       }
       return new Date().toISOString().split('T')[0];
     }
-    window.getSubtaskEffectiveStart = getSubtaskEffectiveStart;
+    function getTaskDeadline(task) {
+      if (!task) return '';
+      if (task.baselineDueDate) return task.baselineDueDate;
+      if (task.releaseVersion && window.P && window.P.releases) {
+        const rel = window.P.releases.find(r => 
+          String(r.name).trim().toLowerCase() === String(task.releaseVersion).trim().toLowerCase() ||
+          String(r.id).trim().toLowerCase() === String(task.releaseVersion).trim().toLowerCase()
+        );
+        if (rel && (rel.date || rel.endDate || rel.targetDate || rel.releaseDate)) {
+          return rel.date || rel.endDate || rel.targetDate || rel.releaseDate;
+        }
+      }
+      return task.dueDate || '';
+    }
+    PulseScheduler.getTaskDeadline = getTaskDeadline;
+    window.getTaskDeadline = getTaskDeadline;
 
     PulseScheduler.recalcDatesAndStatus = function (task, skipLog = false) {
+      // Auto-map baselineDueDate from Release Roadmap
+      if (task.releaseVersion && window.P && window.P.releases) {
+        const relObj = window.P.releases.find(r => 
+          String(r.name).trim().toLowerCase() === String(task.releaseVersion).trim().toLowerCase() ||
+          String(r.id).trim().toLowerCase() === String(task.releaseVersion).trim().toLowerCase()
+        );
+        if (relObj) {
+          const relDate = relObj.date || relObj.endDate || relObj.targetDate || relObj.releaseDate || '';
+          if (relDate && !task.baselineDueDate) task.baselineDueDate = relDate;
+        }
+      }
+
       const subs = task.subtasks || [];
 
       // Keep task.guiScreens in sync with subtasks of type 'screen'
@@ -28427,13 +28459,12 @@
         }
 
         // Build the Admin Navigation Menu in the sidebar
-        const setupSteps = ['general', 'complexity', 'backups', 'baselines', 'releases', 'steps', 'dropdowns', 'fields', 'blueprint', 'screens'];
+        const setupSteps = ['general', 'complexity', 'backups', 'releases', 'steps', 'dropdowns', 'fields', 'blueprint', 'screens'];
         const currentStepIdx = setupSteps.indexOf(tab);
         const stepMeta = [
           { id: 'general', label: 'General Settings', desc: 'Project configuration', icon: 'settings' },
           { id: 'complexity', label: 'Task Complexity', desc: 'Effort multipliers', icon: 'sliders' },
           { id: 'backups', label: 'Data Recovery', desc: 'Backups & Persistence', icon: 'database' },
-          { id: 'baselines', label: 'Schedule Baselines', desc: 'Schedules & snapshot history', icon: 'history' },
           { id: 'releases', label: 'Releases Roadmap', desc: 'Delivery milestones & schedule', icon: 'flag' },
           { id: 'steps', label: 'Step Templates', desc: 'Standardize task workflows', icon: 'layers' },
           { id: 'dropdowns', label: 'Option Libraries', desc: 'Configure global dropdown lists', icon: 'list-checks' },
@@ -28456,16 +28487,21 @@
             const stepBorder = isActive ? 'var(--color-primary)' : 'transparent';
             const circContent = isPast ? '<i data-lucide="check" style="width:12px;height:12px"></i>' : (i + 1);
             navHtml += `
-              <div class="jump-nav-item ${isActive ? 'active' : ''}" onclick="setAdminActiveTab('${s.id}')" style="display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; cursor:pointer; background:${stepBg}; border:1px solid ${stepBorder}; transition:all 0.2s ease">
+              <div class="setup-step-item ${isActive ? 'active' : ''}" onclick="setAdminActiveTab('${s.id}')" style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:10px; cursor:pointer; background:${stepBg}; border:1px solid ${stepBorder}; transition:all 0.2s ease">
                 <div style="width:24px; height:24px; border-radius:50%; background:${circBg}; color:${circColor}; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; flex-shrink:0; box-shadow:${circShadow}; transition:all 0.2s">${circContent}</div>
-                <div style="min-width:0">
+                <div style="min-width:0; flex:1">
                   <div style="font-size:12px; font-weight:${titleWeight}; color:${titleColor}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${s.label}</div>
                   <div style="font-size:10px; color:var(--color-text-muted); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${s.desc}</div>
                 </div>
               </div>`;
             if (i < stepMeta.length - 1) {
               const connColor = isPast ? 'var(--green)' : 'var(--color-divider)';
-              navHtml += `<div style="width:2px; height:12px; background:${connColor}; margin-left:23px; transition:background 0.3s ease"></div>`;
+              navHtml += `
+                <div style="display:flex; padding-left:10px;">
+                  <div style="width:24px; display:flex; justify-content:center;">
+                    <div style="width:2px; height:12px; background:${connColor}; transition:background 0.3s ease"></div>
+                  </div>
+                </div>`;
             }
           });
           navHtml += `</div>`;
@@ -40944,12 +40980,12 @@ Earned Value Management measures project performance and progress by comparing p
                   <div style="font-size:16px; font-weight:800; color:var(--color-text); display:flex; align-items:center; gap:8px">
                     <span>✓ Step 3 Complete</span>
                   </div>
-                  <div style="font-size:13px; color:var(--color-text-muted); margin-top:4px">Backups are configured. Ready to set up schedule baselines.</div>
+                  <div style="font-size:13px; color:var(--color-text-muted); margin-top:4px">Backups are configured. Next, configure Releases Roadmap.</div>
                 </div>
               </div>
               <div style="display:flex; gap:12px">
                 <button class="btn outline" onclick="setAdminActiveTab('complexity')" style="height:40px; padding:0 20px; display:flex; align-items:center; gap:8px"><i data-lucide="arrow-left" style="width:16px;height:16px"></i> Back</button>
-                <button class="btn primary" onclick="setAdminActiveTab('baselines')" style="height:40px; padding:0 24px; font-weight:700; display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                <button class="btn primary" onclick="setAdminActiveTab('releases')" style="height:40px; padding:0 24px; font-weight:700; display:flex; align-items:center; gap:8px; flex-shrink:0;">
                   Next Step <i data-lucide="arrow-right" style="width:16px;height:16px"></i>
                 </button>
               </div>
@@ -41018,26 +41054,6 @@ Earned Value Management measures project performance and progress by comparing p
 
             <div style="font-weight:800; font-size:11px; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px">Snapshot History</div>
             <div id="baseline-history-list">${listHtml}</div>
-            
-            <div style="display:flex; gap:12px; margin-top:40px; padding:24px; background:linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.08), rgba(var(--color-primary-rgb), 0.03)); border:2px solid var(--color-primary); border-radius:16px; align-items:center; justify-content:space-between; box-shadow:0 4px 12px rgba(0,0,0,0.08)">
-              <div style="display:flex; align-items:center; gap:16px; flex:1">
-                <div style="width:48px; height:48px; border-radius:50%; background:var(--color-primary); display:flex; align-items:center; justify-content:center; flex-shrink:0">
-                  <i data-lucide="check-circle" style="width:24px; height:24px; color:white"></i>
-                </div>
-                <div>
-                  <div style="font-size:16px; font-weight:800; color:var(--color-text); display:flex; align-items:center; gap:8px">
-                    <span>✓ Step 4 Complete</span>
-                  </div>
-                  <div style="font-size:13px; color:var(--color-text-muted); margin-top:4px">Schedule baselines configured. Next, configure Releases Roadmap.</div>
-                </div>
-              </div>
-              <div style="display:flex; gap:12px">
-                <button class="btn outline" onclick="setAdminActiveTab('backups')" style="height:40px; padding:0 20px; display:flex; align-items:center; gap:8px"><i data-lucide="arrow-left" style="width:16px;height:16px"></i> Back</button>
-                <button class="btn primary" onclick="setAdminActiveTab('releases')" style="height:40px; padding:0 24px; font-weight:700; display:flex; align-items:center; gap:8px; flex-shrink:0;">
-                  Next Step <i data-lucide="arrow-right" style="width:16px;height:16px"></i>
-                </button>
-              </div>
-            </div>
         </div>
           `;
       if (window.lucide) lucide.createIcons(icont);
@@ -41187,6 +41203,27 @@ Earned Value Management measures project performance and progress by comparing p
 
     // ══════ EXCEL & CSV ══════
     const PulseExcel = {
+      isNewWindowItem(item) {
+        if (!item) return false;
+        if (item.isNewWindow === true) return true;
+        const sStr = String(item.isNewWindow || '').toLowerCase().trim();
+        return sStr === 'yes' || sStr === 'true';
+      },
+
+      formatExcelNewBadge(name, isNew) {
+        if (name === null || name === undefined) return '';
+        const cleanName = typeof name === 'string' ? name.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '') : String(name);
+        if (!cleanName || cleanName === '-') return cleanName;
+        if (!isNew) return cleanName;
+        if (cleanName.endsWith(' NEW') || cleanName.endsWith(' ᴺᴱᵂ') || cleanName.endsWith('[NEW]')) return cleanName;
+        return {
+          richText: [
+            { text: cleanName },
+            { text: ' NEW', font: { vertAlign: 'superscript', bold: true, size: 8, color: { argb: 'FFEC4899' } } }
+          ]
+        };
+      },
+
       async exportProjectExcel(safeMode = false, viewLevel = false) {
         if (typeof ExcelJS === 'undefined') { notify('Excel library not loaded yet. Please try again.', 'amber'); return; }
         try {
@@ -41624,15 +41661,51 @@ Earned Value Management measures project performance and progress by comparing p
           cell.style = hdrStyle;
         });
 
+        const newWindowsSet = new Set();
+        (P.tasks || []).forEach(t => {
+          if (PulseExcel.isNewWindowItem(t)) {
+            if (t.name) newWindowsSet.add(t.name.trim().toLowerCase());
+            if (t.windowName) newWindowsSet.add(t.windowName.trim().toLowerCase());
+          }
+          (t.subtasks || []).forEach(st => {
+            if (PulseExcel.isNewWindowItem(st)) {
+              if (st.name) newWindowsSet.add(st.name.trim().toLowerCase());
+              if (st.windowName) newWindowsSet.add(st.windowName.trim().toLowerCase());
+            }
+          });
+        });
+
+        const formatScreensListRichText = (screensListStr) => {
+          if (!screensListStr) return '';
+          const screensArr = Array.isArray(screensListStr) ? screensListStr : String(screensListStr).split(',').map(s => s.trim()).filter(Boolean);
+          if (!screensArr.length) return '';
+          let hasAnyNew = false;
+          const runs = [];
+          screensArr.forEach((sc, scIdx) => {
+            const scName = typeof sc === 'string' ? sc : (sc.name || sc.screen || '');
+            if (!scName) return;
+            const isNew = newWindowsSet.has(scName.trim().toLowerCase());
+            if (isNew) hasAnyNew = true;
+            if (runs.length > 0) runs.push({ text: ', ' });
+            runs.push({ text: scName });
+            if (isNew) {
+              runs.push({ text: ' NEW', font: { vertAlign: 'superscript', bold: true, size: 8, color: { argb: 'FFEC4899' } } });
+            }
+          });
+          if (!hasAnyNew) return screensArr.map(s => typeof s === 'string' ? s : (s.name || s.screen || '')).join(', ');
+          return { richText: runs };
+        };
+
         calculatedFeatures.forEach((f, idx) => {
           const rowIdx = 8 + idx;
+          const screensVal = formatScreensListRichText(f.screensList);
           const row = wsFeat.addRow({
             name: f.name,
             category: f.category,
             release: f.release,
             desc: f.desc,
             screensCount: f.screensCount,
-            screensList: f.screensList,
+            screensList: screensVal,
             tasksCount: f.tasksCount,
             tasksList: f.tasksList,
             progress: f.progress,
@@ -42555,10 +42628,11 @@ Earned Value Management measures project performance and progress by comparing p
         wb._taskRowMap = {};
 
         (P.tasks || []).forEach(t => {
+          const tIsNew = PulseExcel.isNewWindowItem(t);
           const taskRowVals = {
             _spacer: '',
             id: S(t.id),
-            name: '▶  ' + S(t.name),
+            name: PulseExcel.formatExcelNewBadge('▶  ' + S(t.name), tIsNew),
             type: 'Task',
             category: S(t.category),
             module: S(t.module),
@@ -42573,6 +42647,7 @@ Earned Value Management measures project performance and progress by comparing p
             estEffort: t.estEffort || 0,
             actEffort: t.actEffort || 0,
             complexity: S(t.complexity),
+            windowName: PulseExcel.formatExcelNewBadge(S(t.windowName || ''), tIsNew),
             notes: S(t.notes)
           };
           (P.customFields || []).forEach(f => { taskRowVals[f.name] = S(t[f.name]); });
@@ -42584,10 +42659,11 @@ Earned Value Management measures project performance and progress by comparing p
           row.outlineLevel = 0;
 
           (t.subtasks || []).forEach(s => {
+            const sIsNew = PulseExcel.isNewWindowItem(s);
             const subRowVals = {
               _spacer: '',
               id: S(s.id),
-              name: '    ◦ ' + S(s.name),
+              name: PulseExcel.formatExcelNewBadge('    ◦ ' + S(s.name), sIsNew),
               type: S(s.type) || 'Subtask',
               category: '',
               module: S(t.module),
@@ -42602,7 +42678,7 @@ Earned Value Management measures project performance and progress by comparing p
               estEffort: s.estEffort || 0,
               actEffort: s.actEffort || 0,
               complexity: '',
-              windowName: S(s.windowName || ''),
+              windowName: PulseExcel.formatExcelNewBadge(S(s.windowName || ''), sIsNew),
               notes: S(s.notes)
             };
             (P.customFields || []).forEach(f => { subRowVals[f.name] = ''; });
@@ -43248,7 +43324,6 @@ Earned Value Management measures project performance and progress by comparing p
           { header: 'Due Date', key: 'dueDate', width: 15 },
           { header: 'Baseline Start Date', key: 'baselineStartDate', width: 18 },
           { header: 'Baseline Due Date', key: 'baselineDueDate', width: 18 },
-          { header: `Baseline ${effortUnitLabel('col')}`, key: 'baselineEffort', width: 18 },
           { header: 'Forecast Due Date', key: 'forecastDueDate', width: 18 },
           { header: 'Delay', key: 'delay', width: 12 },
           { header: 'Actual Completion Date', key: 'actCompletionDate', width: 22 },
@@ -43349,20 +43424,20 @@ Earned Value Management measures project performance and progress by comparing p
 
         tasks.forEach((t, i) => {
           const rowIdx = i + 8;
+          const tIsNew = PulseExcel.isNewWindowItem(t);
           const rowValues = {
-            id: S(t.id), name: S(t.name), title: S(t.title), category: S(t.category), module: S(t.module),
+            id: S(t.id), name: PulseExcel.formatExcelNewBadge(S(t.name), tIsNew), title: S(t.title), category: S(t.category), module: S(t.module),
             moduleType: S(t.moduleType), releaseVersion: S(t.releaseVersion), feature: S(t.feature || ''),
             predecessors: S((t.predecessors || []).join(', ')), assignee: S(t.assignee),
             status: S(t.status), priority: S(t.priority), progress: t.progress !== undefined ? t.progress : 0,
             startDate: cleanFmtDate(t.startDate), dueDate: cleanFmtDate(t.dueDate),
             baselineStartDate: cleanFmtDate(t.baselineStartDate),
             baselineDueDate: cleanFmtDate(t.baselineDueDate),
-            baselineEffort: t.baselineEffort !== undefined ? t.baselineEffort : '',
             forecastDueDate: cleanFmtDate(t.forecastDueDate),
             delay: { formula: `IF(AND(K${rowIdx}<>"Completed", O${rowIdx}<TODAY()), TODAY()-O${rowIdx}, 0)` },
             actCompletionDate: cleanFmtDate(t.actCompletionDate), estEffort: t.estEffort || 0,
             actEffort: t.actEffort || 0,
-            variance: { formula: `S${rowIdx}-R${rowIdx}` },
+            variance: { formula: `V${rowIdx}-U${rowIdx}` },
             complexity: S(t.complexity),
             slippageReason: S(t.slippageReason || ''),
             confidence: S(t.confidence || ''),
@@ -43484,10 +43559,13 @@ Earned Value Management measures project performance and progress by comparing p
         ws.columns = cols; ws.getRow(1).height = 30; ws.getRow(1).eachCell(c => c.style = hdrStyle);
 
         subs.forEach((s, i) => {
+          const sIsNew = PulseExcel.isNewWindowItem(s);
           const rowValues = {
-            id: S(s.id), parentId: S(s.parentId), name: S(s.name), type: S(s.type),
+            id: S(s.id), parentId: S(s.parentId),
+            name: PulseExcel.formatExcelNewBadge(S(s.name), sIsNew),
+            type: S(s.type),
             isNewWindow: s.isNewWindow ? 'Yes' : 'No',
-            windowName: S(s.windowName || ''),
+            windowName: PulseExcel.formatExcelNewBadge(S(s.windowName || ''), sIsNew),
             technicalWindowName: S(s.technicalWindowName || ''),
             status: S(s.status),
             assignee: S(s.assignee), startDate: cleanFmtDate(s.startDate), dueDate: cleanFmtDate(s.dueDate),
@@ -49384,9 +49462,12 @@ Earned Value Management measures project performance and progress by comparing p
         }
         if (['startDate', 'date', 'endDate', 'name'].includes(prop)) {
           const relName = r.name;
+          const newRelDate = r.date || r.endDate || r.targetDate || r.startDate || '';
           P.tasks.forEach(t => {
             if (t.releaseVersion && String(t.releaseVersion).trim().toLowerCase() === String(relName).trim().toLowerCase()) {
+              if (newRelDate && !t.baselineDueDate) t.baselineDueDate = newRelDate;
               PulseState.syncTaskBaselineFromRelease(t);
+              if (typeof recalcDatesAndStatus === 'function') recalcDatesAndStatus(t, true);
             }
           });
         }
@@ -56406,11 +56487,11 @@ Earned Value Management measures project performance and progress by comparing p
           </div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
             <div class="pp-form-group">
-              <label class="pp-form-label" for="edit-task-start">Start Date</label>
+              <label class="pp-form-label" for="edit-task-start">Planned Start Date</label>
               <input type="date" class="pp-form-input" id="edit-task-start" />
             </div>
             <div class="pp-form-group">
-              <label class="pp-form-label" for="edit-task-due">Due Date</label>
+              <label class="pp-form-label" for="edit-task-due">Feasibility Due Date</label>
               <input type="date" class="pp-form-input" id="edit-task-due" />
             </div>
           </div>
