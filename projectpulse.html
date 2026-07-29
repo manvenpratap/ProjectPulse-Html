@@ -40057,12 +40057,29 @@ Earned Value Management measures project performance and progress by comparing p
       // Project Highlights & Good News Calculations
       const last14Days = new Date(Date.now() - 14 * 864e5);
 
-      // Helper: parse actCompletionDate from task or fall back to log
+      // Helper: resolve actual completion date from task data, never from log write timestamp (l.ts).
+      // Priority: actCompletionDate on task → actCompletionDate on matching log entry → updatedAt → dueDate → null
       const getTaskCompletionDate = t => {
-        if (t.actCompletionDate) return new Date(t.actCompletionDate);
-        // Fallback: find the earliest completion log for this task
+        // 1. Explicit actual completion date on the task itself
+        if (t.actCompletionDate && t.actCompletionDate !== '-' && t.actCompletionDate !== 'null') {
+          return new Date(t.actCompletionDate);
+        }
+        // 2. Look for a matching completion log entry that carries its own actCompletionDate
         const compLog = (P.log || []).find(l => l.taskId === t.id && isTaskCompletionLog(l));
-        if (compLog) return getLogActivityDate(compLog);
+        if (compLog && compLog.actCompletionDate) {
+          return new Date(compLog.actCompletionDate);
+        }
+        // 3. updatedAt is a reasonable proxy if no explicit date is recorded
+        if (t.updatedAt) {
+          const upd = new Date(t.updatedAt);
+          if (!isNaN(upd)) return upd;
+        }
+        // 4. dueDate is the last committed date we know about
+        if (t.dueDate) {
+          const dd = new Date(t.dueDate);
+          if (!isNaN(dd)) return dd;
+        }
+        // 5. Give up — task completion date cannot be determined
         return null;
       };
 
