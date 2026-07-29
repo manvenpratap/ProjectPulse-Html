@@ -13361,6 +13361,30 @@
         return '#888';
       },
 
+      addCalendarDays(dateStr, days) {
+        if (!dateStr || typeof dateStr !== 'string') return '';
+        const parts = dateStr.trim().split('-');
+        if (parts.length !== 3) return dateStr;
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const d = new Date(year, month, day);
+        if (isNaN(d.getTime())) return dateStr;
+        d.setDate(d.getDate() + days);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${dd}`;
+      },
+
+      getDaysBetween(d1, d2) {
+        if (!d1 || !d2) return 0;
+        const date1 = new Date(d1 + (d1.includes('T') ? '' : 'T00:00:00'));
+        const date2 = new Date(d2 + (d2.includes('T') ? '' : 'T00:00:00'));
+        if (isNaN(date1.getTime()) || isNaN(date2.getTime())) return 0;
+        return Math.round((date2 - date1) / 86400000);
+      },
+
       getReleaseDates(releaseVersionName) {
         if (!releaseVersionName) return { startDate: '', endDate: '' };
         const stateP = typeof PulseState !== 'undefined' ? PulseState.P : (typeof P !== 'undefined' ? P : null);
@@ -13889,7 +13913,7 @@
         const weeksRemaining = fc.weeksRemaining;
 
         const startDates = tasks.map(t => new Date(t.startDate)).filter(d => !isNaN(d.getTime()));
-        const endDates = tasks.map(t => new Date(t.dueDate)).filter(d => !isNaN(d.getTime()));
+        const endDates = tasks.map(t => new Date(getTaskDeadline(t) || t.dueDate)).filter(d => !isNaN(d.getTime()));
         const start = startDates.length ? new Date(Math.min(...startDates)) : new Date();
         const targetFinish = endDates.length ? new Date(Math.max(...endDates)) : new Date(start.getTime() + 30 * 864e5);
 
@@ -14045,8 +14069,25 @@
     };
     window.PulseForecastEngine = PulseForecastEngine;
 
+    function getTaskDeadline(task) {
+      if (!task) return '';
+      if (task.releaseVersion && window.P && window.P.releases) {
+        const rel = window.P.releases.find(r => 
+          String(r.name).trim().toLowerCase() === String(task.releaseVersion).trim().toLowerCase() ||
+          String(r.id).trim().toLowerCase() === String(task.releaseVersion).trim().toLowerCase()
+        );
+        if (rel && (rel.date || rel.endDate || rel.targetDate || rel.releaseDate)) {
+          return rel.date || rel.endDate || rel.targetDate || rel.releaseDate;
+        }
+      }
+      if (task.baselineDueDate) return task.baselineDueDate;
+      return task.dueDate || '';
+    }
+    window.getTaskDeadline = getTaskDeadline;
+
     // ── PROJECT PULSE DASHBOARD SYSTEM ──
     const PulseDashboard = {
+      getTaskDeadline,
       isBlocked(t, taskByIdMap = null) {
         if (!t.dependsOn || !t.dependsOn.length) return false;
         const deps = Array.isArray(t.dependsOn) ? t.dependsOn : String(t.dependsOn).split(',').map(s => s.trim()).filter(Boolean);
@@ -14067,8 +14108,9 @@
 
         active.forEach(t => {
           const progressWeight = 1 - (parseInt(t.progress, 10) || 0) / 100;
-          if (t.dueDate) {
-            const dd = PulseDashboard.daysDiff(t.dueDate);
+          const deadline = getTaskDeadline(t);
+          if (deadline) {
+            const dd = PulseDashboard.daysDiff(deadline);
             if (dd !== null && dd < 0) {
               overduePenalty += progressWeight;
             }
@@ -14126,7 +14168,7 @@
 
         // 3. Fallback to interpolation if start/due dates are known
         const start = new Date(t.startDate);
-        const due = new Date(t.dueDate || t.startDate);
+        const due = new Date(getTaskDeadline(t) || t.startDate);
         if (!isNaN(start.getTime()) && !isNaN(due.getTime())) {
           if (date < start) return 0;
           if (date >= due) {
@@ -14140,7 +14182,7 @@
 
         // 4. Ultimate fallback based on current status
         if (t.status === 'Completed') {
-          const compDate = new Date(t.actCompletionDate || t.dueDate || t.updatedAt || Date.now());
+          const compDate = new Date(t.actCompletionDate || getTaskDeadline(t) || t.updatedAt || Date.now());
           if (compDate <= date) return 100;
           return 50;
         }
@@ -15781,6 +15823,8 @@
         if (!task || !task.releaseVersion) return false;
         const relDates = PulseUtils.getReleaseDates(task.releaseVersion);
         let updated = false;
+
+        // Baseline start & due dates are always synchronized to the release dates
         if (relDates.startDate && task.baselineStartDate !== relDates.startDate) {
           task.baselineStartDate = relDates.startDate;
           updated = true;
@@ -15789,6 +15833,17 @@
           task.baselineDueDate = relDates.endDate;
           updated = true;
         }
+
+        // Planned start & due dates are only populated if they do not exist
+        if (relDates.startDate && (!task.startDate || String(task.startDate).trim() === '' || task.startDate === '-' || task.startDate === '—')) {
+          task.startDate = relDates.startDate;
+          updated = true;
+        }
+        if (relDates.endDate && (!task.dueDate || String(task.dueDate).trim() === '' || task.dueDate === '-' || task.dueDate === '—')) {
+          task.dueDate = relDates.endDate;
+          updated = true;
+        }
+
         return updated;
       },
       createTask(data) {
@@ -29048,7 +29103,7 @@
         const blocked = isBlocked(t, cache.taskById);
         if (status === 'On Hold' || status === 'Blocked' || blocked) cache.blocked++;
 
-        const dd = daysDiff(t.dueDate);
+        const dd = daysDiff(getTaskDeadline(t));
         if (dd !== null && dd < 0 && status !== 'Completed' && status !== 'Cancelled') {
           cache.overdueTasks.push(t);
         }
@@ -49484,25 +49539,72 @@ Earned Value Management measures project performance and progress by comparing p
     }
 
     function updateRelease(id, prop, val) {
-      const r = P.releases.find(x => x.id === id);
-      if (r) {
+      const idx = P.releases.findIndex(x => x.id === id);
+      if (idx !== -1) {
+        const r = P.releases[idx];
         const oldName = r.name;
         r[prop] = val;
+
+        if (prop === 'date' || prop === 'targetDate' || prop === 'endDate') {
+          r.date = val;
+          r.endDate = val;
+          r.targetDate = val;
+        }
+
         if (prop === 'name' && oldName && oldName !== val) {
           P.features.forEach(f => { if (f.release === oldName) f.release = val; });
           P.tasks.forEach(t => { if (t.releaseVersion === oldName) t.releaseVersion = val; });
         }
-        if (['startDate', 'date', 'endDate', 'name'].includes(prop)) {
-          const relName = r.name;
-          const newRelDate = r.date || r.endDate || r.targetDate || r.startDate || '';
-          P.tasks.forEach(t => {
-            if (t.releaseVersion && String(t.releaseVersion).trim().toLowerCase() === String(relName).trim().toLowerCase()) {
-              if (newRelDate && !t.baselineDueDate) t.baselineDueDate = newRelDate;
+
+        if (['startDate', 'date', 'endDate', 'targetDate'].includes(prop)) {
+          // If startDate changed, adjust target date if invalid or missing
+          if (prop === 'startDate' && r.startDate) {
+            if (!r.date || r.date < r.startDate) {
+              r.date = PulseUtils.addCalendarDays(r.startDate, 7);
+              r.endDate = r.date;
+              r.targetDate = r.date;
+            }
+          }
+
+          // Auto-update next release start date as the next day (and cascade through subsequent releases)
+          for (let i = idx; i < P.releases.length - 1; i++) {
+            const currRel = P.releases[i];
+            const nextRel = P.releases[i + 1];
+            const currTarget = currRel.date || currRel.endDate || currRel.targetDate;
+            if (currTarget) {
+              const expectedNextStart = PulseUtils.addCalendarDays(currTarget, 1);
+              if (nextRel.startDate !== expectedNextStart) {
+                const prevStart = nextRel.startDate || expectedNextStart;
+                const prevTarget = nextRel.date || nextRel.endDate || nextRel.targetDate;
+                const duration = (prevStart && prevTarget) ? PulseUtils.getDaysBetween(prevStart, prevTarget) : 14;
+
+                nextRel.startDate = expectedNextStart;
+                const newNextTarget = PulseUtils.addCalendarDays(nextRel.startDate, duration > 0 ? duration : 14);
+                nextRel.date = newNextTarget;
+                nextRel.endDate = newNextTarget;
+                nextRel.targetDate = newNextTarget;
+              } else {
+                break;
+              }
+            }
+          }
+
+          // Auto-update all tasks' base start & due dates based on release tagging
+          (P.tasks || []).forEach(t => {
+            if (t.releaseVersion) {
+              PulseState.syncTaskBaselineFromRelease(t);
+              if (typeof recalcDatesAndStatus === 'function') recalcDatesAndStatus(t, true);
+            }
+          });
+        } else if (prop === 'name') {
+          (P.tasks || []).forEach(t => {
+            if (t.releaseVersion && String(t.releaseVersion).trim().toLowerCase() === String(val).trim().toLowerCase()) {
               PulseState.syncTaskBaselineFromRelease(t);
               if (typeof recalcDatesAndStatus === 'function') recalcDatesAndStatus(t, true);
             }
           });
         }
+
         renderReleases();
         syncDropdowns();
         save();
@@ -49514,7 +49616,25 @@ Earned Value Management measures project performance and progress by comparing p
 
     function addRelease() {
       const num = P.releases.length + 1;
-      P.releases.push({ id: 'rel-' + Date.now(), name: 'v' + num + '.0', date: '', status: 'Planned' });
+      let newStart = '';
+      let newDate = '';
+      if (P.releases.length > 0) {
+        const lastRel = P.releases[P.releases.length - 1];
+        const lastTarget = lastRel.date || lastRel.endDate || lastRel.targetDate || lastRel.startDate;
+        if (lastTarget) {
+          newStart = PulseUtils.addCalendarDays(lastTarget, 1);
+          newDate = PulseUtils.addCalendarDays(newStart, 14);
+        }
+      }
+      P.releases.push({
+        id: 'rel-' + Date.now(),
+        name: 'v' + num + '.0',
+        startDate: newStart,
+        date: newDate,
+        endDate: newDate,
+        targetDate: newDate,
+        status: 'Planned'
+      });
       renderReleases();
       syncDropdowns();
       save();
@@ -49829,12 +49949,13 @@ Earned Value Management measures project performance and progress by comparing p
       let html = `
         <div style="width: 100%; padding: 12px 16px; box-sizing: border-box;">
           
-          <!-- Header block (no duplicate action buttons) -->
+          <!-- Header block -->
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
             <div>
               <h2 style="margin:0; font-size:20px; font-weight:800; letter-spacing:-0.02em; color:var(--color-text)">Release Roadmap</h2>
               <div style="color:var(--color-text-muted); font-size:12.5px; margin-top:2px">Define delivery cycles, track completion rates, and manage target dates.</div>
             </div>
+            <button onclick="addRelease()" class="btn primary mini" style="height:30px; font-weight:700; display:flex; align-items:center; gap:6px"><i data-lucide="plus" style="width:14px;height:14px"></i> Add Release</button>
           </div>
 
           <!-- Compact Summary KPI Dashboard -->
@@ -49889,10 +50010,11 @@ Earned Value Management measures project performance and progress by comparing p
             <table class="grid-table" style="width:100%; border-collapse:collapse; text-align:left">
               <thead>
                 <tr style="background:rgba(var(--color-text-rgb), 0.02); border-bottom:1px solid var(--color-divider)">
-                  <th style="padding:8px 12px; font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:30%">Release Version</th>
-                  <th style="padding:8px 12px; font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:25%">Target Date</th>
-                  <th style="padding:8px 12px; font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:20%">Status State</th>
-                  <th style="padding:8px 12px; font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:15%">Mapped Assets</th>
+                  <th style="padding:8px 12px; font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:22%">Release Version</th>
+                  <th style="padding:8px 12px; font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:18%">Start Date</th>
+                  <th style="padding:8px 12px; font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:18%">Target Date</th>
+                  <th style="padding:8px 12px; font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:18%">Status State</th>
+                  <th style="padding:8px 12px; font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:14%">Mapped Assets</th>
                   <th style="padding:8px 12px; font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; width:10%; text-align:right">Actions</th>
                 </tr>
               </thead>
@@ -49902,7 +50024,7 @@ Earned Value Management measures project performance and progress by comparing p
       if (P.releases.length === 0) {
         html += `
           <tr>
-            <td colspan="5" style="padding:40px 12px; text-align:center; color:var(--color-text-muted)">
+            <td colspan="6" style="padding:40px 12px; text-align:center; color:var(--color-text-muted)">
               <div style="display:flex; flex-direction:column; align-items:center; gap:10px">
                 <div style="width:40px; height:40px; border-radius:50%; background:rgba(var(--color-text-rgb), 0.03); display:flex; align-items:center; justify-content:center; color:var(--color-text-faint)"><i data-lucide="flag" style="width:20px; height:20px"></i></div>
                 <div style="font-weight:700; font-size:14px; color:var(--color-text)">No Release Versions Defined</div>
@@ -49985,6 +50107,9 @@ Earned Value Management measures project performance and progress by comparing p
                   <span style="font-family:var(--font-mono); font-size:12px; color:var(--color-text-muted)">•</span>
                   <input type="text" class="inp" value="${esc(r.name)}" onchange="updateRelease('${r.id}', 'name', this.value)" style="width:100%; font-weight:700; font-family:var(--font-mono); font-size:12px; background:transparent; border-color:transparent; padding:2px 4px; border-radius:4px; color:var(--color-text)" onfocus="this.style.background='var(--color-surface)'; this.style.borderColor='var(--color-divider)'" onblur="this.style.background='transparent'; this.style.borderColor='transparent'">
                 </div>
+              </td>
+              <td style="padding:6px 10px">
+                <input type="date" class="inp" value="${r.startDate || ''}" max="9999-12-31" onchange="updateRelease('${r.id}', 'startDate', this.value)" style="width:100%; font-size:11px; background:transparent; border-color:transparent; padding:2px 4px; border-radius:4px; color:var(--color-text)" onfocus="this.style.background='var(--color-surface)'; this.style.borderColor='var(--color-divider)'" onblur="this.style.background='transparent'; this.style.borderColor='transparent'">
               </td>
               <td style="padding:6px 10px">
                 <input type="date" class="inp" value="${r.date || ''}" max="9999-12-31" onchange="updateRelease('${r.id}', 'date', this.value)" style="width:100%; font-size:11px; background:transparent; border-color:transparent; padding:2px 4px; border-radius:4px; color:var(--color-text)" onfocus="this.style.background='var(--color-surface)'; this.style.borderColor='var(--color-divider)'" onblur="this.style.background='transparent'; this.style.borderColor='transparent'">
