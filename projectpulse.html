@@ -44837,6 +44837,14 @@ Earned Value Management measures project performance and progress by comparing p
           });
         };
 
+        const addDashboardChartSized = (imgId, col, row, widthPx, heightPx) => {
+          ds.addImage(imgId, {
+            tl: { col: col, row: row },
+            ext: { width: widthPx, height: heightPx },
+            editAs: 'oneCell'
+          });
+        };
+
         const drawSectionTitle = (row, title) => {
           ds.getRow(row).height = 20;
           ds.mergeCells(row, 2, row, 19);
@@ -45205,15 +45213,19 @@ Earned Value Management measures project performance and progress by comparing p
         for (let r = 37; r <= 48; r++) ds.getRow(r).height = 20;
 
         try {
-          const modBarImgBase64 = generateCanvasChart(500, 240, 'horizontalBar', { labels: modChartLabels, values: modChartValues });
+          // Scale canvas height so every module bar gets at least 16px
+          const modBarH = Math.max(240, modChartLabels.length * 16 + 60);
+          const modBarImgBase64 = generateCanvasChart(500, modBarH, 'horizontalBar', { labels: modChartLabels, values: modChartValues });
           const modBarImgId = wb.addImage({ base64: modBarImgBase64, extension: 'png' });
-          addDashboardChart(modBarImgId, 1, 37);
+          addDashboardChartSized(modBarImgId, 1, 37, 500, modBarH);
         } catch (err) { PP.error('Error generating module progress chart', err); }
 
         try {
-          const teamBarImgBase64 = generateCanvasChart(500, 240, 'stackedHorizontalBar', teamWorkloadData);
+          // Scale canvas height so every team member bar gets at least 16px
+          const teamBarH = Math.max(240, teamNames.length * 16 + 60);
+          const teamBarImgBase64 = generateCanvasChart(500, teamBarH, 'stackedHorizontalBar', teamWorkloadData);
           const teamBarImgId = wb.addImage({ base64: teamBarImgBase64, extension: 'png' });
-          addDashboardChart(teamBarImgId, 7, 37);
+          addDashboardChartSized(teamBarImgId, 7, 37, 500, teamBarH);
         } catch (err) { PP.error('Error generating team workload chart', err); }
 
         try {
