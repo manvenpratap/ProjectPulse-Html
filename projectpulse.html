@@ -14824,9 +14824,10 @@
 
       let runningDate = st.startDate || todayStr();
       st.workflow.forEach(s => {
-        s.startDate = runningDate;
+        // Only set startDate if it is not already set — do not overwrite manually entered dates
+        if (!s.startDate) s.startDate = runningDate;
         const e = (s.effort || 1) * compFactor;
-        s.dueDate = addBusDays(runningDate, Math.ceil(e));
+        s.dueDate = addBusDays(s.startDate, Math.ceil(e));
 
         const isDone = s.status === 'Completed' || s.done;
         if (isDone && (!s.actCompletionDate || s.actCompletionDate === '-' || s.actCompletionDate === '—' || s.actCompletionDate === 'null')) {
@@ -18312,13 +18313,14 @@
             group.sort((a, b) => (prioScore[a.priority] || 2) - (prioScore[b.priority] || 2));
             group.forEach(s => {
               const effort = Math.ceil(parseFloat(s.effort) || 1);
-              s.startDate = currentQueueDate;
-              s.dueDate = addBusDays(currentQueueDate, effort);
+              // Only set startDate if not already set — do not overwrite manually entered dates
+              if (!s.startDate) s.startDate = currentQueueDate;
+              s.dueDate = addBusDays(s.startDate, effort);
 
               if (s.type === 'screen') {
                 recalcGUIScreen(s);
                 // recalcGUIScreen sets s.dueDate based on its steps, so we use that
-                s.dueDate = s.dueDate || addBusDays(currentQueueDate, effort);
+                s.dueDate = s.dueDate || addBusDays(s.startDate, effort);
               }
 
               const isScreenDone = s.status === 'Completed' || s.done;
@@ -18335,8 +18337,9 @@
           let currentDate = task.startDate;
           subs.forEach(s => {
             const effort = Math.ceil(parseFloat(s.effort) || 1);
-            s.startDate = currentDate;
-            s.dueDate = addBusDays(currentDate, effort);
+            // Only set startDate if not already set — do not overwrite manually entered dates
+            if (!s.startDate) s.startDate = currentDate;
+            s.dueDate = addBusDays(s.startDate, effort);
             const isDone = s.status === 'Completed' || s.done;
             const finishDate = (isDone && s.actCompletionDate && s.actCompletionDate !== '-' && s.actCompletionDate !== '—' && s.actCompletionDate !== 'null') ? s.actCompletionDate : s.dueDate;
             currentDate = getNextBusDay(finishDate);
