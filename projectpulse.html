@@ -13779,14 +13779,20 @@
               const isDone = st.status === 'Completed' || st.done;
               let compDate = null;
 
-              const subLogs = (log || []).filter(l => (l.subtaskId === st.id || (l.taskId === t.id && l.field === 'subtask.status')) && l.newVal === 'Completed');
-              if (subLogs.length > 0) {
-                const latestLog = subLogs.sort((a, b) => getLogActivityDate(b) - getLogActivityDate(a))[0];
-                compDate = getLogActivityDate(latestLog);
-              } else if (isDone && st.actCompletionDate) {
+              // Priority 1: Actual completion date (actCompletionDate)
+              if (isDone && st.actCompletionDate && st.actCompletionDate !== '-' && st.actCompletionDate !== '—') {
                 compDate = new Date(st.actCompletionDate);
-              } else if (isDone && t.actCompletionDate) {
+              } else if (isDone && t.actCompletionDate && t.actCompletionDate !== '-' && t.actCompletionDate !== '—') {
                 compDate = new Date(t.actCompletionDate);
+              } else if (isDone) {
+                // Priority 2: Log activity timestamp or updatedAt fallback
+                const subLogs = (log || []).filter(l => (l.subtaskId === st.id || (l.taskId === t.id && l.field === 'subtask.status')) && l.newVal === 'Completed');
+                if (subLogs.length > 0) {
+                  const latestLog = subLogs.sort((a, b) => getLogActivityDate(b) - getLogActivityDate(a))[0];
+                  compDate = getLogActivityDate(latestLog);
+                } else if (st.updatedAt || t.updatedAt) {
+                  compDate = new Date(st.updatedAt || t.updatedAt);
+                }
               }
 
               if (compDate && !isNaN(compDate.getTime()) && compDate >= fourWeeksAgo && compDate <= now) {
@@ -13798,14 +13804,18 @@
             const isDone = t.status === 'Completed';
             let compDate = null;
 
-            const taskLogs = (log || []).filter(l => l.taskId === t.id && isTaskCompletionLog(l));
-            if (taskLogs.length > 0) {
-              const latestLog = taskLogs.sort((a, b) => getLogActivityDate(b) - getLogActivityDate(a))[0];
-              compDate = getLogActivityDate(latestLog);
-            } else if (isDone && t.actCompletionDate) {
+            // Priority 1: Actual completion date (actCompletionDate)
+            if (isDone && t.actCompletionDate && t.actCompletionDate !== '-' && t.actCompletionDate !== '—') {
               compDate = new Date(t.actCompletionDate);
-            } else if (isDone && t.updatedAt) {
-              compDate = new Date(t.updatedAt);
+            } else if (isDone) {
+              // Priority 2: Log activity timestamp or updatedAt fallback
+              const taskLogs = (log || []).filter(l => l.taskId === t.id && isTaskCompletionLog(l));
+              if (taskLogs.length > 0) {
+                const latestLog = taskLogs.sort((a, b) => getLogActivityDate(b) - getLogActivityDate(a))[0];
+                compDate = getLogActivityDate(latestLog);
+              } else if (t.updatedAt) {
+                compDate = new Date(t.updatedAt);
+              }
             }
 
             if (compDate && !isNaN(compDate.getTime()) && compDate >= fourWeeksAgo && compDate <= now) {
