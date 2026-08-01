@@ -48345,8 +48345,14 @@ Earned Value Management measures project performance and progress by comparing p
                   const statuses = mtTasks.map(t => getTaskDerivedStatus(t)); const sCounts = {}; statuses.forEach(s => sCounts[s] = (sCounts[s] || 0) + 1);
                   let dsVal = 'Not Started'; if (sCounts['Blocked']) dsVal = 'Blocked'; else if (sCounts['On Hold']) dsVal = 'On Hold'; else if (sCounts['In Progress']) dsVal = 'In Progress'; else if (sCounts['Under Review']) dsVal = 'Under Review'; else if (sCounts['Completed'] === mtTasks.length) dsVal = 'Completed'; else if (sCounts['Completed']) dsVal = 'In Progress';
                   const taskProgresses = mtTasks.map(getTaskProgressHierarchical);
-                  const mAvgP = Math.round(taskProgresses.reduce((s, p) => s + p, 0) / mtTasks.length); const label = dsVal === 'Completed' ? dsVal : dsVal + ' (' + mAvgP + '%)';
-                  rowCellsMapping.push({ c: cStart, val: styledVal(label, STATUS_COLORS[dsVal] || COLORS.textDark, true) });
+                  const mAvgP = Math.round(taskProgresses.reduce((s, p) => s + p, 0) / mtTasks.length);
+                  const statusClr = STATUS_COLORS[dsVal] || COLORS.textDark;
+                  rowCellsMapping.push({
+                    c: cStart,
+                    val: styledVal(dsVal, statusClr, true),
+                    progVal: mAvgP,
+                    barColor: statusClr
+                  });
                 }
               }
             }
@@ -48372,6 +48378,25 @@ Earned Value Management measures project performance and progress by comparing p
                 cell.font = { name: 'Courier New', size: 8.5, color: { argb: COLORS.textDark } };
               }
               cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+
+              // Apply color-coded progress dataBar if numeric progress & status color exist
+              if (cfg.progVal !== undefined) {
+                cell.value = cfg.progVal;
+                cell.numFmt = '0"%"';
+                try {
+                  const colLetter = ds.getColumn(cfg.c).letter;
+                  const cellRef = colLetter + rIdx;
+                  ds.addConditionalFormatting({
+                    ref: cellRef + ':' + cellRef,
+                    rules: [{
+                      type: 'dataBar',
+                      cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 100 }],
+                      color: { argb: cfg.barColor || COLORS.emerald },
+                      showValue: true
+                    }]
+                  });
+                } catch (e) { }
+              }
             });
           });
           curRow += mMods.length + 2;
