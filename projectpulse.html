@@ -48352,6 +48352,7 @@ Earned Value Management measures project performance and progress by comparing p
                   const fullLabel = dsVal === 'Completed' ? 'Completed (100%)' : `${dsVal} (${mAvgP}%)`;
                   rowCellsMapping.push({
                     c: cStart,
+                    cEnd: cEnd,
                     val: styledVal(fullLabel, statusClr, true),
                     progVal: mAvgP,
                     dsVal: dsVal,
@@ -48385,17 +48386,15 @@ Earned Value Management measures project performance and progress by comparing p
 
               // Apply color-coded progress dataBar if numeric progress & status color exist
               if (cfg.progVal !== undefined) {
-                // If value is 0%, use (0.00001 / 0.001) or standard numeric 0 so label displays status + (0%) with thin/ghost bar or clean 0% state
-                cell.value = cfg.progVal / 100;
-                cell.numFmt = `"${cfg.dsVal} ("0%"")"`;
                 try {
-                  const colLetter = ds.getColumn(cfg.c).letter;
-                  const cellRef = colLetter + rIdx;
+                  const cStartLetter = ds.getColumn(cfg.c).letter;
+                  const cEndLetter = cfg.cEnd ? ds.getColumn(cfg.cEnd).letter : cStartLetter;
+                  const cellRef = `${cStartLetter}${rIdx}:${cEndLetter}${rIdx}`;
                   ds.addConditionalFormatting({
-                    ref: cellRef + ':' + cellRef,
+                    ref: cellRef,
                     rules: [{
                       type: 'dataBar',
-                      cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 1 }],
+                      cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 100 }],
                       color: { argb: cfg.barColor || COLORS.emerald },
                       showValue: true
                     }]
