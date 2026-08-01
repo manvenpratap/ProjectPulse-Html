@@ -48138,14 +48138,15 @@ Earned Value Management measures project performance and progress by comparing p
         const drawCustomModDeliveryHeaders = (row) => {
           ds.getRow(row).height = 18;
           const headerMapping = [
-            { c1: 2, c2: 6, label: 'Module' },
-            { c1: 7, c2: 8, label: 'Tasks' },
-            { c1: 9, c2: 10, label: 'Done' },
-            { c1: 11, c2: 12, label: 'Overdue' },
-            { c1: 13, c2: 14, label: 'Avg Progress' },
-            { c1: 15, c2: 17, label: 'Feature Name' },
-            { c1: 18, c2: 18, label: 'Screens' },
-            { c1: 19, c2: 19, label: 'Feature Progress' }
+            { c1: 2, c2: 5, label: 'Module' },
+            { c1: 6, c2: 6, label: 'Tasks' },
+            { c1: 7, c2: 7, label: 'Done' },
+            { c1: 8, c2: 8, label: 'Overdue' },
+            { c1: 9, c2: 10, label: 'Avg Progress' },
+            // Col 11 is a blank divider column
+            { c1: 12, c2: 16, label: 'Feature Name' },
+            { c1: 17, c2: 17, label: 'Screens' },
+            { c1: 18, c2: 19, label: 'Feature Progress' }
           ];
           headerMapping.forEach(h => {
             if (h.c1 !== h.c2) ds.mergeCells(row, h.c1, row, h.c2);
@@ -48156,6 +48157,7 @@ Earned Value Management measures project performance and progress by comparing p
             cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
           });
           for (let c = 2; c <= 19; c++) {
+            if (c === 11) continue; // Leave divider gap column clean
             const cell = ds.getCell(row, c);
             if (!cell.fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
             cell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
@@ -48172,14 +48174,16 @@ Earned Value Management measures project performance and progress by comparing p
           ds.getRow(mAvgRow).height = 20;
           const bg = i % 2 === 1 ? getThemeTint(COLORS.blue, 0.08) : getThemeTint(COLORS.blue, 0.02);
 
-          ds.mergeCells(mAvgRow, 2, mAvgRow, 6);
-          ds.mergeCells(mAvgRow, 7, mAvgRow, 8);
+          // Left table: Module (Cols 2-10)
+          ds.mergeCells(mAvgRow, 2, mAvgRow, 5);
           ds.mergeCells(mAvgRow, 9, mAvgRow, 10);
-          ds.mergeCells(mAvgRow, 11, mAvgRow, 12);
-          ds.mergeCells(mAvgRow, 13, mAvgRow, 14);
-          ds.mergeCells(mAvgRow, 15, mAvgRow, 17);
 
-          for (let c = 2; c <= 19; c++) {
+          // Right table: Feature (Cols 12-19)
+          ds.mergeCells(mAvgRow, 12, mAvgRow, 16);
+          ds.mergeCells(mAvgRow, 18, mAvgRow, 19);
+
+          // Background fill & borders for left table (2..10) and right table (12..19)
+          [...Array(9).keys()].map(k => k + 2).concat([...Array(8).keys()].map(k => k + 12)).forEach(c => {
             const cell = ds.getCell(mAvgRow, c);
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
             cell.border = {
@@ -48188,7 +48192,7 @@ Earned Value Management measures project performance and progress by comparing p
               left: { style: 'thin', color: { argb: COLORS.divider } },
               right: { style: 'thin', color: { argb: COLORS.divider } }
             };
-          }
+          });
 
           // Left side: Module data
           if (i < modSet.length) {
@@ -48201,10 +48205,10 @@ Earned Value Management measures project performance and progress by comparing p
 
             const modCells = [
               { c: 2, val: m },
-              { c: 7, val: mt.length },
-              { c: 9, val: styledVal(mDone, COLORS.emerald, true) },
-              { c: 11, val: styledVal(mOver, mOverColor, true) },
-              { c: 13, val: mAvg + '%' }
+              { c: 6, val: mt.length },
+              { c: 7, val: styledVal(mDone, COLORS.emerald, true) },
+              { c: 8, val: styledVal(mOver, mOverColor, true) },
+              { c: 9, val: mAvg + '%' }
             ];
 
             modCells.forEach(cfg => {
@@ -48219,12 +48223,12 @@ Earned Value Management measures project performance and progress by comparing p
               cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
             });
 
-            const mAvgCell = ds.getCell('M' + mAvgRow);
+            const mAvgCell = ds.getCell('I' + mAvgRow);
             mAvgCell.value = mAvg;
             mAvgCell.numFmt = '0"%"';
             try {
               ds.addConditionalFormatting({
-                ref: 'M' + mAvgRow + ':M' + mAvgRow,
+                ref: 'I' + mAvgRow + ':I' + mAvgRow,
                 rules: [{
                   type: 'dataBar',
                   cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 100 }],
@@ -48243,9 +48247,9 @@ Earned Value Management measures project performance and progress by comparing p
             const fAvg = screenData.length ? Math.round(screenData.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / screenData.length) : 0;
 
             const featCells = [
-              { c: 15, val: feat.name },
-              { c: 18, val: scs.length },
-              { c: 19, val: fAvg + '%' }
+              { c: 12, val: feat.name },
+              { c: 17, val: scs.length },
+              { c: 18, val: fAvg + '%' }
             ];
 
             featCells.forEach(cfg => {
@@ -48254,6 +48258,21 @@ Earned Value Management measures project performance and progress by comparing p
               cell.font = { name: 'Courier New', size: 8.5, color: { argb: COLORS.textDark } };
               cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
             });
+
+            const fAvgCell = ds.getCell('R' + mAvgRow);
+            fAvgCell.value = fAvg;
+            fAvgCell.numFmt = '0"%"';
+            try {
+              ds.addConditionalFormatting({
+                ref: 'R' + mAvgRow + ':R' + mAvgRow,
+                rules: [{
+                  type: 'dataBar',
+                  cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 100 }],
+                  color: { argb: COLORS.emerald },
+                  showValue: true
+                }]
+              });
+            } catch (e) { }
           }
         }
 
