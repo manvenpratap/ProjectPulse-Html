@@ -12569,6 +12569,7 @@
             <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:11.5px; color:var(--color-text); margin-top:4px;">
               <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-summary" checked onchange="updateCxoEmailPreview()"> Summary</label>
               <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-sprint" checked onchange="updateCxoEmailPreview()"> Sprint Target &amp; Trending</label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-statusviz" checked onchange="updateCxoEmailPreview()"> Status Visualizer</label>
               <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-modules" checked onchange="updateCxoEmailPreview()"> Module Visualizer</label>
               <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-wins" checked onchange="updateCxoEmailPreview()"> Completed This Week</label>
               <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-next" checked onchange="updateCxoEmailPreview()"> Planned Next Week</label>
@@ -38731,10 +38732,10 @@ Earned Value Management measures project performance and progress by comparing p
 
       const history = P.healthHistory || [];
       let trend = 0;
-      if (history.length >= 2) {
-        const prev = history[history.length - 2]?.score || 0;
-        const curr = history[history.length - 1]?.score || score;
-        trend = curr - prev;
+      if (history.length >= 1) {
+        const lastHist = history[history.length - 1];
+        const prevScore = (history.length >= 2) ? history[history.length - 2].score : lastHist.score;
+        trend = score - prevScore;
       }
 
       const raids = P.raids || [];
@@ -38820,6 +38821,7 @@ Earned Value Management measures project performance and progress by comparing p
       
       const incSummary    = $id('cxo-sec-summary')?.checked ?? true;
       const incSprint     = $id('cxo-sec-sprint')?.checked ?? true;
+      const incStatusViz  = $id('cxo-sec-statusviz')?.checked ?? true;
       const incModules    = $id('cxo-sec-modules')?.checked ?? true;
       const incWins       = $id('cxo-sec-wins')?.checked ?? true;
       const incNext       = $id('cxo-sec-next')?.checked ?? true;
@@ -38832,7 +38834,7 @@ Earned Value Management measures project performance and progress by comparing p
 
       const healthColor = stats.health === 'On Track' ? '#16a34a' : stats.health === 'At Risk' ? '#d97706' : '#dc2626';
       const healthBg    = stats.health === 'On Track' ? '#f0fdf4'  : stats.health === 'At Risk' ? '#fffbeb'  : '#fef2f2';
-      const trendSymbol = stats.trend > 0 ? '▲ +' + stats.trend : stats.trend < 0 ? '▼ ' + stats.trend : '▬ 0';
+      const trendSymbol = stats.trend > 0 ? '▲ +' + stats.trend + '% score' : stats.trend < 0 ? '▼ ' + stats.trend + '% score' : '▬ Stable';
       const trendColor  = stats.trend > 0 ? '#16a34a' : stats.trend < 0 ? '#dc2626' : '#64748b';
 
       const members = pState.members || [];
@@ -38926,7 +38928,94 @@ Earned Value Management measures project performance and progress by comparing p
         html += '</ul></td></tr></table></td></tr>';
       }
 
-      // 3. OVERALL MODULE-WISE STATUS & WEEKLY PROGRESS VISUALIZER
+      // 3. OVERALL STATUS-WISE PROJECT VISUALIZER
+      if (incStatusViz) {
+        const allTasks = pState.tasks || [];
+        const totalT = allTasks.length;
+        const todayViz = new Date(); todayViz.setHours(0,0,0,0);
+
+        const statusBuckets = [
+          { key: 'completed', label: 'Completed', color: '#16a34a', bg: '#f0fdf4', icon: '✅', count: 0 },
+          { key: 'inprogress', label: 'In Progress', color: '#2563eb', bg: '#eff6ff', icon: '🔄', count: 0 },
+          { key: 'review', label: 'In Review', color: '#8b5cf6', bg: '#f5f3ff', icon: '👁️', count: 0 },
+          { key: 'notstarted', label: 'Not Started', color: '#64748b', bg: '#f8fafc', icon: '⏳', count: 0 },
+          { key: 'blocked', label: 'Blocked', color: '#dc2626', bg: '#fef2f2', icon: '🚫', count: 0 },
+          { key: 'overdue', label: 'Overdue', color: '#ea580c', bg: '#fff7ed', icon: '⚠️', count: 0 }
+        ];
+
+        allTasks.forEach(t => {
+          const s = (t.status || '').toLowerCase();
+          const prog = parseInt(t.progress, 10) || 0;
+          if (s === 'completed' || prog === 100) { statusBuckets[0].count++; return; }
+          if (s === 'blocked' || s === 'on hold') { statusBuckets[4].count++; return; }
+          // Check overdue (non-completed with past due date)
+          if (t.dueDate && s !== 'cancelled') {
+            const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
+            if (dd < todayViz && s !== 'completed') { statusBuckets[5].count++; return; }
+          }
+          if (s === 'review' || s === 'in review' || s === 'testing' || s === 'qa') { statusBuckets[2].count++; return; }
+          if (s === 'in progress' || prog > 0) { statusBuckets[1].count++; return; }
+          statusBuckets[3].count++;
+        });
+
+        const activeBuckets = statusBuckets.filter(b => b.count > 0);
+
+        html += '<tr><td style="padding-bottom:18px;">';
+        html += secHdr('#0ea5e9', '📈', 'Overall Status Distribution & Weekly Progress Snapshot');
+
+        // Stacked horizontal bar
+        if (totalT > 0) {
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:12px; border-collapse:collapse;"><tr>';
+          html += '<td style="padding:0;">';
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse; height:28px; border-radius:6px; overflow:hidden;"><tr>';
+          activeBuckets.forEach((b, i) => {
+            const pct = Math.round((b.count / totalT) * 100);
+            const radius = i === 0 ? 'border-radius:6px 0 0 6px;' : (i === activeBuckets.length - 1 ? 'border-radius:0 6px 6px 0;' : '');
+            html += '<td width="' + pct + '%" bgcolor="' + b.color + '" style="background-color:' + b.color + '; height:28px; text-align:center; font-size:10px; font-weight:800; color:#ffffff; font-family:Arial,sans-serif; ' + radius + '">' + (pct >= 8 ? pct + '%' : '') + '</td>';
+          });
+          html += '</tr></table>';
+          html += '</td></tr></table>';
+
+          // Legend row with counts
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:14px; border-collapse:collapse;"><tr>';
+          activeBuckets.forEach(b => {
+            const pct = Math.round((b.count / totalT) * 100);
+            html += '<td style="padding:4px 6px; text-align:center; font-size:11px; font-family:Arial,sans-serif;">';
+            html += '<span style="display:inline-block; width:8px; height:8px; background-color:' + b.color + '; border-radius:2px; margin-right:4px; vertical-align:middle;"></span>';
+            html += '<span style="color:#475569; font-weight:600;">' + b.label + '</span>';
+            html += '<br><span style="font-size:15px; font-weight:900; color:' + b.color + ';">' + b.count + '</span>';
+            html += '<span style="font-size:10px; color:#94a3b8;"> (' + pct + '%)</span>';
+            html += '</td>';
+          });
+          html += '</tr></table>';
+        }
+
+        // Status cards grid (2-column layout)
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">';
+        for (let i = 0; i < statusBuckets.length; i += 2) {
+          html += '<tr>';
+          for (let j = i; j < Math.min(i + 2, statusBuckets.length); j++) {
+            const b = statusBuckets[j];
+            const pct = totalT > 0 ? Math.round((b.count / totalT) * 100) : 0;
+            html += '<td width="50%" style="padding:4px ' + (j === i ? '4px 4px 0' : '0 4px 4px') + '; vertical-align:top;">';
+            html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + b.bg + '" style="background-color:' + b.bg + '; border:1px solid ' + b.color + '33; border-radius:6px; border-collapse:collapse;"><tr>';
+            html += '<td style="padding:10px 12px;">';
+            html += '<div style="font-size:10px; text-transform:uppercase; letter-spacing:0.6px; color:' + b.color + '; font-weight:700; margin-bottom:2px;">' + b.icon + ' ' + b.label + '</div>';
+            html += '<div style="font-size:20px; font-weight:900; color:' + b.color + '; line-height:1.1;">' + b.count + '<span style="font-size:11px; color:#94a3b8; font-weight:500;"> / ' + totalT + '</span></div>';
+            html += miniBar(pct, b.color);
+            html += '</td></tr></table>';
+            html += '</td>';
+          }
+          if (statusBuckets.length % 2 !== 0 && i + 2 >= statusBuckets.length) {
+            html += '<td width="50%"></td>';
+          }
+          html += '</tr>';
+        }
+        html += '</table>';
+        html += '</td></tr>';
+      }
+
+      // 4. OVERALL MODULE-WISE STATUS & WEEKLY PROGRESS VISUALIZER
       if (incModules) {
         const modStatsMap = {};
         const todayDate = new Date(); todayDate.setHours(0,0,0,0);
@@ -39003,7 +39092,7 @@ Earned Value Management measures project performance and progress by comparing p
         html += '</td></tr>';
       }
 
-      // 4. ACTIVITIES COMPLETED THIS WEEK
+      // 5. ACTIVITIES COMPLETED THIS WEEK
       if (incWins) {
         const wins = (pState.tasks || []).filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100)
           .sort((a, b) => new Date(b.actCompletionDate || b.updatedAt || 0) - new Date(a.actCompletionDate || a.updatedAt || 0)).slice(0, 6);
@@ -39028,7 +39117,7 @@ Earned Value Management measures project performance and progress by comparing p
         html += '</td></tr>';
       }
 
-      // 5. ACTIVITIES PLANNED FOR NEXT WEEK
+      // 6. ACTIVITIES PLANNED FOR NEXT WEEK
       if (incNext) {
         const todayOL = new Date(); todayOL.setHours(0,0,0,0);
         const targetOL = new Date(todayOL); targetOL.setDate(targetOL.getDate() + daysBack);
@@ -39058,7 +39147,7 @@ Earned Value Management measures project performance and progress by comparing p
         html += '</td></tr>';
       }
 
-      // 6. CURRENT CHALLENGES
+      // 7. CURRENT CHALLENGES
       if (incChallenges) {
         const topRisks = (pState.raids || []).filter(r => r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated' && (r.impact === 'High' || r.severity === 'S1 - Critical' || r.severity === 'S2 - Major' || r.probability === 'High'));
         const openIssues = (pState.raids || []).filter(r => r.type === 'Issue' && r.status !== 'Closed' && r.status !== 'Mitigated');
@@ -39092,7 +39181,7 @@ Earned Value Management measures project performance and progress by comparing p
         html += '</td></tr>';
       }
 
-      // 7. MANAGEMENT'S ASK
+      // 8. MANAGEMENT'S ASK
       if (incAsk) {
         const decisions = (pState.decisions || []).filter(d => d.status !== 'Approved' && d.status !== 'Resolved' && d.status !== 'Closed');
         
@@ -39124,7 +39213,7 @@ Earned Value Management measures project performance and progress by comparing p
         html += '</td></tr></table></td></tr>';
       }
 
-      // 8. KEY PERFORMANCE INDICATORS TABLE (OPTIONAL)
+      // 9. KEY PERFORMANCE INDICATORS TABLE (OPTIONAL)
       if (incKpi) {
         const ovColor = stats.progress >= 70 ? '#16a34a' : stats.progress >= 40 ? '#d97706' : '#dc2626';
         html += '<tr><td style="padding-bottom:18px;">' + secHdr('#475569', '📊', 'Key Performance Indicators (Quick Glance)');
@@ -39235,7 +39324,60 @@ Earned Value Management measures project performance and progress by comparing p
         return { ...m, avgProgress: avg, status };
       }).sort((a, b) => b.total - a.total);
 
-      text += '3. MODULE-WISE DELIVERY & WEEKLY PROGRESS VISUALIZER:\n';
+      // 3. STATUS-WISE PROJECT VISUALIZER
+      const allTasksViz = pState.tasks || [];
+      const totalViz = allTasksViz.length;
+      const todayVizPt = new Date(); todayVizPt.setHours(0,0,0,0);
+
+      const stBuckets = [
+        { label: 'Completed', count: 0 },
+        { label: 'In Progress', count: 0 },
+        { label: 'In Review', count: 0 },
+        { label: 'Not Started', count: 0 },
+        { label: 'Blocked', count: 0 },
+        { label: 'Overdue', count: 0 }
+      ];
+
+      allTasksViz.forEach(t => {
+        const s = (t.status || '').toLowerCase();
+        const prog = parseInt(t.progress, 10) || 0;
+        if (s === 'completed' || prog === 100) { stBuckets[0].count++; return; }
+        if (s === 'blocked' || s === 'on hold') { stBuckets[4].count++; return; }
+        if (t.dueDate && s !== 'cancelled') {
+          const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
+          if (dd < todayVizPt && s !== 'completed') { stBuckets[5].count++; return; }
+        }
+        if (s === 'review' || s === 'in review' || s === 'testing' || s === 'qa') { stBuckets[2].count++; return; }
+        if (s === 'in progress' || prog > 0) { stBuckets[1].count++; return; }
+        stBuckets[3].count++;
+      });
+
+      text += '3. STATUS-WISE PROJECT SNAPSHOT (' + totalViz + ' Total Deliverables):\n';
+      if (totalViz === 0) {
+        text += '   (No tasks available)\n';
+      } else {
+        // ASCII stacked bar
+        const barWidth = 40;
+        let barStr = '   [';
+        stBuckets.forEach((b, i) => {
+          const chars = Math.round((b.count / totalViz) * barWidth);
+          const symbols = ['█', '▓', '▒', '░', '✕', '!'];
+          barStr += symbols[i].repeat(chars);
+        });
+        barStr += ']\n';
+        text += barStr;
+        text += '    █ Completed  ▓ In Progress  ▒ In Review  ░ Not Started  ✕ Blocked  ! Overdue\n';
+        text += '\n';
+        stBuckets.filter(b => b.count > 0).forEach(b => {
+          const pct = Math.round((b.count / totalViz) * 100);
+          const filled = Math.round(pct / 10);
+          const bar = '[' + '■'.repeat(filled) + '·'.repeat(10 - filled) + ']';
+          text += '   • ' + b.label.padEnd(14, ' ') + ': ' + bar + ' ' + String(b.count).padStart(3, ' ') + ' tasks (' + pct + '%)\n';
+        });
+      }
+      text += '\n';
+
+      text += '4. MODULE-WISE DELIVERY & WEEKLY PROGRESS VISUALIZER:\n';
       if (moduleList.length === 0) text += '   (No module breakdown available)\n';
       else {
         moduleList.forEach(m => {
@@ -39250,7 +39392,7 @@ Earned Value Management measures project performance and progress by comparing p
       // 4. ACTIVITIES COMPLETED THIS WEEK
       const wins = (pState.tasks || []).filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100)
         .sort((a,b) => new Date(b.actCompletionDate || b.updatedAt || 0) - new Date(a.actCompletionDate || a.updatedAt || 0)).slice(0, 6);
-      text += '4. ACTIVITIES COMPLETED THIS WEEK (' + wins.length + '):\n';
+      text += '5. ACTIVITIES COMPLETED THIS WEEK (' + wins.length + '):\n';
       if (wins.length === 0) text += '   (No completed deliverables recorded in this reporting cycle)\n';
       else {
         wins.forEach(w => {
@@ -39268,7 +39410,7 @@ Earned Value Management measures project performance and progress by comparing p
         const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
         return dd >= todayOL && dd <= targetOL;
       }).sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate)).slice(0, 6);
-      text += '5. ACTIVITIES PLANNED FOR NEXT WEEK (' + upcoming.length + '):\n';
+      text += '6. ACTIVITIES PLANNED FOR NEXT WEEK (' + upcoming.length + '):\n';
       if (upcoming.length === 0) text += '   (No specific deliverables scheduled for next week)\n';
       else {
         upcoming.forEach(t => {
@@ -39279,7 +39421,7 @@ Earned Value Management measures project performance and progress by comparing p
 
       // 6. CURRENT CHALLENGES
       const topRisks = (pState.raids || []).filter(r => r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated' && (r.impact === 'High' || r.severity === 'S1 - Critical' || r.severity === 'S2 - Major' || r.probability === 'High'));
-      text += '6. CURRENT CHALLENGES (' + topRisks.length + ' Active Risks/Blockers):\n';
+      text += '7. CURRENT CHALLENGES (' + topRisks.length + ' Active Risks/Blockers):\n';
       if (topRisks.length === 0) text += '   ✓ No critical challenges or overdue blockers active.\n';
       else {
         topRisks.forEach(r => {
@@ -39290,7 +39432,7 @@ Earned Value Management measures project performance and progress by comparing p
 
       // 7. MANAGEMENT'S ASK
       const decisions = (pState.decisions || []).filter(d => d.status !== 'Approved' && d.status !== 'Resolved' && d.status !== 'Closed');
-      text += '7. MANAGEMENT\'S ASK / SUPPORT REQUIRED:\n';
+      text += '8. MANAGEMENT\'S ASK / SUPPORT REQUIRED:\n';
       if (execAsk) text += '   ►  Direct Request: ' + execAsk + '\n';
       if (decisions.length > 0) {
         decisions.forEach(d => {
