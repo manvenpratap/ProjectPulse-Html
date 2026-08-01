@@ -12567,18 +12567,28 @@
               Optional Sections
             </label>
             <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:11.5px; color:var(--color-text); margin-top:4px;">
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-summary" checked onchange="updateCxoEmailPreview()"> Summary</label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-sprint" checked onchange="updateCxoEmailPreview()"> Sprint Target &amp; Trending</label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-wins" checked onchange="updateCxoEmailPreview()"> Completed This Week</label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-next" checked onchange="updateCxoEmailPreview()"> Planned Next Week</label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-challenges" checked onchange="updateCxoEmailPreview()"> Current Challenges</label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-ask" checked onchange="updateCxoEmailPreview()"> Management's Ask</label>
               <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-kpi" checked onchange="updateCxoEmailPreview()"> KPI Table</label>
-              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-wins" checked onchange="updateCxoEmailPreview()"> Accomplishments</label>
-              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-decisions" checked onchange="updateCxoEmailPreview()"> Decisions</label>
-              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-risks" checked onchange="updateCxoEmailPreview()"> Risks</label>
-              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-overdue" checked onchange="updateCxoEmailPreview()"> Overdue</label>
             </div>
           </div>
-          <div style="grid-column:span 3">
-            <label style="font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
-              Custom Executive Commentary / Note (Optional)
-            </label>
-            <textarea id="cxo-exec-note" class="finp" rows="2" placeholder="e.g. Hi Team, here is our project status update. Please review pending decision items by EOD Friday." style="width:100%; font-size:13px;" oninput="updateCxoEmailPreview()"></textarea>
+          <div style="grid-column:span 3; display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div>
+              <label style="font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
+                Summary Note / Executive Commentary (Optional)
+              </label>
+              <textarea id="cxo-exec-note" class="finp" rows="2" placeholder="e.g. Project remains on track for Q3 delivery. Team focused on backend integration." style="width:100%; font-size:12px;" oninput="updateCxoEmailPreview()"></textarea>
+            </div>
+            <div>
+              <label style="font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
+                Management's Ask / Support Required (Optional)
+              </label>
+              <textarea id="cxo-exec-ask" class="finp" rows="2" placeholder="e.g. Executive sign-off requested for Security Audit scope by Friday EOD." style="width:100%; font-size:12px;" oninput="updateCxoEmailPreview()"></textarea>
+            </div>
           </div>
         </div>
         
@@ -38802,16 +38812,19 @@ Earned Value Management measures project performance and progress by comparing p
       return points.map(pt => pt.replace(/<\/?strong>/g, '')).join(' ');
     }
 
-    function generateCxoEmailHtml() {
+        function generateCxoEmailHtml() {
       const stats = computeGlobalStats();
-      const style = $id('cxo-brief-style')?.value || 'full';
+      
+      const incSummary    = $id('cxo-sec-summary')?.checked ?? true;
+      const incSprint     = $id('cxo-sec-sprint')?.checked ?? true;
+      const incWins       = $id('cxo-sec-wins')?.checked ?? true;
+      const incNext       = $id('cxo-sec-next')?.checked ?? true;
+      const incChallenges = $id('cxo-sec-challenges')?.checked ?? true;
+      const incAsk        = $id('cxo-sec-ask')?.checked ?? true;
       const incKpi        = $id('cxo-sec-kpi')?.checked ?? true;
-      const incWins       = style === 'condensed' ? false : ($id('cxo-sec-wins')?.checked ?? true);
-      const incDecisions  = $id('cxo-sec-decisions')?.checked ?? true;
-      const incRisks      = style === 'condensed' ? false : ($id('cxo-sec-risks')?.checked ?? true);
-      const incOverdue    = style === 'condensed' ? false : ($id('cxo-sec-overdue')?.checked ?? true);
-      const incOutlook    = $id('cxo-sec-outlook')?.checked ?? true;
-      const execNote      = ($id('cxo-exec-note')?.value || '').trim();
+      
+      const execNote = ($id('cxo-exec-note')?.value || '').trim();
+      const execAsk  = ($id('cxo-exec-ask')?.value || '').trim();
 
       const healthColor = stats.health === 'On Track' ? '#16a34a' : stats.health === 'At Risk' ? '#d97706' : '#dc2626';
       const healthBg    = stats.health === 'On Track' ? '#f0fdf4'  : stats.health === 'At Risk' ? '#fffbeb'  : '#fef2f2';
@@ -38824,254 +38837,237 @@ Earned Value Management measures project performance and progress by comparing p
 
       const cadence      = $id('cxo-report-cadence')?.value || 'weekly';
       const daysBack     = cadence === 'fortnightly' ? 14 : 7;
-      const cadenceLabel = cadence === 'fortnightly' ? 'Fortnightly Status Report' : 'Weekly Status Report';
+      const cadenceLabel = cadence === 'fortnightly' ? 'Fortnightly Executive Brief' : 'Weekly Executive Brief';
       const rpStart      = new Date(); rpStart.setDate(rpStart.getDate() - daysBack);
       const reportPeriod = formatCxoDate(rpStart) + ' – ' + formatCxoDate(new Date());
       const cpPct        = stats.cpTotal > 0 ? Math.round((stats.cpCompleted / stats.cpTotal) * 100) : 0;
 
       const miniBar = function(pct, color) {
-        return '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top:5px; background-color:#e2e8f0; height:6px; border-radius:3px;"><tr><td width="' + Math.min(100, Math.max(0, pct)) + '%" bgcolor="' + color + '" style="background-color:' + color + '; height:6px; border-radius:3px; font-size:1px; line-height:1px;">&nbsp;</td><td style="font-size:1px; line-height:1px;">&nbsp;</td></tr></table>';
+        return '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top:4px; background-color:#e2e8f0; height:5px; border-radius:3px;"><tr><td width="' + Math.min(100, Math.max(0, pct)) + '%" bgcolor="' + color + '" style="background-color:' + color + '; height:5px; border-radius:3px; font-size:1px; line-height:1px;">&nbsp;</td><td style="font-size:1px; line-height:1px;">&nbsp;</td></tr></table>';
       };
 
-      const secHdr = function(color, label) {
-        return '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:12px; border-collapse:collapse;"><tr>' +
+      const secHdr = function(color, icon, label) {
+        return '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:10px; border-collapse:collapse;"><tr>' +
                '<td width="4" height="14" bgcolor="' + color + '" style="background-color:' + color + '; width:4px; height:14px; font-size:1px; line-height:1px;">&nbsp;</td>' +
-               '<td style="padding-left:8px; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:' + color + '; font-family:Arial, Helvetica, sans-serif;">' + label + '</td>' +
+               '<td style="padding-left:8px; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; color:' + color + '; font-family:Arial, Helvetica, sans-serif;">' + icon + ' ' + label + '</td>' +
                '</tr></table>';
       };
 
       let html = '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; background-color:#ffffff; font-family:Arial, Helvetica, sans-serif;">';
       html += '<tr><td align="center" style="padding:0;">';
-      html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; max-width:100%; border-collapse:collapse; color:#1e293b; font-size:14px; line-height:1.65; font-family:Arial, Helvetica, sans-serif;">';
+      html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; max-width:100%; border-collapse:collapse; color:#1e293b; font-size:13.5px; line-height:1.6; font-family:Arial, Helvetica, sans-serif;">';
 
-      // Header Banner Table
-      html += '<tr><td bgcolor="#0f172a" style="background-color:#0f172a; padding:28px 28px 22px; border-radius:14px 14px 0 0; color:#ffffff;">';
+      // Header Banner
+      html += '<tr><td bgcolor="#0f172a" style="background-color:#0f172a; padding:24px 24px 20px; border-radius:12px 12px 0 0; color:#ffffff;">';
       html += '<table width="100%" border="0" cellpadding="0" cellspacing="0"><tr>';
       html += '<td valign="top" style="color:#ffffff; font-family:Arial, Helvetica, sans-serif;">';
-      html += '<div style="font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:#94a3b8; font-weight:700; margin-bottom:4px;">' + escapeHTML(cadenceLabel) + '</div>';
-      html += '<h1 style="margin:0 0 6px 0; font-size:20px; font-weight:800; color:#ffffff; letter-spacing:-0.3px; line-height:1.25; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(P.name || 'Project Executive Brief') + '</h1>';
-      html += '<div style="font-size:11.5px; color:#cbd5e1; line-height:1.5;">Report Period: ' + reportPeriod + ' &nbsp;|&nbsp; Prepared by ' + escapeHTML(pmName) + '</div>';
+      html += '<div style="font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:#94a3b8; font-weight:700; margin-bottom:3px;">' + escapeHTML(cadenceLabel) + '</div>';
+      html += '<h1 style="margin:0 0 4px 0; font-size:19px; font-weight:800; color:#ffffff; letter-spacing:-0.3px; line-height:1.25; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(P.name || 'Project Executive Brief') + '</h1>';
+      html += '<div style="font-size:11px; color:#cbd5e1; line-height:1.4;">Period: ' + reportPeriod + ' &nbsp;|&nbsp; Prepared by ' + escapeHTML(pmName) + '</div>';
       html += '</td>';
       html += '<td width="160" align="right" valign="top" style="text-align:right; font-family:Arial, Helvetica, sans-serif;">';
-      html += '<div style="display:inline-block; padding:6px 14px; border-radius:20px; font-weight:800; font-size:12px; background-color:' + healthBg + '; color:' + healthColor + '; border:1.5px solid ' + healthColor + ';" bgcolor="' + healthBg + '">' + escapeHTML(stats.health) + '</div>';
-      html += '<div style="font-size:24px; font-weight:900; color:#ffffff; margin-top:6px; line-height:1;">' + stats.score + '<span style="font-size:12px; color:#94a3b8; font-weight:500;">/100</span></div>';
-      html += '<div style="font-size:11px; color:' + trendColor + '; font-weight:700; margin-top:3px;">' + trendSymbol + ' vs last cycle</div>';
+      html += '<div style="display:inline-block; padding:5px 12px; border-radius:16px; font-weight:800; font-size:11.5px; background-color:' + healthBg + '; color:' + healthColor + '; border:1.5px solid ' + healthColor + ';" bgcolor="' + healthBg + '">' + escapeHTML(stats.health) + '</div>';
+      html += '<div style="font-size:22px; font-weight:900; color:#ffffff; margin-top:4px; line-height:1;">' + stats.score + '<span style="font-size:11px; color:#94a3b8; font-weight:500;">/100</span></div>';
+      html += '<div style="font-size:10.5px; color:' + trendColor + '; font-weight:700; margin-top:2px;">' + trendSymbol + ' vs last cycle</div>';
       html += '</td></tr></table></td></tr>';
       html += '<tr><td height="4" bgcolor="' + healthColor + '" style="background-color:' + healthColor + '; height:4px; font-size:1px; line-height:1px;">&nbsp;</td></tr>';
-      html += '<tr><td height="20" style="font-size:1px; line-height:1px;">&nbsp;</td></tr>';
+      html += '<tr><td height="16" style="font-size:1px; line-height:1px;">&nbsp;</td></tr>';
 
-      // Executive Commentary Note
-      if (execNote) {
-        html += '<tr><td style="padding-bottom:20px;"><table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f8fafc" style="background-color:#f8fafc; border-left:4px solid #3b82f6; border-collapse:collapse;"><tr><td style="padding:14px 18px; font-size:13.5px; color:#334155; line-height:1.65; font-family:Arial, Helvetica, sans-serif;">';
-        html += '<div style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:#3b82f6; margin-bottom:4px;">Executive Commentary</div>';
-        html += escapeHTML(execNote).replace(/\n/g, '<br>') + '</td></tr></table></td></tr>';
+      // 1. EXECUTIVE SUMMARY
+      if (incSummary) {
+        const summaryPts = generateHealthPoints(stats);
+        html += '<tr><td style="padding-bottom:18px;">';
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f8fafc" style="background-color:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; border-collapse:collapse;"><tr><td style="padding:14px 16px;">';
+        html += secHdr('#0f172a', '📌', 'Summary');
+        if (execNote) {
+          html += '<div style="font-size:13px; font-style:italic; color:#334155; margin-bottom:10px; padding-bottom:8px; border-bottom:1px dashed #cbd5e1;">' + escapeHTML(execNote).split('\n').join('<br>') + '</div>';
+        }
+        html += '<ul style="margin:0; padding-left:16px; color:#1e293b; font-size:13px; line-height:1.6; font-family:Arial, Helvetica, sans-serif;">';
+        summaryPts.slice(0, 3).forEach(pt => {
+          html += '<li style="margin-bottom:6px;">' + pt + '</li>';
+        });
+        html += '</ul></td></tr></table></td></tr>';
       }
 
-      // MANDATORY SECTION: Overall Project Status & Executive Summary
-      const summaryPts = generateHealthPoints(stats);
-      html += '<tr><td style="padding-bottom:24px;">';
-      html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f8fafc" style="background-color:#f8fafc; border:1px solid #cbd5e1; border-collapse:collapse;"><tr><td style="padding:18px 20px;">';
-      html += secHdr('#0f172a', 'Overall Project Status (' + escapeHTML(cadenceLabel) + ')');
-      html += '<ul style="margin:0; padding-left:18px; color:#1e293b; font-size:13.5px; line-height:1.75; font-family:Arial, Helvetica, sans-serif;">';
-      summaryPts.forEach(pt => {
-        html += '<li style="margin-bottom:8px;">' + pt + '</li>';
-      });
-      html += '</ul></td></tr></table></td></tr>';
-      
-      // 1. KPI Grid Table
-      if (incKpi) {
-        const ovColor = stats.progress >= 70 ? '#16a34a' : stats.progress >= 40 ? '#d97706' : '#dc2626';
-        html += '<tr><td style="padding-bottom:24px;">' + secHdr('#475569', 'Key Performance Indicators');
-        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">';
-        html += '<thead><tr bgcolor="#f8fafc" style="background-color:#f8fafc;">';
-        html += '<th bgcolor="#f8fafc" style="padding:10px 14px; font-weight:700; background-color:#f8fafc; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#64748b; text-align:left; font-family:Arial, Helvetica, sans-serif;">Overall Progress</th>';
-        html += '<th bgcolor="#f8fafc" style="padding:10px 14px; font-weight:700; background-color:#f8fafc; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#64748b; text-align:left; font-family:Arial, Helvetica, sans-serif;">Module Delivery</th>';
-        html += '<th bgcolor="#f8fafc" style="padding:10px 14px; font-weight:700; background-color:#f8fafc; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#64748b; text-align:left; font-family:Arial, Helvetica, sans-serif;">Critical Path</th>';
-        html += '<th bgcolor="#f8fafc" style="padding:10px 14px; font-weight:700; background-color:#f8fafc; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#64748b; text-align:left; font-family:Arial, Helvetica, sans-serif;">Open Risks</th>';
-        html += '<th bgcolor="#f8fafc" style="padding:10px 14px; font-weight:700; background-color:#f8fafc; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#64748b; text-align:left; font-family:Arial, Helvetica, sans-serif;">Open Defects</th></tr></thead>';
-        html += '<tbody><tr bgcolor="#ffffff" style="background-color:#ffffff; font-size:14px; font-weight:800; color:#0f172a;">';
-        html += '<td bgcolor="#ffffff" style="padding:12px 14px; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">' + stats.progress + '%' + miniBar(stats.progress, ovColor) + '</td>';
-        html += '<td bgcolor="#ffffff" style="padding:12px 14px; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">' + stats.moduleProgress + '%' + miniBar(stats.moduleProgress, '#3b82f6') + '</td>';
-        html += '<td bgcolor="#ffffff" style="padding:12px 14px; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">' + stats.cpCompleted + '/' + stats.cpTotal + '&nbsp;(' + cpPct + '%)' + miniBar(cpPct, '#8b5cf6') + '</td>';
-        html += '<td bgcolor="#ffffff" style="padding:12px 14px; border:1px solid #e2e8f0; color:' + (stats.highCritRisks > 0 ? '#dc2626' : '#16a34a') + '; font-family:Arial, Helvetica, sans-serif;">' + stats.highCritRisks + (stats.highCritRisks > 0 ? '&nbsp;⚠️' : '&nbsp;✓') + '</td>';
-        html += '<td bgcolor="#ffffff" style="padding:12px 14px; border:1px solid #e2e8f0; color:' + (stats.highCritDefects > 0 ? '#dc2626' : '#16a34a') + '; font-family:Arial, Helvetica, sans-serif;">' + stats.highCritDefects + (stats.highCritDefects > 0 ? '&nbsp;⚠️' : '&nbsp;✓') + '</td>';
-        html += '</tr></tbody></table></td></tr>';
+      // 2. TARGET FOR CURRENT MONTH'S SPRINT & TRENDING
+      if (incSprint) {
+        const nowM = new Date();
+        const monthName = nowM.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        const monthTasks = (P.tasks || []).filter(t => {
+          if (!t.dueDate) return true;
+          const d = new Date(t.dueDate);
+          return d.getMonth() === nowM.getMonth() && d.getFullYear() === nowM.getFullYear();
+        });
+        const mComp = monthTasks.filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100).length;
+        const mTotal = monthTasks.length || 1;
+        const mPct = Math.round((mComp / mTotal) * 100);
+        const trendLabel = stats.trend >= 0 ? 'Trending On Track (+' + stats.trend + '% velocity)' : 'Trending Behind Target (' + stats.trend + '% velocity)';
+        const trendBadgeCol = stats.trend >= 0 ? '#16a34a' : '#dc2626';
+        const trendBadgeBg = stats.trend >= 0 ? '#f0fdf4' : '#fef2f2';
+
+        html += '<tr><td style="padding-bottom:18px;">';
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f8fafc" style="background-color:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; border-collapse:collapse;"><tr><td style="padding:14px 16px;">';
+        html += secHdr('#2563eb', '🎯', 'Target for ' + escapeHTML(monthName) + ' Sprint & Trending');
+        
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:10px;"><tr>';
+        html += '<td style="font-size:13px; font-weight:700; color:#0f172a;">Sprint Goal: Deliver ' + mTotal + ' Target Deliverables (' + mComp + ' Completed)</td>';
+        html += '<td align="right"><span style="font-size:11px; font-weight:800; color:' + trendBadgeCol + '; background-color:' + trendBadgeBg + '; padding:3px 8px; border-radius:12px; border:1px solid ' + trendBadgeCol + ';">' + trendLabel + '</span></td>';
+        html += '</tr></table>';
+        
+        html += miniBar(mPct, stats.trend >= 0 ? '#2563eb' : '#d97706');
+        html += '<ul style="margin:8px 0 0 0; padding-left:16px; color:#334155; font-size:12.5px; line-height:1.55;">';
+        html += '<li style="margin-bottom:4px;"><strong>Sprint Progress:</strong> ' + mPct + '% target completion (' + mComp + '/' + mTotal + ' deliverables ready)</li>';
+        html += '<li style="margin-bottom:4px;"><strong>Critical Path Milestone:</strong> ' + stats.cpCompleted + '/' + stats.cpTotal + ' core milestones achieved (' + cpPct + '%)</li>';
+        html += '<li><strong>Overall Health &amp; Velocity:</strong> Health score ' + stats.score + '/100 — ' + escapeHTML(stats.health) + '</li>';
+        html += '</ul></td></tr></table></td></tr>';
       }
 
-      // 2. Accomplishments
+      // 3. ACTIVITIES COMPLETED THIS WEEK
       if (incWins) {
         const wins = (P.tasks || []).filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100)
-          .sort((a, b) => new Date(b.actCompletionDate || b.updatedAt || 0) - new Date(a.actCompletionDate || a.updatedAt || 0));
-        html += '<tr><td style="padding-bottom:24px;">' + secHdr('#16a34a', 'Recent Accomplishments & Key Wins (' + wins.length + ')');
+          .sort((a, b) => new Date(b.actCompletionDate || b.updatedAt || 0) - new Date(a.actCompletionDate || a.updatedAt || 0)).slice(0, 6);
+
+        html += '<tr><td style="padding-bottom:18px;">';
+        html += secHdr('#16a34a', '✅', 'Activities Completed This Week (' + wins.length + ')');
         if (wins.length === 0) {
-          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f8fafc" style="background-color:#f8fafc; border:1px solid #e2e8f0; border-collapse:collapse;"><tr><td style="padding:14px; font-size:13px; color:#94a3b8; font-style:italic; font-family:Arial, Helvetica, sans-serif;">No completed milestones recorded in this reporting cycle.</td></tr></table>';
+          html += '<div style="font-size:12.5px; color:#94a3b8; font-style:italic; padding:8px 12px; background:#f8fafc; border-radius:6px; border:1px dashed #cbd5e1;">No completed deliverables recorded in this reporting cycle.</div>';
         } else {
-          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">';
-          html += '<thead><tr bgcolor="#f0fdf4" style="background-color:#f0fdf4;">';
-          html += '<th bgcolor="#f0fdf4" style="padding:9px 14px; font-weight:700; background-color:#f0fdf4; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#16a34a; text-align:left; font-family:Arial, Helvetica, sans-serif;">Deliverable</th>';
-          html += '<th bgcolor="#f0fdf4" style="padding:9px 14px; font-weight:700; background-color:#f0fdf4; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#16a34a; text-align:left; font-family:Arial, Helvetica, sans-serif;">Module</th>';
-          html += '<th bgcolor="#f0fdf4" style="padding:9px 14px; font-weight:700; background-color:#f0fdf4; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#16a34a; text-align:left; font-family:Arial, Helvetica, sans-serif;">Completed Date</th></tr></thead><tbody>';
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-size:12.5px;">';
           wins.forEach((w, i) => {
-            const compDate = (w.actCompletionDate || w.updatedAt) ? formatCxoDate(w.actCompletionDate || w.updatedAt) : '—';
+            const compDate = (w.actCompletionDate || w.updatedAt) ? formatCxoDate(w.actCompletionDate || w.updatedAt) : 'This Cycle';
             const rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
             html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-weight:600; color:#0f172a; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(w.name || w.title || 'Task') + '</td>';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:12px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(w.module || 'General') + '</td>';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#16a34a; font-weight:600; white-space:nowrap; font-size:12px; font-family:Arial, Helvetica, sans-serif;">✓ ' + compDate + '</td></tr>';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; font-weight:600; color:#0f172a;">✓ ' + escapeHTML(w.name || w.title || 'Deliverable') + '</td>';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#64748b; font-size:11.5px;" width="140">' + escapeHTML(w.module || 'General') + '</td>';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#16a34a; font-weight:700; font-size:11.5px; text-align:right;" width="110">' + compDate + '</td>';
+            html += '</tr>';
           });
-          html += '</tbody></table>';
+          html += '</table>';
         }
         html += '</td></tr>';
       }
 
-      // 3. Decisions
-      if (incDecisions) {
-        const decisions = (P.decisions || []).filter(d => d.status !== 'Approved' && d.status !== 'Resolved' && d.status !== 'Closed');
-        html += '<tr><td style="padding-bottom:24px;">' + secHdr('#2563eb', 'Executive Decisions & Approvals Required (' + decisions.length + ')');
-        if (decisions.length === 0) {
-          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f8fafc" style="background-color:#f8fafc; border:1px solid #e2e8f0; border-collapse:collapse;"><tr><td style="padding:14px; font-size:13px; color:#94a3b8; font-style:italic; font-family:Arial, Helvetica, sans-serif;">No decisions pending executive review at this time.</td></tr></table>';
-        } else {
-          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">';
-          html += '<thead><tr bgcolor="#eff6ff" style="background-color:#eff6ff;">';
-          html += '<th bgcolor="#eff6ff" style="padding:9px 14px; font-weight:700; background-color:#eff6ff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#2563eb; text-align:left; font-family:Arial, Helvetica, sans-serif;">Decision Item</th>';
-          html += '<th bgcolor="#eff6ff" style="padding:9px 14px; font-weight:700; background-color:#eff6ff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#2563eb; text-align:left; font-family:Arial, Helvetica, sans-serif;">Decision Maker</th>';
-          html += '<th bgcolor="#eff6ff" style="padding:9px 14px; font-weight:700; background-color:#eff6ff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#2563eb; text-align:left; font-family:Arial, Helvetica, sans-serif;">Scope Impact</th>';
-          html += '<th bgcolor="#eff6ff" style="padding:9px 14px; font-weight:700; background-color:#eff6ff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#2563eb; text-align:left; font-family:Arial, Helvetica, sans-serif;">Status</th></tr></thead><tbody>';
-          decisions.forEach((d, i) => {
-            const sCol = d.status === 'Pending Sign-off' ? '#d97706' : d.status === 'Deferred' ? '#64748b' : '#3b82f6';
-            const sBg  = d.status === 'Pending Sign-off' ? '#fffbeb'  : d.status === 'Deferred' ? '#f8fafc'  : '#eff6ff';
-            const rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
-            html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-weight:600; color:#0f172a; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(d.title || d.description || 'Decision Required') + '</td>';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(d.owner || 'Unassigned') + '</td>';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:12px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(d.affectedScope || d.scope || '—') + '</td>';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;"><span style="background-color:' + sBg + '; color:' + sCol + '; font-weight:700; font-size:11px; padding:3px 9px; border-radius:4px; white-space:nowrap;" bgcolor="' + sBg + '">' + escapeHTML(d.status || 'Pending') + '</span></td></tr>';
-          });
-          html += '</tbody></table>';
-        }
-        html += '</td></tr>';
-      }
-
-      // 4. Risks & Issues
-      if (incRisks) {
-        const topRisks = (P.raids || []).filter(r => r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated' && (r.impact === 'High' || r.severity === 'S1 - Critical' || r.severity === 'S2 - Major' || r.probability === 'High'));
-        const openIssues = (P.raids || []).filter(r => r.type === 'Issue' && r.status !== 'Closed' && r.status !== 'Mitigated');
-        const allItems = [...topRisks, ...openIssues];
-        html += '<tr><td style="padding-bottom:24px;">' + secHdr('#dc2626', 'Top Risks & Open Issues (' + allItems.length + ')');
-        if (allItems.length === 0) {
-          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f8fafc" style="background-color:#f8fafc; border:1px solid #e2e8f0; border-collapse:collapse;"><tr><td style="padding:14px; font-size:13px; color:#94a3b8; font-style:italic; font-family:Arial, Helvetica, sans-serif;">No active high or critical risks identified in this cycle.</td></tr></table>';
-        } else {
-          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">';
-          html += '<thead><tr bgcolor="#fef2f2" style="background-color:#fef2f2;">';
-          html += '<th bgcolor="#fef2f2" style="padding:9px 14px; font-weight:700; background-color:#fef2f2; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#dc2626; text-align:left; font-family:Arial, Helvetica, sans-serif;">Item Description</th>';
-          html += '<th bgcolor="#fef2f2" style="padding:9px 14px; font-weight:700; background-color:#fef2f2; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#dc2626; text-align:left; font-family:Arial, Helvetica, sans-serif;">Type</th>';
-          html += '<th bgcolor="#fef2f2" style="padding:9px 14px; font-weight:700; background-color:#fef2f2; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#dc2626; text-align:left; font-family:Arial, Helvetica, sans-serif;">Owner</th>';
-          html += '<th bgcolor="#fef2f2" style="padding:9px 14px; font-weight:700; background-color:#fef2f2; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#dc2626; text-align:left; font-family:Arial, Helvetica, sans-serif;">Severity</th>';
-          html += '<th bgcolor="#fef2f2" style="padding:9px 14px; font-weight:700; background-color:#fef2f2; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#dc2626; text-align:left; font-family:Arial, Helvetica, sans-serif;">Date Logged</th>';
-          html += '<th bgcolor="#fef2f2" style="padding:9px 14px; font-weight:700; background-color:#fef2f2; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#dc2626; text-align:left; font-family:Arial, Helvetica, sans-serif;">Mitigation Plan</th></tr></thead><tbody>';
-          allItems.forEach((r, i) => {
-            const isCrit = r.severity === 'S1 - Critical' || r.impact === 'High';
-            const sCol = isCrit ? '#dc2626' : '#d97706'; const sBg = isCrit ? '#fef2f2' : '#fffbeb';
-            const tCol2 = r.type === 'Risk' ? '#dc2626' : '#d97706'; const tBg = r.type === 'Risk' ? '#fef2f2' : '#fffbeb';
-            const mit = (r.mitigation || r.desc || 'Mitigation strategy in progress.');
-            const rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
-            html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-weight:600; color:#0f172a; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(r.title || r.name || 'Item') + '</td>';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;"><span style="background-color:' + tBg + '; color:' + tCol2 + '; font-weight:700; font-size:11px; padding:2px 8px; border-radius:4px;" bgcolor="' + tBg + '">' + escapeHTML(r.type || 'Risk') + '</span></td>';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(r.owner || '—') + '</td>';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;"><span style="background-color:' + sBg + '; color:' + sCol + '; font-weight:700; font-size:11px; padding:2px 8px; border-radius:4px;" bgcolor="' + sBg + '">' + escapeHTML(r.severity || r.impact || 'High') + '</span></td>';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#64748b; font-size:12px; white-space:nowrap; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(formatRaidDateSince(r)) + '</td>';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:12px; line-height:1.5; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(mit.substring(0, 110)) + (mit.length > 110 ? '…' : '') + '</td></tr>';
-          });
-          html += '</tbody></table>';
-        }
-        html += '</td></tr>';
-      }
-
-      // 5. Overdue Modules
-      if (incOverdue) {
-        const todayOD = new Date(); todayOD.setHours(0,0,0,0);
-        const modMapOD = {};
-        (P.tasks || []).forEach(t => {
-          if (t.status === 'Completed' || t.status === 'Cancelled') return;
-          const mod = t.module || 'General';
-          if (!modMapOD[mod]) modMapOD[mod] = { name: mod, total: 0, psum: 0, overdue: 0, firstItem: '' };
-          modMapOD[mod].total++;
-          modMapOD[mod].psum += (parseInt(t.progress, 10) || 0);
-          if (t.dueDate) { const dd = new Date(t.dueDate); dd.setHours(0,0,0,0); if (dd < todayOD) { modMapOD[mod].overdue++; if (!modMapOD[mod].firstItem) modMapOD[mod].firstItem = t.name || t.title || ''; } }
-        });
-        const overdueMods = Object.values(modMapOD).filter(m => m.overdue > 0).map(m => ({ ...m, avg: m.total > 0 ? Math.round(m.psum / m.total) : 0 })).sort((a,b) => b.overdue - a.overdue);
-        if (overdueMods.length > 0) {
-          html += '<tr><td style="padding-bottom:24px;">' + secHdr('#d97706', 'Modules Requiring Management Attention (' + overdueMods.length + ')');
-          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">';
-          html += '<thead><tr bgcolor="#fffbeb" style="background-color:#fffbeb;">';
-          html += '<th bgcolor="#fffbeb" style="padding:9px 14px; font-weight:700; background-color:#fffbeb; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#d97706; text-align:left; font-family:Arial, Helvetica, sans-serif;">Module Name</th>';
-          html += '<th bgcolor="#fffbeb" style="padding:9px 14px; font-weight:700; background-color:#fffbeb; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#d97706; text-align:left; font-family:Arial, Helvetica, sans-serif;">Progress</th>';
-          html += '<th bgcolor="#fffbeb" style="padding:9px 14px; font-weight:700; background-color:#fffbeb; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#d97706; text-align:left; font-family:Arial, Helvetica, sans-serif;">Overdue Tasks</th>';
-          html += '<th bgcolor="#fffbeb" style="padding:9px 14px; font-weight:700; background-color:#fffbeb; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#d97706; text-align:left; font-family:Arial, Helvetica, sans-serif;">Most Delayed Item</th></tr></thead><tbody>';
-          overdueMods.forEach((m, i) => {
-            const rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
-            html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-weight:600; color:#0f172a; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(m.name) + '</td>';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + m.avg + '%' + miniBar(m.avg, '#d97706') + '</td>';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;"><span style="background-color:#fef2f2; color:#dc2626; font-weight:700; font-size:12px; padding:3px 9px; border-radius:4px;" bgcolor="#fef2f2">⚠️ ' + m.overdue + '</span></td>';
-            html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:12px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML((m.firstItem || '—').substring(0, 50)) + (m.firstItem.length > 50 ? '…' : '') + '</td></tr>';
-          });
-          html += '</tbody></table></td></tr>';
-        }
-      }
-
-
-
-      // 7. Upcoming Deadlines Outlook
-      if (incOutlook) {
-        const outlookDays = cadence === 'fortnightly' ? 14 : 7;
+      // 4. ACTIVITIES PLANNED FOR NEXT WEEK
+      if (incNext) {
         const todayOL = new Date(); todayOL.setHours(0,0,0,0);
-        const targetOL = new Date(todayOL); targetOL.setDate(targetOL.getDate() + outlookDays);
+        const targetOL = new Date(todayOL); targetOL.setDate(targetOL.getDate() + daysBack);
         const upcoming = (P.tasks || []).filter(t => {
           if (t.status === 'Completed' || t.status === 'Cancelled' || !t.dueDate) return false;
           const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
           return dd >= todayOL && dd <= targetOL;
-        }).sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate));
-        const overdueCount = (P.tasks || []).filter(t => {
-          if (t.status === 'Completed' || t.status === 'Cancelled' || !t.dueDate) return false;
-          const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
-          return dd < todayOL;
-        }).length;
-        if (upcoming.length > 0 || overdueCount > 0) {
-          html += '<tr><td style="padding-bottom:24px;">' + secHdr('#0891b2', 'Upcoming Deadlines — Next ' + outlookDays + ' Days (' + upcoming.length + ')');
-          if (overdueCount > 0) html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#fef2f2" style="background-color:#fef2f2; border:1px solid #fecaca; margin-bottom:10px; border-collapse:collapse;"><tr><td style="padding:10px 14px; font-size:13px; color:#dc2626; font-weight:600; font-family:Arial, Helvetica, sans-serif;">⚠️ ' + overdueCount + ' task' + (overdueCount > 1 ? 's are' : ' is') + ' currently overdue and require immediate attention.</td></tr></table>';
-          if (upcoming.length > 0) {
-            html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">';
-            html += '<thead><tr bgcolor="#ecfeff" style="background-color:#ecfeff;">';
-            html += '<th bgcolor="#ecfeff" style="padding:9px 14px; font-weight:700; background-color:#ecfeff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#0891b2; text-align:left; font-family:Arial, Helvetica, sans-serif;">Task Deliverable</th>';
-            html += '<th bgcolor="#ecfeff" style="padding:9px 14px; font-weight:700; background-color:#ecfeff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#0891b2; text-align:left; font-family:Arial, Helvetica, sans-serif;">Module</th>';
-            html += '<th bgcolor="#ecfeff" style="padding:9px 14px; font-weight:700; background-color:#ecfeff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#0891b2; text-align:left; font-family:Arial, Helvetica, sans-serif;">Owner</th>';
-            html += '<th bgcolor="#ecfeff" style="padding:9px 14px; font-weight:700; background-color:#ecfeff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#0891b2; text-align:left; font-family:Arial, Helvetica, sans-serif;">Due Date</th>';
-            html += '<th bgcolor="#ecfeff" style="padding:9px 14px; font-weight:700; background-color:#ecfeff; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#0891b2; text-align:left; font-family:Arial, Helvetica, sans-serif;">Progress</th></tr></thead><tbody>';
-            upcoming.forEach((t, i) => {
-              const dueD = new Date(t.dueDate); const daysLeft = Math.ceil((dueD - todayOL) / 864e5);
-              const dueStr = formatCxoDate(t.dueDate);
-              const urgCol = daysLeft <= 3 ? '#dc2626' : daysLeft <= 7 ? '#d97706' : '#16a34a';
-              const rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
-              html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
-              html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-weight:600; color:#0f172a; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(t.name || t.title || 'Task') + '</td>';
-              html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:12px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(t.module || '—') + '</td>';
-              html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:#475569; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(t.assignee || '—') + '</td>';
-              html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; color:' + urgCol + '; font-weight:700; font-size:12px; white-space:nowrap; font-family:Arial, Helvetica, sans-serif;">' + dueStr + '<br><span style="font-weight:500; font-size:11px;">' + (daysLeft === 0 ? 'Due Today' : daysLeft + 'd remaining') + '</span></td>';
-              html += '<td bgcolor="' + rowBg + '" style="padding:10px 14px; border:1px solid #e2e8f0; font-weight:700; color:#475569; font-size:13px; font-family:Arial, Helvetica, sans-serif;">' + (t.progress || 0) + '%</td></tr>';
-            });
-            html += '</tbody></table>';
-          }
-          html += '</td></tr>';
+        }).sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate)).slice(0, 6);
+
+        html += '<tr><td style="padding-bottom:18px;">';
+        html += secHdr('#0891b2', '📅', 'Activities Planned for Next Week (' + upcoming.length + ')');
+        if (upcoming.length === 0) {
+          html += '<div style="font-size:12.5px; color:#94a3b8; font-style:italic; padding:8px 12px; background:#f8fafc; border-radius:6px; border:1px dashed #cbd5e1;">No specific deliverables scheduled for next week.</div>';
+        } else {
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-size:12.5px;">';
+          upcoming.forEach((t, i) => {
+            const dueStr = formatCxoDate(t.dueDate);
+            const rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
+            html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; font-weight:600; color:#0f172a;">○ ' + escapeHTML(t.name || t.title || 'Deliverable') + '</td>';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#64748b; font-size:11.5px;" width="140">' + escapeHTML(t.assignee || 'Team') + '</td>';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#0891b2; font-weight:700; font-size:11.5px; text-align:right;" width="110">Due ' + dueStr + '</td>';
+            html += '</tr>';
+          });
+          html += '</table>';
         }
+        html += '</td></tr>';
       }
 
-      // Footer Table
-      html += '<tr><td style="border-top:2px solid #e2e8f0; padding-top:16px; margin-top:8px;">';
+      // 5. CURRENT CHALLENGES
+      if (incChallenges) {
+        const topRisks = (P.raids || []).filter(r => r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated' && (r.impact === 'High' || r.severity === 'S1 - Critical' || r.severity === 'S2 - Major' || r.probability === 'High'));
+        const openIssues = (P.raids || []).filter(r => r.type === 'Issue' && r.status !== 'Closed' && r.status !== 'Mitigated');
+        const overdue = (P.tasks || []).filter(t => {
+          if (t.status === 'Completed' || t.status === 'Cancelled' || !t.dueDate) return false;
+          const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
+          return dd < new Date();
+        });
+
+        const allChallenges = [];
+        topRisks.forEach(r => allChallenges.push({ type: 'Risk', title: r.title || r.name, sev: r.severity || r.impact || 'High', owner: r.owner || 'PMO', text: r.mitigation || r.desc || 'Mitigation in progress' }));
+        openIssues.forEach(i => allChallenges.push({ type: 'Issue', title: i.title || i.name, sev: i.severity || 'Major', owner: i.owner || 'Team', text: i.desc || 'Issue active' }));
+        overdue.slice(0, 3).forEach(o => allChallenges.push({ type: 'Overdue Task', title: o.name || o.title, sev: 'Overdue', owner: o.assignee || 'Unassigned', text: 'Target due date elapsed: ' + formatCxoDate(o.dueDate) }));
+
+        html += '<tr><td style="padding-bottom:18px;">';
+        html += secHdr('#dc2626', '⚠️', 'Current Challenges (' + allChallenges.length + ')');
+        if (allChallenges.length === 0) {
+          html += '<div style="font-size:12.5px; color:#16a34a; font-weight:600; padding:8px 12px; background:#f0fdf4; border-radius:6px; border:1px solid #bbf7d0;">✓ No active critical challenges or overdue blockers reported.</div>';
+        } else {
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #fecaca; font-size:12.5px;">';
+          allChallenges.slice(0, 5).forEach((c, idx) => {
+            const rowBg = idx % 2 === 0 ? '#ffffff' : '#fffbeb';
+            html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #fee2e2; font-weight:600; color:#991b1b;">⚠️ ' + escapeHTML(c.title) + '</td>';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #fee2e2; color:#dc2626; font-size:11.5px; font-weight:700;" width="110">' + escapeHTML(c.type) + '</td>';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #fee2e2; color:#475569; font-size:11.5px;" width="120">Owner: ' + escapeHTML(c.owner) + '</td>';
+            html += '</tr>';
+          });
+          html += '</table>';
+        }
+        html += '</td></tr>';
+      }
+
+      // 6. MANAGEMENT'S ASK
+      if (incAsk) {
+        const decisions = (P.decisions || []).filter(d => d.status !== 'Approved' && d.status !== 'Resolved' && d.status !== 'Closed');
+        
+        html += '<tr><td style="padding-bottom:18px;">';
+        html += secHdr('#8b5cf6', '🙋', 'Management\'s Ask / Executive Support Required');
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f5f3ff" style="background-color:#f5f3ff; border:1px solid #ddd6fe; border-radius:8px; border-collapse:collapse;"><tr><td style="padding:14px 16px;">';
+        
+        let hasAskContent = false;
+        if (execAsk) {
+          hasAskContent = true;
+          html += '<div style="font-size:13px; font-weight:700; color:#5b21b6; margin-bottom:6px;">Direct Requests to Leadership:</div>';
+          html += '<div style="font-size:12.5px; color:#4c1d95; line-height:1.6; margin-bottom:10px;">' + escapeHTML(execAsk).split('\n').join('<br>') + '</div>';
+        }
+
+        if (decisions.length > 0) {
+          hasAskContent = true;
+          html += '<div style="font-size:12.5px; font-weight:700; color:#5b21b6; margin-bottom:4px;">Pending Executive Approvals (' + decisions.length + '):</div>';
+          html += '<ul style="margin:0; padding-left:16px; color:#4c1d95; font-size:12.5px; line-height:1.55;">';
+          decisions.forEach(d => {
+            html += '<li style="margin-bottom:4px;"><strong>' + escapeHTML(d.title || d.description) + '</strong> — Decision Maker: ' + escapeHTML(d.owner || 'Leadership') + ' (Status: ' + escapeHTML(d.status || 'Pending') + ')</li>';
+          });
+          html += '</ul>';
+        }
+
+        if (!hasAskContent) {
+          html += '<div style="font-size:12.5px; color:#6d28d9; font-style:italic;">No immediate management intervention required. All decisions on track.</div>';
+        }
+        
+        html += '</td></tr></table></td></tr>';
+      }
+
+      // 7. KEY PERFORMANCE INDICATORS TABLE (OPTIONAL)
+      if (incKpi) {
+        const ovColor = stats.progress >= 70 ? '#16a34a' : stats.progress >= 40 ? '#d97706' : '#dc2626';
+        html += '<tr><td style="padding-bottom:18px;">' + secHdr('#475569', '📊', 'Key Performance Indicators (Quick Glance)');
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-family:Arial, Helvetica, sans-serif;">';
+        html += '<thead><tr bgcolor="#f8fafc" style="background-color:#f8fafc;">';
+        html += '<th style="padding:8px 10px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#64748b; text-align:left;">Overall Progress</th>';
+        html += '<th style="padding:8px 10px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#64748b; text-align:left;">Module Delivery</th>';
+        html += '<th style="padding:8px 10px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#64748b; text-align:left;">Critical Path</th>';
+        html += '<th style="padding:8px 10px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#64748b; text-align:left;">Open Risks</th>';
+        html += '<th style="padding:8px 10px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#64748b; text-align:left;">Open Defects</th></tr></thead>';
+        html += '<tbody><tr bgcolor="#ffffff" style="background-color:#ffffff; font-size:13px; font-weight:800; color:#0f172a;">';
+        html += '<td style="padding:10px; border:1px solid #e2e8f0;">' + stats.progress + '%' + miniBar(stats.progress, ovColor) + '</td>';
+        html += '<td style="padding:10px; border:1px solid #e2e8f0;">' + stats.moduleProgress + '%' + miniBar(stats.moduleProgress, '#3b82f6') + '</td>';
+        html += '<td style="padding:10px; border:1px solid #e2e8f0;">' + stats.cpCompleted + '/' + stats.cpTotal + ' (' + cpPct + '%)</td>';
+        html += '<td style="padding:10px; border:1px solid #e2e8f0; color:' + (stats.highCritRisks > 0 ? '#dc2626' : '#16a34a') + ';">' + stats.highCritRisks + (stats.highCritRisks > 0 ? ' ⚠️' : ' ✓') + '</td>';
+        html += '<td style="padding:10px; border:1px solid #e2e8f0; color:' + (stats.highCritDefects > 0 ? '#dc2626' : '#16a34a') + ';">' + stats.highCritDefects + (stats.highCritDefects > 0 ? ' ⚠️' : ' ✓') + '</td>';
+        html += '</tr></tbody></table></td></tr>';
+      }
+
+      // Footer
+      html += '<tr><td style="border-top:2px solid #e2e8f0; padding-top:14px; margin-top:6px;">';
       html += '<table width="100%" border="0" cellpadding="0" cellspacing="0"><tr>';
-      html += '<td style="font-size:11px; color:#94a3b8; line-height:1.5; font-family:Arial, Helvetica, sans-serif;">Prepared by <strong style="color:#475569;">' + escapeHTML(pmName) + '</strong> &nbsp;|&nbsp; ' + escapeHTML(P.name || 'Project') + ' &nbsp;|&nbsp; ' + formatCxoDate(new Date()) + '</td>';
-      html += '<td align="right" style="font-size:10px; color:#cbd5e1; text-transform:uppercase; letter-spacing:0.8px; font-weight:600; font-family:Arial, Helvetica, sans-serif;">Confidential &amp; Privileged</td>';
+      html += '<td style="font-size:10.5px; color:#94a3b8; line-height:1.4;">Prepared by <strong style="color:#475569;">' + escapeHTML(pmName) + '</strong> &nbsp;|&nbsp; ' + escapeHTML(P.name || 'Project') + ' &nbsp;|&nbsp; ' + formatCxoDate(new Date()) + '</td>';
+      html += '<td align="right" style="font-size:10px; color:#cbd5e1; text-transform:uppercase; letter-spacing:0.8px; font-weight:600;">Confidential &amp; Executive Privileged</td>';
       html += '</tr></table></td></tr>';
 
       html += '</table></td></tr></table>';
@@ -39082,125 +39078,105 @@ Earned Value Management measures project performance and progress by comparing p
     function generateCxoEmailPlainText() {
       const stats = computeGlobalStats();
       const execNote = ($id('cxo-exec-note')?.value || '').trim();
+      const execAsk  = ($id('cxo-exec-ask')?.value || '').trim();
       const members = P.members || [];
       const pmObj = members.find(m => m.role && (m.role.toLowerCase().includes('manager') || m.role.toLowerCase().includes('lead') || m.role.toLowerCase().includes('pm'))) || members[0] || {};
       const pmName = pmObj.name || 'Project Lead';
       const cadence      = $id('cxo-report-cadence')?.value || 'weekly';
       const daysBack     = cadence === 'fortnightly' ? 14 : 7;
-      const cadenceLabel = cadence === 'fortnightly' ? 'Fortnightly Status Report' : 'Weekly Status Report';
+      const cadenceLabel = cadence === 'fortnightly' ? 'Fortnightly Executive Brief' : 'Weekly Executive Brief';
       const rpStart      = new Date(); rpStart.setDate(rpStart.getDate() - daysBack);
       const reportPeriod = formatCxoDate(rpStart) + ' – ' + formatCxoDate(new Date());
-      const cpPct        = stats.cpTotal > 0 ? Math.round((stats.cpCompleted / stats.cpTotal) * 100) : 0;
 
       let text = '==================================================\n';
-      text += 'EXECUTIVE STATUS REPORT — OVERALL PROJECT STATUS\n';
-      text += (P.name || 'Project Status Update') + '\n';
+      text += 'EXECUTIVE BRIEF — ' + (P.name || 'Project Status Update') + '\n';
       text += 'Cadence: ' + cadenceLabel + ' | Period: ' + reportPeriod + ' | Prepared by: ' + pmName + '\n';
-      text += 'Health: ' + stats.health + ' (' + stats.score + '/100)';
-      if (stats.trend !== 0) text += ' | Trend: ' + (stats.trend > 0 ? '+' : '') + stats.trend + ' vs last cycle';
+      text += 'Health Status: ' + stats.health + ' (' + stats.score + '/100)';
+      if (stats.trend !== 0) text += ' | Trend: ' + (stats.trend > 0 ? '+' : '') + stats.trend + '% vs last cycle';
       text += '\n==================================================\n\n';
 
-      if (execNote) {
-        text += 'EXECUTIVE NOTE:\n' + execNote + '\n\n--------------------------------------------------\n\n';
-      }
-
+      // 1. SUMMARY
+      text += '1. SUMMARY:\n';
+      if (execNote) text += '   Note: ' + execNote + '\n';
       const summaryPts = generateHealthPoints(stats);
-      text += 'OVERALL PROJECT STATUS & EXECUTIVE SUMMARY:\n';
-      summaryPts.forEach(pt => {
-        const cleanPt = pt.replace(/<\/?strong>/g, '');
-        text += '  • ' + cleanPt + '\n';
+      summaryPts.slice(0, 3).forEach(pt => {
+        text += '   • ' + pt.replace(/<\/?strong>/g, '') + '\n';
       });
-      text += '\n--------------------------------------------------\n\n';
-      
-      text += 'KEY PERFORMANCE INDICATORS:\n';
-      text += '  Overall Task Progress  : ' + stats.progress + '% (' + stats.completed + '/' + stats.total + ' tasks)\n';
-      text += '  Module Delivery Avg    : ' + stats.moduleProgress + '%\n';
-      text += '  Critical Path          : ' + stats.cpCompleted + '/' + stats.cpTotal + ' milestones (' + cpPct + '%)\n';
-      text += '  Open High/Crit Risks   : ' + stats.highCritRisks + '\n';
-      text += '  Open High/Crit Defects : ' + stats.highCritDefects + '\n';
-      text += '  Overdue Tasks          : ' + stats.overdueTasks + '\n';
-      text += '  Pending Decisions      : ' + stats.pendingDecisions + '\n\n';
+      text += '\n';
 
+      // 2. TARGET FOR CURRENT MONTH'S SPRINT & TRENDING
+      const nowM = new Date();
+      const monthName = nowM.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      const monthTasks = (P.tasks || []).filter(t => {
+        if (!t.dueDate) return true;
+        const d = new Date(t.dueDate);
+        return d.getMonth() === nowM.getMonth() && d.getFullYear() === nowM.getFullYear();
+      });
+      const mComp = monthTasks.filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100).length;
+      const mTotal = monthTasks.length || 1;
+      const mPct = Math.round((mComp / mTotal) * 100);
+
+      text += '2. TARGET FOR ' + monthName.toUpperCase() + ' SPRINT & TRENDING:\n';
+      text += '   • Goal: ' + mComp + '/' + mTotal + ' Sprint Deliverables Completed (' + mPct + '% target met)\n';
+      text += '   • Trending Status: ' + (stats.trend >= 0 ? 'On Track (+' + stats.trend + '% velocity)' : 'Behind Target (' + stats.trend + '% velocity)') + '\n';
+      text += '   • Critical Path: ' + stats.cpCompleted + '/' + stats.cpTotal + ' milestones achieved\n\n';
+
+      // 3. ACTIVITIES COMPLETED THIS WEEK
       const wins = (P.tasks || []).filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100)
-        .sort((a,b) => new Date(b.actCompletionDate || b.updatedAt || 0) - new Date(a.actCompletionDate || a.updatedAt || 0));
-      if (wins.length > 0) {
-        text += '--------------------------------------------------\nRECENT ACCOMPLISHMENTS (' + wins.length + '):\n';
+        .sort((a,b) => new Date(b.actCompletionDate || b.updatedAt || 0) - new Date(a.actCompletionDate || a.updatedAt || 0)).slice(0, 6);
+      text += '3. ACTIVITIES COMPLETED THIS WEEK (' + wins.length + '):\n';
+      if (wins.length === 0) text += '   (No completed deliverables recorded in this reporting cycle)\n';
+      else {
         wins.forEach(w => {
-          const compDate = (w.actCompletionDate || w.updatedAt) ? formatCxoDate(w.actCompletionDate || w.updatedAt) : '';
-          text += '  ✓  ' + (w.name || w.title) + ' [' + (w.module || 'General') + ']' + (compDate ? ' — ' + compDate : '') + '\n';
+          const compDate = (w.actCompletionDate || w.updatedAt) ? formatCxoDate(w.actCompletionDate || w.updatedAt) : 'This Cycle';
+          text += '   ✓  ' + (w.name || w.title) + ' [' + (w.module || 'General') + '] — ' + compDate + '\n';
         });
-        text += '\n';
       }
+      text += '\n';
 
-      const decisions = (P.decisions || []).filter(d => d.status !== 'Approved' && d.status !== 'Resolved' && d.status !== 'Closed');
-      if (decisions.length > 0) {
-        text += '--------------------------------------------------\nEXECUTIVE DECISIONS REQUIRED (' + decisions.length + '):\n';
-        decisions.forEach(d => {
-          text += '  ►  ' + (d.title || d.description) + ' (Owner: ' + (d.owner || 'TBD') + ' | Status: ' + (d.status || 'Pending') + ')';
-          if (d.affectedScope) text += ' | Scope: ' + d.affectedScope;
-          text += '\n';
-        });
-        text += '\n';
-      }
-
-      const topRisks = (P.raids || []).filter(r => r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated' && (r.impact === 'High' || r.severity === 'S1 - Critical' || r.severity === 'S2 - Major' || r.probability === 'High'));
-      if (topRisks.length > 0) {
-        text += '--------------------------------------------------\nACTIVE RISKS (' + topRisks.length + '):\n';
-        topRisks.forEach(r => {
-          text += '  ⚠️  [' + (r.severity || r.impact || 'High') + '] ' + (r.title || r.name) + ' (Owner: ' + (r.owner || 'TBD') + ')\n';
-          if (r.mitigation) text += '     Mitigation: ' + r.mitigation.substring(0, 100) + (r.mitigation.length > 100 ? '…' : '') + '\n';
-        });
-        text += '\n';
-      }
-
-      const outlookDays = cadence === 'fortnightly' ? 14 : 7;
-      const todayPT = new Date(); todayPT.setHours(0,0,0,0);
-      const targetPT = new Date(todayPT); targetPT.setDate(targetPT.getDate() + outlookDays);
+      // 4. ACTIVITIES PLANNED FOR NEXT WEEK
+      const todayOL = new Date(); todayOL.setHours(0,0,0,0);
+      const targetOL = new Date(todayOL); targetOL.setDate(targetOL.getDate() + daysBack);
       const upcoming = (P.tasks || []).filter(t => {
         if (t.status === 'Completed' || t.status === 'Cancelled' || !t.dueDate) return false;
         const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
-        return dd >= todayPT && dd <= targetPT;
-      }).sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate));
-      if (upcoming.length > 0) {
-        text += '--------------------------------------------------\nUPCOMING DEADLINES — NEXT ' + outlookDays + ' DAYS:\n';
+        return dd >= todayOL && dd <= targetOL;
+      }).sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate)).slice(0, 6);
+      text += '4. ACTIVITIES PLANNED FOR NEXT WEEK (' + upcoming.length + '):\n';
+      if (upcoming.length === 0) text += '   (No specific deliverables scheduled for next week)\n';
+      else {
         upcoming.forEach(t => {
-          const dueStr = formatCxoDate(t.dueDate);
-          const daysLeft = Math.ceil((new Date(t.dueDate) - todayPT) / 864e5);
-          text += '  ○  ' + (t.name || t.title) + ' | Due: ' + dueStr + ' (' + (daysLeft === 0 ? 'Today' : daysLeft + 'd') + ') | ' + (t.progress || 0) + '% | ' + (t.assignee || 'Unassigned') + '\n';
+          text += '   ○  ' + (t.name || t.title) + ' | Owner: ' + (t.assignee || 'Team') + ' | Due: ' + formatCxoDate(t.dueDate) + '\n';
         });
-        text += '\n';
       }
+      text += '\n';
+
+      // 5. CURRENT CHALLENGES
+      const topRisks = (P.raids || []).filter(r => r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated' && (r.impact === 'High' || r.severity === 'S1 - Critical' || r.severity === 'S2 - Major' || r.probability === 'High'));
+      text += '5. CURRENT CHALLENGES (' + topRisks.length + ' Active Risks/Blockers):\n';
+      if (topRisks.length === 0) text += '   ✓ No critical challenges or overdue blockers active.\n';
+      else {
+        topRisks.forEach(r => {
+          text += '   ⚠️  ' + (r.title || r.name) + ' [' + (r.severity || r.impact || 'High') + '] — Owner: ' + (r.owner || 'PMO') + '\n';
+        });
+      }
+      text += '\n';
+
+      // 6. MANAGEMENT'S ASK
+      const decisions = (P.decisions || []).filter(d => d.status !== 'Approved' && d.status !== 'Resolved' && d.status !== 'Closed');
+      text += '6. MANAGEMENT\'S ASK / SUPPORT REQUIRED:\n';
+      if (execAsk) text += '   ►  Direct Request: ' + execAsk + '\n';
+      if (decisions.length > 0) {
+        decisions.forEach(d => {
+          text += '   ►  Approval Item: ' + (d.title || d.description) + ' (Owner: ' + (d.owner || 'Leadership') + ')\n';
+        });
+      }
+      if (!execAsk && decisions.length === 0) text += '   (No immediate management intervention required)\n';
+      text += '\n';
 
       text += '==================================================\n';
       text += 'Prepared by ' + pmName + ' • ' + (P.name || 'Project') + ' • ' + formatCxoDate(new Date()) + ' • CONFIDENTIAL\n';
       return text;
-    }
-
-    function getCxoMsoEnvelopeHtml() {
-      const rawHtml = generateCxoEmailHtml();
-      return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<!--[if mso]>
-<noscript>
-<xml>
-  <o:OfficeDocumentSettings>
-    <o:PixelsPerInch>96</o:PixelsPerInch>
-  </o:OfficeDocumentSettings>
-</xml>
-</noscript>
-<![endif]-->
-<style>
-  html, body { margin: 0 !important; padding: 0 !important; font-family: Arial, Helvetica, sans-serif !important; }
-  table { border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important; }
-  td, th { font-family: Arial, Helvetica, sans-serif !important; }
-</style>
-</head>
-<body style="font-family: Arial, Helvetica, sans-serif; color: #1e293b; margin: 0; padding: 0; background-color: #ffffff;">
-` + rawHtml + `
-</body>
-</html>`;
     }
 
     async function copyCxoEmailToClipboard() {
