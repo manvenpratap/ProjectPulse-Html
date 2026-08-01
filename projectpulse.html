@@ -47724,20 +47724,17 @@ Earned Value Management measures project performance and progress by comparing p
 
 
         // Row 3: Module Progress, Developer Workload & RAID Type Overview
-        // Limit displayed modules / members on dashboard summary to top 15 to keep executive view clean and well-proportioned
-        const topModLabels = modChartLabels.slice(0, 15);
-        const topModValues = modChartValues.slice(0, 15);
-        const modBarH = Math.max(240, Math.min(360, topModLabels.length * 20 + 60));
+        // Dynamically scale chart height to render all modules & team members without cropping
+        const modBarH = Math.max(240, modChartLabels.length * 18 + 60);
 
-        const topTeamNames = teamNames.slice(0, 15);
-        const topTeamWorkloadData = {
-          labels: topTeamNames,
+        const teamWorkloadDataFull = {
+          labels: teamNames,
           series: [
-            { label: 'Done', values: doneMData.slice(0, 15), color: '#10B981' },
-            { label: 'Active', values: activeMData.slice(0, 15), color: '#4F46E5' }
+            { label: 'Done', values: doneMData, color: '#10B981' },
+            { label: 'Active', values: activeMData, color: '#4F46E5' }
           ]
         };
-        const teamBarH = Math.max(240, Math.min(360, topTeamNames.length * 20 + 60));
+        const teamBarH = Math.max(240, teamNames.length * 18 + 60);
 
         const row3ChartHeight = Math.max(modBarH, teamBarH, 240);
         const row3NeededRows = Math.ceil(row3ChartHeight / 20) + 1;
@@ -47748,13 +47745,13 @@ Earned Value Management measures project performance and progress by comparing p
         for (let r = row3StartRow; r <= row3EndRow + 2; r++) ds.getRow(r).height = 20;
 
         try {
-          const modBarImgBase64 = generateCanvasChart(500, modBarH, 'horizontalBar', { labels: topModLabels, values: topModValues });
+          const modBarImgBase64 = generateCanvasChart(500, modBarH, 'horizontalBar', { labels: modChartLabels, values: modChartValues });
           const modBarImgId = wb.addImage({ base64: modBarImgBase64, extension: 'png' });
           addDashboardChartSized(modBarImgId, 1, row3StartRow, 500, modBarH);
         } catch (err) { PP.error('Error generating module progress chart', err); }
 
         try {
-          const teamBarImgBase64 = generateCanvasChart(500, teamBarH, 'stackedHorizontalBar', topTeamWorkloadData);
+          const teamBarImgBase64 = generateCanvasChart(500, teamBarH, 'stackedHorizontalBar', teamWorkloadDataFull);
           const teamBarImgId = wb.addImage({ base64: teamBarImgBase64, extension: 'png' });
           addDashboardChartSized(teamBarImgId, 7, row3StartRow, 500, teamBarH);
         } catch (err) { PP.error('Error generating team workload chart', err); }
@@ -47841,7 +47838,7 @@ Earned Value Management measures project performance and progress by comparing p
         } catch (err) { PP.error('Error generating milestone chart', err); }
 
         try {
-          const defModDensitiesImgBase64 = generateCanvasChart(500, 240, 'horizontalBar', { labels: defModDensitiesLabels.slice(0, 15), values: defModDensitiesValues.slice(0, 15) });
+          const defModDensitiesImgBase64 = generateCanvasChart(500, 240, 'horizontalBar', { labels: defModDensitiesLabels, values: defModDensitiesValues });
           const defModDensitiesImgId = wb.addImage({ base64: defModDensitiesImgBase64, extension: 'png' });
           addDashboardChart(defModDensitiesImgId, 13, row6StartRow);
         } catch (err) { PP.error('Error generating defect densities chart', err); }
