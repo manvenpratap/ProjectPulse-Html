@@ -12569,6 +12569,7 @@
             <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:11.5px; color:var(--color-text); margin-top:4px;">
               <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-summary" checked onchange="updateCxoEmailPreview()"> Summary</label>
               <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-sprint" checked onchange="updateCxoEmailPreview()"> Sprint Target &amp; Trending</label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-modules" checked onchange="updateCxoEmailPreview()"> Module Visualizer</label>
               <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-wins" checked onchange="updateCxoEmailPreview()"> Completed This Week</label>
               <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-next" checked onchange="updateCxoEmailPreview()"> Planned Next Week</label>
               <label style="display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="cxo-sec-challenges" checked onchange="updateCxoEmailPreview()"> Current Challenges</label>
@@ -12606,9 +12607,10 @@
 
       <div class="mact" style="padding:16px 24px; border-top:1px solid var(--color-divider); background:var(--color-surface-2); display:flex; justify-content:space-between; align-items:center;">
         <button class="btn outline" onclick="closeCxoEmailFlyout()">Close</button>
-        <div style="display:flex; gap:12px;">
-          <button class="btn secondary" onclick="copyCxoRichTextToClipboard()"><i data-lucide="file-text" style="margin-right:6px"></i> Copy Rich Text</button>
-          <button class="btn primary" onclick="copyCxoEmailToClipboard()" style="font-weight:700; background:linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); border:none; color:#ffffff; padding:10px 20px;"><i data-lucide="mail" style="margin-right:8px"></i> Copy &amp; Embed Brief in Email</button>
+        <div style="display:flex; gap:10px;">
+          <button class="btn secondary" onclick="copyCxoPlainTextToClipboard()" title="Copy clean plain text with bullet points"><i data-lucide="copy" style="margin-right:6px"></i> Copy Plain Text</button>
+          <button class="btn secondary" onclick="copyCxoRichTextToClipboard()" title="Copy rendered formatted text for Word, Docs, Slack"><i data-lucide="file-text" style="margin-right:6px"></i> Copy Rich Text</button>
+          <button class="btn primary" onclick="copyCxoEmailToClipboard()" style="font-weight:700; background:linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); border:none; color:#ffffff; padding:10px 18px;" title="Copy HTML card for Outlook, Gmail, Apple Mail"><i data-lucide="mail" style="margin-right:6px"></i> Copy &amp; Embed Brief in Email</button>
         </div>
       </div>
     </div>
@@ -38813,10 +38815,12 @@ Earned Value Management measures project performance and progress by comparing p
     }
 
         function generateCxoEmailHtml() {
+      const pState = (typeof window !== "undefined" && window.P && window.P.tasks) ? window.P : (typeof P !== "undefined" ? P : {});
       const stats = computeGlobalStats();
       
       const incSummary    = $id('cxo-sec-summary')?.checked ?? true;
       const incSprint     = $id('cxo-sec-sprint')?.checked ?? true;
+      const incModules    = $id('cxo-sec-modules')?.checked ?? true;
       const incWins       = $id('cxo-sec-wins')?.checked ?? true;
       const incNext       = $id('cxo-sec-next')?.checked ?? true;
       const incChallenges = $id('cxo-sec-challenges')?.checked ?? true;
@@ -38831,7 +38835,7 @@ Earned Value Management measures project performance and progress by comparing p
       const trendSymbol = stats.trend > 0 ? '▲ +' + stats.trend : stats.trend < 0 ? '▼ ' + stats.trend : '▬ 0';
       const trendColor  = stats.trend > 0 ? '#16a34a' : stats.trend < 0 ? '#dc2626' : '#64748b';
 
-      const members = P.members || [];
+      const members = pState.members || [];
       const pmObj = members.find(m => m.role && (m.role.toLowerCase().includes('manager') || m.role.toLowerCase().includes('lead') || m.role.toLowerCase().includes('pm'))) || members[0] || {};
       const pmName = pmObj.name || 'Project Lead';
 
@@ -38843,7 +38847,7 @@ Earned Value Management measures project performance and progress by comparing p
       const cpPct        = stats.cpTotal > 0 ? Math.round((stats.cpCompleted / stats.cpTotal) * 100) : 0;
 
       const miniBar = function(pct, color) {
-        return '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top:4px; background-color:#e2e8f0; height:5px; border-radius:3px;"><tr><td width="' + Math.min(100, Math.max(0, pct)) + '%" bgcolor="' + color + '" style="background-color:' + color + '; height:5px; border-radius:3px; font-size:1px; line-height:1px;">&nbsp;</td><td style="font-size:1px; line-height:1px;">&nbsp;</td></tr></table>';
+        return '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top:4px; background-color:#e2e8f0; height:6px; border-radius:3px;"><tr><td width="' + Math.min(100, Math.max(0, pct)) + '%" bgcolor="' + color + '" style="background-color:' + color + '; height:6px; border-radius:3px; font-size:1px; line-height:1px;">&nbsp;</td><td style="font-size:1px; line-height:1px;">&nbsp;</td></tr></table>';
       };
 
       const secHdr = function(color, icon, label) {
@@ -38862,7 +38866,7 @@ Earned Value Management measures project performance and progress by comparing p
       html += '<table width="100%" border="0" cellpadding="0" cellspacing="0"><tr>';
       html += '<td valign="top" style="color:#ffffff; font-family:Arial, Helvetica, sans-serif;">';
       html += '<div style="font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:#94a3b8; font-weight:700; margin-bottom:3px;">' + escapeHTML(cadenceLabel) + '</div>';
-      html += '<h1 style="margin:0 0 4px 0; font-size:19px; font-weight:800; color:#ffffff; letter-spacing:-0.3px; line-height:1.25; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(P.name || 'Project Executive Brief') + '</h1>';
+      html += '<h1 style="margin:0 0 4px 0; font-size:19px; font-weight:800; color:#ffffff; letter-spacing:-0.3px; line-height:1.25; font-family:Arial, Helvetica, sans-serif;">' + escapeHTML(pState.name || 'Project Executive Brief') + '</h1>';
       html += '<div style="font-size:11px; color:#cbd5e1; line-height:1.4;">Period: ' + reportPeriod + ' &nbsp;|&nbsp; Prepared by ' + escapeHTML(pmName) + '</div>';
       html += '</td>';
       html += '<td width="160" align="right" valign="top" style="text-align:right; font-family:Arial, Helvetica, sans-serif;">';
@@ -38893,7 +38897,7 @@ Earned Value Management measures project performance and progress by comparing p
       if (incSprint) {
         const nowM = new Date();
         const monthName = nowM.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-        const monthTasks = (P.tasks || []).filter(t => {
+        const monthTasks = (pState.tasks || []).filter(t => {
           if (!t.dueDate) return true;
           const d = new Date(t.dueDate);
           return d.getMonth() === nowM.getMonth() && d.getFullYear() === nowM.getFullYear();
@@ -38922,9 +38926,86 @@ Earned Value Management measures project performance and progress by comparing p
         html += '</ul></td></tr></table></td></tr>';
       }
 
-      // 3. ACTIVITIES COMPLETED THIS WEEK
+      // 3. OVERALL MODULE-WISE STATUS & WEEKLY PROGRESS VISUALIZER
+      if (incModules) {
+        const modStatsMap = {};
+        const todayDate = new Date(); todayDate.setHours(0,0,0,0);
+        const weekAgoDate = new Date(todayDate); weekAgoDate.setDate(weekAgoDate.getDate() - daysBack);
+
+        (pState.tasks || []).forEach(t => {
+          const mName = (t.module || 'General').trim();
+          if (!modStatsMap[mName]) {
+            modStatsMap[mName] = { name: mName, total: 0, completed: 0, sumProgress: 0, overdue: 0, completedThisWeek: 0 };
+          }
+          const m = modStatsMap[mName];
+          m.total++;
+          const prog = parseInt(t.progress, 10) || (t.status === 'Completed' ? 100 : 0);
+          m.sumProgress += prog;
+          if (t.status === 'Completed' || prog === 100) {
+            m.completed++;
+            const compD = new Date(t.actCompletionDate || t.updatedAt || 0);
+            if (compD >= weekAgoDate) m.completedThisWeek++;
+          } else if (t.dueDate) {
+            const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
+            if (dd < todayDate) m.overdue++;
+          }
+        });
+
+        const moduleList = Object.values(modStatsMap).map(m => {
+          const avg = m.total > 0 ? Math.round(m.sumProgress / m.total) : 0;
+          let status = 'On Track';
+          let color = '#16a34a';
+          let bg = '#f0fdf4';
+          if (m.overdue >= 2 || avg < 35) {
+            status = 'Delayed'; color = '#dc2626'; bg = '#fef2f2';
+          } else if (m.overdue === 1 || (avg >= 35 && avg < 70)) {
+            status = 'At Risk'; color = '#d97706'; bg = '#fffbeb';
+          }
+          return { ...m, avgProgress: avg, status, color, bg };
+        }).sort((a, b) => b.total - a.total);
+
+        html += '<tr><td style="padding-bottom:18px;">';
+        html += secHdr('#6366f1', '📊', 'Overall Module Status &amp; Weekly Progress Visualizer');
+        if (moduleList.length === 0) {
+          html += '<div style="font-size:12.5px; color:#94a3b8; font-style:italic; padding:8px 12px; background:#f8fafc; border-radius:6px; border:1px dashed #cbd5e1;">No module breakdown available.</div>';
+        } else {
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-size:12.5px;">';
+          html += '<thead><tr bgcolor="#f8fafc" style="background-color:#f8fafc;">';
+          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:left;">Module Name</th>';
+          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:left; width:160px;">Completion Progress</th>';
+          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:center; width:100px;">Deliverables</th>';
+          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:right; width:140px;">Weekly Pace &amp; Status</th>';
+          html += '</tr></thead><tbody>';
+
+          moduleList.forEach((m, idx) => {
+            const rowBg = idx % 2 === 0 ? '#ffffff' : '#fafafa';
+            let paceBadge = '<span style="color:#16a34a; font-weight:700; font-size:11px;">✓ +' + m.completedThisWeek + ' this week</span>';
+            if (m.overdue > 0) {
+              paceBadge = '<span style="color:#dc2626; font-weight:700; font-size:11px;">⚠️ ' + m.overdue + ' overdue</span>';
+            } else if (m.completedThisWeek === 0) {
+              paceBadge = '<span style="color:#64748b; font-size:11px;">In progress</span>';
+            }
+
+            html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; font-weight:600; color:#0f172a;">' + escapeHTML(m.name) + '</td>';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#334155;">';
+            html += '<div style="display:flex; justify-space-between; align-items:center; margin-bottom:2px;"><strong style="font-size:12px;">' + m.avgProgress + '%</strong></div>';
+            html += miniBar(m.avgProgress, m.color);
+            html += '</td>';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; text-align:center; font-weight:700; color:#334155; font-size:12px;">' + m.completed + ' / ' + m.total + '</td>';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; text-align:right;">';
+            html += '<span style="display:inline-block; padding:2px 8px; border-radius:10px; font-weight:800; font-size:10.5px; background-color:' + m.bg + '; color:' + m.color + '; border:1px solid ' + m.color + '; margin-bottom:2px;">' + escapeHTML(m.status) + '</span><br>' + paceBadge;
+            html += '</td>';
+            html += '</tr>';
+          });
+          html += '</tbody></table>';
+        }
+        html += '</td></tr>';
+      }
+
+      // 4. ACTIVITIES COMPLETED THIS WEEK
       if (incWins) {
-        const wins = (P.tasks || []).filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100)
+        const wins = (pState.tasks || []).filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100)
           .sort((a, b) => new Date(b.actCompletionDate || b.updatedAt || 0) - new Date(a.actCompletionDate || a.updatedAt || 0)).slice(0, 6);
 
         html += '<tr><td style="padding-bottom:18px;">';
@@ -38947,11 +39028,11 @@ Earned Value Management measures project performance and progress by comparing p
         html += '</td></tr>';
       }
 
-      // 4. ACTIVITIES PLANNED FOR NEXT WEEK
+      // 5. ACTIVITIES PLANNED FOR NEXT WEEK
       if (incNext) {
         const todayOL = new Date(); todayOL.setHours(0,0,0,0);
         const targetOL = new Date(todayOL); targetOL.setDate(targetOL.getDate() + daysBack);
-        const upcoming = (P.tasks || []).filter(t => {
+        const upcoming = (pState.tasks || []).filter(t => {
           if (t.status === 'Completed' || t.status === 'Cancelled' || !t.dueDate) return false;
           const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
           return dd >= todayOL && dd <= targetOL;
@@ -38977,11 +39058,11 @@ Earned Value Management measures project performance and progress by comparing p
         html += '</td></tr>';
       }
 
-      // 5. CURRENT CHALLENGES
+      // 6. CURRENT CHALLENGES
       if (incChallenges) {
-        const topRisks = (P.raids || []).filter(r => r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated' && (r.impact === 'High' || r.severity === 'S1 - Critical' || r.severity === 'S2 - Major' || r.probability === 'High'));
-        const openIssues = (P.raids || []).filter(r => r.type === 'Issue' && r.status !== 'Closed' && r.status !== 'Mitigated');
-        const overdue = (P.tasks || []).filter(t => {
+        const topRisks = (pState.raids || []).filter(r => r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated' && (r.impact === 'High' || r.severity === 'S1 - Critical' || r.severity === 'S2 - Major' || r.probability === 'High'));
+        const openIssues = (pState.raids || []).filter(r => r.type === 'Issue' && r.status !== 'Closed' && r.status !== 'Mitigated');
+        const overdue = (pState.tasks || []).filter(t => {
           if (t.status === 'Completed' || t.status === 'Cancelled' || !t.dueDate) return false;
           const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
           return dd < new Date();
@@ -39011,9 +39092,9 @@ Earned Value Management measures project performance and progress by comparing p
         html += '</td></tr>';
       }
 
-      // 6. MANAGEMENT'S ASK
+      // 7. MANAGEMENT'S ASK
       if (incAsk) {
-        const decisions = (P.decisions || []).filter(d => d.status !== 'Approved' && d.status !== 'Resolved' && d.status !== 'Closed');
+        const decisions = (pState.decisions || []).filter(d => d.status !== 'Approved' && d.status !== 'Resolved' && d.status !== 'Closed');
         
         html += '<tr><td style="padding-bottom:18px;">';
         html += secHdr('#8b5cf6', '🙋', 'Management\'s Ask / Executive Support Required');
@@ -39043,7 +39124,7 @@ Earned Value Management measures project performance and progress by comparing p
         html += '</td></tr></table></td></tr>';
       }
 
-      // 7. KEY PERFORMANCE INDICATORS TABLE (OPTIONAL)
+      // 8. KEY PERFORMANCE INDICATORS TABLE (OPTIONAL)
       if (incKpi) {
         const ovColor = stats.progress >= 70 ? '#16a34a' : stats.progress >= 40 ? '#d97706' : '#dc2626';
         html += '<tr><td style="padding-bottom:18px;">' + secHdr('#475569', '📊', 'Key Performance Indicators (Quick Glance)');
@@ -39066,7 +39147,7 @@ Earned Value Management measures project performance and progress by comparing p
       // Footer
       html += '<tr><td style="border-top:2px solid #e2e8f0; padding-top:14px; margin-top:6px;">';
       html += '<table width="100%" border="0" cellpadding="0" cellspacing="0"><tr>';
-      html += '<td style="font-size:10.5px; color:#94a3b8; line-height:1.4;">Prepared by <strong style="color:#475569;">' + escapeHTML(pmName) + '</strong> &nbsp;|&nbsp; ' + escapeHTML(P.name || 'Project') + ' &nbsp;|&nbsp; ' + formatCxoDate(new Date()) + '</td>';
+      html += '<td style="font-size:10.5px; color:#94a3b8; line-height:1.4;">Prepared by <strong style="color:#475569;">' + escapeHTML(pmName) + '</strong> &nbsp;|&nbsp; ' + escapeHTML(pState.name || 'Project') + ' &nbsp;|&nbsp; ' + formatCxoDate(new Date()) + '</td>';
       html += '<td align="right" style="font-size:10px; color:#cbd5e1; text-transform:uppercase; letter-spacing:0.8px; font-weight:600;">Confidential &amp; Executive Privileged</td>';
       html += '</tr></table></td></tr>';
 
@@ -39076,10 +39157,11 @@ Earned Value Management measures project performance and progress by comparing p
     }
 
     function generateCxoEmailPlainText() {
+      const pState = (typeof window !== "undefined" && window.P && window.P.tasks) ? window.P : (typeof P !== "undefined" ? P : {});
       const stats = computeGlobalStats();
       const execNote = ($id('cxo-exec-note')?.value || '').trim();
       const execAsk  = ($id('cxo-exec-ask')?.value || '').trim();
-      const members = P.members || [];
+      const members = pState.members || [];
       const pmObj = members.find(m => m.role && (m.role.toLowerCase().includes('manager') || m.role.toLowerCase().includes('lead') || m.role.toLowerCase().includes('pm'))) || members[0] || {};
       const pmName = pmObj.name || 'Project Lead';
       const cadence      = $id('cxo-report-cadence')?.value || 'weekly';
@@ -39089,7 +39171,7 @@ Earned Value Management measures project performance and progress by comparing p
       const reportPeriod = formatCxoDate(rpStart) + ' – ' + formatCxoDate(new Date());
 
       let text = '==================================================\n';
-      text += 'EXECUTIVE BRIEF — ' + (P.name || 'Project Status Update') + '\n';
+      text += 'EXECUTIVE BRIEF — ' + (pState.name || 'Project Status Update') + '\n';
       text += 'Cadence: ' + cadenceLabel + ' | Period: ' + reportPeriod + ' | Prepared by: ' + pmName + '\n';
       text += 'Health Status: ' + stats.health + ' (' + stats.score + '/100)';
       if (stats.trend !== 0) text += ' | Trend: ' + (stats.trend > 0 ? '+' : '') + stats.trend + '% vs last cycle';
@@ -39107,7 +39189,7 @@ Earned Value Management measures project performance and progress by comparing p
       // 2. TARGET FOR CURRENT MONTH'S SPRINT & TRENDING
       const nowM = new Date();
       const monthName = nowM.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-      const monthTasks = (P.tasks || []).filter(t => {
+      const monthTasks = (pState.tasks || []).filter(t => {
         if (!t.dueDate) return true;
         const d = new Date(t.dueDate);
         return d.getMonth() === nowM.getMonth() && d.getFullYear() === nowM.getFullYear();
@@ -39121,10 +39203,54 @@ Earned Value Management measures project performance and progress by comparing p
       text += '   • Trending Status: ' + (stats.trend >= 0 ? 'On Track (+' + stats.trend + '% velocity)' : 'Behind Target (' + stats.trend + '% velocity)') + '\n';
       text += '   • Critical Path: ' + stats.cpCompleted + '/' + stats.cpTotal + ' milestones achieved\n\n';
 
-      // 3. ACTIVITIES COMPLETED THIS WEEK
-      const wins = (P.tasks || []).filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100)
+      // 3. OVERALL MODULE-WISE STATUS & WEEKLY PROGRESS VISUALIZER
+      const modStatsMap = {};
+      const todayDate = new Date(); todayDate.setHours(0,0,0,0);
+      const weekAgoDate = new Date(todayDate); weekAgoDate.setDate(weekAgoDate.getDate() - daysBack);
+
+      (pState.tasks || []).forEach(t => {
+        const mName = (t.module || 'General').trim();
+        if (!modStatsMap[mName]) {
+          modStatsMap[mName] = { name: mName, total: 0, completed: 0, sumProgress: 0, overdue: 0, completedThisWeek: 0 };
+        }
+        const m = modStatsMap[mName];
+        m.total++;
+        const prog = parseInt(t.progress, 10) || (t.status === 'Completed' ? 100 : 0);
+        m.sumProgress += prog;
+        if (t.status === 'Completed' || prog === 100) {
+          m.completed++;
+          const compD = new Date(t.actCompletionDate || t.updatedAt || 0);
+          if (compD >= weekAgoDate) m.completedThisWeek++;
+        } else if (t.dueDate) {
+          const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
+          if (dd < todayDate) m.overdue++;
+        }
+      });
+
+      const moduleList = Object.values(modStatsMap).map(m => {
+        const avg = m.total > 0 ? Math.round(m.sumProgress / m.total) : 0;
+        let status = 'On Track';
+        if (m.overdue >= 2 || avg < 35) status = 'Delayed';
+        else if (m.overdue === 1 || (avg >= 35 && avg < 70)) status = 'At Risk';
+        return { ...m, avgProgress: avg, status };
+      }).sort((a, b) => b.total - a.total);
+
+      text += '3. MODULE-WISE DELIVERY & WEEKLY PROGRESS VISUALIZER:\n';
+      if (moduleList.length === 0) text += '   (No module breakdown available)\n';
+      else {
+        moduleList.forEach(m => {
+          const filled = Math.round(m.avgProgress / 10);
+          const bar = '[' + '█'.repeat(filled) + '░'.repeat(10 - filled) + ']';
+          const pace = m.overdue > 0 ? '⚠️ ' + m.overdue + ' overdue' : (m.completedThisWeek > 0 ? '✓ +' + m.completedThisWeek + ' completed this week' : 'In progress');
+          text += '   • ' + m.name.padEnd(20, ' ') + ' : ' + bar + ' ' + (m.avgProgress + '%').padEnd(5, ' ') + ' (' + m.completed + '/' + m.total + ' tasks) | ' + m.status.padEnd(9, ' ') + ' | ' + pace + '\n';
+        });
+      }
+      text += '\n';
+
+      // 4. ACTIVITIES COMPLETED THIS WEEK
+      const wins = (pState.tasks || []).filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100)
         .sort((a,b) => new Date(b.actCompletionDate || b.updatedAt || 0) - new Date(a.actCompletionDate || a.updatedAt || 0)).slice(0, 6);
-      text += '3. ACTIVITIES COMPLETED THIS WEEK (' + wins.length + '):\n';
+      text += '4. ACTIVITIES COMPLETED THIS WEEK (' + wins.length + '):\n';
       if (wins.length === 0) text += '   (No completed deliverables recorded in this reporting cycle)\n';
       else {
         wins.forEach(w => {
@@ -39134,15 +39260,15 @@ Earned Value Management measures project performance and progress by comparing p
       }
       text += '\n';
 
-      // 4. ACTIVITIES PLANNED FOR NEXT WEEK
+      // 5. ACTIVITIES PLANNED FOR NEXT WEEK
       const todayOL = new Date(); todayOL.setHours(0,0,0,0);
       const targetOL = new Date(todayOL); targetOL.setDate(targetOL.getDate() + daysBack);
-      const upcoming = (P.tasks || []).filter(t => {
+      const upcoming = (pState.tasks || []).filter(t => {
         if (t.status === 'Completed' || t.status === 'Cancelled' || !t.dueDate) return false;
         const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
         return dd >= todayOL && dd <= targetOL;
       }).sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate)).slice(0, 6);
-      text += '4. ACTIVITIES PLANNED FOR NEXT WEEK (' + upcoming.length + '):\n';
+      text += '5. ACTIVITIES PLANNED FOR NEXT WEEK (' + upcoming.length + '):\n';
       if (upcoming.length === 0) text += '   (No specific deliverables scheduled for next week)\n';
       else {
         upcoming.forEach(t => {
@@ -39151,9 +39277,9 @@ Earned Value Management measures project performance and progress by comparing p
       }
       text += '\n';
 
-      // 5. CURRENT CHALLENGES
-      const topRisks = (P.raids || []).filter(r => r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated' && (r.impact === 'High' || r.severity === 'S1 - Critical' || r.severity === 'S2 - Major' || r.probability === 'High'));
-      text += '5. CURRENT CHALLENGES (' + topRisks.length + ' Active Risks/Blockers):\n';
+      // 6. CURRENT CHALLENGES
+      const topRisks = (pState.raids || []).filter(r => r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated' && (r.impact === 'High' || r.severity === 'S1 - Critical' || r.severity === 'S2 - Major' || r.probability === 'High'));
+      text += '6. CURRENT CHALLENGES (' + topRisks.length + ' Active Risks/Blockers):\n';
       if (topRisks.length === 0) text += '   ✓ No critical challenges or overdue blockers active.\n';
       else {
         topRisks.forEach(r => {
@@ -39162,9 +39288,9 @@ Earned Value Management measures project performance and progress by comparing p
       }
       text += '\n';
 
-      // 6. MANAGEMENT'S ASK
-      const decisions = (P.decisions || []).filter(d => d.status !== 'Approved' && d.status !== 'Resolved' && d.status !== 'Closed');
-      text += '6. MANAGEMENT\'S ASK / SUPPORT REQUIRED:\n';
+      // 7. MANAGEMENT'S ASK
+      const decisions = (pState.decisions || []).filter(d => d.status !== 'Approved' && d.status !== 'Resolved' && d.status !== 'Closed');
+      text += '7. MANAGEMENT\'S ASK / SUPPORT REQUIRED:\n';
       if (execAsk) text += '   ►  Direct Request: ' + execAsk + '\n';
       if (decisions.length > 0) {
         decisions.forEach(d => {
@@ -39175,12 +39301,11 @@ Earned Value Management measures project performance and progress by comparing p
       text += '\n';
 
       text += '==================================================\n';
-      text += 'Prepared by ' + pmName + ' • ' + (P.name || 'Project') + ' • ' + formatCxoDate(new Date()) + ' • CONFIDENTIAL\n';
+      text += 'Prepared by ' + pmName + ' • ' + (pState.name || 'Project') + ' • ' + formatCxoDate(new Date()) + ' • CONFIDENTIAL\n';
       return text;
     }
 
     async function copyCxoEmailToClipboard() {
-      // Create a temporary off-screen container with the exact rendered HTML
       const tempDiv = document.createElement('div');
       tempDiv.id = 'temp-cxo-copy-wrap';
       tempDiv.style.position = 'fixed';
@@ -39206,7 +39331,6 @@ Earned Value Management measures project performance and progress by comparing p
         success = false;
       }
 
-      // Also write via Clipboard API Blob for modern browsers
       if (navigator.clipboard && window.ClipboardItem) {
         try {
           const fullOutlookHtml = getCxoMsoEnvelopeHtml();
@@ -39229,20 +39353,67 @@ Earned Value Management measures project performance and progress by comparing p
       if (tempDiv.parentNode) document.body.removeChild(tempDiv);
 
       if (success) {
-        toast('Executive brief copied to clipboard! Paste (Cmd+V / Ctrl+V) directly into Outlook email body.', 'success');
+        toast('Email brief HTML card copied to clipboard! Paste directly into Outlook/Gmail body.', 'success');
         closeCxoEmailFlyout();
       } else {
         copyCxoRichTextToClipboard();
       }
     }
 
-    async function copyCxoRichTextToClipboard() {
-      const htmlStr = generateCxoEmailHtml();
+    async function copyCxoPlainTextToClipboard() {
       const textStr = generateCxoEmailPlainText();
       let success = false;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(textStr);
+          success = true;
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = textStr;
+          ta.style.position = 'fixed';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          success = document.execCommand('copy');
+          document.body.removeChild(ta);
+        }
+      } catch (e) {
+        success = false;
+      }
 
-      if (navigator.clipboard && window.ClipboardItem) {
+      if (success) {
+        toast('Plain text brief copied to clipboard! (No HTML tags included)', 'success');
+        closeCxoEmailFlyout();
+      } else {
+        toast('Failed to copy plain text to clipboard', 'error');
+      }
+    }
+
+    async function copyCxoRichTextToClipboard() {
+      const previewEl = document.getElementById('cxo-email-preview-content');
+      if (!previewEl) return;
+
+      let success = false;
+
+      // Select visual rendered preview node for native rich text copy
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      const range = document.createRange();
+      range.selectNodeContents(previewEl);
+      selection.addRange(range);
+
+      try {
+        success = document.execCommand('copy');
+      } catch (e) {
+        success = false;
+      }
+
+      selection.removeAllRanges();
+
+      if (!success && navigator.clipboard && window.ClipboardItem) {
         try {
+          const textStr = generateCxoEmailPlainText();
+          const htmlStr = previewEl.innerHTML;
           const blobHtml = new Blob([htmlStr], { type: 'text/html' });
           const blobText = new Blob([textStr], { type: 'text/plain' });
           await navigator.clipboard.write([
@@ -39253,44 +39424,18 @@ Earned Value Management measures project performance and progress by comparing p
           ]);
           success = true;
         } catch (err) {
-          console.warn('Clipboard API write fallback note:', err);
+          console.warn('Clipboard API write note:', err);
         }
-      }
-
-      if (!success) {
-        const tempDiv = document.createElement('div');
-        tempDiv.style.position = 'fixed';
-        tempDiv.style.left = '-9999px';
-        tempDiv.style.top = '0';
-        tempDiv.style.background = '#ffffff';
-        tempDiv.style.color = '#1e293b';
-        tempDiv.style.fontFamily = 'Arial, Helvetica, sans-serif';
-        tempDiv.innerHTML = htmlStr;
-        document.body.appendChild(tempDiv);
-
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        const range = document.createRange();
-        range.selectNodeContents(tempDiv);
-        selection.addRange(range);
-
-        try {
-          success = document.execCommand('copy');
-        } catch (e) {
-          success = false;
-        }
-
-        selection.removeAllRanges();
-        if (tempDiv.parentNode) document.body.removeChild(tempDiv);
       }
 
       if (success) {
-        toast('Rich text brief copied to clipboard!', 'success');
+        toast('Formatted rich text copied to clipboard! Paste into Word, Docs, or Teams.', 'success');
         closeCxoEmailFlyout();
       } else {
-        toast('Failed to copy rich text to clipboard', 'error');
+        toast('Failed to copy rich text', 'error');
       }
     }
+
     function syncGlobalActions() {
       const v = P.view === 'admin' ? P._adminActiveTab : P.view;
       const btn = $id('global-action-btn');
