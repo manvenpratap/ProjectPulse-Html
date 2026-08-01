@@ -47079,10 +47079,11 @@ Earned Value Management measures project performance and progress by comparing p
             ctx.fillStyle = isDarkTheme ? '#FFFFFF' : '#0F172A';
             ctx.fillText('ACTUAL REMAINING', width - 95, legendY);
           } else if (type === 'bar') {
+            const numBars = data.labels.length;
             const padL = Math.round(35 * scale);
             const padR = Math.round(15 * scale);
             const padT = Math.round(30 * scale);
-            const padB = Math.round(25 * scale);
+            const padB = numBars > 8 ? Math.round(45 * scale) : Math.round(25 * scale);
             const chartW = width - padL - padR;
             const chartH = height - padT - padB;
 
@@ -47105,7 +47106,6 @@ Earned Value Management measures project performance and progress by comparing p
               ctx.fillText(String(v), padL - 4, y);
             }
 
-            const numBars = data.labels.length;
             const barWidth = (chartW / numBars) * 0.55;
             const spacing = (chartW / numBars);
 
@@ -47132,8 +47132,24 @@ Earned Value Management measures project performance and progress by comparing p
 
               ctx.fillStyle = isDarkTheme ? '#94A3B8' : '#64748B';
               ctx.font = Math.round(8 * scale) + 'px Courier New';
-              ctx.textBaseline = 'top';
-              ctx.fillText(data.labels[idx], xCenter, height - padB + 4);
+              // Rotate labels 45° when there are many bars to avoid overlap
+              const skipLabel = numBars > 8 && idx % 2 !== 0;
+              if (!skipLabel) {
+                const lx = xCenter;
+                const ly = height - padB + 4;
+                ctx.save();
+                ctx.translate(lx, ly);
+                if (numBars > 8) {
+                  ctx.rotate(-Math.PI / 4);
+                  ctx.textAlign = 'right';
+                  ctx.textBaseline = 'middle';
+                } else {
+                  ctx.textAlign = 'center';
+                  ctx.textBaseline = 'top';
+                }
+                ctx.fillText(data.labels[idx], 0, 0);
+                ctx.restore();
+              }
             });
 
             // Title Label
