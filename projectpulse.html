@@ -48347,10 +48347,14 @@ Earned Value Management measures project performance and progress by comparing p
                   const taskProgresses = mtTasks.map(getTaskProgressHierarchical);
                   const mAvgP = Math.round(taskProgresses.reduce((s, p) => s + p, 0) / mtTasks.length);
                   const statusClr = STATUS_COLORS[dsVal] || COLORS.textDark;
+                  
+                  // Label text: Status (X%) - e.g. "Completed", "In Progress (45%)", "Not Started (0%)"
+                  const fullLabel = dsVal === 'Completed' ? 'Completed (100%)' : `${dsVal} (${mAvgP}%)`;
                   rowCellsMapping.push({
                     c: cStart,
-                    val: styledVal(dsVal, statusClr, true),
+                    val: styledVal(fullLabel, statusClr, true),
                     progVal: mAvgP,
+                    dsVal: dsVal,
                     barColor: statusClr
                   });
                 }
@@ -48381,8 +48385,9 @@ Earned Value Management measures project performance and progress by comparing p
 
               // Apply color-coded progress dataBar if numeric progress & status color exist
               if (cfg.progVal !== undefined) {
-                cell.value = cfg.progVal;
-                cell.numFmt = '0"%"';
+                // If value is 0%, use (0.00001 / 0.001) or standard numeric 0 so label displays status + (0%) with thin/ghost bar or clean 0% state
+                cell.value = cfg.progVal / 100;
+                cell.numFmt = `"${cfg.dsVal} ("0%"")"`;
                 try {
                   const colLetter = ds.getColumn(cfg.c).letter;
                   const cellRef = colLetter + rIdx;
@@ -48390,7 +48395,7 @@ Earned Value Management measures project performance and progress by comparing p
                     ref: cellRef + ':' + cellRef,
                     rules: [{
                       type: 'dataBar',
-                      cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 100 }],
+                      cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 1 }],
                       color: { argb: cfg.barColor || COLORS.emerald },
                       showValue: true
                     }]
