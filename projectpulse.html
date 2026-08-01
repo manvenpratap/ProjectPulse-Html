@@ -47934,8 +47934,84 @@ Earned Value Management measures project performance and progress by comparing p
         const msTasks = tasks.filter(t => (t.startDate && t.startDate === t.dueDate) || (t.tags && t.tags.includes('Milestone')));
         if (msTasks.length) {
           drawSectionTitle(curRow, 'Project Milestones & Key Roadmap Markers'); curRow += 2;
-          drawTableHeader(curRow, ['ID', 'Milestone Name', 'Due Date', 'Status', 'Progress'], 2);
-          msTasks.forEach((t, i) => { const r = curRow + 1 + i; drawTableRow(r, [t.id, t.name, cleanFmtDate(t.dueDate), styledVal(t.status, STATUS_COLORS[t.status] || COLORS.textDark, true), (t.progress || 0) + '%'], 2, i % 2 === 1); });
+          
+          const drawCustomMsHeaders = (row) => {
+            ds.getRow(row).height = 18;
+            const headerMapping = [
+              { c1: 2, c2: 3, label: 'ID' },
+              { c1: 4, c2: 11, label: 'Milestone Name' },
+              { c1: 12, c2: 14, label: 'Due Date' },
+              { c1: 15, c2: 17, label: 'Status' },
+              { c1: 18, c2: 19, label: 'Progress' }
+            ];
+            headerMapping.forEach(h => {
+              if (h.c1 !== h.c2) ds.mergeCells(row, h.c1, row, h.c2);
+              const cell = ds.getCell(row, h.c1);
+              cell.value = '[' + h.label.toUpperCase() + ']';
+              cell.font = { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.isDark ? 'FFFFFFFF' : COLORS.textDark } };
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+              cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+            });
+            for (let c = 2; c <= 19; c++) {
+              const cell = ds.getCell(row, c);
+              if (!cell.fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+              cell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
+            }
+          };
+
+          drawCustomMsHeaders(curRow);
+
+          msTasks.forEach((t, i) => {
+            const rIdx = curRow + 1 + i;
+            ds.getRow(rIdx).height = 20;
+            const bg = i % 2 === 1 ? getThemeTint(COLORS.blue, 0.08) : getThemeTint(COLORS.blue, 0.02);
+
+            ds.mergeCells(rIdx, 2, rIdx, 3);
+            ds.mergeCells(rIdx, 4, rIdx, 11);
+            ds.mergeCells(rIdx, 12, rIdx, 14);
+            ds.mergeCells(rIdx, 15, rIdx, 17);
+            ds.mergeCells(rIdx, 18, rIdx, 19);
+
+            const msVals = [
+              t.id,
+              t.name,
+              cleanFmtDate(t.dueDate),
+              styledVal(t.status, STATUS_COLORS[t.status] || COLORS.textDark, true),
+              (t.progress || 0) + '%'
+            ];
+
+            const cellsMapping = [
+              { c: 2, val: msVals[0] },
+              { c: 4, val: msVals[1] },
+              { c: 12, val: msVals[2] },
+              { c: 15, val: msVals[3] },
+              { c: 18, val: msVals[4] }
+            ];
+
+            for (let c = 2; c <= 19; c++) {
+              const cell = ds.getCell(rIdx, c);
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+              cell.border = {
+                top: { style: 'thin', color: { argb: COLORS.divider } },
+                bottom: { style: 'thin', color: { argb: COLORS.divider } },
+                left: { style: 'thin', color: { argb: COLORS.divider } },
+                right: { style: 'thin', color: { argb: COLORS.divider } }
+              };
+            }
+
+            cellsMapping.forEach(cfg => {
+              const cell = ds.getCell(rIdx, cfg.c);
+              if (cfg.val && cfg.val._styled) {
+                cell.value = cfg.val.text;
+                cell.font = { name: 'Courier New', size: 8.5, bold: cfg.val.bold, color: { argb: cfg.val.color } };
+              } else {
+                cell.value = cfg.val;
+                cell.font = { name: 'Courier New', size: 8.5, color: { argb: COLORS.textDark } };
+              }
+              cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+            });
+          });
+
           curRow += msTasks.length + 2;
         }
 
@@ -47943,7 +48019,35 @@ Earned Value Management measures project performance and progress by comparing p
         const members = P.members || [];
         if (members.length > 0) {
           drawSectionTitle(curRow, 'Team Directory & Resource Performance'); curRow += 2;
-          drawTableHeader(curRow, ['Team Member', 'Role', 'Active Tasks', 'Done', 'Effort (Est)', 'Effort (Act)', 'Utilization%'], 2);
+          
+          const drawCustomTeamHeaders = (row) => {
+            ds.getRow(row).height = 18;
+            const headerMapping = [
+              { c1: 2, c2: 5, label: 'Team Member' },
+              { c1: 6, c2: 9, label: 'Role' },
+              { c1: 10, c2: 11, label: 'Active Tasks' },
+              { c1: 12, c2: 13, label: 'Done' },
+              { c1: 14, c2: 15, label: 'Effort (Est)' },
+              { c1: 16, c2: 17, label: 'Effort (Act)' },
+              { c1: 18, c2: 19, label: 'Utilization%' }
+            ];
+            headerMapping.forEach(h => {
+              if (h.c1 !== h.c2) ds.mergeCells(row, h.c1, row, h.c2);
+              const cell = ds.getCell(row, h.c1);
+              cell.value = '[' + h.label.toUpperCase() + ']';
+              cell.font = { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.isDark ? 'FFFFFFFF' : COLORS.textDark } };
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+              cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+            });
+            for (let c = 2; c <= 19; c++) {
+              const cell = ds.getCell(row, c);
+              if (!cell.fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+              cell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
+            }
+          };
+
+          drawCustomTeamHeaders(curRow);
+
           members.forEach((m, i) => {
             const mTasks = tasks.filter(t => t.assignee === m.name);
             const mActive = mTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
@@ -47954,14 +48058,68 @@ Earned Value Management measures project performance and progress by comparing p
             const utilization = capacity > 0 ? Math.round((mAct / capacity) * 100) : 0;
             const utilColor = utilization > 100 ? COLORS.rose : utilization > 80 ? COLORS.amber : COLORS.emerald;
             const utilRow = curRow + 1 + i;
-            drawTableRow(utilRow, [m.name, m.role || '—', mActive, mDone, mEst.toFixed(1), mAct.toFixed(1), styledVal(utilization + '%', utilColor, true)], 2, i % 2 === 1);
-            // Overwrite Utilization% cell (col H) with a numeric value so a data bar can render (drawTableRow's shared S() coercion writes text)
-            const utilCell = ds.getCell('H' + utilRow);
+            
+            ds.getRow(utilRow).height = 20;
+            const bg = i % 2 === 1 ? getThemeTint(COLORS.blue, 0.08) : getThemeTint(COLORS.blue, 0.02);
+
+            ds.mergeCells(utilRow, 2, utilRow, 5);
+            ds.mergeCells(utilRow, 6, utilRow, 9);
+            ds.mergeCells(utilRow, 10, utilRow, 11);
+            ds.mergeCells(utilRow, 12, utilRow, 13);
+            ds.mergeCells(utilRow, 14, utilRow, 15);
+            ds.mergeCells(utilRow, 16, utilRow, 17);
+            ds.mergeCells(utilRow, 18, utilRow, 19);
+
+            const teamVals = [
+              m.name,
+              m.role || '—',
+              mActive,
+              mDone,
+              mEst.toFixed(1),
+              mAct.toFixed(1),
+              styledVal(utilization + '%', utilColor, true)
+            ];
+
+            const cellsMapping = [
+              { c: 2, val: teamVals[0] },
+              { c: 6, val: teamVals[1] },
+              { c: 10, val: teamVals[2] },
+              { c: 12, val: teamVals[3] },
+              { c: 14, val: teamVals[4] },
+              { c: 16, val: teamVals[5] },
+              { c: 18, val: teamVals[6] }
+            ];
+
+            for (let c = 2; c <= 19; c++) {
+              const cell = ds.getCell(utilRow, c);
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+              cell.border = {
+                top: { style: 'thin', color: { argb: COLORS.divider } },
+                bottom: { style: 'thin', color: { argb: COLORS.divider } },
+                left: { style: 'thin', color: { argb: COLORS.divider } },
+                right: { style: 'thin', color: { argb: COLORS.divider } }
+              };
+            }
+
+            cellsMapping.forEach(cfg => {
+              const cell = ds.getCell(utilRow, cfg.c);
+              if (cfg.val && cfg.val._styled) {
+                cell.value = cfg.val.text;
+                cell.font = { name: 'Courier New', size: 8.5, bold: cfg.val.bold, color: { argb: cfg.val.color } };
+              } else {
+                cell.value = cfg.val;
+                cell.font = { name: 'Courier New', size: 8.5, color: { argb: COLORS.textDark } };
+              }
+              cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+            });
+
+            // Utilization% numeric formatting & databar on col R (Col 18)
+            const utilCell = ds.getCell('R' + utilRow);
             utilCell.value = utilization;
             utilCell.numFmt = '0"%"';
             try {
               ds.addConditionalFormatting({
-                ref: 'H' + utilRow + ':H' + utilRow,
+                ref: 'R' + utilRow + ':R' + utilRow,
                 rules: [{
                   type: 'dataBar',
                   cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 150 }],
@@ -47976,61 +48134,162 @@ Earned Value Management measures project performance and progress by comparing p
 
         // ── Section: Module & Feature Delivery ──
         drawSectionTitle(curRow, 'Module & Feature Delivery Intelligence'); curRow += 2;
-        drawTableHeader(curRow, ['Module', 'Tasks', 'Done', 'Overdue', 'Avg Progress'], 2);
-        modSet.forEach((m, i) => {
-          const mt = tasks.filter(t => t.module === m);
-          const mDone = mt.filter(t => t.status === 'Completed').length;
-          const mOver = mt.filter(t => t.dueDate && t.status !== 'Completed' && t.status !== 'Cancelled' && new Date(t.dueDate) < new Date()).length;
-          const mAvg = mt.length ? Math.round(mt.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / mt.length) : 0;
-          const mOverColor = mOver > 0 ? COLORS.rose : COLORS.emerald;
-          const mAvgRow = curRow + 1 + i;
-          drawTableRow(mAvgRow, [m, mt.length, styledVal(mDone, COLORS.emerald, true), styledVal(mOver, mOverColor, true), mAvg + '%'], 2, i % 2 === 1);
-          // Overwrite Avg Progress cell (col F) with a numeric value so the data bar below can actually render it —
-          // drawTableRow's shared S() coercion writes every value as text, which breaks Excel dataBar rules.
-          const mAvgCell = ds.getCell('F' + mAvgRow);
-          mAvgCell.value = mAvg;
-          mAvgCell.numFmt = '0"%"';
-          try {
-            ds.addConditionalFormatting({
-              ref: 'F' + mAvgRow + ':F' + mAvgRow,
-              rules: [{
-                type: 'dataBar',
-                cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 100 }],
-                color: { argb: COLORS.emerald },
-                showValue: true
-              }]
-            });
-          } catch (e) { }
-          try {
-            ds.addConditionalFormatting({
-              ref: 'F' + (curRow + 1 + i) + ':F' + (curRow + 1 + i),
-              rules: [{
-                type: 'dataBar',
-                cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 100 }],
-                color: { argb: COLORS.emerald },
-                showValue: true
-              }]
-            });
-          } catch (e) { }
-        });
+        
+        const drawCustomModDeliveryHeaders = (row) => {
+          ds.getRow(row).height = 18;
+          const headerMapping = [
+            { c1: 2, c2: 6, label: 'Module' },
+            { c1: 7, c2: 8, label: 'Tasks' },
+            { c1: 9, c2: 10, label: 'Done' },
+            { c1: 11, c2: 12, label: 'Overdue' },
+            { c1: 13, c2: 14, label: 'Avg Progress' },
+            { c1: 15, c2: 17, label: 'Feature Name' },
+            { c1: 18, c2: 18, label: 'Screens' },
+            { c1: 19, c2: 19, label: 'Feature Progress' }
+          ];
+          headerMapping.forEach(h => {
+            if (h.c1 !== h.c2) ds.mergeCells(row, h.c1, row, h.c2);
+            const cell = ds.getCell(row, h.c1);
+            cell.value = '[' + h.label.toUpperCase() + ']';
+            cell.font = { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.isDark ? 'FFFFFFFF' : COLORS.textDark } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+            cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+          });
+          for (let c = 2; c <= 19; c++) {
+            const cell = ds.getCell(row, c);
+            if (!cell.fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+            cell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
+          }
+        };
+
+        drawCustomModDeliveryHeaders(curRow);
 
         const feats = (P.features || []);
-        if (feats.length) {
-          drawTableHeader(curRow, ['Feature', 'Screens', 'Avg Progress'], 10);
-          feats.forEach((feat, i) => {
-            const scs = feat.screens || []; const screenData = tasks.filter(t => (t.subtasks || []).some(st => scs.includes(st.name)) || (t.guiScreens || []).some(sc => scs.includes(sc)));
+        const maxRows = Math.max(modSet.length, feats.length, 1);
+
+        for (let i = 0; i < maxRows; i++) {
+          const mAvgRow = curRow + 1 + i;
+          ds.getRow(mAvgRow).height = 20;
+          const bg = i % 2 === 1 ? getThemeTint(COLORS.blue, 0.08) : getThemeTint(COLORS.blue, 0.02);
+
+          ds.mergeCells(mAvgRow, 2, mAvgRow, 6);
+          ds.mergeCells(mAvgRow, 7, mAvgRow, 8);
+          ds.mergeCells(mAvgRow, 9, mAvgRow, 10);
+          ds.mergeCells(mAvgRow, 11, mAvgRow, 12);
+          ds.mergeCells(mAvgRow, 13, mAvgRow, 14);
+          ds.mergeCells(mAvgRow, 15, mAvgRow, 17);
+
+          for (let c = 2; c <= 19; c++) {
+            const cell = ds.getCell(mAvgRow, c);
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+            cell.border = {
+              top: { style: 'thin', color: { argb: COLORS.divider } },
+              bottom: { style: 'thin', color: { argb: COLORS.divider } },
+              left: { style: 'thin', color: { argb: COLORS.divider } },
+              right: { style: 'thin', color: { argb: COLORS.divider } }
+            };
+          }
+
+          // Left side: Module data
+          if (i < modSet.length) {
+            const m = modSet[i];
+            const mt = tasks.filter(t => t.module === m);
+            const mDone = mt.filter(t => t.status === 'Completed').length;
+            const mOver = mt.filter(t => t.dueDate && t.status !== 'Completed' && t.status !== 'Cancelled' && new Date(t.dueDate) < new Date()).length;
+            const mAvg = mt.length ? Math.round(mt.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / mt.length) : 0;
+            const mOverColor = mOver > 0 ? COLORS.rose : COLORS.emerald;
+
+            const modCells = [
+              { c: 2, val: m },
+              { c: 7, val: mt.length },
+              { c: 9, val: styledVal(mDone, COLORS.emerald, true) },
+              { c: 11, val: styledVal(mOver, mOverColor, true) },
+              { c: 13, val: mAvg + '%' }
+            ];
+
+            modCells.forEach(cfg => {
+              const cell = ds.getCell(mAvgRow, cfg.c);
+              if (cfg.val && cfg.val._styled) {
+                cell.value = cfg.val.text;
+                cell.font = { name: 'Courier New', size: 8.5, bold: cfg.val.bold, color: { argb: cfg.val.color } };
+              } else {
+                cell.value = cfg.val;
+                cell.font = { name: 'Courier New', size: 8.5, color: { argb: COLORS.textDark } };
+              }
+              cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+            });
+
+            const mAvgCell = ds.getCell('M' + mAvgRow);
+            mAvgCell.value = mAvg;
+            mAvgCell.numFmt = '0"%"';
+            try {
+              ds.addConditionalFormatting({
+                ref: 'M' + mAvgRow + ':M' + mAvgRow,
+                rules: [{
+                  type: 'dataBar',
+                  cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 100 }],
+                  color: { argb: COLORS.emerald },
+                  showValue: true
+                }]
+              });
+            } catch (e) { }
+          }
+
+          // Right side: Feature data
+          if (i < feats.length) {
+            const feat = feats[i];
+            const scs = feat.screens || [];
+            const screenData = tasks.filter(t => (t.subtasks || []).some(st => scs.includes(st.name)) || (t.guiScreens || []).some(sc => scs.includes(sc)));
             const fAvg = screenData.length ? Math.round(screenData.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / screenData.length) : 0;
-            drawTableRow(curRow + 1 + i, [feat.name, scs.length, fAvg + '%'], 10, i % 2 === 1);
-          });
+
+            const featCells = [
+              { c: 15, val: feat.name },
+              { c: 18, val: scs.length },
+              { c: 19, val: fAvg + '%' }
+            ];
+
+            featCells.forEach(cfg => {
+              const cell = ds.getCell(mAvgRow, cfg.c);
+              cell.value = cfg.val;
+              cell.font = { name: 'Courier New', size: 8.5, color: { argb: COLORS.textDark } };
+              cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+            });
+          }
         }
-        curRow += Math.max(modSet.length, feats.length) + 2;
+
+        curRow += maxRows + 2;
 
         // ── Section: Module Delivery Grid ──
         const mMods = Array.from(new Set(tasks.map(t => t.module).filter(Boolean))).sort();
         const mTypes = Array.from(new Set(tasks.map(t => t.moduleType).filter(Boolean))).sort((a, b) => { if (a === 'Server') return -1; if (b === 'Server') return 1; if (a === 'GUI') return -1; if (b === 'GUI') return 1; return a.localeCompare(b); });
         if (mMods.length && mTypes.length) {
           drawSectionTitle(curRow, 'Strategic Module Delivery Matrix'); curRow += 2;
-          drawTableHeader(curRow, ['Module', ...mTypes], 2);
+          
+          // Calculate span per column evenly across Cols 2 to 19 (18 columns total)
+          const numCols = mTypes.length + 1; // 1 for Module, N for mTypes
+          const spanPerCol = Math.max(1, Math.floor(18 / numCols));
+
+          const drawCustomMatrixHeaders = (row) => {
+            ds.getRow(row).height = 18;
+            for (let cIdx = 0; cIdx < numCols; cIdx++) {
+              const cStart = 2 + cIdx * spanPerCol;
+              const cEnd = (cIdx === numCols - 1) ? 19 : cStart + spanPerCol - 1;
+              const label = cIdx === 0 ? 'Module' : mTypes[cIdx - 1];
+              if (cStart !== cEnd) ds.mergeCells(row, cStart, row, cEnd);
+              const cell = ds.getCell(row, cStart);
+              cell.value = '[' + S(label).toUpperCase() + ']';
+              cell.font = { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.isDark ? 'FFFFFFFF' : COLORS.textDark } };
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+              cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+            }
+            for (let c = 2; c <= 19; c++) {
+              const cell = ds.getCell(row, c);
+              if (!cell.fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+              cell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
+            }
+          };
+
+          drawCustomMatrixHeaders(curRow);
 
           const getTaskProgressHierarchical = (t) => {
             const subs = t.subtasks || [];
@@ -48064,17 +48323,56 @@ Earned Value Management measures project performance and progress by comparing p
           };
 
           mMods.forEach((m, i) => {
-            const r = curRow + 1 + i; ds.getRow(r).height = 26; const rowVals = [m];
-            mTypes.forEach(ty => {
-              const mtTasks = tasks.filter(t => t.module === m && t.moduleType === ty);
-              if (!mtTasks.length) { rowVals.push(styledVal('—', COLORS.muted, false)); return; }
-              const statuses = mtTasks.map(t => getTaskDerivedStatus(t)); const sCounts = {}; statuses.forEach(s => sCounts[s] = (sCounts[s] || 0) + 1);
-              let dsVal = 'Not Started'; if (sCounts['Blocked']) dsVal = 'Blocked'; else if (sCounts['On Hold']) dsVal = 'On Hold'; else if (sCounts['In Progress']) dsVal = 'In Progress'; else if (sCounts['Under Review']) dsVal = 'Under Review'; else if (sCounts['Completed'] === mtTasks.length) dsVal = 'Completed'; else if (sCounts['Completed']) dsVal = 'In Progress';
-              const taskProgresses = mtTasks.map(getTaskProgressHierarchical);
-              const mAvgP = Math.round(taskProgresses.reduce((s, p) => s + p, 0) / mtTasks.length); const label = dsVal === 'Completed' ? dsVal : dsVal + ' (' + mAvgP + '%)';
-              rowVals.push(styledVal(label, STATUS_COLORS[dsVal] || COLORS.textDark, true));
+            const rIdx = curRow + 1 + i;
+            ds.getRow(rIdx).height = 24;
+            const bg = i % 2 === 1 ? getThemeTint(COLORS.blue, 0.08) : getThemeTint(COLORS.blue, 0.02);
+
+            const rowCellsMapping = [];
+
+            for (let cIdx = 0; cIdx < numCols; cIdx++) {
+              const cStart = 2 + cIdx * spanPerCol;
+              const cEnd = (cIdx === numCols - 1) ? 19 : cStart + spanPerCol - 1;
+              if (cStart !== cEnd) ds.mergeCells(rIdx, cStart, rIdx, cEnd);
+
+              if (cIdx === 0) {
+                rowCellsMapping.push({ c: cStart, val: m });
+              } else {
+                const ty = mTypes[cIdx - 1];
+                const mtTasks = tasks.filter(t => t.module === m && t.moduleType === ty);
+                if (!mtTasks.length) {
+                  rowCellsMapping.push({ c: cStart, val: styledVal('—', COLORS.muted, false) });
+                } else {
+                  const statuses = mtTasks.map(t => getTaskDerivedStatus(t)); const sCounts = {}; statuses.forEach(s => sCounts[s] = (sCounts[s] || 0) + 1);
+                  let dsVal = 'Not Started'; if (sCounts['Blocked']) dsVal = 'Blocked'; else if (sCounts['On Hold']) dsVal = 'On Hold'; else if (sCounts['In Progress']) dsVal = 'In Progress'; else if (sCounts['Under Review']) dsVal = 'Under Review'; else if (sCounts['Completed'] === mtTasks.length) dsVal = 'Completed'; else if (sCounts['Completed']) dsVal = 'In Progress';
+                  const taskProgresses = mtTasks.map(getTaskProgressHierarchical);
+                  const mAvgP = Math.round(taskProgresses.reduce((s, p) => s + p, 0) / mtTasks.length); const label = dsVal === 'Completed' ? dsVal : dsVal + ' (' + mAvgP + '%)';
+                  rowCellsMapping.push({ c: cStart, val: styledVal(label, STATUS_COLORS[dsVal] || COLORS.textDark, true) });
+                }
+              }
+            }
+
+            for (let c = 2; c <= 19; c++) {
+              const cell = ds.getCell(rIdx, c);
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+              cell.border = {
+                top: { style: 'thin', color: { argb: COLORS.divider } },
+                bottom: { style: 'thin', color: { argb: COLORS.divider } },
+                left: { style: 'thin', color: { argb: COLORS.divider } },
+                right: { style: 'thin', color: { argb: COLORS.divider } }
+              };
+            }
+
+            rowCellsMapping.forEach(cfg => {
+              const cell = ds.getCell(rIdx, cfg.c);
+              if (cfg.val && cfg.val._styled) {
+                cell.value = cfg.val.text;
+                cell.font = { name: 'Courier New', size: 8.5, bold: cfg.val.bold, color: { argb: cfg.val.color } };
+              } else {
+                cell.value = cfg.val;
+                cell.font = { name: 'Courier New', size: 8.5, color: { argb: COLORS.textDark } };
+              }
+              cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
             });
-            drawTableRow(r, rowVals, 2, i % 2 === 1);
           });
           curRow += mMods.length + 2;
         }
@@ -48087,8 +48385,81 @@ Earned Value Management measures project performance and progress by comparing p
         });
         if (screens.length) {
           drawSectionTitle(curRow, 'Screen Inventory & Delivery Status'); curRow += 2;
-          drawTableHeader(curRow, ['Screen', 'Module', 'Status', 'Progress'], 2);
-          screens.forEach((s, i) => { const r = curRow + 1 + i; const p = (parseInt(s.progress) || 0); drawTableRow(r, [s.name, s.module || '-', styledVal(s.status, STATUS_COLORS[s.status] || COLORS.textDark, true), p + '%'], 2, i % 2 === 1); });
+          
+          const drawCustomScreenHeaders = (row) => {
+            ds.getRow(row).height = 18;
+            const headerMapping = [
+              { c1: 2, c2: 8, label: 'Screen Name' },
+              { c1: 9, c2: 14, label: 'Module' },
+              { c1: 15, c2: 17, label: 'Status' },
+              { c1: 18, c2: 19, label: 'Progress' }
+            ];
+            headerMapping.forEach(h => {
+              if (h.c1 !== h.c2) ds.mergeCells(row, h.c1, row, h.c2);
+              const cell = ds.getCell(row, h.c1);
+              cell.value = '[' + h.label.toUpperCase() + ']';
+              cell.font = { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.isDark ? 'FFFFFFFF' : COLORS.textDark } };
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+              cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+            });
+            for (let c = 2; c <= 19; c++) {
+              const cell = ds.getCell(row, c);
+              if (!cell.fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+              cell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
+            }
+          };
+
+          drawCustomScreenHeaders(curRow);
+
+          screens.forEach((s, i) => {
+            const rIdx = curRow + 1 + i;
+            ds.getRow(rIdx).height = 20;
+            const bg = i % 2 === 1 ? getThemeTint(COLORS.blue, 0.08) : getThemeTint(COLORS.blue, 0.02);
+
+            ds.mergeCells(rIdx, 2, rIdx, 8);
+            ds.mergeCells(rIdx, 9, rIdx, 14);
+            ds.mergeCells(rIdx, 15, rIdx, 17);
+            ds.mergeCells(rIdx, 18, rIdx, 19);
+
+            const p = (parseInt(s.progress) || 0);
+            const scrVals = [
+              s.name,
+              s.module || '-',
+              styledVal(s.status, STATUS_COLORS[s.status] || COLORS.textDark, true),
+              p + '%'
+            ];
+
+            const cellsMapping = [
+              { c: 2, val: scrVals[0] },
+              { c: 9, val: scrVals[1] },
+              { c: 15, val: scrVals[2] },
+              { c: 18, val: scrVals[3] }
+            ];
+
+            for (let c = 2; c <= 19; c++) {
+              const cell = ds.getCell(rIdx, c);
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+              cell.border = {
+                top: { style: 'thin', color: { argb: COLORS.divider } },
+                bottom: { style: 'thin', color: { argb: COLORS.divider } },
+                left: { style: 'thin', color: { argb: COLORS.divider } },
+                right: { style: 'thin', color: { argb: COLORS.divider } }
+              };
+            }
+
+            cellsMapping.forEach(cfg => {
+              const cell = ds.getCell(rIdx, cfg.c);
+              if (cfg.val && cfg.val._styled) {
+                cell.value = cfg.val.text;
+                cell.font = { name: 'Courier New', size: 8.5, bold: cfg.val.bold, color: { argb: cfg.val.color } };
+              } else {
+                cell.value = cfg.val;
+                cell.font = { name: 'Courier New', size: 8.5, color: { argb: COLORS.textDark } };
+              }
+              cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+            });
+          });
+
           curRow += screens.length + 2;
         }
 
