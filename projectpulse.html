@@ -47724,102 +47724,130 @@ Earned Value Management measures project performance and progress by comparing p
 
 
         // Row 3: Module Progress, Developer Workload & RAID Type Overview
+        // Limit displayed modules / members on dashboard summary to top 15 to keep executive view clean and well-proportioned
+        const topModLabels = modChartLabels.slice(0, 15);
+        const topModValues = modChartValues.slice(0, 15);
+        const modBarH = Math.max(240, Math.min(360, topModLabels.length * 20 + 60));
+
+        const topTeamNames = teamNames.slice(0, 15);
+        const topTeamWorkloadData = {
+          labels: topTeamNames,
+          series: [
+            { label: 'Done', values: doneMData.slice(0, 15), color: '#10B981' },
+            { label: 'Active', values: activeMData.slice(0, 15), color: '#4F46E5' }
+          ]
+        };
+        const teamBarH = Math.max(240, Math.min(360, topTeamNames.length * 20 + 60));
+
+        const row3ChartHeight = Math.max(modBarH, teamBarH, 240);
+        const row3NeededRows = Math.ceil(row3ChartHeight / 20) + 1;
+        const row3StartRow = 37;
+        const row3EndRow = row3StartRow + row3NeededRows - 1;
+
         drawSectionTitle(36, 'Module Progress, Developer Workload & RAID Type Overview');
-        for (let r = 37; r <= 48; r++) ds.getRow(r).height = 20;
+        for (let r = row3StartRow; r <= row3EndRow + 2; r++) ds.getRow(r).height = 20;
 
         try {
-          // Scale canvas height so every module bar gets at least 16px
-          const modBarH = Math.max(240, modChartLabels.length * 16 + 60);
-          const modBarImgBase64 = generateCanvasChart(500, modBarH, 'horizontalBar', { labels: modChartLabels, values: modChartValues });
+          const modBarImgBase64 = generateCanvasChart(500, modBarH, 'horizontalBar', { labels: topModLabels, values: topModValues });
           const modBarImgId = wb.addImage({ base64: modBarImgBase64, extension: 'png' });
-          addDashboardChartSized(modBarImgId, 1, 37, 500, modBarH);
+          addDashboardChartSized(modBarImgId, 1, row3StartRow, 500, modBarH);
         } catch (err) { PP.error('Error generating module progress chart', err); }
 
         try {
-          // Scale canvas height so every team member bar gets at least 16px
-          const teamBarH = Math.max(240, teamNames.length * 16 + 60);
-          const teamBarImgBase64 = generateCanvasChart(500, teamBarH, 'stackedHorizontalBar', teamWorkloadData);
+          const teamBarImgBase64 = generateCanvasChart(500, teamBarH, 'stackedHorizontalBar', topTeamWorkloadData);
           const teamBarImgId = wb.addImage({ base64: teamBarImgBase64, extension: 'png' });
-          addDashboardChartSized(teamBarImgId, 7, 37, 500, teamBarH);
+          addDashboardChartSized(teamBarImgId, 7, row3StartRow, 500, teamBarH);
         } catch (err) { PP.error('Error generating team workload chart', err); }
 
         try {
           const raidTypeImgBase64 = generateCanvasChart(500, 240, 'donut', raidTypeChartData, { centerText: 'RAID Types' });
           const raidTypeImgId = wb.addImage({ base64: raidTypeImgBase64, extension: 'png' });
-          addDashboardChart(raidTypeImgId, 13, 37);
+          addDashboardChart(raidTypeImgId, 13, row3StartRow);
         } catch (err) { PP.error('Error generating RAID type chart', err); }
 
 
         // Row 4: Cumulative Flow, Defect Modules & RAID Severity
-        drawSectionTitle(50, 'Cumulative Flow, Defect Modules & RAID Severity');
-        for (let r = 51; r <= 62; r++) ds.getRow(r).height = 20;
+        const row4SectionRow = row3EndRow + 2;
+        const row4StartRow = row4SectionRow + 1;
+        const row4EndRow = row4StartRow + 12 - 1;
+
+        drawSectionTitle(row4SectionRow, 'Cumulative Flow, Defect Modules & RAID Severity');
+        for (let r = row4StartRow; r <= row4EndRow + 2; r++) ds.getRow(r).height = 20;
 
         try {
           const cfdImgBase64 = generateCanvasChart(500, 240, 'stackedArea', cfdData);
           const cfdImgId = wb.addImage({ base64: cfdImgBase64, extension: 'png' });
-          addDashboardChart(cfdImgId, 1, 51);
+          addDashboardChart(cfdImgId, 1, row4StartRow);
         } catch (err) { PP.error('Error generating CFD chart', err); }
 
         try {
           const defModImgBase64 = generateCanvasChart(500, 240, 'donut', defModData, { centerText: 'Defects' });
           const defModImgId = wb.addImage({ base64: defModImgBase64, extension: 'png' });
-          addDashboardChart(defModImgId, 7, 51);
+          addDashboardChart(defModImgId, 7, row4StartRow);
         } catch (err) { PP.error('Error generating defect module chart', err); }
 
         try {
           const raidSevImgBase64 = generateCanvasChart(500, 240, 'donut', raidSevChartData, { centerText: 'RAID Severity' });
           const raidSevImgId = wb.addImage({ base64: raidSevImgBase64, extension: 'png' });
-          addDashboardChart(raidSevImgId, 13, 51);
+          addDashboardChart(raidSevImgId, 13, row4StartRow);
         } catch (err) { PP.error('Error generating RAID severity chart', err); }
 
 
         // Row 5: Defects Diagnostics: Status, Severity & Types
-        drawSectionTitle(64, 'Defects Diagnostics: Status, Severity & Types');
-        for (let r = 65; r <= 76; r++) ds.getRow(r).height = 20;
+        const row5SectionRow = row4EndRow + 2;
+        const row5StartRow = row5SectionRow + 1;
+        const row5EndRow = row5StartRow + 12 - 1;
+
+        drawSectionTitle(row5SectionRow, 'Defects Diagnostics: Status, Severity & Types');
+        for (let r = row5StartRow; r <= row5EndRow + 2; r++) ds.getRow(r).height = 20;
 
         try {
           const defStatusImgBase64 = generateCanvasChart(500, 240, 'donut', defStatusChartData, { centerText: 'Defect Status' });
           const defStatusImgId = wb.addImage({ base64: defStatusImgBase64, extension: 'png' });
-          addDashboardChart(defStatusImgId, 1, 65);
+          addDashboardChart(defStatusImgId, 1, row5StartRow);
         } catch (err) { PP.error('Error generating defect status chart', err); }
 
         try {
           const defSevImgBase64 = generateCanvasChart(500, 240, 'donut', defSevChartData, { centerText: 'Defect Severity' });
           const defSevImgId = wb.addImage({ base64: defSevImgBase64, extension: 'png' });
-          addDashboardChart(defSevImgId, 7, 65);
+          addDashboardChart(defSevImgId, 7, row5StartRow);
         } catch (err) { PP.error('Error generating defect severity chart', err); }
 
         try {
           const defTypeImgBase64 = generateCanvasChart(500, 240, 'donut', defTypeChartData, { centerText: 'Defect Types' });
           const defTypeImgId = wb.addImage({ base64: defTypeImgBase64, extension: 'png' });
-          addDashboardChart(defTypeImgId, 13, 65);
+          addDashboardChart(defTypeImgId, 13, row5StartRow);
         } catch (err) { PP.error('Error generating defect type chart', err); }
 
 
         // Row 6: Decisions Status, Milestone Delivery & Defect Densities
-        drawSectionTitle(78, 'Decisions Status, Milestone Delivery & Defect Densities');
-        for (let r = 79; r <= 90; r++) ds.getRow(r).height = 20;
+        const row6SectionRow = row5EndRow + 2;
+        const row6StartRow = row6SectionRow + 1;
+        const row6EndRow = row6StartRow + 12 - 1;
+
+        drawSectionTitle(row6SectionRow, 'Decisions Status, Milestone Delivery & Defect Densities');
+        for (let r = row6StartRow; r <= row6EndRow + 2; r++) ds.getRow(r).height = 20;
 
         try {
           const decStatusImgBase64 = generateCanvasChart(500, 240, 'donut', decStatusChartData, { centerText: 'Decisions' });
           const decStatusImgId = wb.addImage({ base64: decStatusImgBase64, extension: 'png' });
-          addDashboardChart(decStatusImgId, 1, 79);
+          addDashboardChart(decStatusImgId, 1, row6StartRow);
         } catch (err) { PP.error('Error generating decision status chart', err); }
 
         try {
           const msImgBase64 = generateCanvasChart(500, 240, 'donut', msChartData, { centerText: 'Milestones' });
           const msImgId = wb.addImage({ base64: msImgBase64, extension: 'png' });
-          addDashboardChart(msImgId, 7, 79);
+          addDashboardChart(msImgId, 7, row6StartRow);
         } catch (err) { PP.error('Error generating milestone chart', err); }
 
         try {
-          const defModDensitiesImgBase64 = generateCanvasChart(500, 240, 'horizontalBar', { labels: defModDensitiesLabels, values: defModDensitiesValues });
+          const defModDensitiesImgBase64 = generateCanvasChart(500, 240, 'horizontalBar', { labels: defModDensitiesLabels.slice(0, 15), values: defModDensitiesValues.slice(0, 15) });
           const defModDensitiesImgId = wb.addImage({ base64: defModDensitiesImgBase64, extension: 'png' });
-          addDashboardChart(defModDensitiesImgId, 13, 79);
+          addDashboardChart(defModDensitiesImgId, 13, row6StartRow);
         } catch (err) { PP.error('Error generating defect densities chart', err); }
 
 
-        let curRow = 94;
+        let curRow = row6EndRow + 4;
 
 
         // ── Section: Distribution Tables ──
