@@ -47554,14 +47554,34 @@ Earned Value Management measures project performance and progress by comparing p
         })).filter(item => item.value > 0);
 
         const modSet = [...new Set(tasks.map(t => t.module).filter(Boolean))];
-        const modChartLabels = [];
-        const modChartValues = [];
+        let modCompleted = 0;
+        let modOnTrack = 0;
+        let modBlocked = 0;
+        let modOverdue = 0;
+
         modSet.forEach(m => {
           const mt = tasks.filter(t => t.module === m);
           const mAvg = mt.length ? Math.round(mt.reduce((s, t) => s + (parseInt(t.progress) || 0), 0) / mt.length) : 0;
-          modChartLabels.push(m);
-          modChartValues.push(mAvg);
+          const hasBlocked = mt.some(t => t.status === 'Blocked' || t.status === 'On Hold');
+          const hasOverdue = mt.some(t => t.status !== 'Completed' && t.dueDate && new Date(t.dueDate) < new Date());
+
+          if (mAvg === 100) {
+            modCompleted++;
+          } else if (hasBlocked) {
+            modBlocked++;
+          } else if (hasOverdue) {
+            modOverdue++;
+          } else {
+            modOnTrack++;
+          }
         });
+
+        const modHealthChartData = [
+          { label: 'Completed Modules', value: modCompleted, color: COLORS.emerald },
+          { label: 'On Track Active', value: modOnTrack, color: COLORS.indigo },
+          { label: 'Overdue / At Risk', value: modOverdue, color: COLORS.amber },
+          { label: 'Blocked Modules', value: modBlocked, color: COLORS.rose }
+        ].filter(item => item.value > 0);
 
         const teamNames = [...new Set(tasks.map(t => t.assignee).filter(Boolean))];
         const doneMData = [];
@@ -47766,11 +47786,7 @@ Earned Value Management measures project performance and progress by comparing p
         } catch (err) { PP.error('Error generating category chart', err); }
 
 
-        // Row 3: Module Progress, Developer Workload & RAID Type Overview
-        // Use top 12 items for dashboard charts so aspect ratio remains clean (standard 240px height)
-        const topModLabels = modChartLabels.slice(0, 12);
-        const topModValues = modChartValues.slice(0, 12);
-
+        // Row 3: Module Health Distribution, Developer Workload & RAID Type Overview
         const topTeamNames = teamNames.slice(0, 12);
         const doneMDataTop = doneMData.slice(0, 12);
         const activeMDataTop = activeMData.slice(0, 12);
@@ -47787,14 +47803,14 @@ Earned Value Management measures project performance and progress by comparing p
         const row3StartRow = 37;
         const row3EndRow = row3StartRow + 12 - 1;
 
-        drawSectionTitle(36, 'Module Progress, Developer Workload & RAID Type Overview');
+        drawSectionTitle(36, 'Module Health Status, Developer Workload & RAID Type Overview');
         for (let r = row3StartRow; r <= row3EndRow + 2; r++) ds.getRow(r).height = 20;
 
         try {
-          const modBarImgBase64 = generateCanvasChart(500, row3ChartHeight, 'horizontalBar', { labels: topModLabels, values: topModValues });
-          const modBarImgId = wb.addImage({ base64: modBarImgBase64, extension: 'png' });
-          addDashboardChart(modBarImgId, 1, row3StartRow);
-        } catch (err) { PP.error('Error generating module progress chart', err); }
+          const modHealthImgBase64 = generateCanvasChart(500, row3ChartHeight, 'donut', modHealthChartData, { centerText: 'Module Health' });
+          const modHealthImgId = wb.addImage({ base64: modHealthImgBase64, extension: 'png' });
+          addDashboardChart(modHealthImgId, 1, row3StartRow);
+        } catch (err) { PP.error('Error generating module health chart', err); }
 
         try {
           const teamBarImgBase64 = generateCanvasChart(500, row3ChartHeight, 'stackedHorizontalBar', teamWorkloadDataFull);
