@@ -47095,7 +47095,7 @@ Earned Value Management measures project performance and progress by comparing p
             ctx.fillStyle = isDarkTheme ? '#E2E8F0' : '#475569';
             ctx.fillText('COMPLETED ESTIMATED EFFORT BY WEEK', Math.round(15 * scale), legendY);
           } else if (type === 'horizontalBar') {
-            const padL = Math.round(220 * scale);
+            const padL = Math.round(140 * scale);
             const padR = Math.round(50 * scale);
             const padT = Math.round(30 * scale);
             const padB = Math.round(20 * scale);
@@ -47103,13 +47103,12 @@ Earned Value Management measures project performance and progress by comparing p
             const chartH = height - padT - padB;
 
             const numBars = data.labels.length || 1;
-            const barHeight = Math.max(4, Math.min(18, (chartH / numBars) * 0.6));
+            const barHeight = Math.max(8, Math.min(18, (chartH / numBars) * 0.55));
             const spacing = (chartH / numBars);
 
             const maxVal = Math.max(...data.values, 100);
 
             ctx.font = Math.round(8 * scale) + 'px Courier New';
-            ctx.textBaseline = 'middle';
 
             data.values.forEach((val, idx) => {
               const yCenter = padT + idx * spacing + spacing / 2;
@@ -47126,14 +47125,38 @@ Earned Value Management measures project performance and progress by comparing p
               ctx.fillStyle = barGrad;
               ctx.fillRect(padL, y, w, barHeight);
 
+              // Multiline / Wrapped Label Support
               ctx.fillStyle = isDarkTheme ? '#E2E8F0' : '#475569';
               ctx.textAlign = 'right';
+              ctx.textBaseline = 'middle';
               ctx.font = 'bold ' + Math.round(7.5 * scale) + 'px Courier New';
-              const cleanLbl = String(data.labels[idx]).length > 35 ? String(data.labels[idx]).substring(0, 32) + '..' : data.labels[idx];
-              ctx.fillText(cleanLbl, padL - 8, yCenter);
+
+              const rawLbl = String(data.labels[idx]);
+              let lines = [];
+              if (rawLbl.length > 18) {
+                // Split long labels across two clean lines
+                const mid = Math.ceil(rawLbl.length / 2);
+                const spaceIdx = rawLbl.lastIndexOf(' ', mid);
+                const splitAt = spaceIdx > 5 ? spaceIdx : 16;
+                lines.push(rawLbl.substring(0, splitAt));
+                let line2 = rawLbl.substring(splitAt).trim();
+                if (line2.length > 18) line2 = line2.substring(0, 15) + '..';
+                lines.push(line2);
+              } else {
+                lines.push(rawLbl);
+              }
+
+              if (lines.length === 1) {
+                ctx.fillText(lines[0], padL - 8, yCenter);
+              } else {
+                const lineH = Math.round(8.5 * scale);
+                ctx.fillText(lines[0], padL - 8, yCenter - lineH / 2);
+                ctx.fillText(lines[1], padL - 8, yCenter + lineH / 2);
+              }
 
               ctx.fillStyle = isDarkTheme ? '#FFFFFF' : '#0F172A';
               ctx.textAlign = 'left';
+              ctx.textBaseline = 'middle';
               ctx.font = 'bold ' + Math.round(8 * scale) + 'px Courier New';
               ctx.fillText(Math.round(val) + '%', padL + w + 4, yCenter);
             });
@@ -47146,7 +47169,7 @@ Earned Value Management measures project performance and progress by comparing p
             ctx.fillStyle = isDarkTheme ? '#E2E8F0' : '#475569';
             ctx.fillText('AVERAGE COMPLETION PROGRESS BY MODULE', Math.round(15 * scale), legendY);
           } else if (type === 'stackedHorizontalBar') {
-            const padL = Math.round(220 * scale);
+            const padL = Math.round(140 * scale);
             const padR = Math.round(40 * scale);
             const padT = Math.round(30 * scale);
             const padB = Math.round(20 * scale);
@@ -47154,7 +47177,7 @@ Earned Value Management measures project performance and progress by comparing p
             const chartH = height - padT - padB;
 
             const numBars = data.labels.length || 1;
-            const barHeight = Math.max(4, Math.min(18, (chartH / numBars) * 0.6));
+            const barHeight = Math.max(8, Math.min(18, (chartH / numBars) * 0.55));
             const spacing = (chartH / numBars);
 
             let maxVal = 1;
@@ -47166,7 +47189,6 @@ Earned Value Management measures project performance and progress by comparing p
             maxVal = Math.max(maxVal, 1) * 1.1;
 
             ctx.font = Math.round(8 * scale) + 'px Courier New';
-            ctx.textBaseline = 'middle';
 
             for (let i = 0; i < numBars; i++) {
               const yCenter = padT + i * spacing + spacing / 2;
@@ -47191,9 +47213,30 @@ Earned Value Management measures project performance and progress by comparing p
 
               ctx.fillStyle = isDarkTheme ? '#E2E8F0' : '#475569';
               ctx.textAlign = 'right';
+              ctx.textBaseline = 'middle';
               ctx.font = 'bold ' + Math.round(7.5 * scale) + 'px Courier New';
-              const cleanLbl = String(data.labels[i]).length > 35 ? String(data.labels[i]).substring(0, 32) + '..' : data.labels[i];
-              ctx.fillText(cleanLbl, padL - 8, yCenter);
+
+              const rawLbl = String(data.labels[i]);
+              let lines = [];
+              if (rawLbl.length > 18) {
+                const mid = Math.ceil(rawLbl.length / 2);
+                const spaceIdx = rawLbl.lastIndexOf(' ', mid);
+                const splitAt = spaceIdx > 5 ? spaceIdx : 16;
+                lines.push(rawLbl.substring(0, splitAt));
+                let line2 = rawLbl.substring(splitAt).trim();
+                if (line2.length > 18) line2 = line2.substring(0, 15) + '..';
+                lines.push(line2);
+              } else {
+                lines.push(rawLbl);
+              }
+
+              if (lines.length === 1) {
+                ctx.fillText(lines[0], padL - 8, yCenter);
+              } else {
+                const lineH = Math.round(8.5 * scale);
+                ctx.fillText(lines[0], padL - 8, yCenter - lineH / 2);
+                ctx.fillText(lines[1], padL - 8, yCenter + lineH / 2);
+              }
             }
 
             // Legend
@@ -47724,36 +47767,39 @@ Earned Value Management measures project performance and progress by comparing p
 
 
         // Row 3: Module Progress, Developer Workload & RAID Type Overview
-        // Dynamically scale chart height to render all modules & team members without cropping
-        const modBarH = Math.max(240, modChartLabels.length * 14 + 40);
+        // Use top 12 items for dashboard charts so aspect ratio remains clean (standard 240px height)
+        const topModLabels = modChartLabels.slice(0, 12);
+        const topModValues = modChartValues.slice(0, 12);
+
+        const topTeamNames = teamNames.slice(0, 12);
+        const doneMDataTop = doneMData.slice(0, 12);
+        const activeMDataTop = activeMData.slice(0, 12);
 
         const teamWorkloadDataFull = {
-          labels: teamNames,
+          labels: topTeamNames,
           series: [
-            { label: 'Done', values: doneMData, color: '#10B981' },
-            { label: 'Active', values: activeMData, color: '#4F46E5' }
+            { label: 'Done', values: doneMDataTop, color: '#10B981' },
+            { label: 'Active', values: activeMDataTop, color: '#4F46E5' }
           ]
         };
-        const teamBarH = Math.max(240, teamNames.length * 14 + 40);
 
-        const row3ChartHeight = Math.max(modBarH, teamBarH, 240);
-        const row3NeededRows = Math.ceil(row3ChartHeight / 20);
+        const row3ChartHeight = 240;
         const row3StartRow = 37;
-        const row3EndRow = row3StartRow + row3NeededRows - 1;
+        const row3EndRow = row3StartRow + 12 - 1;
 
         drawSectionTitle(36, 'Module Progress, Developer Workload & RAID Type Overview');
-        for (let r = row3StartRow; r <= row3EndRow + 1; r++) ds.getRow(r).height = 20;
+        for (let r = row3StartRow; r <= row3EndRow + 2; r++) ds.getRow(r).height = 20;
 
         try {
-          const modBarImgBase64 = generateCanvasChart(500, modBarH, 'horizontalBar', { labels: modChartLabels, values: modChartValues });
+          const modBarImgBase64 = generateCanvasChart(500, row3ChartHeight, 'horizontalBar', { labels: topModLabels, values: topModValues });
           const modBarImgId = wb.addImage({ base64: modBarImgBase64, extension: 'png' });
-          addDashboardChartSized(modBarImgId, 1, row3StartRow, 500, modBarH);
+          addDashboardChart(modBarImgId, 1, row3StartRow);
         } catch (err) { PP.error('Error generating module progress chart', err); }
 
         try {
-          const teamBarImgBase64 = generateCanvasChart(500, teamBarH, 'stackedHorizontalBar', teamWorkloadDataFull);
+          const teamBarImgBase64 = generateCanvasChart(500, row3ChartHeight, 'stackedHorizontalBar', teamWorkloadDataFull);
           const teamBarImgId = wb.addImage({ base64: teamBarImgBase64, extension: 'png' });
-          addDashboardChartSized(teamBarImgId, 7, row3StartRow, 500, teamBarH);
+          addDashboardChart(teamBarImgId, 7, row3StartRow);
         } catch (err) { PP.error('Error generating team workload chart', err); }
 
         try {
