@@ -21310,7 +21310,34 @@
         h += '<tr><td height="1" bgcolor="#e2e8f0" style="background-color:#e2e8f0;height:1px;font-size:1px;line-height:1px;">&nbsp;</td></tr>';
       }
 
-      // ── MODULE HEALTH TABLE ──
+      // ── BLOCKERS ──
+      if (incRisks && (blockers.length > 0 || (incOverdue && overdueTotal > 0))) {
+        h += '<tr><td style="padding:16px 24px 8px;"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#dc2626;border-left:3px solid #dc2626;padding-left:8px;margin-bottom:8px;">⚠ Blockers &amp; Risks</div>';
+        h += '<ul style="margin:0;padding-left:20px;font-size:13px;color:#334155;">';
+        blockers.forEach(r => {
+          h += '<li style="margin-bottom:4px;">' + escapeHTML(r.title || r.name || 'Issue');
+          h += ' <span style="color:#94a3b8;font-size:11px;">· ' + escapeHTML(r.type || 'Risk') + (r.owner ? ' · ' + escapeHTML(r.owner) : '') + '</span></li>';
+        });
+        if (incOverdue && overdueTotal > 0) {
+          const atRiskMods = modules.filter(m => m.overdue > 0).map(m => escapeHTML(m.name) + ' (' + m.overdue + ')').join(', ');
+          h += '<li style="margin-bottom:4px;color:#dc2626;font-weight:600;">' + overdueTotal + ' overdue task' + (overdueTotal > 1 ? 's' : '') + ': ' + atRiskMods + '</li>';
+        }
+        h += '</ul></td></tr>';
+      }
+
+      // ── DECISIONS ──
+      if (incDecisions && decisions.length > 0) {
+        h += '<tr><td style="padding:16px 24px 8px;"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#d97706;border-left:3px solid #d97706;padding-left:8px;margin-bottom:8px;">► Action Required</div>';
+        h += '<ul style="margin:0;padding-left:20px;font-size:13px;color:#334155;">';
+        decisions.forEach(d => {
+          h += '<li style="margin-bottom:4px;">' + escapeHTML(d.title || d.description || 'Decision');
+          if (d.owner) h += ' <span style="color:#94a3b8;font-size:11px;">· ' + escapeHTML(d.owner) + '</span>';
+          h += '</li>';
+        });
+        h += '</ul></td></tr>';
+      }
+
+      // ── MODULE HEALTH TABLE (AT THE END) ──
       if (incWins) {
         h += '<tr><td style="padding:16px 24px 8px;">';
         h += '<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#0f172a;border-left:3px solid #0f172a;padding-left:8px;margin-bottom:10px;">Module Status</div>';
@@ -21340,33 +21367,6 @@
           h += '</td></tr>';
         });
         h += '</tbody></table></td></tr>';
-      }
-
-      // ── BLOCKERS ──
-      if (incRisks && (blockers.length > 0 || (incOverdue && overdueTotal > 0))) {
-        h += '<tr><td style="padding:16px 24px 8px;"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#dc2626;border-left:3px solid #dc2626;padding-left:8px;margin-bottom:8px;">⚠ Blockers &amp; Risks</div>';
-        h += '<ul style="margin:0;padding-left:20px;font-size:13px;color:#334155;">';
-        blockers.forEach(r => {
-          h += '<li style="margin-bottom:4px;">' + escapeHTML(r.title || r.name || 'Issue');
-          h += ' <span style="color:#94a3b8;font-size:11px;">· ' + escapeHTML(r.type || 'Risk') + (r.owner ? ' · ' + escapeHTML(r.owner) : '') + '</span></li>';
-        });
-        if (incOverdue && overdueTotal > 0) {
-          const atRiskMods = modules.filter(m => m.overdue > 0).map(m => escapeHTML(m.name) + ' (' + m.overdue + ')').join(', ');
-          h += '<li style="margin-bottom:4px;color:#dc2626;font-weight:600;">' + overdueTotal + ' overdue task' + (overdueTotal > 1 ? 's' : '') + ': ' + atRiskMods + '</li>';
-        }
-        h += '</ul></td></tr>';
-      }
-
-      // ── DECISIONS ──
-      if (incDecisions && decisions.length > 0) {
-        h += '<tr><td style="padding:16px 24px 8px;"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#d97706;border-left:3px solid #d97706;padding-left:8px;margin-bottom:8px;">► Action Required</div>';
-        h += '<ul style="margin:0;padding-left:20px;font-size:13px;color:#334155;">';
-        decisions.forEach(d => {
-          h += '<li style="margin-bottom:4px;">' + escapeHTML(d.title || d.description || 'Decision');
-          if (d.owner) h += ' <span style="color:#94a3b8;font-size:11px;">· ' + escapeHTML(d.owner) + '</span>';
-          h += '</li>';
-        });
-        h += '</ul></td></tr>';
       }
 
       // ── FOOTER ──
@@ -21427,17 +21427,6 @@
 
       if (execNote) { t += 'NOTE: ' + execNote + '\n\n'; }
 
-      if (incWins) {
-        t += 'MODULE STATUS\n';
-        t += 'Module'.padEnd(28) + 'Progress  Done    Overdue  Status\n';
-        t += '─'.repeat(70) + '\n';
-        modules.forEach(m => {
-          const name = m.name.length > 26 ? m.name.substring(0,25) + '…' : m.name;
-          t += name.padEnd(28) + (m.pct + '%').padEnd(10) + (m.completed + '/' + m.total).padEnd(8) + String(m.overdue > 0 ? m.overdue : '—').padEnd(9) + m.health + '\n';
-        });
-        t += '\n';
-      }
-
       if (incRisks && (blockers.length > 0 || (incOverdue && overdueTotal > 0))) {
         t += '⚠ BLOCKERS & RISKS\n';
         blockers.forEach(r => { t += '  · ' + (r.title || r.name) + '  [' + (r.type || 'Risk') + (r.owner ? ' · ' + r.owner : '') + ']\n'; });
@@ -21451,6 +21440,17 @@
       if (incDecisions && decisions.length > 0) {
         t += '► ACTION REQUIRED\n';
         decisions.forEach(d => { t += '  · ' + (d.title || d.description || 'Decision') + (d.owner ? '  → ' + d.owner : '') + '\n'; });
+        t += '\n';
+      }
+
+      if (incWins) {
+        t += 'MODULE STATUS\n';
+        t += 'Module'.padEnd(28) + 'Progress  Done    Overdue  Status\n';
+        t += '─'.repeat(70) + '\n';
+        modules.forEach(m => {
+          const name = m.name.length > 26 ? m.name.substring(0,25) + '…' : m.name;
+          t += name.padEnd(28) + (m.pct + '%').padEnd(10) + (m.completed + '/' + m.total).padEnd(8) + String(m.overdue > 0 ? m.overdue : '—').padEnd(9) + m.health + '\n';
+        });
         t += '\n';
       }
 
