@@ -44782,7 +44782,6 @@ Earned Value Management measures project performance and progress by comparing p
           { header: `Estimated ${effortUnitLabel('col')}`, key: 'estEffort', width: 18 },
           { header: `Actual ${effortUnitLabel('col')}`, key: 'actEffort', width: 15 },
           { header: 'Complexity', key: 'complexity', width: 15 },
-          { header: 'Window Name (Functional)', key: 'windowName', width: 30 },
           { header: 'Notes', key: 'notes', width: 40 }
         ];
 
@@ -44812,9 +44811,9 @@ Earned Value Management measures project performance and progress by comparing p
           };
           mainCell.value = {
             richText: [
-              { text: `[${label.toUpperCase()}]\n`, font: { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.slate } } },
+              { text: `[${label.toUpperCase()}]\n`, font: { name: 'Courier New', size: 8, bold: true, color: { argb: COLORS.slate || 'FF64748B' } } },
               { text: `${value}\n`, font: { name: 'Courier New', size: 14, bold: true, color: { argb: accentColor } } },
-              { text: subLabel || '', font: { name: 'Courier New', size: 7.5, italic: true, color: { argb: COLORS.slate } } }
+              { text: subLabel || '', font: { name: 'Courier New', size: 7.5, italic: true, color: { argb: COLORS.slate || 'FF64748B' } } }
             ]
           };
           mainCell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
@@ -44831,26 +44830,52 @@ Earned Value Management measures project performance and progress by comparing p
 
         ws.getRow(1).height = 10;
         ws.mergeCells('B2:R2');
-        ws.getRow(2).height = 20;
+        ws.getRow(2).height = 24;
         const titleCell = ws.getCell('B2');
-        titleCell.value = ' >> COCKPIT.TELEMETRY: HIERARCHICAL DELIVERY MATRIX';
-        titleCell.font = { name: 'Courier New', size: 10, bold: true, color: { argb: COLORS.indigo } };
+        titleCell.value = {
+          richText: [
+            { text: ' >> COCKPIT TELEMETRY  |  ', font: { name: 'Courier New', size: 11, bold: true, color: { argb: 'FFFFFFFF' } } },
+            { text: 'HIERARCHICAL TASK & SUBTASK DELIVERY MATRIX  —  ' + S(P.name || 'Project').toUpperCase(), font: { name: 'Courier New', size: 10, bold: true, color: { argb: 'FFE0E7FF' } } }
+          ]
+        };
         titleCell.alignment = { vertical: 'middle', indent: 1 };
 
-        drawTopKpiCard(ws, 2, 3, 4, 3, 'Delivery Progress', `${done} / ${total}`, `${progress}% complete`, COLORS.indigo);
-        drawTopKpiCard(ws, 7, 3, 4, 3, 'Effort Telemetry', `${estEff.toFixed(1)} / ${actEff.toFixed(1)} d`, 'Estimated vs Actual', COLORS.blue);
-        drawTopKpiCard(ws, 12, 3, 4, 3, 'Overdue Items', `${overdue}`, overdue > 0 ? '⚠ Attention Required' : '✔ On Schedule', overdue > 0 ? COLORS.rose : COLORS.emerald);
-        drawTopKpiCard(ws, 17, 3, 2, 3, 'Blocked Scope', `${blocked}`, blocked > 0 ? '⚠ Blocked' : '✔ Clear', blocked > 0 ? COLORS.rose : COLORS.emerald);
+        const bannerGradFill = {
+          type: 'gradient',
+          gradient: 'angle',
+          degree: 90,
+          stops: [
+            { position: 0, color: { argb: 'FF4F46E5' } },
+            { position: 1, color: { argb: 'FF3730A3' } }
+          ]
+        };
 
-        ws.getRow(6).height = 10;
+        for (let c = 2; c <= 18; c++) {
+          const cell = ws.getCell(2, c);
+          cell.fill = bannerGradFill;
+          cell.border = { bottom: { style: 'medium', color: { argb: 'FF312E81' } } };
+        }
+
+        drawTopKpiCard(ws, 2, 3, 4, 3, 'Delivery Progress', `${done} / ${total}`, `${progress}% complete`, COLORS.indigo || 'FF6366F1');
+        drawTopKpiCard(ws, 6, 3, 4, 3, 'Effort Telemetry', `${estEff.toFixed(1)} / ${actEff.toFixed(1)} d`, 'Estimated vs Actual', COLORS.blue || 'FF3B82F6');
+        drawTopKpiCard(ws, 10, 3, 4, 3, 'Overdue Items', `${overdue}`, overdue > 0 ? '⚠ Attention Required' : '✔ On Schedule', overdue > 0 ? (COLORS.rose || 'FFEF4444') : (COLORS.emerald || 'FF10B981'));
+        drawTopKpiCard(ws, 14, 3, 5, 3, 'Blocked Scope', `${blocked}`, blocked > 0 ? '⚠ Blocked' : '✔ Clear', blocked > 0 ? (COLORS.rose || 'FFEF4444') : (COLORS.emerald || 'FF10B981'));
+
+        ws.getRow(6).height = 12;
 
         const headerRow = ws.getRow(7);
-        headerRow.height = 32;
+        headerRow.height = 26;
         cols.forEach((col, colIdx) => {
           if (colIdx === 0) return;
           const cell = headerRow.getCell(colIdx + 1);
           cell.value = S(col.header);
-          cell.style = customHdrStyle;
+          cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF312E81' } };
+          cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          cell.border = {
+            bottom: { style: 'medium', color: { argb: 'FF1E1B4B' } },
+            right: { style: 'thin', color: { argb: 'FF4338CA' } }
+          };
         });
 
         // Level 0: Task — premium soft-lavender bg, 11pt bold deep navy, thick purple left border
@@ -45056,7 +45081,6 @@ Earned Value Management measures project performance and progress by comparing p
             estEffort: t.estEffort || 0,
             actEffort: t.actEffort || 0,
             complexity: S(t.complexity),
-            windowName: PulseExcel.formatExcelNewBadge(S(t.windowName || ''), tIsNew),
             notes: S(t.notes)
           };
           (P.customFields || []).forEach(f => { taskRowVals[f.name] = S(t[f.name]); });
@@ -45087,7 +45111,6 @@ Earned Value Management measures project performance and progress by comparing p
               estEffort: s.estEffort || 0,
               actEffort: s.actEffort || 0,
               complexity: '',
-              windowName: PulseExcel.formatExcelNewBadge(S(s.windowName || ''), sIsNew),
               notes: S(s.notes)
             };
             (P.customFields || []).forEach(f => { subRowVals[f.name] = ''; });
@@ -45267,26 +45290,52 @@ Earned Value Management measures project performance and progress by comparing p
         const backlogCount = (releaseGroups['Future Release'] || []).length;
 
         ws.getRow(1).height = 10;
-        ws.mergeCells('B2:H2');
-        ws.getRow(2).height = 20;
+        ws.mergeCells('B2:K2');
+        ws.getRow(2).height = 24;
         const titleCell = ws.getCell('B2');
-        titleCell.value = ' >> COCKPIT.TELEMETRY: FEATURE ROLLOUT MATRIX';
-        titleCell.font = { name: 'Courier New', size: 10, bold: true, color: { argb: COLORS.indigo } };
+        titleCell.value = {
+          richText: [
+            { text: ' >> COCKPIT TELEMETRY  |  ', font: { name: 'Courier New', size: 11, bold: true, color: { argb: 'FFFFFFFF' } } },
+            { text: 'FEATURE ROLLOUT MATRIX & SCREEN DELIVERY  —  ' + S(P.name || 'Project').toUpperCase(), font: { name: 'Courier New', size: 10, bold: true, color: { argb: 'FFE0E7FF' } } }
+          ]
+        };
         titleCell.alignment = { vertical: 'middle', indent: 1 };
 
-        drawTopKpiCard(ws, 2, 3, 2, 3, 'Releases Mapped', `${releaseCount}`, `${backlogCount} in backlog`, COLORS.indigo);
-        drawTopKpiCard(ws, 5, 3, 2, 3, 'Total Features', `${totalFeatCount}`, 'Feature nodes', COLORS.blue);
-        drawTopKpiCard(ws, 8, 3, 2, 3, 'Rollout Density', `${screenCount} screens`, 'GUI layout coverage', COLORS.emerald);
+        const bannerGradFill = {
+          type: 'gradient',
+          gradient: 'angle',
+          degree: 90,
+          stops: [
+            { position: 0, color: { argb: 'FF4F46E5' } },
+            { position: 1, color: { argb: 'FF3730A3' } }
+          ]
+        };
 
-        ws.getRow(6).height = 10;
+        for (let c = 2; c <= 11; c++) {
+          const cell = ws.getCell(2, c);
+          cell.fill = bannerGradFill;
+          cell.border = { bottom: { style: 'medium', color: { argb: 'FF312E81' } } };
+        }
+
+        drawTopKpiCard(ws, 2, 3, 3, 3, 'Releases Mapped', `${releaseCount}`, `${backlogCount} in backlog`, COLORS.indigo || 'FF6366F1');
+        drawTopKpiCard(ws, 5, 3, 3, 3, 'Total Features', `${totalFeatCount}`, 'Feature nodes', COLORS.blue || 'FF3B82F6');
+        drawTopKpiCard(ws, 8, 3, 4, 3, 'Rollout Density', `${screenCount} screens`, 'GUI layout coverage', COLORS.emerald || 'FF10B981');
+
+        ws.getRow(6).height = 12;
 
         const headerRow = ws.getRow(7);
-        headerRow.height = 32;
+        headerRow.height = 26;
         cols.forEach((col, colIdx) => {
           if (colIdx === 0) return;
           const cell = headerRow.getCell(colIdx + 1);
           cell.value = col.header;
-          cell.style = customHdrStyle;
+          cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF312E81' } };
+          cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          cell.border = {
+            bottom: { style: 'medium', color: { argb: 'FF1E1B4B' } },
+            right: { style: 'thin', color: { argb: 'FF4338CA' } }
+          };
         });
 
         // Level 0: Release  — soft royal bg (#F1F5F9), 12pt bold deep-indigo, thick navy border
@@ -47761,28 +47810,33 @@ Earned Value Management measures project performance and progress by comparing p
         } catch (err) { PP.error('Error generating complexity chart', err); }
 
 
-        // Row 2: Predictive Velocity, Burndown & Task Categories
+        // Row 2: Predictive Velocity, Burndown & Task Categories (stacked vertically, full-width)
         drawSectionTitle(22, 'Predictive Velocity, Burndown & Task Categories');
-        for (let r = 23; r <= 34; r++) ds.getRow(r).height = 20;
+        // Chart 1: Velocity bar (rows 23-42, 20 rows × 20px = 400px)
+        for (let r = 23; r <= 42; r++) ds.getRow(r).height = 20;
+        // Chart 2: Burndown line (rows 43-62, 20 rows × 20px = 400px)
+        for (let r = 43; r <= 62; r++) ds.getRow(r).height = 20;
+        // Chart 3: Task Categories donut (rows 63-74, 12 rows × 20px = 240px)
+        for (let r = 63; r <= 74; r++) ds.getRow(r).height = 20;
 
         try {
           const velocityData = { labels: vLs.map(w => w.l), values: velData };
-          const barImgBase64 = generateCanvasChart(500, 240, 'bar', velocityData);
+          const barImgBase64 = generateCanvasChart(900, 400, 'bar', velocityData);
           const barImgId = wb.addImage({ base64: barImgBase64, extension: 'png' });
-          addDashboardChart(barImgId, 1, 23);
+          addDashboardChartSized(barImgId, 1, 23, 1500, 400);
         } catch (err) { PP.error('Error generating velocity bar chart', err); }
 
         try {
           const burndownData = { labels: bLabels.slice(0, 10), ideal: bIdeal.slice(0, 10).map(Math.round), actual: bActual.slice(0, 10).map(Math.round) };
-          const lineImgBase64 = generateCanvasChart(500, 240, 'line', burndownData);
+          const lineImgBase64 = generateCanvasChart(900, 400, 'line', burndownData);
           const lineImgId = wb.addImage({ base64: lineImgBase64, extension: 'png' });
-          addDashboardChart(lineImgId, 7, 23);
+          addDashboardChartSized(lineImgId, 1, 43, 1500, 400);
         } catch (err) { PP.error('Error generating burndown line chart', err); }
 
         try {
           const catImgBase64 = generateCanvasChart(500, 240, 'donut', catChartData, { centerText: 'Category' });
           const catImgId = wb.addImage({ base64: catImgBase64, extension: 'png' });
-          addDashboardChart(catImgId, 13, 23);
+          addDashboardChartSized(catImgId, 1, 63, 500, 240);
         } catch (err) { PP.error('Error generating category chart', err); }
 
 
@@ -47800,10 +47854,10 @@ Earned Value Management measures project performance and progress by comparing p
         };
 
         const row3ChartHeight = 240;
-        const row3StartRow = 37;
+        const row3StartRow = 76;
         const row3EndRow = row3StartRow + 12 - 1;
 
-        drawSectionTitle(36, 'Module Health Status, Developer Workload & RAID Type Overview');
+        drawSectionTitle(75, 'Module Health Status, Developer Workload & RAID Type Overview');
         for (let r = row3StartRow; r <= row3EndRow + 2; r++) ds.getRow(r).height = 20;
 
         try {
@@ -48742,23 +48796,44 @@ Earned Value Management measures project performance and progress by comparing p
         const colWidths = [3, 18, 16, 14, 14, 14, 14, 18, 18, 3];
         colWidths.forEach((w, i) => ws.getColumn(i + 1).width = w);
 
-        // Header banner
-        ws.mergeCells('B2:I2');
+        // Header banner spanning full table width (Cols B..I) seamlessly
+        ws.mergeCells('B2:I3');
+        ws.getRow(2).height = 20;
+        ws.getRow(3).height = 20;
         const hCell = ws.getCell('B2');
-        hCell.value = `🐛  DEFECT INTELLIGENCE  —  ${P.name || 'Project'}  |  ${defects.length} Total Defects`;
-        hCell.font = { name: 'Segoe UI', size: 13, bold: true, color: { argb: 'FFFFFFFF' } };
-        hCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.rose } };
-        hCell.alignment = { vertical: 'middle', indent: 1 };
-        ws.getRow(2).height = 22;
+        hCell.value = {
+          richText: [
+            { text: ' >> DEFECT INTELLIGENCE TELEMETRY  |  ', font: { name: 'Courier New', size: 11, bold: true, color: { argb: 'FFFFFFFF' } } },
+            { text: S(P.name || 'Project').toUpperCase() + '\n', font: { name: 'Courier New', size: 10, bold: true, color: { argb: 'FFFFE4E6' } } },
+            { text: `   ● Total Defects: ${defects.length}   |   ● Open: ${defects.filter(d => d.status !== 'Closed' && d.status !== 'Resolved').length}   |   ● Critical: ${defects.filter(d => (d.severity || '').includes('S1') || (d.severity || '').includes('Critical')).length}`, font: { name: 'Courier New', size: 8.5, bold: true, color: { argb: 'FFFFF1F2' } } }
+          ]
+        };
+        hCell.alignment = { vertical: 'middle', indent: 1, wrapText: true };
 
-        // Column headers
+        const defectGradFill = {
+          type: 'gradient',
+          gradient: 'angle',
+          degree: 90,
+          stops: [
+            { position: 0, color: { argb: 'FFE11D48' } },
+            { position: 1, color: { argb: 'FFBE123C' } }
+          ]
+        };
+
+        for (let c = 2; c <= 9; c++) {
+          ws.getCell(2, c).fill = defectGradFill;
+          ws.getCell(3, c).fill = defectGradFill;
+          ws.getCell(3, c).border = { bottom: { style: 'medium', color: { argb: 'FF9F1239' } } };
+        }
+
+        // Column headers starting on row 4
         const hdrs = ['Defect ID', 'Title', 'Type', 'Severity', 'Priority', 'Status', 'Assignee', 'Linked To'];
         hdrs.forEach((h, i) => {
-          const c = ws.getCell(3, 2 + i);
+          const c = ws.getCell(4, 2 + i);
           c.value = h;
           c.style = hdrStyle;
         });
-        ws.getRow(3).height = 20;
+        ws.getRow(4).height = 20;
 
         const SEV_COLORS = {
           'S1 (Crash/Data Loss)': COLORS.rose, 'S1': COLORS.rose,
@@ -48779,7 +48854,7 @@ Earned Value Management measures project performance and progress by comparing p
         };
 
         defects.forEach((d, i) => {
-          const rowIdx = 4 + i;
+          const rowIdx = 5 + i;
           const rowBg = i % 2 === 0
             ? (COLORS.getThemeTint ? COLORS.getThemeTint(COLORS.rose, 0.04) : 'FFFFF5F5')
             : (COLORS.getThemeTint ? COLORS.getThemeTint(COLORS.rose, 0.01) : 'FFFFFFFF');
@@ -48807,7 +48882,7 @@ Earned Value Management measures project performance and progress by comparing p
         });
 
         // Summary section — Severity distribution
-        const sumStartRow = 5 + defects.length;
+        const sumStartRow = 6 + defects.length;
         ws.getRow(sumStartRow).height = 8;
         ws.mergeCells(sumStartRow + 1, 2, sumStartRow + 1, 9);
         const sumHdr = ws.getCell(sumStartRow + 1, 2);
@@ -48841,7 +48916,7 @@ Earned Value Management measures project performance and progress by comparing p
         });
 
         // Autofilter
-        try { ws.autoFilter = { from: { row: 3, column: 2 }, to: { row: 3, column: 9 } }; } catch (e) { }
+        try { ws.autoFilter = { from: { row: 4, column: 2 }, to: { row: 4, column: 9 } }; } catch (e) { }
       },
 
 
@@ -48854,29 +48929,50 @@ Earned Value Management measures project performance and progress by comparing p
         if (!raids.length) return;
 
         const ws = wb.addWorksheet('⚡ RAID Intelligence', {
-          views: [{ showGridLines: false, state: 'frozen', ySplit: 3 }]
+          views: [{ showGridLines: false, state: 'frozen', ySplit: 4 }]
         });
         ws.properties.tabColor = { argb: COLORS.amber };
 
         // Column widths
         [3, 10, 14, 22, 18, 14, 14, 18, 14, 3].forEach((w, i) => ws.getColumn(i + 1).width = w);
 
-        // Header
-        ws.mergeCells('B2:I2');
+        // Header banner spanning full table width (Cols B..I) seamlessly
+        ws.mergeCells('B2:I3');
+        ws.getRow(2).height = 20;
+        ws.getRow(3).height = 20;
         const hCell = ws.getCell('B2');
-        hCell.value = `⚡  RAID INTELLIGENCE  —  ${P.name || 'Project'}`;
-        hCell.font = { name: 'Segoe UI', size: 13, bold: true, color: { argb: 'FFFFFFFF' } };
-        hCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.amber } };
-        hCell.alignment = { vertical: 'middle', indent: 1 };
-        ws.getRow(2).height = 22;
+        hCell.value = {
+          richText: [
+            { text: ' >> RAID INTELLIGENCE TELEMETRY  |  ', font: { name: 'Courier New', size: 11, bold: true, color: { argb: 'FFFFFFFF' } } },
+            { text: S(P.name || 'Project').toUpperCase() + '\n', font: { name: 'Courier New', size: 10, bold: true, color: { argb: 'FFFFFBEB' } } },
+            { text: `   ● Total Items: ${raids.length}   |   ● Open Risks: ${raids.filter(r => r.type === 'Risk' && r.status !== 'Closed').length}   |   ● Open Issues: ${raids.filter(r => r.type === 'Issue' && r.status !== 'Closed').length}   |   ● Dependencies: ${raids.filter(r => r.type === 'Dependency').length}`, font: { name: 'Courier New', size: 8.5, bold: true, color: { argb: 'FFFFF3C4' } } }
+          ]
+        };
+        hCell.alignment = { vertical: 'middle', indent: 1, wrapText: true };
 
-        // Column headers
+        const raidGradFill = {
+          type: 'gradient',
+          gradient: 'angle',
+          degree: 90,
+          stops: [
+            { position: 0, color: { argb: 'FFD97706' } },
+            { position: 1, color: { argb: 'FFB45309' } }
+          ]
+        };
+
+        for (let c = 2; c <= 9; c++) {
+          ws.getCell(2, c).fill = raidGradFill;
+          ws.getCell(3, c).fill = raidGradFill;
+          ws.getCell(3, c).border = { bottom: { style: 'medium', color: { argb: 'FF92400E' } } };
+        }
+
+        // Column headers starting on row 4
         ['ID', 'Type', 'Title', 'Description', 'Impact', 'Probability', 'Owner', 'Status'].forEach((h, i) => {
-          const c = ws.getCell(3, 2 + i);
+          const c = ws.getCell(4, 2 + i);
           c.value = h;
           c.style = hdrStyle;
         });
-        ws.getRow(3).height = 20;
+        ws.getRow(4).height = 20;
 
         const TYPE_COLORS = {
           Risk: COLORS.rose, Assumption: COLORS.indigo,
@@ -48884,7 +48980,7 @@ Earned Value Management measures project performance and progress by comparing p
         };
 
         raids.forEach((r, i) => {
-          const rowIdx = 4 + i;
+          const rowIdx = 5 + i;
           const bg = i % 2 === 0 ? 'FFFFFDF0' : 'FFFFFFFF';
           ws.getRow(rowIdx).height = 20;
           const typeColor = TYPE_COLORS[r.type] || COLORS.muted;
@@ -48914,7 +49010,7 @@ Earned Value Management measures project performance and progress by comparing p
         });
 
         // Summary counts by type
-        const sumRow = 5 + raids.length;
+        const sumRow = 6 + raids.length;
         ws.getRow(sumRow).height = 8;
         const types = ['Risk', 'Assumption', 'Issue', 'Dependency'];
         types.forEach((t, ti) => {
@@ -48927,7 +49023,7 @@ Earned Value Management measures project performance and progress by comparing p
           ws.getRow(sumRow + 1).height = 18;
         });
 
-        try { ws.autoFilter = { from: { row: 3, column: 2 }, to: { row: 3, column: 9 } }; } catch (e) { }
+        try { ws.autoFilter = { from: { row: 4, column: 2 }, to: { row: 4, column: 9 } }; } catch (e) { }
       },
 
       // ══════════════════════════════════════════════════════
@@ -48939,20 +49035,41 @@ Earned Value Management measures project performance and progress by comparing p
         if (!log.length) return;
 
         const ws = wb.addWorksheet('📈 Velocity & Burndown', {
-          views: [{ showGridLines: false, state: 'frozen', ySplit: 3 }]
+          views: [{ showGridLines: false, state: 'frozen', ySplit: 4 }]
         });
         ws.properties.tabColor = { argb: COLORS.emerald };
 
         [3, 14, 14, 14, 14, 14, 14, 3].forEach((w, i) => ws.getColumn(i + 1).width = w);
 
-        // Header
-        ws.mergeCells('B2:G2');
+        // Header banner spanning full table width (Cols B..G) seamlessly
+        ws.mergeCells('B2:G3');
+        ws.getRow(2).height = 20;
+        ws.getRow(3).height = 20;
         const hCell = ws.getCell('B2');
-        hCell.value = `📈  VELOCITY & BURNDOWN  —  ${P.name || 'Project'}`;
-        hCell.font = { name: 'Segoe UI', size: 13, bold: true, color: { argb: 'FFFFFFFF' } };
-        hCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.emerald } };
-        hCell.alignment = { vertical: 'middle', indent: 1 };
-        ws.getRow(2).height = 22;
+        hCell.value = {
+          richText: [
+            { text: ' >> VELOCITY & BURNDOWN TELEMETRY  |  ', font: { name: 'Courier New', size: 11, bold: true, color: { argb: 'FFFFFFFF' } } },
+            { text: S(P.name || 'Project').toUpperCase() + '\n', font: { name: 'Courier New', size: 10, bold: true, color: { argb: 'FFECFDF5' } } },
+            { text: `   ● Total Scope: ${(P.tasks || []).length}   |   ● Logged Events: ${log.length}   |   ● Completed Tasks: ${log.filter(e => e.action === 'Status Changed' && (e.newVal === 'Completed' || e.newVal === 'Closed')).length}`, font: { name: 'Courier New', size: 8.5, bold: true, color: { argb: 'FFD1FAE5' } } }
+          ]
+        };
+        hCell.alignment = { vertical: 'middle', indent: 1, wrapText: true };
+
+        const velGradFill = {
+          type: 'gradient',
+          gradient: 'angle',
+          degree: 90,
+          stops: [
+            { position: 0, color: { argb: 'FF059669' } },
+            { position: 1, color: { argb: 'FF047857' } }
+          ]
+        };
+
+        for (let c = 2; c <= 7; c++) {
+          ws.getCell(2, c).fill = velGradFill;
+          ws.getCell(3, c).fill = velGradFill;
+          ws.getCell(3, c).border = { bottom: { style: 'medium', color: { argb: 'FF065F46' } } };
+        }
 
         // Build weekly velocity from log
         const completions = log.filter(e =>
@@ -48981,13 +49098,13 @@ Earned Value Management measures project performance and progress by comparing p
         const totalTasks = (P.tasks || []).length;
         let remaining = totalTasks;
 
-        // Column headers
+        // Column headers starting on row 4
         ['Week', 'Completed', 'Cumulative Done', 'Remaining', 'Velocity (4-wk avg)', 'Burndown%'].forEach((h, i) => {
-          const c = ws.getCell(3, 2 + i);
+          const c = ws.getCell(4, 2 + i);
           c.value = h;
           c.style = hdrStyle;
         });
-        ws.getRow(3).height = 20;
+        ws.getRow(4).height = 20;
 
         let cumDone = 0;
         weeks.forEach((week, i) => {
@@ -49000,7 +49117,7 @@ Earned Value Management measures project performance and progress by comparing p
           const avg4 = last4.reduce((s, w) => s + (weekMap[w] || 0), 0) / last4.length;
           const burnPct = totalTasks > 0 ? Math.round(cumDone / totalTasks * 100) : 0;
 
-          const rowIdx = 4 + i;
+          const rowIdx = 5 + i;
           const bg = i % 2 === 0 ? 'FFF0FDF4' : 'FFFFFFFF';
           ws.getRow(rowIdx).height = 18;
 
@@ -49037,7 +49154,7 @@ Earned Value Management measures project performance and progress by comparing p
 
         // Projection section
         if (weeks.length >= 2) {
-          const projRow = 5 + weeks.length;
+          const projRow = 6 + weeks.length;
           ws.getRow(projRow).height = 8;
           ws.mergeCells(projRow + 1, 2, projRow + 1, 7);
           const projHdr = ws.getCell(projRow + 1, 2);
@@ -49070,16 +49187,34 @@ Earned Value Management measures project performance and progress by comparing p
         const tasks = P.tasks || [];
         const now = new Date();
 
-        // Header
+        // Header banner (Cols B..E)
         ws.mergeCells('B2:E3');
+        ws.getRow(2).height = 20;
+        ws.getRow(3).height = 20;
         const hCell = ws.getCell('B2');
-        hCell.value = `📊  PROJECT METRICS  —  ${P.name || 'Project'}`;
-        hCell.font = { name: 'Segoe UI', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
-        hCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } };
-        hCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
-        ws.getRow(2).height = 22; ws.getRow(3).height = 22;
+        hCell.value = {
+          richText: [
+            { text: ' >> PROJECT METRICS & KPI TELEMETRY  |  ', font: { name: 'Courier New', size: 11, bold: true, color: { argb: 'FFFFFFFF' } } },
+            { text: S(P.name || 'Project').toUpperCase() + '\n', font: { name: 'Courier New', size: 10, bold: true, color: { argb: 'FFE0E7FF' } } },
+            { text: `   ● Total Scope: ${tasks.length} tasks   |   ● Status: ${P.archived ? 'Archived' : 'Active'}   |   ● Generated: ${new Date().toISOString().split('T')[0]}`, font: { name: 'Courier New', size: 8.5, bold: true, color: { argb: 'FFC7D2FE' } } }
+          ]
+        };
+        hCell.alignment = { vertical: 'middle', indent: 1, wrapText: true };
+
+        const metGradFill = {
+          type: 'gradient',
+          gradient: 'angle',
+          degree: 90,
+          stops: [
+            { position: 0, color: { argb: 'FF4F46E5' } },
+            { position: 1, color: { argb: 'FF3730A3' } }
+          ]
+        };
+
         for (let c = 2; c <= 5; c++) {
-          ws.getCell(3, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } };
+          ws.getCell(2, c).fill = metGradFill;
+          ws.getCell(3, c).fill = metGradFill;
+          ws.getCell(3, c).border = { bottom: { style: 'medium', color: { argb: 'FF312E81' } } };
         }
 
         const addMetricRow = (rowIdx, label, value, category, statusColor) => {
@@ -49137,20 +49272,26 @@ Earned Value Management measures project performance and progress by comparing p
         const criticalPri = tasks.filter(t => t.priority === 'Critical' && t.status !== 'Completed' && t.status !== 'Cancelled').length;
         const highPri = tasks.filter(t => t.priority === 'High' && t.status !== 'Completed' && t.status !== 'Cancelled').length;
 
-        // Start row headers
-        ws.mergeCells('B4:E4');
-        const colHdr = ws.getCell('B4');
-        colHdr.value = '  METRIC   ';
-        ws.getRow(4).height = 16;
-        ['B', 'C', 'D', 'E'].forEach((col, i) => {
-          const c = ws.getCell(`${col}4`);
-          c.font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: 'FFFFFFFF' } };
-          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: (COLORS.getThemeTint ? COLORS.getThemeTint(COLORS.indigo, 0.9) : COLORS.indigo) } };
+        // Column headers row 4
+        ws.getRow(4).height = 22;
+        const colHeaders = [
+          { col: 'B', text: 'METRIC NAME', align: 'left' },
+          { col: 'C', text: 'VALUE', align: 'center' },
+          { col: 'D', text: 'CATEGORY', align: 'center' },
+          { col: 'E', text: 'STATUS / NOTES', align: 'left' }
+        ];
+
+        colHeaders.forEach(ch => {
+          const cell = ws.getCell(`${ch.col}4`);
+          cell.value = ch.text;
+          cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF312E81' } };
+          cell.alignment = { vertical: 'middle', horizontal: ch.align, indent: ch.align === 'left' ? 1 : 0 };
+          cell.border = {
+            bottom: { style: 'medium', color: { argb: 'FF1E1B4B' } },
+            right: { style: 'thin', color: { argb: 'FF4338CA' } }
+          };
         });
-        ws.getCell('B4').value = 'Metric';
-        ws.getCell('C4').value = 'Value';
-        ws.getCell('D4').value = 'Category';
-        ws.getCell('E4').value = 'Notes';
 
         let r = 5;
         addSectionHeader(r++, '🔄  LIVE CROSS-SHEET VERIFICATION (auto-recalculates from Tasks sheet)');
@@ -49325,14 +49466,31 @@ Earned Value Management measures project performance and progress by comparing p
         ws.getColumn(10).width = 16; // Target Date
         ws.getColumn(11).width = 16; // Status
 
-        // Header
+        // Header banner (Cols B..K)
         ws.mergeCells('B2:K2');
+        ws.getRow(2).height = 24;
         const hCell = ws.getCell('B2');
-        hCell.value = `🚀  RELEASE TRACKING  —  ${P.name || 'Project'}`;
-        hCell.font = { name: 'Segoe UI', size: 13, bold: true, color: { argb: 'FFFFFFFF' } };
-        hCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } };
+        hCell.value = {
+          richText: [
+            { text: ' >> RELEASE TRACKING & MILESTONE ROLLUP  |  ', font: { name: 'Courier New', size: 11, bold: true, color: { argb: 'FFFFFFFF' } } },
+            { text: S(P.name || 'Project').toUpperCase(), font: { name: 'Courier New', size: 10, bold: true, color: { argb: 'FFE0E7FF' } } }
+          ]
+        };
         hCell.alignment = { vertical: 'middle', indent: 1 };
-        ws.getRow(2).height = 22;
+
+        const relGradFill = {
+          type: 'gradient',
+          gradient: 'angle',
+          degree: 90,
+          stops: [
+            { position: 0, color: { argb: 'FF4F46E5' } },
+            { position: 1, color: { argb: 'FF3730A3' } }
+          ]
+        };
+
+        for (let c = 2; c <= 11; c++) {
+          ws.getCell(2, c).fill = relGradFill;
+        }
 
         // Column headers
         const headers = ['Release', 'Total', 'Done', 'In Progress', 'Overdue', 'Progress%', 'Est Effort', 'Act Effort', 'Target Date', 'RAG Status'];
