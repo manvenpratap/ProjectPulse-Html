@@ -31550,14 +31550,39 @@
       });
 
       // Stalled Tasks Scanner
+      const todayTime = new Date().setHours(0, 0, 0, 0);
       (P.tasks || []).filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').forEach(t => {
+        // Exclude future scheduled tasks that are not yet due to start
+        if (t.startDate) {
+          const sDate = new Date(t.startDate);
+          if (!isNaN(sDate.getTime()) && sDate.getTime() > todayTime && t.status !== 'In Progress' && t.status !== 'On Hold') {
+            return; // Skip task scheduled in the future
+          }
+        }
+
+        // Exclude tasks tagged to a future planned release if not started
+        const relVer = t.release || t.releaseVersion;
+        if (relVer && P.releases && P.releases.length) {
+          const relObj = P.releases.find(r => r.name === relVer || r.id === relVer);
+          if (relObj && relObj.date) {
+            const relDate = new Date(relObj.date);
+            if (!isNaN(relDate.getTime()) && relDate.getTime() > todayTime && (t.status === 'New' || t.status === 'Not Started' || !t.status) && (parseInt(t.progress, 10) || 0) === 0) {
+              return; // Skip future release task
+            }
+          }
+        }
+
         const lastActStr = t.updatedAt || t.startDate || t.createdAt || new Date().toISOString();
         let lastAct = new Date(lastActStr);
         if (isNaN(lastAct.getTime())) lastAct = new Date();
         const daysStalled = Math.floor((now - lastAct) / 864e5);
-        if (daysStalled > 14 || t.status === 'On Hold') {
+
+        const isInProgressOrActive = t.status === 'In Progress' || t.status === 'On Hold' || t.status === 'Review' || t.status === 'Testing';
+        const isPastStartUnstarted = t.startDate && new Date(t.startDate).getTime() <= todayTime && (parseInt(t.progress, 10) || 0) === 0;
+
+        if (t.status === 'On Hold' || (isInProgressOrActive && daysStalled > 14) || (isPastStartUnstarted && daysStalled > 14)) {
           anomalies.stalledTasks.count++;
-          anomalies.stalledTasks.items.push({ task: t, daysStalled: t.status === 'On Hold' ? daysStalled || 5 : daysStalled, lastDate: t.updatedAt || t.startDate || 'Unknown' });
+          anomalies.stalledTasks.items.push({ task: t, daysStalled: t.status === 'On Hold' ? (daysStalled || 5) : daysStalled, lastDate: t.updatedAt || t.startDate || 'Unknown' });
         }
       });
 
@@ -43385,6 +43410,7 @@ Earned Value Management measures project performance and progress by comparing p
       closeRaidFlyout();
       save();
       renderRisksView();
+      if (typeof renderSidebar === 'function') renderSidebar();
       notify('RAID item saved successfully', 'ok');
     };
     window.deleteRaidItem = deleteRaidItem;
@@ -43402,6 +43428,7 @@ Earned Value Management measures project performance and progress by comparing p
         P.raids.splice(idx, 1);
         save();
         renderRisksView();
+        if (typeof renderSidebar === 'function') renderSidebar();
         notify('RAID item deleted', 'ok');
       }
     };
