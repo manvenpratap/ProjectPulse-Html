@@ -11857,7 +11857,7 @@
               style="font-size:10px; line-height:1; color:var(--color-text-muted);"></span>
             <div id="top-health-badge"
               style="display:none;align-items:center;gap:5px;font-size:9px;font-weight:700;padding:2px 8px;border-radius:99px;cursor:pointer;margin-left:6px;transition:all 0.2s ease"
-              onclick="setView('dash')" title="Project Health Index · Click for dashboard">
+              onclick="showCalculationModal('health')" title="Project Health Index · Click for exact formula & calculation breakdown">
               <span id="top-health-icon" style="font-size:8px">●</span>
               <span id="top-health-label" style="font-variant-numeric:tabular-nums"></span>
             </div>
@@ -14108,9 +14108,313 @@
     }
     window.getTaskDeadline = getTaskDeadline;
 
+    function isTaskInFutureRelease(task) {
+      if (!task) return false;
+      const PObj = window.P || (typeof P !== 'undefined' ? P : null);
+      if (!PObj || !PObj.releases || !PObj.releases.length) return false;
+
+      const releases = PObj.releases;
+      const relVer = task.releaseVersion || task.release;
+
+      // Determine active release index in P.releases
+      let activeIdx = releases.findIndex(r => String(r.status || '').toLowerCase() === 'active');
+      if (activeIdx === -1) {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        activeIdx = releases.findIndex(r => {
+          const st = String(r.status || '').toLowerCase();
+          return st !== 'completed' && st !== 'closed' && (r.date || r.targetDate || r.endDate || '9999') >= todayStr;
+        });
+        if (activeIdx === -1 && releases.length > 0) activeIdx = 0;
+      }
+
+      // Check direct task release tag
+      if (relVer) {
+        const relIdx = releases.findIndex(r => 
+          String(r.name).trim().toLowerCase() === String(relVer).trim().toLowerCase() ||
+          String(r.id).trim().toLowerCase() === String(relVer).trim().toLowerCase()
+        );
+        if (relIdx !== -1) {
+          const rel = releases[relIdx];
+          const st = String(rel.status || '').toLowerCase();
+          if (st === 'future') return true;
+          if (activeIdx !== -1 && relIdx > activeIdx) return true;
+          return false;
+        }
+      }
+
+      // Check task's feature release tag
+      if (task.feature && PObj.features && PObj.features.length) {
+        const feat = PObj.features.find(f => String(f.name).trim().toLowerCase() === String(task.feature).trim().toLowerCase());
+        if (feat && feat.release) {
+          const featRelIdx = releases.findIndex(r => 
+            String(r.name).trim().toLowerCase() === String(feat.release).trim().toLowerCase() ||
+            String(r.id).trim().toLowerCase() === String(feat.release).trim().toLowerCase()
+          );
+          if (featRelIdx !== -1) {
+            const featRel = releases[featRelIdx];
+            const st = String(featRel.status || '').toLowerCase();
+            if (st === 'future') return true;
+            if (activeIdx !== -1 && featRelIdx > activeIdx) return true;
+            return false;
+          }
+        }
+      }
+
+      return false;
+    }
+    function showCalculationModal(tabKey = 'health') {
+      let modal = document.getElementById('calculation-explanation-modal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'calculation-explanation-modal';
+        modal.className = 'ai-modal';
+        document.body.appendChild(modal);
+      }
+
+      const PObj = window.P || (typeof P !== 'undefined' ? P : {});
+      const tasks = PObj.tasks || [];
+      const log = PObj.log || [];
+      const activeTasks = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled');
+      const totalActive = activeTasks.length || 1;
+
+      // ── Health Score Breakdown ──
+      let overdueW = 0, overdueCount = 0;
+      let blockedW = 0, blockedCount = 0;
+      let onHoldW = 0, onHoldCount = 0;
+      let totalWeight = 0;
+
+      activeTasks.forEach(t => {
+        const pw = 1 - (parseInt(t.progress, 10) || 0) / 100;
+        totalWeight += pw;
+        const deadline = getTaskDeadline(t);
+        const inFuture = isTaskInFutureRelease(t);
+
+        if (deadline && !inFuture) {
+          const dd = PulseDashboard.daysDiff(deadline);
+          if (dd !== null && dd < 0) {
+            overdueW += pw;
+            overdueCount++;
+          }
+        }
+        if (PulseDashboard.isBlocked(t)) {
+          blockedW += pw;
+          blockedCount++;
+        }
+        if (String(t.status || '').toLowerCase() === 'on hold' && !inFuture) {
+          onHoldW += pw;
+          onHoldCount++;
+        }
+      });
+
+      const overduePenalty = Math.round((overdueW / totalActive) * 50 * 10) / 10;
+      const blockedPenalty = Math.round((blockedW / totalActive) * 30 * 10) / 10;
+      const onHoldPenalty = Math.round((onHoldW / totalActive) * 20 * 10) / 10;
+      const healthScore = Math.max(0, Math.min(100, Math.round(100 - overduePenalty - blockedPenalty - onHoldPenalty)));
+
+      // ── Delivery Confidence Breakdown ──
+      const fc = (typeof PulseForecastEngine !== 'undefined' && PulseForecastEngine.calculateForecast)
+        ? PulseForecastEngine.calculateForecast(tasks, log)
+        : { weeklyVelocity: 10, remainingEffort: 50, forecastFinish: new Date(Date.now() + 30 * 864e5) };
+      const mc = (typeof PulseForecastEngine !== 'undefined' && PulseForecastEngine.runUnifiedMonteCarlo)
+        ? PulseForecastEngine.runUnifiedMonteCarlo(tasks, fc.weeklyVelocity, fc.remainingEffort, 100)
+        : { p90: new Date(Date.now() + 35 * 864e5) };
+      
+      const startDates = tasks.map(t => new Date(t.startDate)).filter(d => !isNaN(d.getTime()));
+      const endDates = tasks.map(t => new Date(getTaskDeadline(t) || t.dueDate)).filter(d => !isNaN(d.getTime()));
+      const startProjectDate = startDates.length ? new Date(Math.min(...startDates)) : new Date();
+      const targetFinishDate = endDates.length ? new Date(Math.max(...endDates)) : new Date(startProjectDate.getTime() + 30 * 864e5);
+      
+      const confidenceScore = (typeof PulseForecastEngine !== 'undefined' && PulseForecastEngine.calculateConfidence)
+        ? PulseForecastEngine.calculateConfidence(fc.forecastFinish, targetFinishDate, startProjectDate)
+        : 88;
+      const daysVariance = Math.round((fc.forecastFinish - targetFinishDate) / 864e5);
+
+      const activeTab = (tabKey === 'confidence') ? 'confidence' : 'health';
+      const isHealth = activeTab === 'health';
+
+      modal.innerHTML = `
+        <div class="ai-modal-backdrop" onclick="showCalculationModal.close()"></div>
+        <div class="ai-modal-content" style="max-width:760px; width:92%; max-height:88vh; background:var(--color-surface-1); border:1px solid var(--color-divider); border-radius:18px; padding:24px; box-shadow:0 24px 50px rgba(0,0,0,0.5); color:var(--color-text); position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); z-index:10000; font-family:var(--font-sans); box-sizing:border-box; display:flex; flex-direction:column; gap:16px; overflow:hidden;">
+          
+          <!-- Header -->
+          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--color-divider); padding-bottom:14px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:40px; height:40px; border-radius:10px; background:rgba(99,102,241,0.12); color:var(--color-primary); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                <i data-lucide="${isHealth ? 'activity' : 'shield-check'}" style="width:22px; height:22px"></i>
+              </div>
+              <div>
+                <h3 style="margin:0; font-size:17px; font-weight:800; color:var(--color-text);">Exact Calculation Breakdown</h3>
+                <div style="font-size:12px; color:var(--color-text-muted);">Mathematical formula & live project telemetry analysis</div>
+              </div>
+            </div>
+            <button onclick="showCalculationModal.close()" style="background:none; border:none; color:var(--color-text-muted); cursor:pointer; font-size:24px; line-height:1; padding:4px;">&times;</button>
+          </div>
+
+          <!-- Tab Switcher -->
+          <div style="display:flex; background:var(--color-surface-2); padding:4px; border-radius:10px; border:1px solid var(--color-divider); gap:4px;">
+            <button onclick="window.showCalculationModal('health')" style="flex:1; padding:8px 14px; border:none; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; transition:all 0.15s; background:${isHealth ? 'var(--color-primary)' : 'transparent'}; color:${isHealth ? '#fff' : 'var(--color-text-muted)'}; display:flex; align-items:center; justify-content:center; gap:6px;">
+              <i data-lucide="activity" style="width:14px; height:14px"></i>
+              Project Health Index (${healthScore}/100)
+            </button>
+            <button onclick="window.showCalculationModal('confidence')" style="flex:1; padding:8px 14px; border:none; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; transition:all 0.15s; background:${!isHealth ? 'var(--color-primary)' : 'transparent'}; color:${!isHealth ? '#fff' : 'var(--color-text-muted)'}; display:flex; align-items:center; justify-content:center; gap:6px;">
+              <i data-lucide="shield-check" style="width:14px; height:14px"></i>
+              Delivery Confidence (${confidenceScore}%)
+            </button>
+          </div>
+
+          <!-- Modal Body Scrollable -->
+          <div style="flex:1; overflow-y:auto; padding-right:6px; display:flex; flex-direction:column; gap:16px;">
+            ${isHealth ? `
+              <!-- HEALTH SCORE VIEW -->
+              <div style="display:flex; align-items:center; justify-content:space-between; background:linear-gradient(135deg, rgba(16,185,129,0.1) 0%, rgba(99,102,241,0.1) 100%); border:1px solid rgba(16,185,129,0.3); padding:16px 20px; border-radius:12px;">
+                <div>
+                  <div style="font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px;">Current Health Index</div>
+                  <div style="font-size:32px; font-weight:900; color:${healthScore >= 80 ? 'var(--green)' : healthScore >= 60 ? 'var(--amber)' : 'var(--red)'}; line-height:1.1;">
+                    ${healthScore} <span style="font-size:16px; font-weight:600; color:var(--color-text-muted);">/ 100</span>
+                  </div>
+                </div>
+                <div style="text-align:right;">
+                  <span style="font-size:12px; font-weight:700; padding:4px 12px; border-radius:20px; background:${healthScore >= 80 ? 'rgba(34,197,94,0.15)' : healthScore >= 60 ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)'}; color:${healthScore >= 80 ? 'var(--green)' : healthScore >= 60 ? 'var(--amber)' : 'var(--red)'};">
+                    ${healthScore >= 80 ? 'HEALTHY' : healthScore >= 60 ? 'NEEDS ATTENTION' : 'CRITICAL RISK'}
+                  </span>
+                  <div style="font-size:11px; color:var(--color-text-faint); margin-top:6px;">Evaluated on ${totalActive} Active Tasks</div>
+                </div>
+              </div>
+
+              <!-- Formula Card -->
+              <div style="background:var(--color-surface-2); border:1px solid var(--color-divider); border-radius:12px; padding:16px;">
+                <div style="font-size:13px; font-weight:700; color:var(--color-text); margin-bottom:8px;">Mathematical Formula</div>
+                <div style="background:var(--color-bg); padding:12px; border-radius:8px; font-family:var(--font-mono); font-size:12px; color:var(--color-primary); border:1px solid var(--color-border-faint); line-height:1.6; text-align:center;">
+                  Health Score = 100 - Overdue Penalty (max 50) - Blocked Penalty (max 30) - On-Hold Penalty (max 20)
+                </div>
+                <div style="font-size:11px; color:var(--color-text-muted); margin-top:10px; line-height:1.5;">
+                  Penalties are proportional to remaining work weight <strong>W = 1 - (Progress % / 100)</strong> normalized over all active tasks (N = ${totalActive}):
+                  <br>• <strong>Overdue Penalty</strong> = (∑ W_overdue / N) × 50
+                  <br>• <strong>Blocked Penalty</strong> = (∑ W_blocked / N) × 30
+                  <br>• <strong>On-Hold Penalty</strong> = (∑ W_onhold / N) × 20
+                </div>
+              </div>
+
+              <!-- Live Breakdown Table -->
+              <div style="background:var(--color-surface-2); border:1px solid var(--color-divider); border-radius:12px; padding:16px;">
+                <div style="font-size:13px; font-weight:700; color:var(--color-text); margin-bottom:12px;">Live Parameter Breakdown</div>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                  
+                  <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--color-surface-1); border-radius:8px; border-left:4px solid var(--red);">
+                    <div>
+                      <div style="font-size:12px; font-weight:700; color:var(--color-text);">1. Overdue Tasks Penalty</div>
+                      <div style="font-size:11px; color:var(--color-text-muted);">${overdueCount} task(s) past due date · Sum weight = ${overdueW.toFixed(2)}</div>
+                      <div style="font-size:10.5px; color:var(--color-text-faint); margin-top:2px;">*(Tasks in future releases are strictly excluded)*</div>
+                    </div>
+                    <div style="font-family:var(--font-mono); font-weight:800; font-size:14px; color:var(--red);">-${overduePenalty.toFixed(1)} pts</div>
+                  </div>
+
+                  <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--color-surface-1); border-radius:8px; border-left:4px solid var(--amber);">
+                    <div>
+                      <div style="font-size:12px; font-weight:700; color:var(--color-text);">2. Blocked Dependencies Penalty</div>
+                      <div style="font-size:11px; color:var(--color-text-muted);">${blockedCount} task(s) blocked by unfinished prerequisites · Sum weight = ${blockedW.toFixed(2)}</div>
+                    </div>
+                    <div style="font-family:var(--font-mono); font-weight:800; font-size:14px; color:var(--amber);">-${blockedPenalty.toFixed(1)} pts</div>
+                  </div>
+
+                  <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--color-surface-1); border-radius:8px; border-left:4px solid var(--color-primary);">
+                    <div>
+                      <div style="font-size:12px; font-weight:700; color:var(--color-text);">3. On-Hold Tasks Penalty</div>
+                      <div style="font-size:11px; color:var(--color-text-muted);">${onHoldCount} task(s) on hold · Sum weight = ${onHoldW.toFixed(2)}</div>
+                      <div style="font-size:10.5px; color:var(--color-text-faint); margin-top:2px;">*(Tasks in future releases are strictly excluded)*</div>
+                    </div>
+                    <div style="font-family:var(--font-mono); font-weight:800; font-size:14px; color:var(--color-primary);">-${onHoldPenalty.toFixed(1)} pts</div>
+                  </div>
+
+                </div>
+              </div>
+
+              <!-- Future Release Isolation Policy Notice -->
+              <div style="background:rgba(99,102,241,0.06); border:1px solid rgba(99,102,241,0.2); border-radius:10px; padding:12px 14px; font-size:11.5px; color:var(--color-text-muted); line-height:1.5;">
+                <strong>💡 Active Release Isolation Policy:</strong> Stalled or overdue tasks planned for future releases (after current active release) are automatically filtered out to ensure the Health Index accurately reflects active commitments without penalizing future roadmap phases.
+              </div>
+            ` : `
+              <!-- DELIVERY CONFIDENCE VIEW -->
+              <div style="display:flex; align-items:center; justify-content:space-between; background:linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(139,92,246,0.1) 100%); border:1px solid rgba(99,102,241,0.3); padding:16px 20px; border-radius:12px;">
+                <div>
+                  <div style="font-size:11px; font-weight:800; color:var(--color-text-muted); text-transform:uppercase; letter-spacing:0.5px;">Delivery Confidence Rating</div>
+                  <div style="font-size:32px; font-weight:900; color:${confidenceScore >= 80 ? 'var(--green)' : confidenceScore >= 60 ? 'var(--amber)' : 'var(--red)'}; line-height:1.1;">
+                    ${confidenceScore}%
+                  </div>
+                </div>
+                <div style="text-align:right;">
+                  <span style="font-size:12px; font-weight:700; padding:4px 12px; border-radius:20px; background:${confidenceScore >= 80 ? 'rgba(34,197,94,0.15)' : confidenceScore >= 60 ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)'}; color:${confidenceScore >= 80 ? 'var(--green)' : confidenceScore >= 60 ? 'var(--amber)' : 'var(--red)'};">
+                    ${confidenceScore >= 80 ? 'HIGH FEASIBILITY' : confidenceScore >= 60 ? 'MODERATE RISK' : 'HIGH SCHEDULE DEFICIT'}
+                  </span>
+                  <div style="font-size:11px; color:var(--color-text-faint); margin-top:6px;">Target Finish: ${targetFinishDate.toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'})}</div>
+                </div>
+              </div>
+
+              <!-- Formula Card -->
+              <div style="background:var(--color-surface-2); border:1px solid var(--color-divider); border-radius:12px; padding:16px;">
+                <div style="font-size:13px; font-weight:700; color:var(--color-text); margin-bottom:8px;">Mathematical Delivery Confidence Formula</div>
+                <div style="background:var(--color-bg); padding:12px; border-radius:8px; font-family:var(--font-mono); font-size:12px; color:var(--color-primary); border:1px solid var(--color-border-faint); line-height:1.6; text-align:center;">
+                  Confidence % = 100 - [ (Forecast Finish Date - Target Finish Date in Days) / Total Duration (Days) ] × 100
+                </div>
+                <div style="font-size:11px; color:var(--color-text-muted); margin-top:10px; line-height:1.5;">
+                  Bounded between <strong>30% (minimum)</strong> and <strong>95% (maximum)</strong>. If forecast finish date is on or before target finish date (variance ≤ 0), base confidence evaluates to <strong>95%</strong>.
+                </div>
+              </div>
+
+              <!-- Telemetry & Monte Carlo Breakdown -->
+              <div style="background:var(--color-surface-2); border:1px solid var(--color-divider); border-radius:12px; padding:16px;">
+                <div style="font-size:13px; font-weight:700; color:var(--color-text); margin-bottom:12px;">Pacing & Velocity Inputs</div>
+                <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:10px;">
+                  
+                  <div style="background:var(--color-surface-1); padding:10px 12px; border-radius:8px; border:1px solid var(--color-divider);">
+                    <div style="font-size:11px; color:var(--color-text-muted);">Trailing 4-Wk Moving Velocity</div>
+                    <div style="font-size:16px; font-weight:800; color:var(--green); font-family:var(--font-mono);">${fc.weeklyVelocity.toFixed(1)} pd/week</div>
+                  </div>
+
+                  <div style="background:var(--color-surface-1); padding:10px 12px; border-radius:8px; border:1px solid var(--color-divider);">
+                    <div style="font-size:11px; color:var(--color-text-muted);">Remaining Backlog Effort</div>
+                    <div style="font-size:16px; font-weight:800; color:var(--color-primary); font-family:var(--font-mono);">${fc.remainingEffort.toFixed(1)} pd</div>
+                  </div>
+
+                  <div style="background:var(--color-surface-1); padding:10px 12px; border-radius:8px; border:1px solid var(--color-divider);">
+                    <div style="font-size:11px; color:var(--color-text-muted);">Predicted Finish (P50)</div>
+                    <div style="font-size:14px; font-weight:800; color:var(--color-text);">${fc.forecastFinish.toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'})}</div>
+                  </div>
+
+                  <div style="background:var(--color-surface-1); padding:10px 12px; border-radius:8px; border:1px solid var(--color-divider);">
+                    <div style="font-size:11px; color:var(--color-text-muted);">Monte Carlo P90 Date</div>
+                    <div style="font-size:14px; font-weight:800; color:var(--amber);">${mc.p90.toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'})}</div>
+                  </div>
+
+                </div>
+              </div>
+
+              <div style="background:rgba(99,102,241,0.06); border:1px solid rgba(99,102,241,0.2); border-radius:10px; padding:12px 14px; font-size:11.5px; color:var(--color-text-muted); line-height:1.5;">
+                <strong>⚡ Schedule Feasibility Insight:</strong> Schedule variance is <strong>${daysVariance <= 0 ? `${Math.abs(daysVariance)} days ahead of schedule` : `${daysVariance} days behind target release date`}</strong>.
+              </div>
+            `}
+          </div>
+
+          <!-- Footer -->
+          <div style="display:flex; justify-content:flex-end; border-top:1px solid var(--color-divider); padding-top:12px;">
+            <button onclick="showCalculationModal.close()" class="btn ghost" style="padding:6px 16px; font-size:12px;">Close Explanation</button>
+          </div>
+        </div>
+      `;
+      if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+    }
+
+    showCalculationModal.close = () => {
+      const modal = document.getElementById('calculation-explanation-modal');
+      if (modal) modal.remove();
+    };
+    window.showCalculationModal = showCalculationModal;
+
     // ── PROJECT PULSE DASHBOARD SYSTEM ──
     const PulseDashboard = {
       getTaskDeadline,
+      isTaskInFutureRelease,
+      showCalculationModal,
       isBlocked(t, taskByIdMap = null) {
         if (!t.dependsOn || !t.dependsOn.length) return false;
         const deps = Array.isArray(t.dependsOn) ? t.dependsOn : String(t.dependsOn).split(',').map(s => s.trim()).filter(Boolean);
@@ -14132,7 +14436,7 @@
         active.forEach(t => {
           const progressWeight = 1 - (parseInt(t.progress, 10) || 0) / 100;
           const deadline = getTaskDeadline(t);
-          if (deadline) {
+          if (deadline && !isTaskInFutureRelease(t)) {
             const dd = PulseDashboard.daysDiff(deadline);
             if (dd !== null && dd < 0) {
               overduePenalty += progressWeight;
@@ -14141,7 +14445,7 @@
           if (PulseDashboard.isBlocked(t, taskByIdMap)) {
             blockedPenalty += progressWeight;
           }
-          if (String(t.status || '').toLowerCase() === 'on hold') {
+          if (String(t.status || '').toLowerCase() === 'on hold' && !isTaskInFutureRelease(t)) {
             onHoldPenalty += progressWeight;
           }
         });
@@ -20937,6 +21241,7 @@
 
       if (P.filters.overdueOnly) {
         t = t.filter(x => {
+          if (isTaskInFutureRelease(x)) return false;
           const d = daysDiff(x.dueDate);
           return d !== null && d < 0 && x.status !== 'Completed' && x.status !== 'Cancelled';
         });
@@ -21736,7 +22041,7 @@
           tr.setAttribute('data-id', task.id);
           tr.addEventListener('dblclick', () => openAddTask(task.id));
           const dd = daysDiff(task.dueDate);
-          const isOverdue = dd !== null && dd < 0 && task.status !== 'Completed' && task.status !== 'Cancelled';
+          const isOverdue = dd !== null && dd < 0 && task.status !== 'Completed' && task.status !== 'Cancelled' && !isTaskInFutureRelease(task);
           const hasMilestoneSubtask = (task.subtasks || []).some(st => moduleMilestones.has(st.id));
           const isMilestone = (task.startDate && task.startDate === task.dueDate) || moduleMilestones.has(task.id) || hasMilestoneSubtask;
           if (isOverdue) tr.classList.add('overdue');
@@ -25793,7 +26098,7 @@
           </div>
           <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:16px">
             <!-- Delivery Confidence -->
-            <div style="padding:16px; background:var(--color-surface-2); border-radius:12px; border:1px solid var(--color-divider); display:flex; flex-direction:column; gap:8px">
+            <div onclick="showCalculationModal('confidence')" style="padding:16px; background:var(--color-surface-2); border-radius:12px; border:1px solid var(--color-divider); display:flex; flex-direction:column; gap:8px; cursor:pointer;" title="Click to view exact calculation breakdown">
               <div style="font-size:12px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase">Delivery Confidence</div>
               <div style="display:flex; align-items:baseline; justify-content:space-between">
                 <div style="font-size:24px; font-weight:900; color:var(--color-primary)">${scenConfidence}%</div>
@@ -25805,7 +26110,7 @@
             </div>
 
             <!-- Health Score -->
-            <div style="padding:16px; background:var(--color-surface-2); border-radius:12px; border:1px solid var(--color-divider); display:flex; flex-direction:column; gap:8px">
+            <div onclick="showCalculationModal('health')" style="padding:16px; background:var(--color-surface-2); border-radius:12px; border:1px solid var(--color-divider); display:flex; flex-direction:column; gap:8px; cursor:pointer;" title="Click to view exact calculation breakdown">
               <div style="font-size:12px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase">Project Health Index</div>
               <div style="display:flex; align-items:baseline; justify-content:space-between">
                 <div style="font-size:24px; font-weight:900; color:var(--color-green)">${scenHealth}</div>
@@ -31439,7 +31744,7 @@
         if (status === 'On Hold' || status === 'Blocked' || blocked) cache.blocked++;
 
         const dd = daysDiff(getTaskDeadline(t));
-        if (dd !== null && dd < 0 && status !== 'Completed' && status !== 'Cancelled') {
+        if (dd !== null && dd < 0 && status !== 'Completed' && status !== 'Cancelled' && !isTaskInFutureRelease(t)) {
           cache.overdueTasks.push(t);
         }
 
@@ -31552,23 +31857,14 @@
       // Stalled Tasks Scanner
       const todayTime = new Date().setHours(0, 0, 0, 0);
       (P.tasks || []).filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').forEach(t => {
+        // Exclude tasks tagged to future releases (only current or past releases are evaluated for stalled status)
+        if (isTaskInFutureRelease(t)) return;
+
         // Exclude future scheduled tasks that are not yet due to start
         if (t.startDate) {
           const sDate = new Date(t.startDate);
           if (!isNaN(sDate.getTime()) && sDate.getTime() > todayTime && t.status !== 'In Progress' && t.status !== 'On Hold') {
             return; // Skip task scheduled in the future
-          }
-        }
-
-        // Exclude tasks tagged to a future planned release if not started
-        const relVer = t.release || t.releaseVersion;
-        if (relVer && P.releases && P.releases.length) {
-          const relObj = P.releases.find(r => r.name === relVer || r.id === relVer);
-          if (relObj && relObj.date) {
-            const relDate = new Date(relObj.date);
-            if (!isNaN(relDate.getTime()) && relDate.getTime() > todayTime && (t.status === 'New' || t.status === 'Not Started' || !t.status) && (parseInt(t.progress, 10) || 0) === 0) {
-              return; // Skip future release task
-            }
           }
         }
 
@@ -32885,7 +33181,7 @@
           const cpiVal = cpi.toFixed(2);
           const cpiColor = cpi >= 1.00 ? 'var(--green)' : cpi >= 0.85 ? 'var(--amber)' : 'var(--red)';
 
-          const overdueTasksCount = tasks.filter(t => { const d = daysDiff(t.dueDate); return d !== null && d < 0 && t.status !== 'Completed' && t.status !== 'Cancelled'; }).length;
+          const overdueTasksCount = tasks.filter(t => { if (isTaskInFutureRelease(t)) return false; const d = daysDiff(t.dueDate); return d !== null && d < 0 && t.status !== 'Completed' && t.status !== 'Cancelled'; }).length;
           const blockedTasksCount = tasks.filter(t => t.status === 'On Hold').length;
           const remainingTasksCount = tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
 
@@ -32894,8 +33190,8 @@
           let overduePenaltyWt = 0, blockedPenaltyWt = 0, onHoldPenaltyWt = 0;
           gActiveTasks.forEach(t => {
             const pw = 1 - (parseInt(t.progress, 10) || 0) / 100;
-            if (t.dueDate) { const dd = daysDiff(t.dueDate); if (dd !== null && dd < 0) overduePenaltyWt += pw; }
-            if (t.status === 'On Hold') onHoldPenaltyWt += pw;
+            if (t.dueDate && !isTaskInFutureRelease(t)) { const dd = daysDiff(t.dueDate); if (dd !== null && dd < 0) overduePenaltyWt += pw; }
+            if (t.status === 'On Hold' && !isTaskInFutureRelease(t)) onHoldPenaltyWt += pw;
           });
           blockedPenaltyWt = blockedTasksCount > 0
             ? gActiveTasks.filter(t => t.status === 'On Hold').reduce((s, t) => s + (1 - (parseInt(t.progress, 10) || 0) / 100), 0)
@@ -33847,7 +34143,7 @@
                     </div>
 
                     <!-- 8. Project Health Score -->
-                    <div class="scard enhanced-scard" onclick="const el=$id('dash-health-main'); if(el) el.scrollIntoView({behavior:'smooth'})" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Overall Project Health Score">
+                    <div class="scard enhanced-scard" onclick="showCalculationModal('health')" style="cursor:pointer; grid-column: span 1 !important; min-height: 120px;" title="Project Health Score · Click to view exact calculation breakdown">
                       <div class="sc-hdr"><i data-lucide="shield-check"></i> Health Index</div>
                       <div class="sc-val" style="color:${healthColor};">${healthScore}<span style="font-size:12px;color:var(--color-text-muted);font-weight:600;">/100</span></div>
                       <div class="sc-ftr"><span class="badge ${healthColor === 'var(--green)' ? 'green' : healthColor === 'var(--amber)' ? 'amber' : 'red'}">${healthLabel}</span></div>
@@ -33955,6 +34251,7 @@
           const _critOverdue = tasks.filter(t =>
             t.priority === 'Critical' &&
             t.dueDate && t.status !== 'Completed' && t.status !== 'Cancelled' &&
+            !isTaskInFutureRelease(t) &&
             new Date(t.dueDate) < now
           );
 
@@ -42816,39 +43113,125 @@ Earned Value Management measures project performance and progress by comparing p
         return null;
       };
 
-      // Recent Changes Delta — driven by actCompletionDate on tasks/subtasks, not log write timestamp
-      const last7Days = new Date(Date.now() - 7 * 864e5);
+      // Multi-Level Recent Completions: Tasks > ServerSide Sub-tasks > GUI Screens > Screen Sub-Tasks
+      const allCompletedItems = [];
+      const cutoff30Days = new Date(Date.now() - 30 * 864e5);
 
-      // Collect completed tasks within last 7 days by actual completion date
-      const recentCompletedTasks7 = tasks
-        .filter(t => t.status === 'Completed')
-        .map(t => ({ ...t, _completedAt: getTaskCompletionDate(t), _type: 'Task' }))
-        .filter(t => t._completedAt && t._completedAt >= last7Days)
-        .sort((a, b) => b._completedAt - a._completedAt);
-
-      // Collect completed subtasks within last 7 days
-      const recentCompletedSubtasks7 = [];
       tasks.forEach(t => {
-        (t.subtasks || []).forEach(st => {
-          if (st.status !== 'Completed') return;
-          const stDate = st.actCompletionDate ? new Date(st.actCompletionDate) : null;
-          if (stDate && stDate >= last7Days) {
-            recentCompletedSubtasks7.push({
-              name: st.name || st.title || 'Subtask',
-              _completedAt: stDate,
-              _type: 'Subtask',
-              _parentTask: t.name,
-              assignee: st.assignee || t.assignee,
-              module: t.module,
+        // Level 1: Main Tasks
+        if (t.status === 'Completed') {
+          const compDate = getTaskCompletionDate(t);
+          if (compDate) {
+            allCompletedItems.push({
+              name: t.name,
+              _completedAt: compDate,
+              _level: 'Task',
+              _levelIcon: 'check-circle-2',
+              _levelBg: 'rgba(99,102,241,0.12)',
+              _levelColor: 'var(--color-primary)',
+              _hierarchy: `Task: ${t.name}`,
+              assignee: t.assignee,
+              module: t.module
             });
+          }
+        }
+
+        // Subtasks (Level 2: ServerSide Sub-tasks & Level 3: GUI Screens)
+        (t.subtasks || []).forEach(st => {
+          const isGuiScreen = st.category === 'GUI Screen' || st.type === 'screen' || !!st.windowName;
+          const stCompDate = st.actCompletionDate ? new Date(st.actCompletionDate) : (st.status === 'Completed' ? getTaskCompletionDate(t) : null);
+
+          if (st.status === 'Completed' && stCompDate) {
+            if (isGuiScreen) {
+              // Level 3: GUI Screen
+              allCompletedItems.push({
+                name: st.name || st.windowName || 'GUI Screen',
+                _completedAt: stCompDate,
+                _level: 'GUI Screen',
+                _levelIcon: 'layout',
+                _levelBg: 'rgba(168,85,247,0.12)',
+                _levelColor: '#a855f7',
+                _hierarchy: `${t.name} › ${st.name || st.windowName}`,
+                _parentTask: t.name,
+                assignee: st.assignee || t.assignee,
+                module: t.module
+              });
+            } else {
+              // Level 2: ServerSide Sub-task
+              allCompletedItems.push({
+                name: st.name || st.title || 'Server Sub-task',
+                _completedAt: stCompDate,
+                _level: 'ServerSide Sub-task',
+                _levelIcon: 'server',
+                _levelBg: 'rgba(6,182,212,0.12)',
+                _levelColor: '#06b6d4',
+                _hierarchy: `${t.name} › ${st.name || st.title}`,
+                _parentTask: t.name,
+                assignee: st.assignee || t.assignee,
+                module: t.module
+              });
+            }
+          }
+
+          // Level 4: Screen Sub-Tasks (Workflow steps within GUI Screens or subtasks)
+          (st.workflow || []).forEach(step => {
+            const stepDone = step.done || step.status === 'Completed';
+            if (stepDone) {
+              const stepName = typeof step === 'string' ? step : (step.name || step.step || 'Sub-step');
+              const stepDate = (step.actCompletionDate && !isNaN(new Date(step.actCompletionDate).getTime()))
+                ? new Date(step.actCompletionDate)
+                : stCompDate;
+              if (stepDate) {
+                allCompletedItems.push({
+                  name: stepName,
+                  _completedAt: stepDate,
+                  _level: 'Screen Sub-task',
+                  _levelIcon: 'layers',
+                  _levelBg: 'rgba(34,197,94,0.12)',
+                  _levelColor: 'var(--color-green)',
+                  _hierarchy: `${t.name} › ${st.name || 'Screen'} › ${stepName}`,
+                  _parentTask: st.name || t.name,
+                  assignee: (typeof step === 'object' && step.assignee) || st.assignee || t.assignee,
+                  module: t.module
+                });
+              }
+            }
+          });
+        });
+
+        // Direct task workflows (if present)
+        (t.workflow || []).forEach(step => {
+          const stepDone = step.done || step.status === 'Completed';
+          if (stepDone) {
+            const stepName = typeof step === 'string' ? step : (step.name || step.step || 'Task Step');
+            const stepDate = (step.actCompletionDate && !isNaN(new Date(step.actCompletionDate).getTime()))
+              ? new Date(step.actCompletionDate)
+              : getTaskCompletionDate(t);
+            if (stepDate) {
+              allCompletedItems.push({
+                name: stepName,
+                _completedAt: stepDate,
+                _level: 'Sub-task Step',
+                _levelIcon: 'git-commit',
+                _levelBg: 'rgba(245,158,11,0.12)',
+                _levelColor: 'var(--color-amber)',
+                _hierarchy: `${t.name} › ${stepName}`,
+                _parentTask: t.name,
+                assignee: (typeof step === 'object' && step.assignee) || t.assignee,
+                module: t.module
+              });
+            }
           }
         });
       });
 
-      // Merge, sort by actual completion date descending, cap at 6
-      const recentCompletions = [...recentCompletedTasks7, ...recentCompletedSubtasks7]
-        .sort((a, b) => b._completedAt - a._completedAt)
-        .slice(0, 6);
+      // Sort by actual completion date descending
+      let recentCompletions = allCompletedItems.filter(item => item._completedAt >= cutoff30Days);
+      if (recentCompletions.length < 6) {
+        recentCompletions = allCompletedItems;
+      }
+      recentCompletions.sort((a, b) => b._completedAt - a._completedAt);
+      recentCompletions = recentCompletions.slice(0, 12);
 
       // All completed tasks (non-subtask) with a resolvable completion date
       const allCompletedTasks = tasks
@@ -42910,7 +43293,7 @@ Earned Value Management measures project performance and progress by comparing p
               <div style="font-size:28px; font-weight:800; color:var(--color-text)">Project Health & Delivery Velocity</div>
             </div>
             <div style="display:flex; flex-wrap:wrap; align-items:center; gap:24px">
-              <div style="display:flex; align-items:center; gap:16px; padding:12px 20px; background:var(--color-bg); border-radius:12px; border:1px solid var(--color-border-faint)">
+              <div onclick="showCalculationModal('health')" style="display:flex; align-items:center; gap:16px; padding:12px 20px; background:var(--color-bg); border-radius:12px; border:1px solid var(--color-border-faint); cursor:pointer;" title="Click to view exact calculation breakdown">
                 <div>
                   <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:2px">Health Index</div>
                   <div style="font-size:24px; font-weight:900; color:var(--color-green); line-height:1">${getHealthScore(tasks)}<span style="font-size:14px; color:var(--color-text-muted); font-weight:600">/100</span></div>
@@ -42919,7 +43302,7 @@ Earned Value Management measures project performance and progress by comparing p
                   <polyline fill="none" stroke="var(--color-green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${pts}"/>
                 </svg>
               </div>
-              <div style="display:flex; align-items:center; gap:16px; padding:12px 20px; background:var(--color-bg); border-radius:12px; border:1px solid var(--color-border-faint)">
+              <div onclick="showCalculationModal('confidence')" style="display:flex; align-items:center; gap:16px; padding:12px 20px; background:var(--color-bg); border-radius:12px; border:1px solid var(--color-border-faint); cursor:pointer;" title="Click to view exact calculation breakdown">
                 <div>
                   <div style="font-size:11px; color:var(--color-text-muted); text-transform:uppercase; font-weight:700; margin-bottom:2px">Delivery Confidence</div>
                   <div style="font-size:24px; font-weight:900; color:var(--color-primary); line-height:1">${deliveryConfidenceVal}%</div>
@@ -43115,37 +43498,40 @@ Earned Value Management measures project performance and progress by comparing p
                </div>
             </div>
 
-            <!-- Recent Changes Delta (Span 12) -->
+            <!-- Recent Completions (Span 12) -->
             <div class="bento-card" style="grid-column:span 12; background:var(--color-surface-2); border-radius:16px; padding:24px; border:1px solid var(--color-divider)">
-               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
-                 <div style="font-size:16px; font-weight:700; display:flex; align-items:center; gap:8px"><i data-lucide="activity" style="color:var(--color-green)"></i> Recent Changes Delta</div>
-                 <span style="font-size:11px; padding:2px 8px; background:rgba(34,197,94,0.1); color:var(--color-green); border-radius:12px; font-weight:700">Last 7 Days Stream</span>
+               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px">
+                 <div style="font-size:16px; font-weight:800; display:flex; align-items:center; gap:8px"><i data-lucide="check-circle-2" style="color:var(--color-green)"></i> Recent Completions</div>
+                 <span style="font-size:11px; padding:3px 10px; background:rgba(34,197,94,0.1); color:var(--color-green); border-radius:12px; font-weight:700; border:1px solid rgba(34,197,94,0.2)">
+                   Multi-Level Stream (Tasks › ServerSide Sub-tasks › GUI Screens › Screen Sub-Tasks)
+                 </span>
                </div>
-               <div class="changes-list" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px">
+               <div class="changes-list" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px">
                  ${recentCompletions.length ? recentCompletions.map(item => {
                    const daysAgo = Math.round((Date.now() - item._completedAt.getTime()) / 864e5);
                    const daysLabel = daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : daysAgo + 'd ago';
-                   const isSubtask = item._type === 'Subtask';
-                   const iconName = isSubtask ? 'git-branch' : 'check-circle-2';
-                   const accentColor = isSubtask ? 'var(--color-primary)' : 'var(--color-green)';
-                   const accentBg   = isSubtask ? 'rgba(99,102,241,0.1)' : 'rgba(34,197,94,0.1)';
                    const completedDateStr = item._completedAt.toISOString().split('T')[0];
                    return `
                    <div style="padding:14px 16px; background:var(--color-bg); border-radius:12px; border:1px solid var(--color-border-faint); display:flex; align-items:flex-start; gap:12px">
-                     <div style="width:32px; height:32px; border-radius:8px; background:${accentBg}; display:flex; align-items:center; justify-content:center; flex-shrink:0; color:${accentColor}">
-                       <i data-lucide="${iconName}" style="width:16px; height:16px"></i>
+                     <div style="width:34px; height:34px; border-radius:10px; background:${item._levelBg}; display:flex; align-items:center; justify-content:center; flex-shrink:0; color:${item._levelColor}">
+                       <i data-lucide="${item._levelIcon}" style="width:18px; height:18px"></i>
                      </div>
                      <div style="flex:1; min-width:0">
-                       <div style="font-size:12px; font-weight:700; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(item.name)}</div>
-                       ${isSubtask ? '<div style="font-size:10px; color:var(--color-text-faint); margin-top:1px">Subtask of: ' + esc(item._parentTask) + '</div>' : ''}
-                       <div style="font-size:10px; color:var(--color-text-muted); margin-top:2px">${item.module ? esc(item.module) + ' · ' : ''}${item.assignee ? esc(item.assignee) : 'Unassigned'}</div>
+                       <div style="display:flex; align-items:center; gap:6px; margin-bottom:3px">
+                         <span style="font-size:9px; font-weight:800; padding:1px 6px; border-radius:4px; background:${item._levelBg}; color:${item._levelColor}; text-transform:uppercase; letter-spacing:0.3px">${esc(item._level)}</span>
+                       </div>
+                       <div style="font-size:12.5px; font-weight:700; color:var(--color-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="${esc(item.name)}">${esc(item.name)}</div>
+                       <div style="font-size:10.5px; color:var(--color-text-muted); margin-top:3px; font-family:var(--font-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="${esc(item._hierarchy)}">
+                         ${esc(item._hierarchy)}
+                       </div>
+                       <div style="font-size:10px; color:var(--color-text-faint); margin-top:3px">${item.module ? esc(item.module) + ' · ' : ''}${item.assignee ? esc(item.assignee) : 'Unassigned'}</div>
                      </div>
                      <div style="flex-shrink:0; text-align:right">
                        <div style="font-size:9px; font-weight:700; padding:2px 7px; border-radius:99px; background:rgba(34,197,94,0.08); color:var(--color-green); border:1px solid rgba(34,197,94,0.18); white-space:nowrap">${daysLabel}</div>
-                       <div style="font-size:9px; color:var(--color-text-faint); margin-top:3px">${fmtDate(completedDateStr)}</div>
+                       <div style="font-size:9px; color:var(--color-text-faint); margin-top:4px">${fmtDate(completedDateStr)}</div>
                      </div>
                    </div>`;
-                 }).join('') : `<div style="grid-column:1/-1; text-align:center; padding:32px; color:var(--color-text-faint); font-size:13px">No tasks or subtasks completed in the last 7 days.</div>`}
+                 }).join('') : `<div style="grid-column:1/-1; text-align:center; padding:32px; color:var(--color-text-faint); font-size:13px">No completions recorded across tasks, subtasks, or screen steps.</div>`}
                </div>
           </div>
         `;
@@ -47811,7 +48197,7 @@ Earned Value Management measures project performance and progress by comparing p
         const styledVal = (text, color, bold) => ({ _styled: true, text: S(text), color: (color || COLORS.textDark).replace('#', ''), bold });
 
         const tasks = P.tasks; const total = tasks.length; const done = tasks.filter(t => t.status === 'Completed').length;
-        const overdueTasks = tasks.filter(t => { const dd = daysDiff(t.dueDate); return dd !== null && dd < 0 && t.status !== 'Completed' && t.status !== 'Cancelled'; });
+        const overdueTasks = tasks.filter(t => { if (isTaskInFutureRelease(t)) return false; const dd = daysDiff(t.dueDate); return dd !== null && dd < 0 && t.status !== 'Completed' && t.status !== 'Cancelled'; });
         const blocked = tasks.filter(isBlocked).length; const inProg = tasks.filter(t => t.status === 'In Progress' || t.status === 'Under Review').length;
         const completionPct = total ? Math.round(done / total * 100) : 0; const healthScore = getHealthScore(tasks);
 
@@ -50817,6 +51203,8 @@ Earned Value Management measures project performance and progress by comparing p
       badge.style.background = bg;
       badge.style.color = col;
       badge.style.border = `1px solid ${bdr}`;
+      badge.onclick = () => window.showCalculationModal('health');
+      badge.title = 'Project Health Index · Click to view exact calculation breakdown';
       icon.textContent = score >= 80 ? '▲' : score >= 60 ? '►' : '▼';
       lbl.textContent = `PHI ${score} · ${txt}`;
     }
