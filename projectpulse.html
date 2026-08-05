@@ -12525,7 +12525,7 @@
     </div>
 
     <!-- CXO EMAIL BRIEF FLYOUT -->
-    <div id="cxo-email-flyout" class="theme-flyout" style="width:min(95vw,900px)">
+    <div id="cxo-email-flyout" class="theme-flyout" style="width:min(95vw,1125px)">
       <div class="tf-header">
         <div class="tf-header-accent" style="background:var(--color-primary)"></div>
         <div class="tf-header-main" style="padding:16px 24px; display:flex; justify-content:space-between; align-items:center; width:100%">
@@ -39029,25 +39029,171 @@ Earned Value Management measures project performance and progress by comparing p
 
 
 
+    function getAllSubtaskItems(tasks) {
+      const items = [];
+      (tasks || []).forEach(t => {
+        const hasSubs = Array.isArray(t.subtasks) && t.subtasks.length > 0;
+        const hasScreens = Array.isArray(t.guiScreens) && t.guiScreens.length > 0;
+        if (hasSubs) {
+          t.subtasks.forEach((st, idx) => {
+            const isGuiScreen = st.category === 'GUI Screen' || st.type === 'screen' || !!st.windowName || t.moduleType === 'GUI';
+            const prog = st.progress !== undefined ? parseInt(st.progress, 10) : (st.status === 'Completed' ? 100 : (parseInt(t.progress, 10) || 0));
+            const stStatus = st.status || (prog === 100 ? 'Completed' : t.status);
+            items.push({
+              id: st.id || `${t.id}-st-${idx}`,
+              name: st.name || t.name,
+              module: (t.module || 'General').trim(),
+              moduleType: t.moduleType,
+              status: stStatus,
+              progress: prog,
+              dueDate: st.dueDate || t.dueDate,
+              actCompletionDate: st.actCompletionDate || (stStatus === 'Completed' ? (t.actCompletionDate || t.updatedAt) : null),
+              parent: t,
+              type: isGuiScreen ? 'screen' : (st.type || (t.moduleType === 'GUI' ? 'screen' : 'subtask'))
+            });
+          });
+        } else if (hasScreens) {
+          t.guiScreens.forEach((scr, idx) => {
+            const scrName = typeof scr === 'string' ? scr : (scr.name || `Screen ${idx + 1}`);
+            const prog = parseInt(t.progress, 10) || (t.status === 'Completed' ? 100 : 0);
+            const stStatus = t.status || (prog === 100 ? 'Completed' : 'Not Started');
+            items.push({
+              id: `${t.id}-scr-${idx}`,
+              name: scrName,
+              module: (t.module || 'General').trim(),
+              moduleType: t.moduleType,
+              status: stStatus,
+              progress: prog,
+              dueDate: t.dueDate,
+              actCompletionDate: t.actCompletionDate || (stStatus === 'Completed' ? t.updatedAt : null),
+              parent: t,
+              type: 'screen'
+            });
+          });
+        } else {
+          const isGuiScreen = t.moduleType === 'GUI' || t.category === 'GUI Screen';
+          const prog = parseInt(t.progress, 10) || (t.status === 'Completed' ? 100 : 0);
+          const stStatus = t.status || (prog === 100 ? 'Completed' : 'Not Started');
+          items.push({
+            id: t.id,
+            name: t.name || t.title,
+            module: (t.module || 'General').trim(),
+            moduleType: t.moduleType,
+            status: stStatus,
+            progress: prog,
+            dueDate: t.dueDate,
+            actCompletionDate: t.actCompletionDate || (stStatus === 'Completed' ? t.updatedAt : null),
+            parent: t,
+            type: isGuiScreen ? 'screen' : 'subtask'
+          });
+        }
+      });
+      return items;
+    }
+
+    function getModuleSummaries(pState, weekAgoDate, todayDate) {
+      const p = pState || (typeof window !== "undefined" && window.P) || {};
+      const modStatsMap = {};
+      const allSubItems = getAllSubtaskItems(p.tasks || []);
+
+      allSubItems.forEach(st => {
+        const mName = (st.module || 'General').trim();
+        if (!modStatsMap[mName]) {
+          modStatsMap[mName] = { name: mName, total: 0, completed: 0, serverTotal: 0, serverCompleted: 0, guiTotal: 0, guiCompleted: 0, sumProgress: 0, overdue: 0, completedThisWeek: 0, earliestReleaseDate: null };
+        }
+        const m = modStatsMap[mName];
+        m.total++;
+        const isGui = st.type === 'screen';
+        if (isGui) { m.guiTotal++; } else { m.serverTotal++; }
+
+        // Track earliest planned release date for sort
+        const _pRels = (p.releases || []);
+        let _stRelDate = null;
+        if (st.releaseVersion || st.release) {
+          const _rv = String(st.releaseVersion || st.release).trim().toLowerCase();
+          const _rel = _pRels.find(r => String(r.name || '').trim().toLowerCase() === _rv || String(r.id || '').trim().toLowerCase() === _rv);
+          if (_rel) _stRelDate = _rel.date || _rel.endDate || _rel.targetDate || _rel.releaseDate || null;
+        }
+        if (!_stRelDate && st.dueDate) _stRelDate = st.dueDate;
+        if (_stRelDate) {
+          if (!m.earliestReleaseDate || new Date(_stRelDate) < new Date(m.earliestReleaseDate)) m.earliestReleaseDate = _stRelDate;
+        }
+
+        const prog = parseInt(st.progress, 10) || (st.status === 'Completed' ? 100 : 0);
+        m.sumProgress += prog;
+        if (st.status === 'Completed' || prog === 100) {
+          m.completed++;
+          if (isGui) m.guiCompleted++; else m.serverCompleted++;
+
+          const rawAct = st.actCompletionDate;
+          if (rawAct && rawAct !== '-' && rawAct !== '—' && rawAct !== 'null') {
+            const compD = new Date(rawAct);
+            if (!isNaN(compD.getTime())) {
+              compD.setHours(0,0,0,0);
+              if (weekAgoDate && compD >= weekAgoDate) m.completedThisWeek++;
+            }
+          }
+        } else if (st.dueDate && todayDate) {
+          const dd = new Date(st.dueDate); dd.setHours(0,0,0,0);
+          if (dd < todayDate) m.overdue++;
+        }
+      });
+
+      return Object.values(modStatsMap).map(m => {
+        const avg = m.total > 0 ? Math.round(m.sumProgress / m.total) : 0;
+        let status = 'Not Started';
+        let color = '#64748b';
+        let bg = '#f8fafc';
+
+        if (avg === 100 || (m.total > 0 && m.completed === m.total)) {
+          status = 'Completed'; color = '#16a34a'; bg = '#f0fdf4';
+        } else if (m.overdue >= 2) {
+          status = 'Overdue'; color = '#dc2626'; bg = '#fef2f2';
+        } else if (m.overdue === 1) {
+          status = 'At Risk'; color = '#d97706'; bg = '#fffbeb';
+        } else if (avg > 0 || m.completed > 0 || m.completedThisWeek > 0) {
+          status = 'In Progress'; color = '#0369a1'; bg = '#eff6ff';
+        } else {
+          status = 'Not Started'; color = '#64748b'; bg = '#f8fafc';
+        }
+        return { ...m, avgProgress: avg, status, color, bg };
+      }).sort((a, b) => {
+        const da = a.earliestReleaseDate ? new Date(a.earliestReleaseDate).getTime() : Infinity;
+        const db = b.earliestReleaseDate ? new Date(b.earliestReleaseDate).getTime() : Infinity;
+        if (da !== db) return da - db;
+        return b.avgProgress - a.avgProgress;
+      });
+    }
+
     function computeGlobalStats() {
       const tasks = P.tasks || [];
-      const total = tasks.length;
-      const completed = tasks.filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100).length;
-      const progress = total > 0 ? Math.round(tasks.reduce((s, t) => s + (parseInt(t.progress, 10) || 0), 0) / total) : 0;
+      const subItems = getAllSubtaskItems(tasks);
+      const total = subItems.length;
+      const completed = subItems.filter(st => st.status === 'Completed' || parseInt(st.progress, 10) === 100).length;
+
+      const serverItems = subItems.filter(st => st.type !== 'screen');
+      const serverTotal = serverItems.length;
+      const serverCompleted = serverItems.filter(st => st.status === 'Completed' || parseInt(st.progress, 10) === 100).length;
+
+      const guiItems = subItems.filter(st => st.type === 'screen');
+      const guiTotal = guiItems.length;
+      const guiCompleted = guiItems.filter(st => st.status === 'Completed' || parseInt(st.progress, 10) === 100).length;
+
+      const progress = total > 0 ? Math.round(subItems.reduce((s, st) => s + (parseInt(st.progress, 10) || 0), 0) / total) : 0;
 
       const modMap = {};
-      tasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').forEach(t => {
-        const m = t.module || 'General';
+      subItems.filter(st => st.status !== 'Completed' && st.status !== 'Cancelled').forEach(st => {
+        const m = st.module || 'General';
         if (!modMap[m]) modMap[m] = { sum: 0, count: 0 };
-        modMap[m].sum += (parseInt(t.progress, 10) || 0);
+        modMap[m].sum += (parseInt(st.progress, 10) || 0);
         modMap[m].count++;
       });
       const modVals = Object.values(modMap);
       const moduleProgress = modVals.length > 0 ? Math.round(modVals.reduce((s, m) => s + (m.count > 0 ? m.sum / m.count : 0), 0) / modVals.length) : progress;
 
-      const cpTasks = tasks.filter(t => (t.name || '').includes('Milestone') || (t.name || '').includes('🚩') || (t.name || '').includes('💎') || t.isCritical || (t.category && t.category.toLowerCase().includes('milestone')));
-      const cpTotal = cpTasks.length;
-      const cpCompleted = cpTasks.filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100).length;
+      const cpTasks = subItems.filter(st => (st.name || '').includes('Milestone') || (st.name || '').includes('🚩') || (st.name || '').includes('💎') || (st.parent && st.parent.isCritical) || (st.parent && st.parent.category && st.parent.category.toLowerCase().includes('milestone')));
+      const cpTotal = cpTasks.length > 0 ? cpTasks.length : total;
+      const cpCompleted = cpTasks.length > 0 ? cpTasks.filter(st => st.status === 'Completed' || parseInt(st.progress, 10) === 100).length : completed;
 
       const score = (typeof getHealthScore === 'function') ? getHealthScore(tasks) : Math.min(100, Math.max(0, progress));
       const health = score >= 80 ? 'On Track' : score >= 55 ? 'In Focus' : 'Needs Attention';
@@ -39074,15 +39220,17 @@ Earned Value Management measures project performance and progress by comparing p
 
       const today = new Date(); today.setHours(0,0,0,0);
       let overdueTasks = 0, onHoldTasks = 0;
-      tasks.forEach(t => {
-        if (t.status === 'Completed' || t.status === 'Cancelled') return;
-        if (t.dueDate) { const d = new Date(t.dueDate); d.setHours(0,0,0,0); if (d < today) overdueTasks++; }
-        if (String(t.status || '').toLowerCase() === 'on hold') onHoldTasks++;
+      subItems.forEach(st => {
+        if (st.status === 'Completed' || st.status === 'Cancelled') return;
+        if (st.dueDate) { const d = new Date(st.dueDate); d.setHours(0,0,0,0); if (d < today) overdueTasks++; }
+        if (String(st.status || '').toLowerCase() === 'on hold') onHoldTasks++;
       });
 
       const pendingDecisions = (P.decisions || []).filter(d => d.status !== 'Approved' && d.status !== 'Resolved' && d.status !== 'Closed').length;
 
-      return { progress, moduleProgress, cpTotal, cpCompleted, score, health, trend, highCritRisks, highCritDefects, overdueTasks, onHoldTasks, total, completed, pendingDecisions };
+      const moduleSummaries = getModuleSummaries(P, null, today);
+
+      return { progress, moduleProgress, cpTotal, cpCompleted, score, health, trend, highCritRisks, highCritDefects, overdueTasks, onHoldTasks, total, completed, serverTotal, serverCompleted, guiTotal, guiCompleted, pendingDecisions, moduleSummaries };
     }
 
     function generateHealthPoints(stats) {
@@ -39091,14 +39239,21 @@ Earned Value Management measures project performance and progress by comparing p
       const points = [];
 
       if (stats.health === 'On Track') {
-        points.push('<strong>Portfolio Health:</strong> ' + projectName + ' is operating <strong>On Track</strong> as of ' + dateStr + ' with key deliverables delivering on schedule.');
-      } else if (stats.health === 'At Risk') {
-        points.push('<strong>Portfolio Health:</strong> ' + projectName + ' is currently flagged <strong>At Risk</strong> as of ' + dateStr + ' due to schedule variance and cross-module dependencies.');
+        points.push('<strong>Portfolio Health:</strong> ' + projectName + ' is operating <strong>On Track</strong> as of ' + dateStr + ' with key sub-tasks & screens delivering on schedule.');
+      } else if (stats.health === 'In Focus') {
+        points.push('<strong>Portfolio Health:</strong> ' + projectName + ' is currently <strong>In Focus</strong> as of ' + dateStr + ' — schedule variance and cross-module dependencies require active monitoring and targeted intervention.');
       } else {
-        points.push('<strong>Portfolio Health:</strong> ' + projectName + ' is in <strong>Critical Status</strong> as of ' + dateStr + ', requiring active executive escalation to resolve delivery bottlenecks.');
+        points.push('<strong>Portfolio Health:</strong> ' + projectName + ' requires <strong>Immediate Attention</strong> as of ' + dateStr + ' — delivery bottlenecks are escalating and executive action is needed to unblock key streams.');
       }
 
-      points.push('<strong>Delivery Momentum:</strong> Overall completion stands at <strong>' + stats.progress + '%</strong> (' + stats.completed + ' of ' + stats.total + ' total deliverables completed), with module progress averaging <strong>' + stats.moduleProgress + '%</strong>.');
+      points.push('<strong>Delivery Momentum:</strong> Overall completion stands at <strong>' + stats.progress + '%</strong> (' + stats.completed + ' of ' + stats.total + ' total items: <strong>' + stats.serverCompleted + '/' + stats.serverTotal + '</strong> Server Sub-tasks &amp; <strong>' + stats.guiCompleted + '/' + stats.guiTotal + '</strong> GUI Screens), with module progress averaging <strong>' + stats.moduleProgress + '%</strong>.');
+
+      if (Array.isArray(stats.moduleSummaries) && stats.moduleSummaries.length > 0) {
+        const topMods = stats.moduleSummaries.slice(0, 4).map(m =>
+          '<strong>' + escapeHTML(m.name) + ':</strong> ' + m.avgProgress + '% (' + m.completed + '/' + m.total + ' completed)'
+        ).join(' &bull; ');
+        points.push('<strong>Module Status Overview:</strong> ' + topMods + '.');
+      }
 
       if (stats.highCritRisks > 0 || stats.highCritDefects > 0) {
         const items = [];
@@ -39110,7 +39265,7 @@ Earned Value Management measures project performance and progress by comparing p
       }
 
       if (stats.overdueTasks > 0) {
-        let txt = '<strong>Schedule Variance:</strong> <strong>' + stats.overdueTasks + ' deliverable' + (stats.overdueTasks > 1 ? 's are' : ' is') + ' past due</strong>';
+        let txt = '<strong>Schedule Variance:</strong> <strong>' + stats.overdueTasks + ' sub-task/screen' + (stats.overdueTasks > 1 ? 's are' : ' is') + ' past due</strong>';
         if (stats.onHoldTasks > 0) txt += ' and <strong>' + stats.onHoldTasks + '</strong> ' + (stats.onHoldTasks > 1 ? 'are' : 'is') + ' on hold awaiting decisions/resources';
         txt += '.';
         points.push(txt);
@@ -39147,6 +39302,11 @@ Earned Value Management measures project performance and progress by comparing p
     function getDeliverableScreenLabel(t) {
       if (!t) return 'General';
       const mod = (t.module || 'General').trim();
+      const parentName = t.parent ? t.parent.name : null;
+      const name = t.name || t.title || '';
+      if (parentName && parentName.toLowerCase() !== name.toLowerCase()) {
+        return `${mod} › ${parentName}`;
+      }
       const screen = getTaskScreenName(t);
       if (screen && screen.toLowerCase() !== mod.toLowerCase()) {
         return `${mod} › Screen: ${screen}`;
@@ -39183,6 +39343,8 @@ Earned Value Management measures project performance and progress by comparing p
       const cadence      = $id('cxo-report-cadence')?.value || 'weekly';
       const daysBack     = cadence === 'fortnightly' ? 14 : 7;
       const cadenceLabel = cadence === 'fortnightly' ? 'Fortnightly Executive Brief' : 'Weekly Executive Brief';
+      const todayDate    = new Date(); todayDate.setHours(0,0,0,0);
+      const weekAgoDate  = new Date(todayDate); weekAgoDate.setDate(weekAgoDate.getDate() - daysBack);
       const rpStart      = new Date(); rpStart.setDate(rpStart.getDate() - daysBack);
       const reportPeriod = formatCxoDate(rpStart) + ' – ' + formatCxoDate(new Date());
       const cpPct        = stats.cpTotal > 0 ? Math.round((stats.cpCompleted / stats.cpTotal) * 100) : 0;
@@ -39228,6 +39390,7 @@ Earned Value Management measures project performance and progress by comparing p
         html += '<div style="font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase;">Overall Progress</div>';
         html += '<div style="font-size:22px; font-weight:900; color:#2563eb; margin:2px 0;">' + stats.progress + '%</div>';
         html += miniBar(stats.progress, '#2563eb');
+        html += '<div style="font-size:10px; color:#475569; margin-top:4px; font-weight:600;">🖥️ Server: ' + stats.serverCompleted + '/' + stats.serverTotal + ' &bull; 📱 Screens: ' + stats.guiCompleted + '/' + stats.guiTotal + '</div>';
         html += '</td></tr></table></td>';
         
         html += '<td width="33%" style="padding:0 4px;"><table width="100%" border="0" cellpadding="10" cellspacing="0" bgcolor="#f8fafc" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; text-align:center;"><tr><td>';
@@ -39242,18 +39405,98 @@ Earned Value Management measures project performance and progress by comparing p
         html += '<div style="font-size:10px; color:#64748b;">vs previous cycle</div>';
         html += '</td></tr></table></td>';
         html += '</tr></table>';
+
+        // Executive Overall Modules Delivery Summary (Overall status and count of modules)
+        const execModules = getModuleSummaries(pState, weekAgoDate, todayDate);
+        if (execModules.length > 0) {
+          const totalMods = execModules.length;
+          const completedMods = execModules.filter(m => m.status === 'Completed').length;
+          const inProgressMods = execModules.filter(m => m.status === 'In Progress').length;
+          const atRiskMods = execModules.filter(m => m.status === 'Overdue' || m.status === 'At Risk').length;
+          const notStartedMods = execModules.filter(m => m.status === 'Not Started').length;
+          const overallModProgress = Math.round(execModules.reduce((acc, m) => acc + m.avgProgress, 0) / totalMods);
+
+          html += '<div style="margin-top:12px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:10px 14px;">';
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size:12px; font-family:Arial, Helvetica, sans-serif;"><tr>';
+          html += '<td>';
+          html += '<div style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; color:#475569; margin-bottom:4px;">📦 Overall Modules Summary (' + totalMods + ' Total Modules)</div>';
+          html += '<div style="font-size:12px; font-weight:700; color:#0f172a;">';
+          html += '<span style="color:#16a34a;">✅ ' + completedMods + ' Completed</span> &nbsp;&bull;&nbsp; ';
+          html += '<span style="color:#2563eb;">⚙️ ' + inProgressMods + ' In Progress</span> &nbsp;&bull;&nbsp; ';
+          if (atRiskMods > 0) {
+            html += '<span style="color:#dc2626;">🚨 ' + atRiskMods + ' At Risk</span> &nbsp;&bull;&nbsp; ';
+          }
+          html += '<span style="color:#64748b;">⏳ ' + notStartedMods + ' Planned / Not Started</span>';
+          html += '</div>';
+          html += '</td>';
+          html += '<td align="right" valign="middle" style="text-align:right;">';
+          html += '<div style="font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:2px;">Module Delivery Score</div>';
+          html += '<div style="font-size:15px; font-weight:900; color:#2563eb;">' + overallModProgress + '%</div>';
+          html += '</td>';
+          html += '</tr></table>';
+          html += '</div>';
+        }
+
+        html += '</td></tr>';
+      }
+
+      // 2. SPRINT TARGET FOR CURRENT MONTH
+      if (incSprint) {
+        const nowSp = new Date();
+        const monthNameSp = nowSp.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        const allSubItemsSp = getAllSubtaskItems(pState.tasks);
+        const monthTasksSp = allSubItemsSp.filter(st => {
+          if (!st.dueDate) return true;
+          const d = new Date(st.dueDate);
+          return d.getMonth() === nowSp.getMonth() && d.getFullYear() === nowSp.getFullYear();
+        });
+        const mCompSp  = monthTasksSp.filter(st => st.status === 'Completed' || parseInt(st.progress, 10) === 100).length;
+        const mTotalSp = monthTasksSp.length || 1;
+        const mPctSp   = Math.round((mCompSp / mTotalSp) * 100);
+        const trendSp      = mPctSp >= 50 ? 'On Track' : 'Behind Target';
+        const trendColorSp = mPctSp >= 50 ? '#16a34a' : '#dc2626';
+
+        html += '<tr><td style="padding-bottom:18px;">';
+        html += secHdr('#2563eb', '🎯', 'Sprint Target — ' + escapeHTML(monthNameSp));
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f8fafc" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; border-collapse:collapse;"><tr><td style="padding:12px 16px;">';
+        html += '<span style="font-size:13px; color:#334155;"><strong>Sprint Goal:</strong> ' + mTotalSp + ' deliverables targeted &nbsp;|&nbsp; ';
+        html += '<strong>' + mCompSp + ' Completed</strong> (' + mPctSp + '% target met) &nbsp;|&nbsp; ';
+        html += '<strong style="color:' + trendColorSp + ';">Trending: ' + escapeHTML(trendSp) + '</strong></span>';
+        html += miniBar(mPctSp, trendColorSp);
+        html += '</td></tr></table>';
         html += '</td></tr>';
       }
 
       // 3. STATUS-WISE PROJECT SNAPSHOT
       if (incStatusViz) {
-        const totalT = stats.total || 0;
+        const allSubItemsViz = getAllSubtaskItems(pState.tasks);
+        const totalT = allSubItemsViz.length;
+        const todayViz = new Date(); todayViz.setHours(0,0,0,0);
+
+        let cntCompleted = 0, cntInProgress = 0, cntInReview = 0, cntNotStarted = 0, cntOnHold = 0, cntOverdue = 0;
+        allSubItemsViz.forEach(st => {
+          const s = (st.status || '').toLowerCase();
+          const prog = parseInt(st.progress, 10) || 0;
+          if (s === 'completed' || prog === 100)          { cntCompleted++;  return; }
+          if (s === 'blocked' || s === 'on hold')         { cntOnHold++;     return; }
+          if (st.dueDate && s !== 'cancelled') {
+            const dd = new Date(st.dueDate); dd.setHours(0,0,0,0);
+            if (dd < todayViz && s !== 'completed')       { cntOverdue++;    return; }
+          }
+          if (s === 'review' || s === 'in review' || s === 'testing' || s === 'qa') { cntInReview++; return; }
+          if (s === 'in progress' || prog > 0)            { cntInProgress++; return; }
+          cntNotStarted++;
+        });
+
         const statusBuckets = [
-          { label: 'Completed', icon: '✅', count: stats.completed, color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
-          { label: 'In Progress', icon: '⚙️', count: Math.max(0, stats.total - stats.completed - stats.overdueTasks - stats.onHoldTasks), color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
-          { label: 'On Hold', icon: '⏸️', count: stats.onHoldTasks, color: '#9333ea', bg: '#faf5ff', border: '#e9d5ff' },
-          { label: 'Overdue', icon: '🚨', count: stats.overdueTasks, color: '#dc2626', bg: '#fef2f2', border: '#fecaca' }
-        ];
+          { label: 'Completed',   icon: '✅',  count: cntCompleted,  color: '#16a34a', bg: '#f0fdf4' },
+          { label: 'In Progress', icon: '⚙️',  count: cntInProgress, color: '#2563eb', bg: '#eff6ff' },
+          { label: 'In Review',   icon: '🔍',  count: cntInReview,   color: '#8b5cf6', bg: '#faf5ff' },
+          { label: 'Not Started', icon: '⏳',  count: cntNotStarted, color: '#64748b', bg: '#f8fafc' },
+          { label: 'On Hold',     icon: '⏸️',  count: cntOnHold,     color: '#9333ea', bg: '#fdf4ff' },
+          { label: 'Overdue',     icon: '🚨',  count: cntOverdue,    color: '#dc2626', bg: '#fef2f2' }
+        ].filter(b => b.count > 0);
+
 
         // Status cards grid (2-column layout)
         html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">';
@@ -39283,21 +39526,38 @@ Earned Value Management measures project performance and progress by comparing p
       // 4. OVERALL MODULE-WISE STATUS & WEEKLY PROGRESS VISUALIZER
       if (incModules) {
         const modStatsMap = {};
-        const todayDate = new Date(); todayDate.setHours(0,0,0,0);
-        const weekAgoDate = new Date(todayDate); weekAgoDate.setDate(weekAgoDate.getDate() - daysBack);
+        const allSubItems = getAllSubtaskItems(pState.tasks);
 
-        (pState.tasks || []).forEach(t => {
-          const mName = (t.module || 'General').trim();
+        allSubItems.forEach(st => {
+          const mName = (st.module || 'General').trim();
           if (!modStatsMap[mName]) {
-            modStatsMap[mName] = { name: mName, total: 0, completed: 0, sumProgress: 0, overdue: 0, completedThisWeek: 0 };
+            modStatsMap[mName] = { name: mName, total: 0, completed: 0, serverTotal: 0, serverCompleted: 0, guiTotal: 0, guiCompleted: 0, sumProgress: 0, overdue: 0, completedThisWeek: 0, earliestReleaseDate: null };
           }
           const m = modStatsMap[mName];
           m.total++;
-          const prog = parseInt(t.progress, 10) || (t.status === 'Completed' ? 100 : 0);
+          const isGui = st.type === 'screen';
+          if (isGui) { m.guiTotal++; } else { m.serverTotal++; }
+
+          // Track earliest planned release date for sort
+          const _eRels = (pState.releases || []);
+          let _stRel = null;
+          if (st.releaseVersion || st.release) {
+            const _rv = String(st.releaseVersion || st.release).trim().toLowerCase();
+            const _rel = _eRels.find(r => String(r.name || '').trim().toLowerCase() === _rv || String(r.id || '').trim().toLowerCase() === _rv);
+            if (_rel) _stRel = _rel.date || _rel.endDate || _rel.targetDate || _rel.releaseDate || null;
+          }
+          if (!_stRel && st.dueDate) _stRel = st.dueDate;
+          if (_stRel) {
+            if (!m.earliestReleaseDate || new Date(_stRel) < new Date(m.earliestReleaseDate)) m.earliestReleaseDate = _stRel;
+          }
+
+          const prog = parseInt(st.progress, 10) || (st.status === 'Completed' ? 100 : 0);
           m.sumProgress += prog;
-          if (t.status === 'Completed' || prog === 100) {
+          if (st.status === 'Completed' || prog === 100) {
             m.completed++;
-            const rawAct = t.actCompletionDate;
+            if (isGui) m.guiCompleted++; else m.serverCompleted++;
+
+            const rawAct = st.actCompletionDate;
             if (rawAct && rawAct !== '-' && rawAct !== '—' && rawAct !== 'null') {
               const compD = new Date(rawAct);
               if (!isNaN(compD.getTime())) {
@@ -39305,24 +39565,36 @@ Earned Value Management measures project performance and progress by comparing p
                 if (compD >= weekAgoDate) m.completedThisWeek++;
               }
             }
-          } else if (t.dueDate) {
-            const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
+          } else if (st.dueDate) {
+            const dd = new Date(st.dueDate); dd.setHours(0,0,0,0);
             if (dd < todayDate) m.overdue++;
           }
         });
 
         const moduleList = Object.values(modStatsMap).map(m => {
           const avg = m.total > 0 ? Math.round(m.sumProgress / m.total) : 0;
-          let status = 'On Track';
-          let color = '#16a34a';
-          let bg = '#f0fdf4';
-          if (m.overdue >= 2 || avg < 35) {
+          let status = 'Not Started';
+          let color = '#64748b';
+          let bg = '#f8fafc';
+
+          if (avg === 100 || (m.total > 0 && m.completed === m.total)) {
+            status = 'Completed'; color = '#16a34a'; bg = '#f0fdf4';
+          } else if (m.overdue >= 2) {
+            status = 'Overdue'; color = '#dc2626'; bg = '#fef2f2';
+          } else if (m.overdue === 1) {
+            status = 'At Risk'; color = '#d97706'; bg = '#fffbeb';
+          } else if (avg > 0 || m.completed > 0 || m.completedThisWeek > 0) {
             status = 'In Progress'; color = '#0369a1'; bg = '#eff6ff';
-          } else if (m.overdue === 1 || (avg >= 35 && avg < 70)) {
-            status = 'Active'; color = '#d97706'; bg = '#fffbeb';
+          } else {
+            status = 'Not Started'; color = '#64748b'; bg = '#f8fafc';
           }
           return { ...m, avgProgress: avg, status, color, bg };
-        }).sort((a, b) => b.total - a.total);
+        }).sort((a, b) => {
+          const da = a.earliestReleaseDate ? new Date(a.earliestReleaseDate).getTime() : Infinity;
+          const db = b.earliestReleaseDate ? new Date(b.earliestReleaseDate).getTime() : Infinity;
+          if (da !== db) return da - db;
+          return b.avgProgress - a.avgProgress;
+        });
 
         html += '<tr><td style="padding-bottom:18px;">';
         html += secHdr('#6366f1', '📊', 'Overall Module Status &amp; Weekly Progress Visualizer');
@@ -39332,16 +39604,18 @@ Earned Value Management measures project performance and progress by comparing p
           html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-size:12.5px;">';
           html += '<thead><tr bgcolor="#f8fafc" style="background-color:#f8fafc;">';
           html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:left;">Module Name</th>';
-          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:left; width:160px;">Completion Progress</th>';
-          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:center; width:100px;">Deliverables</th>';
-          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:right; width:140px;">Weekly Pace &amp; Status</th>';
+          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:left; width:150px;">Completion Progress</th>';
+          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:center; width:170px;">Sub-tasks &amp; Screens (Server / GUI)</th>';
+          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:right; width:130px;">Weekly Pace &amp; Status</th>';
           html += '</tr></thead><tbody>';
 
           moduleList.forEach((m, idx) => {
             const rowBg = idx % 2 === 0 ? '#ffffff' : '#fafafa';
             let paceBadge = '<span style="color:#16a34a; font-weight:700; font-size:11px;">✓ +' + m.completedThisWeek + ' this week</span>';
-            if (m.overdue > 0) {
-              paceBadge = '<span style="color:#0369a1; font-weight:700; font-size:11px;">📌 ' + m.overdue + ' being prioritised</span>';
+            if (m.status === 'Not Started' || m.avgProgress === 0) {
+              paceBadge = '<span style="color:#64748b; font-size:11px;">🗓️ Planned</span>';
+            } else if (m.overdue > 0) {
+              paceBadge = '<span style="color:#dc2626; font-weight:700; font-size:11px;">📌 ' + m.overdue + ' being prioritised</span>';
             } else if (m.completedThisWeek === 0) {
               paceBadge = '<span style="color:#64748b; font-size:11px;">Progressing</span>';
             }
@@ -39352,7 +39626,10 @@ Earned Value Management measures project performance and progress by comparing p
             html += '<div style="display:flex; justify-space-between; align-items:center; margin-bottom:2px;"><strong style="font-size:12px;">' + m.avgProgress + '%</strong></div>';
             html += miniBar(m.avgProgress, m.color);
             html += '</td>';
-            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; text-align:center; font-weight:700; color:#334155; font-size:12px;">' + m.completed + ' / ' + m.total + '</td>';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; text-align:center; font-size:12px;">';
+            html += '<strong style="color:#0f172a;">' + m.completed + ' / ' + m.total + '</strong><br>';
+            html += '<span style="font-size:10px; color:#475569; font-weight:600;">🖥️ ' + m.serverCompleted + '/' + m.serverTotal + ' Server &bull; 📱 ' + m.guiCompleted + '/' + m.guiTotal + ' GUI</span>';
+            html += '</td>';
             html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; text-align:right;">';
             html += '<span style="display:inline-block; padding:2px 8px; border-radius:10px; font-weight:800; font-size:10.5px; background-color:' + m.bg + '; color:' + m.color + '; border:1px solid ' + m.color + '; margin-bottom:2px;">' + escapeHTML(m.status) + '</span><br>' + paceBadge;
             html += '</td>';
@@ -39365,9 +39642,10 @@ Earned Value Management measures project performance and progress by comparing p
 
       // 5. ACTIVITIES COMPLETED THIS WEEK
       if (incWins) {
-        const wins = (pState.tasks || []).filter(t => {
-          if (t.status !== 'Completed' && parseInt(t.progress, 10) !== 100) return false;
-          const rawAct = t.actCompletionDate;
+        const allSubItems = getAllSubtaskItems(pState.tasks);
+        const wins = allSubItems.filter(st => {
+          if (st.status !== 'Completed' && parseInt(st.progress, 10) !== 100) return false;
+          const rawAct = st.actCompletionDate;
           if (!rawAct || rawAct === '-' || rawAct === '—' || rawAct === 'null') return false;
           const compD = new Date(rawAct);
           if (isNaN(compD.getTime())) return false;
@@ -39376,16 +39654,16 @@ Earned Value Management measures project performance and progress by comparing p
         }).sort((a, b) => new Date(b.actCompletionDate) - new Date(a.actCompletionDate)).slice(0, 6);
 
         html += '<tr><td style="padding-bottom:18px;">';
-        html += secHdr('#16a34a', '✅', 'Activities Completed This Week (' + wins.length + ')');
+        html += secHdr('#16a34a', '✅', 'Sub-tasks &amp; Screens Completed This Week (' + wins.length + ')');
         if (wins.length === 0) {
-          html += '<div style="font-size:12.5px; color:#94a3b8; font-style:italic; padding:8px 12px; background:#f8fafc; border-radius:6px; border:1px dashed #cbd5e1;">No completed deliverables recorded in this reporting cycle.</div>';
+          html += '<div style="font-size:12.5px; color:#94a3b8; font-style:italic; padding:8px 12px; background:#f8fafc; border-radius:6px; border:1px dashed #cbd5e1;">No completed sub-tasks or screens recorded in this reporting cycle.</div>';
         } else {
           html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-size:12.5px;">';
           wins.forEach((w, i) => {
             const compDate = (w.actCompletionDate || w.updatedAt) ? formatCxoDate(w.actCompletionDate || w.updatedAt) : 'This Cycle';
             const rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
             html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
-            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; font-weight:600; color:#0f172a;">✓ ' + escapeHTML(w.name || w.title || 'Deliverable') + '</td>';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; font-weight:600; color:#0f172a;">✓ ' + escapeHTML(w.name || w.title || 'Sub-task') + '</td>';
             html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#64748b; font-size:11.5px;" width="180">' + escapeHTML(getDeliverableScreenLabel(w)) + '</td>';
             html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#16a34a; font-weight:700; font-size:11.5px; text-align:right;" width="110">' + compDate + '</td>';
             html += '</tr>';
@@ -39399,23 +39677,24 @@ Earned Value Management measures project performance and progress by comparing p
       if (incNext) {
         const todayOL = new Date(); todayOL.setHours(0,0,0,0);
         const targetOL = new Date(todayOL); targetOL.setDate(targetOL.getDate() + daysBack);
-        const upcoming = (pState.tasks || []).filter(t => {
-          if (t.status === 'Completed' || t.status === 'Cancelled' || !t.dueDate) return false;
-          const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
+        const allSubItems = getAllSubtaskItems(pState.tasks);
+        const upcoming = allSubItems.filter(st => {
+          if (st.status === 'Completed' || st.status === 'Cancelled' || !st.dueDate) return false;
+          const dd = new Date(st.dueDate); dd.setHours(0,0,0,0);
           return dd >= todayOL && dd <= targetOL;
         }).sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate)).slice(0, 6);
 
         html += '<tr><td style="padding-bottom:18px;">';
-        html += secHdr('#0891b2', '📅', 'Activities Planned for Next Week (' + upcoming.length + ')');
+        html += secHdr('#0891b2', '📅', 'Sub-tasks &amp; Screens Planned for Next Week (' + upcoming.length + ')');
         if (upcoming.length === 0) {
-          html += '<div style="font-size:12.5px; color:#94a3b8; font-style:italic; padding:8px 12px; background:#f8fafc; border-radius:6px; border:1px dashed #cbd5e1;">No specific deliverables scheduled for next week.</div>';
+          html += '<div style="font-size:12.5px; color:#94a3b8; font-style:italic; padding:8px 12px; background:#f8fafc; border-radius:6px; border:1px dashed #cbd5e1;">No specific sub-tasks or screens scheduled for next week.</div>';
         } else {
           html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-size:12.5px;">';
           upcoming.forEach((t, i) => {
             const dueStr = formatCxoDate(t.dueDate);
             const rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
             html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
-            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; font-weight:600; color:#0f172a;">○ ' + escapeHTML(t.name || t.title || 'Deliverable') + '</td>';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; font-weight:600; color:#0f172a;">○ ' + escapeHTML(t.name || t.title || 'Sub-task') + '</td>';
             html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#64748b; font-size:11.5px;" width="180">' + escapeHTML(getDeliverableScreenLabel(t)) + '</td>';
             html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#0891b2; font-weight:700; font-size:11.5px; text-align:right;" width="110">Due ' + dueStr + '</td>';
             html += '</tr>';
@@ -39429,9 +39708,10 @@ Earned Value Management measures project performance and progress by comparing p
       if (incChallenges) {
         const topRisks = (pState.raids || []).filter(r => r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated' && (r.impact === 'High' || r.severity === 'S1 - Critical' || r.severity === 'S2 - Major' || r.probability === 'High'));
         const openIssues = (pState.raids || []).filter(r => r.type === 'Issue' && r.status !== 'Closed' && r.status !== 'Mitigated');
-        const overdue = (pState.tasks || []).filter(t => {
-          if (t.status === 'Completed' || t.status === 'Cancelled' || !t.dueDate) return false;
-          const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
+        const allSubItems = getAllSubtaskItems(pState.tasks);
+        const overdue = allSubItems.filter(st => {
+          if (st.status === 'Completed' || st.status === 'Cancelled' || !st.dueDate) return false;
+          const dd = new Date(st.dueDate); dd.setHours(0,0,0,0);
           return dd < new Date();
         });
 
@@ -39543,6 +39823,8 @@ Earned Value Management measures project performance and progress by comparing p
       const cadence      = $id('cxo-report-cadence')?.value || 'weekly';
       const daysBack     = cadence === 'fortnightly' ? 14 : 7;
       const cadenceLabel = cadence === 'fortnightly' ? 'Fortnightly Executive Brief' : 'Weekly Executive Brief';
+      const todayDate    = new Date(); todayDate.setHours(0,0,0,0);
+      const weekAgoDate  = new Date(todayDate); weekAgoDate.setDate(weekAgoDate.getDate() - daysBack);
       const rpStart      = new Date(); rpStart.setDate(rpStart.getDate() - daysBack);
       const reportPeriod = formatCxoDate(rpStart) + ' – ' + formatCxoDate(new Date());
 
@@ -39562,23 +39844,44 @@ Earned Value Management measures project performance and progress by comparing p
       // 1. Summary
       if (incSummary) {
         const summaryPts = generateHealthPoints(stats);
-        html += '<h3 style="font-size: 15px; color: #0f172a; border-left: 4px solid #0f172a; padding-left: 8px; margin: 18px 0 10px 0;">📌 Executive Summary</h3>';
+        html += '<h3 style="font-size: 15px; color: #0f172a; border-left: 4px solid #0f172a; padding-left: 8px; margin: 18px 0 10px 0;">📌 Executive Summary & Status</h3>';
         if (execNote) {
           html += '<p style="font-size: 13px; font-style: italic; color: #334155; background: #f8fafc; padding: 10px 14px; border-radius: 6px; border-left: 3px solid #cbd5e1; margin-bottom: 12px;">' + escapeHTML(execNote).split('\n').join('<br>') + '</p>';
         }
-        html += '<ul style="margin: 0 0 16px 0; padding-left: 20px; font-size: 13px;">';
-        const ptsToShow = isCondensed ? summaryPts.slice(0, 2) : summaryPts.slice(0, 4);
+        html += '<ul style="margin: 0 0 12px 0; padding-left: 20px; font-size: 13px;">';
+        const ptsToShow = isCondensed ? summaryPts.slice(0, 3) : summaryPts.slice(0, 5);
         ptsToShow.forEach(pt => {
           html += '<li style="margin-bottom: 6px;">' + pt + '</li>';
         });
         html += '</ul>';
+
+        const execModsRT = getModuleSummaries(pState, weekAgoDate, todayDate);
+        if (execModsRT.length > 0) {
+          const totRT = execModsRT.length;
+          const compRT = execModsRT.filter(m => m.status === 'Completed').length;
+          const progRT = execModsRT.filter(m => m.status === 'In Progress').length;
+          const riskRT = execModsRT.filter(m => m.status === 'Overdue' || m.status === 'At Risk').length;
+          const pendRT = execModsRT.filter(m => m.status === 'Not Started').length;
+          const avgProgRT = Math.round(execModsRT.reduce((acc, m) => acc + m.avgProgress, 0) / totRT);
+
+          html += '<p style="font-size: 13px; margin: 10px 0 14px 0; background: #f8fafc; padding: 10px 14px; border-radius: 6px; border: 1px solid #e2e8f0;">';
+          html += '<strong>📦 Overall Modules Delivery Status:</strong> ' + totRT + ' Modules Total &nbsp;|&nbsp; ';
+          html += '<span style="color:#16a34a; font-weight:700;">✅ ' + compRT + ' Completed</span>, ';
+          html += '<span style="color:#2563eb; font-weight:700;">⚙️ ' + progRT + ' In Progress</span>, ';
+          if (riskRT > 0) {
+            html += '<span style="color:#dc2626; font-weight:700;">🚨 ' + riskRT + ' At Risk</span>, ';
+          }
+          html += '<span style="color:#64748b; font-weight:700;">⏳ ' + pendRT + ' Planned / Not Started</span> &nbsp;|&nbsp; ';
+          html += '<strong>Module Score:</strong> ' + avgProgRT + '%';
+          html += '</p>';
+        }
       }
 
       // 2. Sprint Target
       if (incSprint) {
         const nowM = new Date();
         const monthName = nowM.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-        const monthTasks = (pState.tasks || []).filter(t => {
+        const monthTasks = getAllSubtaskItems(pState.tasks).filter(t => {
           if (!t.dueDate) return true;
           const d = new Date(t.dueDate);
           return d.getMonth() === nowM.getMonth() && d.getFullYear() === nowM.getFullYear();
@@ -39596,7 +39899,7 @@ Earned Value Management measures project performance and progress by comparing p
 
       // 3. Status Distribution
       if (incStatusViz) {
-        const allTasks = pState.tasks || [];
+        const allTasks = getAllSubtaskItems(pState.tasks);
         const totalT = allTasks.length;
         const todayViz = new Date(); todayViz.setHours(0,0,0,0);
 
@@ -39635,21 +39938,37 @@ Earned Value Management measures project performance and progress by comparing p
       // 4. Module Breakdown
       if (incModules) {
         const modStatsMap = {};
-        const todayDate = new Date(); todayDate.setHours(0,0,0,0);
-        const weekAgoDate = new Date(todayDate); weekAgoDate.setDate(weekAgoDate.getDate() - daysBack);
+        const allSubItems = getAllSubtaskItems(pState.tasks);
 
-        (pState.tasks || []).forEach(t => {
-          const mName = (t.module || 'General').trim();
+        allSubItems.forEach(st => {
+          const mName = (st.module || 'General').trim();
           if (!modStatsMap[mName]) {
-            modStatsMap[mName] = { name: mName, total: 0, completed: 0, sumProgress: 0, overdue: 0, completedThisWeek: 0 };
+            modStatsMap[mName] = { name: mName, total: 0, completed: 0, serverTotal: 0, serverCompleted: 0, guiTotal: 0, guiCompleted: 0, sumProgress: 0, overdue: 0, completedThisWeek: 0, earliestReleaseDate: null };
           }
           const m = modStatsMap[mName];
           m.total++;
-          const prog = parseInt(t.progress, 10) || (t.status === 'Completed' ? 100 : 0);
+          const isGui = st.type === 'screen';
+          if (isGui) { m.guiTotal++; } else { m.serverTotal++; }
+
+          // Track earliest planned release date for sort
+          const _wRels = (pState.releases || []);
+          let _wRel = null;
+          if (st.releaseVersion || st.release) {
+            const _rv = String(st.releaseVersion || st.release).trim().toLowerCase();
+            const _rel = _wRels.find(r => String(r.name || '').trim().toLowerCase() === _rv || String(r.id || '').trim().toLowerCase() === _rv);
+            if (_rel) _wRel = _rel.date || _rel.endDate || _rel.targetDate || _rel.releaseDate || null;
+          }
+          if (!_wRel && st.dueDate) _wRel = st.dueDate;
+          if (_wRel) {
+            if (!m.earliestReleaseDate || new Date(_wRel) < new Date(m.earliestReleaseDate)) m.earliestReleaseDate = _wRel;
+          }
+
+          const prog = parseInt(st.progress, 10) || (st.status === 'Completed' ? 100 : 0);
           m.sumProgress += prog;
-          if (t.status === 'Completed' || prog === 100) {
+          if (st.status === 'Completed' || prog === 100) {
             m.completed++;
-            const rawAct = t.actCompletionDate;
+            if (isGui) m.guiCompleted++; else m.serverCompleted++;
+            const rawAct = st.actCompletionDate;
             if (rawAct && rawAct !== '-' && rawAct !== '—' && rawAct !== 'null') {
               const compD = new Date(rawAct);
               if (!isNaN(compD.getTime())) {
@@ -39657,31 +39976,41 @@ Earned Value Management measures project performance and progress by comparing p
                 if (compD >= weekAgoDate) m.completedThisWeek++;
               }
             }
-          } else if (t.dueDate) {
-            const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
+          } else if (st.dueDate) {
+            const dd = new Date(st.dueDate); dd.setHours(0,0,0,0);
             if (dd < todayDate) m.overdue++;
           }
         });
 
         const moduleList = Object.values(modStatsMap).map(m => {
           const avg = m.total > 0 ? Math.round(m.sumProgress / m.total) : 0;
-          let status = 'On Track';
-          if (m.overdue >= 2 || avg < 35) status = 'In Progress';
-          else if (m.overdue === 1 || (avg >= 35 && avg < 70)) status = 'Active';
+          let status = 'Not Started';
+          if (avg === 100 || (m.total > 0 && m.completed === m.total)) status = 'Completed';
+          else if (m.overdue >= 2) status = 'Overdue';
+          else if (m.overdue === 1) status = 'At Risk';
+          else if (avg > 0 || m.completed > 0 || m.completedThisWeek > 0) status = 'In Progress';
+          else status = 'Not Started';
           return { ...m, avgProgress: avg, status };
-        }).sort((a, b) => b.total - a.total);
+        }).sort((a, b) => {
+          const da = a.earliestReleaseDate ? new Date(a.earliestReleaseDate).getTime() : Infinity;
+          const db = b.earliestReleaseDate ? new Date(b.earliestReleaseDate).getTime() : Infinity;
+          if (da !== db) return da - db;
+          return b.avgProgress - a.avgProgress;
+        });
 
         html += '<h3 style="font-size: 15px; color: #6366f1; border-left: 4px solid #6366f1; padding-left: 8px; margin: 18px 0 10px 0;">📊 Module Performance</h3>';
         if (moduleList.length === 0) {
           html += '<p style="font-size: 13px; color: #94a3b8; font-style: italic;">No module breakdown available.</p>';
         } else {
           html += '<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 12.5px;" border="1" cellpadding="6" cellspacing="0" bordercolor="#cbd5e1">';
-          html += '<tr style="background: #f8fafc; text-align: left; font-weight: 700; color: #475569;"><th>Module</th><th>Progress</th><th>Deliverables</th><th>Status</th></tr>';
+          html += '<tr style="background: #f8fafc; text-align: left; font-weight: 700; color: #475569;"><th>Module</th><th>Progress</th><th>Server Sub-tasks</th><th>GUI Screens</th><th>Total Items</th><th>Status</th></tr>';
           const listToShow = isCondensed ? moduleList.slice(0, 4) : moduleList;
           listToShow.forEach(m => {
             html += '<tr>';
             html += '<td><strong>' + escapeHTML(m.name) + '</strong></td>';
             html += '<td>' + m.avgProgress + '%</td>';
+            html += '<td>🖥️ ' + m.serverCompleted + ' / ' + m.serverTotal + '</td>';
+            html += '<td>📱 ' + m.guiCompleted + ' / ' + m.guiTotal + '</td>';
             html += '<td>' + m.completed + ' / ' + m.total + '</td>';
             html += '<td>' + escapeHTML(m.status) + '</td>';
             html += '</tr>';
@@ -39692,9 +40021,10 @@ Earned Value Management measures project performance and progress by comparing p
 
       // 5. Activities Completed
       if (incWins) {
-        const wins = (pState.tasks || []).filter(t => {
-          if (t.status !== 'Completed' && parseInt(t.progress, 10) !== 100) return false;
-          const rawAct = t.actCompletionDate;
+        const allSubItems = getAllSubtaskItems(pState.tasks);
+        const wins = allSubItems.filter(st => {
+          if (st.status !== 'Completed' && parseInt(st.progress, 10) !== 100) return false;
+          const rawAct = st.actCompletionDate;
           if (!rawAct || rawAct === '-' || rawAct === '—' || rawAct === 'null') return false;
           const compD = new Date(rawAct);
           if (isNaN(compD.getTime())) return false;
@@ -39709,7 +40039,8 @@ Earned Value Management measures project performance and progress by comparing p
           html += '<ul style="margin: 0 0 16px 0; padding-left: 20px; font-size: 13px;">';
           wins.forEach(w => {
             const compDate = (w.actCompletionDate || w.updatedAt) ? formatCxoDate(w.actCompletionDate || w.updatedAt) : 'This Cycle';
-            html += '<li style="margin-bottom: 4px;"><strong>✓ ' + escapeHTML(w.name || w.title) + '</strong> [' + escapeHTML(getDeliverableScreenLabel(w)) + '] — ' + compDate + '</li>';
+            const icon = w.type === 'screen' ? '📱' : '🖥️';
+            html += '<li style="margin-bottom: 4px;"><strong>' + icon + ' ✓ ' + escapeHTML(w.name || w.title) + '</strong> [' + escapeHTML(getDeliverableScreenLabel(w)) + '] — ' + compDate + '</li>';
           });
           html += '</ul>';
         }
@@ -39719,9 +40050,10 @@ Earned Value Management measures project performance and progress by comparing p
       if (incNext) {
         const todayOL = new Date(); todayOL.setHours(0,0,0,0);
         const targetOL = new Date(todayOL); targetOL.setDate(targetOL.getDate() + daysBack);
-        const upcoming = (pState.tasks || []).filter(t => {
-          if (t.status === 'Completed' || t.status === 'Cancelled' || !t.dueDate) return false;
-          const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
+        const allSubItems = getAllSubtaskItems(pState.tasks);
+        const upcoming = allSubItems.filter(st => {
+          if (st.status === 'Completed' || st.status === 'Cancelled' || !st.dueDate) return false;
+          const dd = new Date(st.dueDate); dd.setHours(0,0,0,0);
           return dd >= todayOL && dd <= targetOL;
         }).sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate)).slice(0, isCondensed ? 3 : 6);
 
@@ -39731,7 +40063,8 @@ Earned Value Management measures project performance and progress by comparing p
         } else {
           html += '<ul style="margin: 0 0 16px 0; padding-left: 20px; font-size: 13px;">';
           upcoming.forEach(t => {
-            html += '<li style="margin-bottom: 4px;"><strong>○ ' + escapeHTML(t.name || t.title) + '</strong> [' + escapeHTML(getDeliverableScreenLabel(t)) + '] — Due ' + formatCxoDate(t.dueDate) + '</li>';
+            const icon = t.type === 'screen' ? '📱' : '🖥️';
+            html += '<li style="margin-bottom: 4px;"><strong>' + icon + ' ○ ' + escapeHTML(t.name || t.title) + '</strong> [' + escapeHTML(getDeliverableScreenLabel(t)) + '] — Due ' + formatCxoDate(t.dueDate) + '</li>';
           });
           html += '</ul>';
         }
@@ -39741,9 +40074,9 @@ Earned Value Management measures project performance and progress by comparing p
       if (incChallenges) {
         const topRisks = (pState.raids || []).filter(r => r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated' && (r.impact === 'High' || r.severity === 'S1 - Critical' || r.severity === 'S2 - Major' || r.probability === 'High'));
         const openIssues = (pState.raids || []).filter(r => r.type === 'Issue' && r.status !== 'Closed' && r.status !== 'Mitigated');
-        const overdue = (pState.tasks || []).filter(t => {
-          if (t.status === 'Completed' || t.status === 'Cancelled' || !t.dueDate) return false;
-          const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
+        const overdue = allSubItems.filter(st => {
+          if (st.status === 'Completed' || st.status === 'Cancelled' || !st.dueDate) return false;
+          const dd = new Date(st.dueDate); dd.setHours(0,0,0,0);
           return dd < new Date();
         });
 
@@ -39839,62 +40172,24 @@ Earned Value Management measures project performance and progress by comparing p
       text += '\n';
 
       // 2. TARGET FOR CURRENT MONTH'S SPRINT & TRENDING
+      const allSubItems = getAllSubtaskItems(pState.tasks);
       const nowM = new Date();
       const monthName = nowM.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-      const monthTasks = (pState.tasks || []).filter(t => {
-        if (!t.dueDate) return true;
-        const d = new Date(t.dueDate);
+      const monthTasks = allSubItems.filter(st => {
+        if (!st.dueDate) return true;
+        const d = new Date(st.dueDate);
         return d.getMonth() === nowM.getMonth() && d.getFullYear() === nowM.getFullYear();
       });
-      const mComp = monthTasks.filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100).length;
+      const mComp = monthTasks.filter(st => st.status === 'Completed' || parseInt(st.progress, 10) === 100).length;
       const mTotal = monthTasks.length || 1;
       const mPct = Math.round((mComp / mTotal) * 100);
 
       text += '2. TARGET FOR ' + monthName.toUpperCase() + ' SPRINT & TRENDING:\n';
-      text += '   • Goal: ' + mComp + '/' + mTotal + ' Sprint Deliverables Completed (' + mPct + '% target met)\n';
+      text += '   • Goal: ' + mComp + '/' + mTotal + ' Deliverables Completed (' + mPct + '% target met)\n';
       text += '   • Trending Status: ' + (mPct >= 50 ? 'On Track' : 'Behind Target') + '\n\n';
 
-      // 3. OVERALL MODULE-WISE STATUS & WEEKLY PROGRESS VISUALIZER
-      const modStatsMap = {};
-      const todayDate = new Date(); todayDate.setHours(0,0,0,0);
-      const weekAgoDate = new Date(todayDate); weekAgoDate.setDate(weekAgoDate.getDate() - daysBack);
-
-      (pState.tasks || []).forEach(t => {
-        const mName = (t.module || 'General').trim();
-        if (!modStatsMap[mName]) {
-          modStatsMap[mName] = { name: mName, total: 0, completed: 0, sumProgress: 0, overdue: 0, completedThisWeek: 0 };
-        }
-        const m = modStatsMap[mName];
-        m.total++;
-        const prog = parseInt(t.progress, 10) || (t.status === 'Completed' ? 100 : 0);
-        m.sumProgress += prog;
-        if (t.status === 'Completed' || prog === 100) {
-          m.completed++;
-          const rawAct = t.actCompletionDate;
-          if (rawAct && rawAct !== '-' && rawAct !== '—' && rawAct !== 'null') {
-            const compD = new Date(rawAct);
-            if (!isNaN(compD.getTime())) {
-              compD.setHours(0,0,0,0);
-              if (compD >= weekAgoDate) m.completedThisWeek++;
-            }
-          }
-        } else if (t.dueDate) {
-          const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
-          if (dd < todayDate) m.overdue++;
-        }
-      });
-
-      const moduleList = Object.values(modStatsMap).map(m => {
-        const avg = m.total > 0 ? Math.round(m.sumProgress / m.total) : 0;
-        let status = 'On Track';
-        if (m.overdue >= 2 || avg < 35) status = 'In Progress';
-        else if (m.overdue === 1 || (avg >= 35 && avg < 70)) status = 'Active';
-        return { ...m, avgProgress: avg, status };
-      }).sort((a, b) => b.total - a.total);
-
       // 3. STATUS-WISE PROJECT VISUALIZER
-      const allTasksViz = pState.tasks || [];
-      const totalViz = allTasksViz.length;
+      const totalViz = allSubItems.length;
       const todayVizPt = new Date(); todayVizPt.setHours(0,0,0,0);
 
       const stBuckets = [
@@ -39906,13 +40201,13 @@ Earned Value Management measures project performance and progress by comparing p
         { label: 'Overdue', count: 0 }
       ];
 
-      allTasksViz.forEach(t => {
-        const s = (t.status || '').toLowerCase();
-        const prog = parseInt(t.progress, 10) || 0;
+      allSubItems.forEach(st => {
+        const s = (st.status || '').toLowerCase();
+        const prog = parseInt(st.progress, 10) || 0;
         if (s === 'completed' || prog === 100) { stBuckets[0].count++; return; }
         if (s === 'blocked' || s === 'on hold') { stBuckets[4].count++; return; }
-        if (t.dueDate && s !== 'cancelled') {
-          const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
+        if (st.dueDate && s !== 'cancelled') {
+          const dd = new Date(st.dueDate); dd.setHours(0,0,0,0);
           if (dd < todayVizPt && s !== 'completed') { stBuckets[5].count++; return; }
         }
         if (s === 'review' || s === 'in review' || s === 'testing' || s === 'qa') { stBuckets[2].count++; return; }
@@ -39940,13 +40235,13 @@ Earned Value Management measures project performance and progress by comparing p
           const pct = Math.round((b.count / totalViz) * 100);
           const filled = Math.round(pct / 10);
           const bar = '[' + '■'.repeat(filled) + '·'.repeat(10 - filled) + ']';
-          text += '   • ' + b.label.padEnd(14, ' ') + ': ' + bar + ' ' + String(b.count).padStart(3, ' ') + ' tasks (' + pct + '%)\n';
+          text += '   • ' + b.label.padEnd(14, ' ') + ': ' + bar + ' ' + String(b.count).padStart(3, ' ') + ' items (' + pct + '%)\n';
         });
       }
       text += '\n';
 
       text += '4. MODULE STATUS & LAYER MATRIX:\n';
-      if ((pState.tasks || []).length === 0) text += '   (No module breakdown available)\n';
+      if (allSubItems.length === 0) text += '   (No module breakdown available)\n';
       else {
         const types = (pState.dropdowns && pState.dropdowns.moduleType && pState.dropdowns.moduleType.length) 
           ? pState.dropdowns.moduleType 
@@ -39954,10 +40249,10 @@ Earned Value Management measures project performance and progress by comparing p
         
         const rawMods = (pState.dropdowns && pState.dropdowns.module && pState.dropdowns.module.length)
           ? [...pState.dropdowns.module]
-          : Array.from(new Set((pState.tasks || []).map(t => (t.module || 'General').trim())));
+          : Array.from(new Set(allSubItems.map(st => (st.module || 'General').trim())));
         
-        (pState.tasks || []).forEach(t => {
-          const m = (t.module || 'General').trim();
+        allSubItems.forEach(st => {
+          const m = (st.module || 'General').trim();
           if (!rawMods.includes(m)) rawMods.push(m);
         });
 
@@ -39966,14 +40261,14 @@ Earned Value Management measures project performance and progress by comparing p
         text += '   ----------------------------------------------------------------------------------\n';
 
         rawMods.forEach(mName => {
-          const modTasks = (pState.tasks || []).filter(t => (t.module || 'General').trim() === mName);
-          if (modTasks.length === 0) return;
+          const modSubItems = allSubItems.filter(st => (st.module || 'General').trim() === mName);
+          if (modSubItems.length === 0) return;
 
           let line = '   • ' + mName.padEnd(20, ' ') + ' | ';
           let modSum = 0, modComp = 0;
 
           types.forEach(ty => {
-            const cellT = modTasks.filter(t => (t.moduleType || types[0]) === ty);
+            const cellT = modSubItems.filter(st => (st.moduleType || types[0]) === ty);
             if (cellT.length === 0) {
               line += '—'.padEnd(10, ' ') + ' | ';
             } else {
@@ -39982,16 +40277,16 @@ Earned Value Management measures project performance and progress by comparing p
             }
           });
 
-          modTasks.forEach(t => {
-            const p = parseInt(t.progress, 10) || (t.status === 'Completed' ? 100 : 0);
+          modSubItems.forEach(st => {
+            const p = parseInt(st.progress, 10) || (st.status === 'Completed' ? 100 : 0);
             modSum += p;
-            if (t.status === 'Completed' || p === 100) modComp++;
+            if (st.status === 'Completed' || p === 100) modComp++;
           });
 
-          const modAvg = Math.round(modSum / modTasks.length);
+          const modAvg = Math.round(modSum / modSubItems.length);
           const filled = Math.round(modAvg / 10);
           const bar = '[' + '█'.repeat(filled) + '░'.repeat(10 - filled) + ']';
-          line += bar + ' ' + modAvg + '% (' + modComp + '/' + modTasks.length + ')\n';
+          line += bar + ' ' + modAvg + '% (' + modComp + '/' + modSubItems.length + ')\n';
           text += line;
         });
         text += '   ----------------------------------------------------------------------------------\n';
@@ -39999,14 +40294,15 @@ Earned Value Management measures project performance and progress by comparing p
       text += '\n';
 
       // 4. ACTIVITIES COMPLETED THIS WEEK
-      const wins = (pState.tasks || []).filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100)
+      const wins = allSubItems.filter(st => st.status === 'Completed' || parseInt(st.progress, 10) === 100)
         .sort((a,b) => new Date(b.actCompletionDate || b.updatedAt || 0) - new Date(a.actCompletionDate || a.updatedAt || 0)).slice(0, 6);
       text += '5. ACTIVITIES COMPLETED THIS WEEK (' + wins.length + '):\n';
       if (wins.length === 0) text += '   (No completed deliverables recorded in this reporting cycle)\n';
       else {
         wins.forEach(w => {
           const compDate = (w.actCompletionDate || w.updatedAt) ? formatCxoDate(w.actCompletionDate || w.updatedAt) : 'This Cycle';
-          text += '   ✓  ' + (w.name || w.title) + ' [' + getDeliverableScreenLabel(w) + '] — ' + compDate + '\n';
+          const icon = w.type === 'screen' ? '📱' : '🖥️';
+          text += '   ' + icon + ' ✓  ' + (w.name || w.title) + ' [' + getDeliverableScreenLabel(w) + '] — ' + compDate + '\n';
         });
       }
       text += '\n';
@@ -40014,16 +40310,17 @@ Earned Value Management measures project performance and progress by comparing p
       // 5. ACTIVITIES PLANNED FOR NEXT WEEK
       const todayOL = new Date(); todayOL.setHours(0,0,0,0);
       const targetOL = new Date(todayOL); targetOL.setDate(targetOL.getDate() + daysBack);
-      const upcoming = (pState.tasks || []).filter(t => {
-        if (t.status === 'Completed' || t.status === 'Cancelled' || !t.dueDate) return false;
-        const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
+      const upcoming = allSubItems.filter(st => {
+        if (st.status === 'Completed' || st.status === 'Cancelled' || !st.dueDate) return false;
+        const dd = new Date(st.dueDate); dd.setHours(0,0,0,0);
         return dd >= todayOL && dd <= targetOL;
       }).sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate)).slice(0, 6);
       text += '6. ACTIVITIES PLANNED FOR NEXT WEEK (' + upcoming.length + '):\n';
       if (upcoming.length === 0) text += '   (No specific deliverables scheduled for next week)\n';
       else {
         upcoming.forEach(t => {
-          text += '   ○  ' + (t.name || t.title) + ' [' + getDeliverableScreenLabel(t) + '] — Due: ' + formatCxoDate(t.dueDate) + '\n';
+          const icon = t.type === 'screen' ? '📱' : '🖥️';
+          text += '   ' + icon + ' ○  ' + (t.name || t.title) + ' [' + getDeliverableScreenLabel(t) + '] — Due: ' + formatCxoDate(t.dueDate) + '\n';
         });
       }
       text += '\n';
@@ -44591,12 +44888,37 @@ Earned Value Management measures project performance and progress by comparing p
         return sStr === 'yes' || sStr === 'true';
       },
 
+      cleanNewBadgeText(val) {
+        if (val === null || val === undefined) return { text: '', isNew: false };
+        let str = typeof val === 'string' ? val : String(val);
+        let isNew = false;
+        str = str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').trim();
+        str = str.replace(/^(?:[\u25b6\u25e6▶◦]\s*)+/g, '').trim();
+
+        const newSuffixRegex = /(?:\s*|(?:\s*<sup[^>]*>)?)\s*(?:NEW|ᴺᴱᵂ|\[NEW\]|\(NEW\)|<sup[^>]*>\s*NEW\s*<\/sup>)\s*$/i;
+        if (newSuffixRegex.test(str)) {
+          isNew = true;
+          str = str.replace(newSuffixRegex, '').trim();
+        }
+        str = str.replace(/<\/?sup[^>]*>/gi, '').trim();
+        return { text: str, isNew };
+      },
+
       formatExcelNewBadge(name, isNew) {
         if (name === null || name === undefined) return '';
-        const cleanName = typeof name === 'string' ? name.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '') : String(name);
-        if (!cleanName || cleanName === '-') return cleanName;
-        if (!isNew) return cleanName;
-        if (cleanName.endsWith(' NEW') || cleanName.endsWith(' ᴺᴱᵂ') || cleanName.endsWith('[NEW]')) return cleanName;
+        let rawStr = typeof name === 'string' ? name.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '') : String(name);
+        if (!rawStr || rawStr === '-') return rawStr;
+
+        const prefixMatch = rawStr.match(/^(\s*(?:[\u25b6\u25e6▶◦]\s*)?)/);
+        const prefix = prefixMatch ? prefixMatch[1] : '';
+        const nameWithoutPrefix = rawStr.substring(prefix.length);
+
+        const cleaned = PulseExcel.cleanNewBadgeText(nameWithoutPrefix);
+        const cleanName = prefix + cleaned.text;
+
+        const shouldBeNew = isNew || cleaned.isNew;
+        if (!shouldBeNew) return cleanName;
+
         return {
           richText: [
             { text: cleanName },
@@ -50853,9 +51175,41 @@ Earned Value Management measures project performance and progress by comparing p
           ws.eachRow((row, i) => {
             if (i <= headerRowIdx) return; const obj = {};
             row.eachCell({ includeEmpty: true }, (c, colIdx) => {
-              let v = c.value; if (v && typeof v === 'object' && v.richText) v = v.richText.map(rt => rt.text).join(''); if (v && typeof v === 'object' && v.text) v = v.text; if (v && typeof v === 'object' && v.result !== undefined) v = v.result;
-              if (v instanceof Date && !isNaN(v)) v = v.getFullYear() + '-' + String(v.getMonth() + 1).padStart(2, '0') + '-' + String(v.getDate()).padStart(2, '0');
-              if (hdrs[colIdx - 1]) obj[hdrs[colIdx - 1]] = v;
+              let v = c.value;
+              let isNewFromCell = false;
+              if (v && typeof v === 'object' && v.richText && Array.isArray(v.richText)) {
+                const hasNewRun = v.richText.some(rt =>
+                  (rt.font && rt.font.vertAlign === 'superscript') ||
+                  (rt.text && /^\s*(NEW|ᴺᴱᵂ|\[NEW\])\s*$/i.test(rt.text))
+                );
+                if (hasNewRun) {
+                  isNewFromCell = true;
+                  v = v.richText
+                    .filter(rt => !(rt.font && rt.font.vertAlign === 'superscript') && !(rt.text && /^\s*(NEW|ᴺᴱᵂ|\[NEW\])\s*$/i.test(rt.text)))
+                    .map(rt => rt.text)
+                    .join('');
+                } else {
+                  v = v.richText.map(rt => rt.text).join('');
+                }
+              }
+              if (v && typeof v === 'object' && v.text) v = v.text;
+              if (v && typeof v === 'object' && v.result !== undefined) v = v.result;
+
+              const colKey = hdrs[colIdx - 1];
+              if (colKey) {
+                if (typeof v === 'string') {
+                  const cleaned = PulseExcel.cleanNewBadgeText(v);
+                  if (cleaned.isNew) isNewFromCell = true;
+                  v = cleaned.text;
+                }
+                if (v instanceof Date && !isNaN(v)) {
+                  v = v.getFullYear() + '-' + String(v.getMonth() + 1).padStart(2, '0') + '-' + String(v.getDate()).padStart(2, '0');
+                }
+                obj[colKey] = v;
+                if (isNewFromCell && (colKey === 'name' || colKey === 'windowName' || colKey === 'title' || colKey === 'screenName')) {
+                  obj._isNewWindowFromBadge = true;
+                }
+              }
             });
             if (Object.values(obj).some(v => v !== undefined && v !== null && v !== '')) {
               let skip = false;
@@ -51225,14 +51579,25 @@ Earned Value Management measures project performance and progress by comparing p
 
       normalizeImportedData(rawData) {
         P.tasks.forEach(t => {
-          if (!t.id) t.id = 'TSK-' + String(P.nextTaskId++).padStart(3, '0'); if (!t.name) t.name = 'Untitled Task'; if (!t.status) t.status = 'Not Started'; if (!t.priority) t.priority = 'Medium'; if (!t.complexity) t.complexity = 'Medium';
+          if (!t.id) t.id = 'TSK-' + String(P.nextTaskId++).padStart(3, '0');
+          const cleanTName = PulseExcel.cleanNewBadgeText(t.name || 'Untitled Task');
+          t.name = cleanTName.text || 'Untitled Task';
+          if (cleanTName.isNew || t._isNewWindowFromBadge) t.isNewWindow = true;
+          t.isNewWindow = (t.isNewWindow === true || String(t.isNewWindow || '').toLowerCase() === 'yes' || String(t.isNewWindow || '').toLowerCase() === 'true' || !!t._isNewWindowFromBadge || cleanTName.isNew);
+
+          if (!t.status) t.status = 'Not Started'; if (!t.priority) t.priority = 'Medium'; if (!t.complexity) t.complexity = 'Medium';
           t.progress = parseInt(t.progress); if (isNaN(t.progress) || t.progress < 0) t.progress = 0; if (t.progress > 100) t.progress = 100;
           if (t.status === 'Completed' && t.progress < 100) t.progress = 100; if (t.status === 'Completed' && !t.actCompletionDate) t.actCompletionDate = t.dueDate || new Date().toISOString().split('T')[0];
 
           if (t.subtasks) {
             t.subtasks.forEach(s => {
               if (!s.id) s.id = 'ST-' + String(P.nextSubId++).padStart(3, '0');
-              s.isNewWindow = (s.isNewWindow === true || String(s.isNewWindow || '').toLowerCase() === 'yes' || String(s.isNewWindow || '').toLowerCase() === 'true');
+              const cleanSName = PulseExcel.cleanNewBadgeText(s.name || '');
+              if (s.name) s.name = cleanSName.text;
+              if (s.windowName) s.windowName = PulseExcel.cleanNewBadgeText(s.windowName).text;
+              if (cleanSName.isNew || s._isNewWindowFromBadge || t._isNewWindowFromBadge) s.isNewWindow = true;
+              s.isNewWindow = (s.isNewWindow === true || String(s.isNewWindow || '').toLowerCase() === 'yes' || String(s.isNewWindow || '').toLowerCase() === 'true' || !!s._isNewWindowFromBadge || !!t._isNewWindowFromBadge || cleanSName.isNew);
+
               if ((s.type || '').toLowerCase() === 'screen') {
                 if (!s.windowName || String(s.windowName).trim() === '' || s.windowName === '—' || s.windowName === '-') {
                   s.windowName = s.name || '';
