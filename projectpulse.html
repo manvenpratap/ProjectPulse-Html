@@ -6620,6 +6620,15 @@
       color: #212529;
     }
 
+    #cxo-email-preview-wrap {
+      transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    #cxo-email-preview-wrap:hover {
+      background-color: #f8fafc !important;
+      border-color: #94a3b8 !important;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08) !important;
+    }
+
 
 
     .dash-title {
@@ -39531,24 +39540,33 @@ Earned Value Management measures project performance and progress by comparing p
         allSubItems.forEach(st => {
           const mName = (st.module || 'General').trim();
           if (!modStatsMap[mName]) {
-            modStatsMap[mName] = { name: mName, total: 0, completed: 0, serverTotal: 0, serverCompleted: 0, guiTotal: 0, guiCompleted: 0, sumProgress: 0, overdue: 0, completedThisWeek: 0, earliestReleaseDate: null };
+            modStatsMap[mName] = { name: mName, total: 0, completed: 0, serverTotal: 0, serverCompleted: 0, guiTotal: 0, guiCompleted: 0, sumProgress: 0, overdue: 0, completedThisWeek: 0, earliestReleaseDate: null, earliestReleaseName: '' };
           }
           const m = modStatsMap[mName];
           m.total++;
           const isGui = st.type === 'screen';
           if (isGui) { m.guiTotal++; } else { m.serverTotal++; }
 
-          // Track earliest planned release date for sort
+          // Track earliest planned release date & name for sort and display
           const _eRels = (pState.releases || []);
           let _stRel = null;
+          let _stRelName = '';
           if (st.releaseVersion || st.release) {
             const _rv = String(st.releaseVersion || st.release).trim().toLowerCase();
             const _rel = _eRels.find(r => String(r.name || '').trim().toLowerCase() === _rv || String(r.id || '').trim().toLowerCase() === _rv);
-            if (_rel) _stRel = _rel.date || _rel.endDate || _rel.targetDate || _rel.releaseDate || null;
+            if (_rel) {
+              _stRel = _rel.date || _rel.endDate || _rel.targetDate || _rel.releaseDate || null;
+              _stRelName = _rel.name || _rel.id || '';
+            } else {
+              _stRelName = st.releaseVersion || st.release;
+            }
           }
           if (!_stRel && st.dueDate) _stRel = st.dueDate;
           if (_stRel) {
-            if (!m.earliestReleaseDate || new Date(_stRel) < new Date(m.earliestReleaseDate)) m.earliestReleaseDate = _stRel;
+            if (!m.earliestReleaseDate || new Date(_stRel) < new Date(m.earliestReleaseDate)) {
+              m.earliestReleaseDate = _stRel;
+              if (_stRelName) m.earliestReleaseName = _stRelName;
+            }
           }
 
           const prog = parseInt(st.progress, 10) || (st.status === 'Completed' ? 100 : 0);
@@ -39604,9 +39622,10 @@ Earned Value Management measures project performance and progress by comparing p
           html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-size:12.5px;">';
           html += '<thead><tr bgcolor="#f8fafc" style="background-color:#f8fafc;">';
           html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:left;">Module Name</th>';
-          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:left; width:150px;">Completion Progress</th>';
-          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:center; width:170px;">Sub-tasks &amp; Screens (Server / GUI)</th>';
-          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:right; width:130px;">Weekly Pace &amp; Status</th>';
+          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:left; width:130px;">Planned Release</th>';
+          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:left; width:140px;">Completion Progress</th>';
+          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:center; width:160px;">Sub-tasks &amp; Screens (Server / GUI)</th>';
+          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:right; width:120px;">Weekly Pace &amp; Status</th>';
           html += '</tr></thead><tbody>';
 
           moduleList.forEach((m, idx) => {
@@ -39620,8 +39639,22 @@ Earned Value Management measures project performance and progress by comparing p
               paceBadge = '<span style="color:#64748b; font-size:11px;">Progressing</span>';
             }
 
+            let releaseLabel = '<span style="color:#94a3b8; font-size:11px; font-style:italic;">—</span>';
+            if (m.earliestReleaseName || m.earliestReleaseDate) {
+              const rNameStr = m.earliestReleaseName ? escapeHTML(m.earliestReleaseName) : '';
+              const rDateStr = m.earliestReleaseDate ? formatCxoDate(m.earliestReleaseDate) : '';
+              if (rNameStr && rDateStr) {
+                releaseLabel = '<strong style="color:#4f46e5; font-size:11.5px;">🚀 ' + rNameStr + '</strong><br><span style="font-size:10.5px; color:#64748b;">📅 ' + rDateStr + '</span>';
+              } else if (rNameStr) {
+                releaseLabel = '<strong style="color:#4f46e5; font-size:11.5px;">🚀 ' + rNameStr + '</strong>';
+              } else if (rDateStr) {
+                releaseLabel = '<span style="font-size:11px; color:#64748b;">📅 ' + rDateStr + '</span>';
+              }
+            }
+
             html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
             html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; font-weight:600; color:#0f172a;">' + escapeHTML(m.name) + '</td>';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9;">' + releaseLabel + '</td>';
             html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#334155;">';
             html += '<div style="display:flex; justify-space-between; align-items:center; margin-bottom:2px;"><strong style="font-size:12px;">' + m.avgProgress + '%</strong></div>';
             html += miniBar(m.avgProgress, m.color);
@@ -39943,24 +39976,33 @@ Earned Value Management measures project performance and progress by comparing p
         allSubItems.forEach(st => {
           const mName = (st.module || 'General').trim();
           if (!modStatsMap[mName]) {
-            modStatsMap[mName] = { name: mName, total: 0, completed: 0, serverTotal: 0, serverCompleted: 0, guiTotal: 0, guiCompleted: 0, sumProgress: 0, overdue: 0, completedThisWeek: 0, earliestReleaseDate: null };
+            modStatsMap[mName] = { name: mName, total: 0, completed: 0, serverTotal: 0, serverCompleted: 0, guiTotal: 0, guiCompleted: 0, sumProgress: 0, overdue: 0, completedThisWeek: 0, earliestReleaseDate: null, earliestReleaseName: '' };
           }
           const m = modStatsMap[mName];
           m.total++;
           const isGui = st.type === 'screen';
           if (isGui) { m.guiTotal++; } else { m.serverTotal++; }
 
-          // Track earliest planned release date for sort
+          // Track earliest planned release date for sort & display
           const _wRels = (pState.releases || []);
           let _wRel = null;
+          let _wRelName = '';
           if (st.releaseVersion || st.release) {
             const _rv = String(st.releaseVersion || st.release).trim().toLowerCase();
             const _rel = _wRels.find(r => String(r.name || '').trim().toLowerCase() === _rv || String(r.id || '').trim().toLowerCase() === _rv);
-            if (_rel) _wRel = _rel.date || _rel.endDate || _rel.targetDate || _rel.releaseDate || null;
+            if (_rel) {
+              _wRel = _rel.date || _rel.endDate || _rel.targetDate || _rel.releaseDate || null;
+              _wRelName = _rel.name || _rel.id || '';
+            } else {
+              _wRelName = st.releaseVersion || st.release;
+            }
           }
           if (!_wRel && st.dueDate) _wRel = st.dueDate;
           if (_wRel) {
-            if (!m.earliestReleaseDate || new Date(_wRel) < new Date(m.earliestReleaseDate)) m.earliestReleaseDate = _wRel;
+            if (!m.earliestReleaseDate || new Date(_wRel) < new Date(m.earliestReleaseDate)) {
+              m.earliestReleaseDate = _wRel;
+              if (_wRelName) m.earliestReleaseName = _wRelName;
+            }
           }
 
           const prog = parseInt(st.progress, 10) || (st.status === 'Completed' ? 100 : 0);
@@ -40003,11 +40045,17 @@ Earned Value Management measures project performance and progress by comparing p
           html += '<p style="font-size: 13px; color: #94a3b8; font-style: italic;">No module breakdown available.</p>';
         } else {
           html += '<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 12.5px;" border="1" cellpadding="6" cellspacing="0" bordercolor="#cbd5e1">';
-          html += '<tr style="background: #f8fafc; text-align: left; font-weight: 700; color: #475569;"><th>Module</th><th>Progress</th><th>Server Sub-tasks</th><th>GUI Screens</th><th>Total Items</th><th>Status</th></tr>';
+          html += '<tr style="background: #f8fafc; text-align: left; font-weight: 700; color: #475569;"><th>Module</th><th>Planned Release</th><th>Progress</th><th>Server Sub-tasks</th><th>GUI Screens</th><th>Total Items</th><th>Status</th></tr>';
           const listToShow = isCondensed ? moduleList.slice(0, 4) : moduleList;
           listToShow.forEach(m => {
+            let relStr = '—';
+            if (m.earliestReleaseName && m.earliestReleaseDate) relStr = escapeHTML(m.earliestReleaseName) + ' (' + formatCxoDate(m.earliestReleaseDate) + ')';
+            else if (m.earliestReleaseName) relStr = escapeHTML(m.earliestReleaseName);
+            else if (m.earliestReleaseDate) relStr = formatCxoDate(m.earliestReleaseDate);
+
             html += '<tr>';
             html += '<td><strong>' + escapeHTML(m.name) + '</strong></td>';
+            html += '<td>' + relStr + '</td>';
             html += '<td>' + m.avgProgress + '%</td>';
             html += '<td>🖥️ ' + m.serverCompleted + ' / ' + m.serverTotal + '</td>';
             html += '<td>📱 ' + m.guiCompleted + ' / ' + m.guiTotal + '</td>';
@@ -56964,41 +57012,37 @@ Earned Value Management measures project performance and progress by comparing p
             { name: 'Intelligence Suite', screens: ['BI Viewer', 'Export Utility', 'Data Engine'], desc: 'Analytical processing and data exports.' }
           ],
           releases: [
-            { id: 'rel-w1', name: 'v1.0.0', date: '2026-02-20', status: 'Released' },
-            { id: 'rel-w2', name: 'v1.1.0', date: '2026-06-15', status: 'Active' },
-            { id: 'rel-w3', name: 'v2.0.0-Beta', date: '2026-05-15', status: 'Planned' },
+            { id: 'rel-w1', name: 'v1.0.0', date: '2026-08-30', status: 'Released' },
+            { id: 'rel-w2', name: 'v1.1.0', date: '2026-11-15', status: 'Active' },
+            { id: 'rel-w3', name: 'v2.0.0-Beta', date: '2026-12-30', status: 'Planned' },
             { id: 'rel-w4', name: 'Next Major', date: '2027-02-28', status: 'Planned' }
           ],
           team: [{ n: 'Alice', r: 'Lead Designer' }, { n: 'Bob', r: 'Senior Developer' }, { n: 'Carol', r: 'Frontend Developer' }, { n: 'David', r: 'QA Specialist' }, { n: 'Eve', r: 'Product Manager' }],
           tasks: [
-            { name: '💎 Milestone: System Architecture Baseline', module: 'Infrastructure', moduleType: 'Server', category: 'Feature', assignee: 'Alice', status: 'Completed', priority: 'Critical', startDate: '2026-01-15', dueDate: '2026-01-15', progress: 100, complexity: 'Medium', confidence: 'High', baselineDueDate: '2026-01-15', forecastDueDate: '2026-01-15' },
-            { name: 'Architecture Sign-off', module: 'Infrastructure', moduleType: 'Server', category: 'Feature', assignee: 'Alice', status: 'Completed', priority: 'Critical', startDate: '2026-01-15', dueDate: '2026-01-15', progress: 100, complexity: 'Medium', baselineEffort: 2, estEffort: 2 },
-            { name: 'Core API Layer', module: 'API Gateway', moduleType: 'Server', category: 'Backend', releaseVersion: 'v1.0.0', assignee: 'Bob', status: 'Completed', priority: 'Critical', startDate: '2026-01-10', dueDate: '2026-01-15', progress: 100, dependsOn: ['TASK-001'], steps: ['Schema Design', 'API Endpoint Definition', 'Business Logic Implementation', 'Unit Testing', 'API Documentation'], complexity: 'Complex', baselineEffort: 8, estEffort: 12 },
-            { name: 'Auth Controller', module: 'Authentication', moduleType: 'Server', category: 'Backend', releaseVersion: 'v1.0.0', assignee: 'Bob', status: 'Completed', priority: 'High', startDate: '2026-02-10', dueDate: '2026-02-15', progress: 100, dependsOn: ['TASK-003'], subtasks: [{ name: 'Auth Controller', type: 'screen', status: 'Completed', progress: 100 }], complexity: 'Complex', baselineEffort: 5, estEffort: 5 },
-            { name: 'Identity Management GUI', module: 'Authentication', moduleType: 'GUI', category: 'GUI Module', releaseVersion: 'v1.0.0', assignee: 'Alice', status: 'Completed', priority: 'High', startDate: '2026-02-15', dueDate: '2026-02-20', progress: 100, dependsOn: ['TASK-003'], guiScreens: ['Login Form', 'Signup Portal', 'MFA Verification'], complexity: 'Medium', baselineEffort: 6, estEffort: 6 },
-            { name: 'Dashboard Features', module: 'User Interface', moduleType: 'GUI', category: 'GUI Module', releaseVersion: 'v1.1.0', assignee: 'Carol', status: 'In Progress', priority: 'High', startDate: '2026-03-01', dueDate: '2026-05-15', progress: 75, guiScreens: ['Home Feed', 'Activity Stream', 'User Profile'], complexity: 'Medium', baselineEffort: 10, estEffort: 15 },
-            { name: '💎 Milestone: Core API Gateway Live', module: 'Authentication', moduleType: 'Server', category: 'Feature', assignee: 'Bob', status: 'In Progress', priority: 'High', startDate: '2026-02-15', dueDate: '2026-02-20', progress: 60, complexity: 'Medium', confidence: 'Medium', baselineDueDate: '2026-02-15', forecastDueDate: '2026-02-20' },
-            { name: 'Data Engine Pro', module: 'Core Engine', moduleType: 'Server', category: 'Backend', releaseVersion: 'v1.1.0', assignee: 'Bob', status: 'In Progress', priority: 'Critical', startDate: '2026-03-15', dueDate: '2026-06-15', progress: 40, subtasks: [{ name: 'Data Engine', type: 'screen', status: 'In Progress', progress: 40 }], complexity: 'Complex', baselineEffort: 12, estEffort: 12 },
-            { name: 'Analytics Suite', module: 'Analytics Service', moduleType: 'GUI', category: 'GUI Module', releaseVersion: 'v1.1.0', assignee: 'Carol', status: 'Under Review', priority: 'Medium', startDate: '2026-04-10', dueDate: '2026-05-10', progress: 90, guiScreens: ['BI Viewer', 'Export Utility'], complexity: 'Medium', baselineEffort: 8, estEffort: 8 },
-            { name: 'DB Migration Tool', module: 'Database Migration', moduleType: 'Server', category: 'DevOps', releaseVersion: 'v2.0.0-Beta', assignee: 'Bob', status: 'On Hold', priority: 'High', startDate: '2026-05-01', dueDate: '2026-05-15', progress: 10, dependsOn: ['TASK-006'], notes: 'Awaiting schema approval', complexity: 'Easy', baselineEffort: 4, estEffort: 4 },
-            { name: '💎 Milestone: Product Launch v1.0', module: 'User Interface', moduleType: 'GUI', category: 'Feature', assignee: 'Carol', status: 'Not Started', priority: 'Critical', startDate: '2026-05-15', dueDate: '2026-06-01', progress: 0, complexity: 'Medium', confidence: 'Low', baselineDueDate: '2026-05-15', forecastDueDate: '2026-06-01' },
-            { name: 'Edge Nodes', module: 'Infrastructure', moduleType: 'Server', category: 'Infrastructure', releaseVersion: 'Next Major', assignee: 'David', status: 'Not Started', priority: 'Low', startDate: '2026-07-01', dueDate: '2027-02-28', progress: 0, complexity: 'Easy', baselineEffort: 10, estEffort: 10 }
+            { name: '💎 Milestone: System Architecture Baseline', module: 'Infrastructure', moduleType: 'Server', category: 'Feature', assignee: 'Alice', status: 'Completed', priority: 'Critical', startDate: '2026-08-01', dueDate: '2026-08-10', progress: 100, complexity: 'Medium', confidence: 'High', baselineDueDate: '2026-08-10', forecastDueDate: '2026-08-10' },
+            { name: 'Architecture Sign-off', module: 'Infrastructure', moduleType: 'Server', category: 'Feature', assignee: 'Alice', status: 'Completed', priority: 'Critical', startDate: '2026-08-01', dueDate: '2026-08-10', progress: 100, complexity: 'Medium', baselineEffort: 2, estEffort: 2 },
+            { name: 'Core API Layer', module: 'API Gateway', moduleType: 'Server', category: 'Backend', releaseVersion: 'v1.0.0', assignee: 'Bob', status: 'Completed', priority: 'Critical', startDate: '2026-08-05', dueDate: '2026-08-20', progress: 100, dependsOn: ['TASK-001'], steps: ['Schema Design', 'API Endpoint Definition', 'Business Logic Implementation', 'Unit Testing', 'API Documentation'], complexity: 'Complex', baselineEffort: 8, estEffort: 12 },
+            { name: 'Auth Controller', module: 'Authentication', moduleType: 'Server', category: 'Backend', releaseVersion: 'v1.0.0', assignee: 'Bob', status: 'Completed', priority: 'High', startDate: '2026-08-15', dueDate: '2026-08-28', progress: 100, dependsOn: ['TASK-003'], subtasks: [{ name: 'Auth Controller', type: 'screen', status: 'Completed', progress: 100 }], complexity: 'Complex', baselineEffort: 5, estEffort: 5 },
+            { name: 'Identity Management GUI', module: 'Authentication', moduleType: 'GUI', category: 'GUI Module', releaseVersion: 'v1.0.0', assignee: 'Alice', status: 'Completed', priority: 'High', startDate: '2026-08-15', dueDate: '2026-08-30', progress: 100, dependsOn: ['TASK-003'], guiScreens: ['Login Form', 'Signup Portal', 'MFA Verification'], complexity: 'Medium', baselineEffort: 6, estEffort: 6 },
+            { name: 'Dashboard Features', module: 'User Interface', moduleType: 'GUI', category: 'GUI Module', releaseVersion: 'v1.1.0', assignee: 'Carol', status: 'In Progress', priority: 'High', startDate: '2026-09-01', dueDate: '2026-11-15', progress: 75, guiScreens: ['Home Feed', 'Activity Stream', 'User Profile'], complexity: 'Medium', baselineEffort: 10, estEffort: 15 },
+            { name: '💎 Milestone: Core API Gateway Live', module: 'Authentication', moduleType: 'Server', category: 'Feature', assignee: 'Bob', status: 'In Progress', priority: 'High', startDate: '2026-08-20', dueDate: '2026-09-15', progress: 60, complexity: 'Medium', confidence: 'Medium', baselineDueDate: '2026-09-15', forecastDueDate: '2026-09-15' },
+            { name: 'Data Engine Pro', module: 'Core Engine', moduleType: 'Server', category: 'Backend', releaseVersion: 'v1.1.0', assignee: 'Bob', status: 'In Progress', priority: 'Critical', startDate: '2026-09-15', dueDate: '2026-12-15', progress: 40, subtasks: [{ name: 'Data Engine', type: 'screen', status: 'In Progress', progress: 40 }], complexity: 'Complex', baselineEffort: 12, estEffort: 12 },
+            { name: 'Analytics Suite', module: 'Analytics Service', moduleType: 'GUI', category: 'GUI Module', releaseVersion: 'v1.1.0', assignee: 'Carol', status: 'In Progress', priority: 'Medium', startDate: '2026-10-01', dueDate: '2026-11-30', progress: 50, guiScreens: ['BI Viewer', 'Export Utility'], complexity: 'Medium', baselineEffort: 8, estEffort: 8 },
+            { name: 'DB Migration Tool', module: 'Database Migration', moduleType: 'Server', category: 'DevOps', releaseVersion: 'v2.0.0-Beta', assignee: 'Bob', status: 'Not Started', priority: 'High', startDate: '2026-12-01', dueDate: '2027-01-15', progress: 0, dependsOn: ['TASK-006'], notes: 'Awaiting schema approval', complexity: 'Easy', baselineEffort: 4, estEffort: 4 },
+            { name: '💎 Milestone: Product Launch v1.0', module: 'User Interface', moduleType: 'GUI', category: 'Feature', assignee: 'Carol', status: 'Not Started', priority: 'Critical', startDate: '2026-12-15', dueDate: '2027-01-30', progress: 0, complexity: 'Medium', confidence: 'Low', baselineDueDate: '2027-01-30', forecastDueDate: '2027-01-30' },
+            { name: 'Edge Nodes', module: 'Infrastructure', moduleType: 'Server', category: 'Infrastructure', releaseVersion: 'Next Major', assignee: 'David', status: 'Not Started', priority: 'Low', startDate: '2027-01-01', dueDate: '2027-02-28', progress: 0, complexity: 'Easy', baselineEffort: 10, estEffort: 10 }
           ],
           defects: [
-            { id: 'DEF-001', title: 'Login button unresponsive on Safari', type: 'Functional Bug', status: 'New', severity: 'S2 - High', priority: 'High', assignee: 'Bob', reporter: 'David', linkedType: 'Task', linkedId: 'TASK-003', createdAt: '2026-02-16T10:00:00Z', updatedAt: '2026-02-16T12:00:00Z' },
-            { id: 'DEF-002', title: 'MFA SMS code delay > 5 mins', type: 'Performance', status: 'Assigned', severity: 'S1 - Blocker', priority: 'Critical', assignee: 'Bob', reporter: 'Eve', linkedType: 'Screen', linkedId: 'MFA Verification', createdAt: '2026-02-18T14:30:00Z', updatedAt: '2026-02-19T09:00:00Z' },
-            { id: 'DEF-003', title: 'Signup form missing mobile field', type: 'Suggestion', status: 'Closed', severity: 'S4 - Low', priority: 'Low', assignee: 'Alice', reporter: 'David', linkedType: 'Screen', linkedId: 'Signup Portal', createdAt: '2026-02-20T09:15:00Z', updatedAt: '2026-02-21T10:30:00Z' }
+            { id: 'DEF-001', title: 'Login button unresponsive on Safari', type: 'Functional Bug', status: 'New', severity: 'S2 - High', priority: 'High', assignee: 'Bob', reporter: 'David', linkedType: 'Task', linkedId: 'TASK-003', createdAt: '2026-08-16T10:00:00Z', updatedAt: '2026-08-16T12:00:00Z' },
+            { id: 'DEF-002', title: 'MFA SMS code delay > 5 mins', type: 'Performance', status: 'Assigned', severity: 'S1 - Blocker', priority: 'Critical', assignee: 'Bob', reporter: 'Eve', linkedType: 'Screen', linkedId: 'MFA Verification', createdAt: '2026-08-18T14:30:00Z', updatedAt: '2026-08-19T09:00:00Z' },
+            { id: 'DEF-003', title: 'Signup form missing mobile field', type: 'Suggestion', status: 'Closed', severity: 'S4 - Low', priority: 'Low', assignee: 'Alice', reporter: 'David', linkedType: 'Screen', linkedId: 'Signup Portal', createdAt: '2026-08-20T09:15:00Z', updatedAt: '2026-08-21T10:30:00Z' }
           ],
           raids: [
-            { id: 'RAID-001', type: 'Risk', title: 'Core API Gateway Bottleneck', desc: 'High volume of microservices calling the legacy gateway could cause cascading timeouts during peak market hours.', owner: 'Alice', impact: 'High', probability: 'High', severity: 'S1 - Critical', dueDate: '2026-05-06', mitigation: 'Implement Redis caching and circuit breakers at the gateway level. Assigning Carol to lead stress testing.', status: 'Active', linkedTasks: ['TASK-002'], linkedMilestones: [], createdAt: '2026-05-06T10:00:00Z', updatedAt: '2026-05-19T10:00:00Z' },
-            { id: 'RAID-002', type: 'Dependency', title: 'External KYC Provider API Integration', desc: 'Third party KYC API v3 release is delayed by 2 weeks, blocking the user account onboarding workflow.', owner: 'Bob', impact: 'High', probability: 'Medium', severity: 'S2 - Major', dueDate: '2026-05-16', mitigation: 'Develop mock KYC service to unblock frontend development. Escalated to vendor account manager.', status: 'Active', linkedTasks: ['TASK-004'], linkedMilestones: [], createdAt: '2026-05-11T10:00:00Z', updatedAt: '2026-05-18T10:00:00Z' },
-            { id: 'RAID-003', type: 'Issue', title: 'QA Staging Environment Unstable', desc: 'Memory leaks in staging database container causing daily crashes and blocking performance sign-off.', owner: 'David', impact: 'Medium', probability: 'High', severity: 'S2 - Major', dueDate: '2026-05-21', mitigation: 'Provision dedicated database instance for QA staging. DevOps team currently reconfiguring docker compose.', status: 'Active', linkedTasks: ['TASK-008'], linkedMilestones: [], createdAt: '2026-05-16T10:00:00Z', updatedAt: '2026-05-20T10:00:00Z' },
-            { id: 'RAID-004', type: 'Assumption', title: 'Existing User Data Schema Compatibility', desc: 'Assuming legacy user tables can be migrated to the new schema without requiring multi-hour maintenance downtime.', owner: 'Alice', impact: 'High', probability: 'Low', severity: 'S3 - Moderate', dueDate: '2026-05-31', mitigation: 'Mitigate with dry-run migration scripts on staging database. Completed successfully last week.', status: 'Mitigated', linkedTasks: ['TASK-001'], linkedMilestones: [], createdAt: '2026-05-01T10:00:00Z', updatedAt: '2026-05-13T10:00:00Z' }
+            { id: 'RAID-001', type: 'Risk', title: 'Core API Gateway Bottleneck', desc: 'High volume of microservices calling the gateway could cause cascading timeouts.', owner: 'Alice', impact: 'High', probability: 'High', severity: 'S1 - Critical', dueDate: '2026-10-06', mitigation: 'Implement Redis caching and circuit breakers.', status: 'Active', linkedTasks: ['TASK-002'], linkedMilestones: [], createdAt: '2026-08-06T10:00:00Z', updatedAt: '2026-08-19T10:00:00Z' },
+            { id: 'RAID-002', type: 'Dependency', title: 'External KYC Provider API Integration', desc: 'Third party KYC API v3 release delayed.', owner: 'Bob', impact: 'High', probability: 'Medium', severity: 'S2 - Major', dueDate: '2026-11-16', mitigation: 'Develop mock KYC service.', status: 'Active', linkedTasks: ['TASK-004'], linkedMilestones: [], createdAt: '2026-08-11T10:00:00Z', updatedAt: '2026-08-18T10:00:00Z' }
           ],
           decisions: [
-            { id: 'DEC-001', title: 'Adopt GraphQL for Market Intelligence Feed', owner: 'Alice', date: '2026-05-11', rationale: 'Reduces over-fetching and allows dynamic client queries for complex financial dashboards. Approved by Architecture Board.', status: 'Approved', affectedScope: 'Market Intelligence Module' },
-            { id: 'DEC-002', title: 'Deprecate Legacy SOAP Payment Gateway', owner: 'Bob', date: '2026-05-16', rationale: 'Maintenance overhead exceeds transaction volume. Migrating all clients to REST API to simplify codebase.', status: 'Approved', affectedScope: 'Payment Module' },
-            { id: 'DEC-003', title: 'Delay User Profile Customization to v2.1.0', owner: 'Eve', date: '2026-05-20', rationale: 'Prioritizing core banking stability and security compliance for v2.0 release. UI resources reallocated to Cash Accounts GUI.', status: 'Pending Sign-off', affectedScope: 'User Interface' }
+            { id: 'DEC-001', title: 'Adopt GraphQL for Market Intelligence Feed', owner: 'Alice', date: '2026-08-11', rationale: 'Reduces over-fetching and allows dynamic client queries.', status: 'Approved', affectedScope: 'Market Intelligence Module' }
           ]
         },
         mobile: {
@@ -57009,8 +57053,8 @@ Earned Value Management measures project performance and progress by comparing p
           ],
           team: [{ n: 'Rahul', r: 'Lead' }, { n: 'Sneha', r: 'Developer' }, { n: 'Vikram', r: 'Developer' }, { n: 'Meera', r: 'Designer' }],
           tasks: [
-            { name: '💎 Milestone: Design & Concept Sign-off', module: 'User Interface', moduleType: 'GUI', category: 'Feature', assignee: 'Meera', status: 'Completed', priority: 'High', startDate: '2026-02-01', dueDate: '2026-02-01', progress: 100, complexity: 'Easy', confidence: 'High', baselineDueDate: '2026-02-01', forecastDueDate: '2026-02-01' },
-            { name: 'Concept Prototype', module: 'User Interface', moduleType: 'GUI', category: 'GUI Module', assignee: 'Meera', status: 'Completed', priority: 'High', startDate: '2026-02-01', dueDate: '2026-02-01', progress: 100, complexity: 'Easy', baselineEffort: 2, estEffort: 2 },
+            { name: '💎 Milestone: Design & Concept Sign-off', module: 'User Interface', moduleType: 'GUI', category: 'Feature', assignee: 'Meera', status: 'Completed', priority: 'High', startDate: '2026-08-01', dueDate: '2026-08-10', progress: 100, complexity: 'Easy', confidence: 'High', baselineDueDate: '2026-08-10', forecastDueDate: '2026-08-10' },
+            { name: 'Concept Prototype', module: 'User Interface', moduleType: 'GUI', category: 'GUI Module', assignee: 'Meera', status: 'Completed', priority: 'High', startDate: '2026-08-01', dueDate: '2026-08-15', progress: 100, complexity: 'Easy', baselineEffort: 2, estEffort: 2 },
             {
               name: 'Offline Sync Logic',
               module: 'Core Engine',
@@ -57019,25 +57063,25 @@ Earned Value Management measures project performance and progress by comparing p
               assignee: 'Rahul',
               status: 'Completed',
               priority: 'Critical',
-              startDate: '2026-02-05',
-              dueDate: '2026-02-10',
-              actCompletionDate: '2026-02-10',
+              startDate: '2026-08-05',
+              dueDate: '2026-08-25',
+              actCompletionDate: '2026-08-25',
               progress: 100,
               complexity: 'Complex',
               dependsOn: ['TASK-001'],
               baselineEffort: 6,
               estEffort: 10,
               subtasks: [
-                { id: 'ST-401', name: 'Local DB Integration', status: 'Completed', done: true, effort: 3, startDate: '2026-02-05', actCompletionDate: '2026-02-08', actEffort: 3 },
-                { id: 'ST-402', name: 'Conflict Resolution Logic', status: 'Completed', done: true, effort: 2, startDate: '2026-02-08', actCompletionDate: '2026-02-10', actEffort: 2 }
+                { id: 'ST-401', name: 'Local DB Integration', status: 'Completed', done: true, effort: 3, startDate: '2026-08-05', actCompletionDate: '2026-08-15', actEffort: 3 },
+                { id: 'ST-402', name: 'Conflict Resolution Logic', status: 'Completed', done: true, effort: 2, startDate: '2026-08-15', actCompletionDate: '2026-08-25', actEffort: 2 }
               ]
             },
-            { name: '💎 Milestone: Core Offline Sync Verification', module: 'Core Engine', moduleType: 'Server', category: 'Feature', assignee: 'Rahul', status: 'In Progress', priority: 'Critical', startDate: '2026-02-10', dueDate: '2026-02-15', progress: 50, complexity: 'Complex', confidence: 'Medium', baselineDueDate: '2026-02-10', forecastDueDate: '2026-02-15' },
-            { name: 'Push Notifications', module: 'Infrastructure', moduleType: 'Interface', category: 'Infrastructure', assignee: 'Vikram', status: 'In Progress', priority: 'High', startDate: '2026-03-01', dueDate: '2026-03-15', progress: 70, dependsOn: ['TASK-002'], baselineEffort: 2, estEffort: 4, complexity: 'Medium' },
-            { name: 'Onboarding Flow', module: 'User Interface', moduleType: 'GUI', category: 'GUI Module', assignee: 'Meera', status: 'Completed', priority: 'High', startDate: '2026-02-15', dueDate: '2026-02-20', progress: 100, dependsOn: ['TASK-001'], guiScreens: ['Splash Screen', 'Login', 'Tutorial'], complexity: 'Medium', baselineEffort: 5, estEffort: 5 },
-            { name: 'Settings Module', module: 'User Interface', moduleType: 'GUI', category: 'GUI Module', assignee: 'Meera', status: 'In Progress', priority: 'Medium', startDate: '2026-04-10', dueDate: '2026-05-15', progress: 30, dependsOn: ['TASK-004'], guiScreens: ['Profile Settings', 'Notification Config'], complexity: 'Easy', baselineEffort: 4, estEffort: 4 },
-            { name: '💎 Milestone: App Store Beta Submission', module: 'User Interface', moduleType: 'GUI', category: 'Feature', assignee: 'Meera', status: 'Not Started', priority: 'High', startDate: '2026-05-15', dueDate: '2026-05-25', progress: 0, complexity: 'Medium', confidence: 'Low', baselineDueDate: '2026-05-15', forecastDueDate: '2026-05-25' },
-            { name: 'Memory Diagnostics', module: 'Core Engine', moduleType: 'Server', category: 'Testing', assignee: 'Vikram', status: 'In Progress', priority: 'Critical', startDate: '2026-04-20', dueDate: '2026-05-22', progress: 50, dependsOn: ['TASK-002'], baselineEffort: 2, estEffort: 8, complexity: 'Complex' }
+            { name: '💎 Milestone: Core Offline Sync Verification', module: 'Core Engine', moduleType: 'Server', category: 'Feature', assignee: 'Rahul', status: 'In Progress', priority: 'Critical', startDate: '2026-08-25', dueDate: '2026-09-15', progress: 50, complexity: 'Complex', confidence: 'Medium', baselineDueDate: '2026-09-15', forecastDueDate: '2026-09-15' },
+            { name: 'Push Notifications', module: 'Infrastructure', moduleType: 'Interface', category: 'Infrastructure', assignee: 'Vikram', status: 'In Progress', priority: 'High', startDate: '2026-09-01', dueDate: '2026-10-15', progress: 70, dependsOn: ['TASK-002'], baselineEffort: 2, estEffort: 4, complexity: 'Medium' },
+            { name: 'Onboarding Flow', module: 'User Interface', moduleType: 'GUI', category: 'GUI Module', assignee: 'Meera', status: 'Completed', priority: 'High', startDate: '2026-08-15', dueDate: '2026-08-30', progress: 100, dependsOn: ['TASK-001'], guiScreens: ['Splash Screen', 'Login', 'Tutorial'], complexity: 'Medium', baselineEffort: 5, estEffort: 5 },
+            { name: 'Settings Module', module: 'User Interface', moduleType: 'GUI', category: 'GUI Module', assignee: 'Meera', status: 'In Progress', priority: 'Medium', startDate: '2026-10-01', dueDate: '2026-12-15', progress: 30, dependsOn: ['TASK-004'], guiScreens: ['Profile Settings', 'Notification Config'], complexity: 'Easy', baselineEffort: 4, estEffort: 4 },
+            { name: '💎 Milestone: App Store Beta Submission', module: 'User Interface', moduleType: 'GUI', category: 'Feature', assignee: 'Meera', status: 'Not Started', priority: 'High', startDate: '2026-12-15', dueDate: '2027-01-15', progress: 0, complexity: 'Medium', confidence: 'Low', baselineDueDate: '2027-01-15', forecastDueDate: '2027-01-15' },
+            { name: 'Memory Diagnostics', module: 'Core Engine', moduleType: 'Server', category: 'Testing', assignee: 'Vikram', status: 'Not Started', priority: 'Critical', startDate: '2027-01-01', dueDate: '2027-02-15', progress: 0, dependsOn: ['TASK-002'], baselineEffort: 2, estEffort: 8, complexity: 'Complex' }
           ]
         },
         hierarchical: {
@@ -57050,9 +57094,9 @@ Earned Value Management measures project performance and progress by comparing p
             { name: 'Identity & Access Management', release: 'v2.1.0', screens: ['Profile Edit', 'MFA Settings', 'Settings Panel'], desc: 'User profile editing, security settings including Multi-Factor Authentication (MFA), and system configurations.' }
           ],
           releases: [
-            { id: 'rel-1', name: 'v2.0.0-Alpha', date: '2026-03-15', status: 'Released' },
-            { id: 'rel-2', name: 'v2.0.0-Beta', date: '2026-05-30', status: 'Active' },
-            { id: 'rel-3', name: 'v2.1.0', date: '2027-01-05', status: 'Planned' }
+            { id: 'rel-1', name: 'v2.0.0-Alpha', date: '2026-08-30', status: 'Released' },
+            { id: 'rel-2', name: 'v2.0.0-Beta', date: '2026-11-15', status: 'Active' },
+            { id: 'rel-3', name: 'v2.1.0', date: '2027-02-15', status: 'Planned' }
           ],
           team: [
             { n: 'Alex Rivera', r: 'Engineering Manager', p: '+1-555-0100', b: '15 May' },
@@ -57075,14 +57119,14 @@ Earned Value Management measures project performance and progress by comparing p
     "status": "Completed",
     "priority": "Critical",
     "progress": 100,
-    "startDate": "2026-02-01",
-    "dueDate": "2026-02-01",
-    "actCompletionDate": "2026-02-01",
+    "startDate": "2026-08-01",
+    "dueDate": "2026-08-05",
+    "actCompletionDate": "2026-08-05",
     "assignee": "Alex Rivera",
     "complexity": "Medium",
     "confidence": "High",
-    "baselineDueDate": "2026-02-01",
-    "forecastDueDate": "2026-02-01"
+    "baselineDueDate": "2026-08-05",
+    "forecastDueDate": "2026-08-05"
   },
   {
     "name": "💎 Milestone: Alpha Release",
@@ -57092,17 +57136,17 @@ Earned Value Management measures project performance and progress by comparing p
     "status": "Completed",
     "priority": "High",
     "progress": 100,
-    "startDate": "2026-03-15",
-    "dueDate": "2026-03-15",
-    "actCompletionDate": "2026-03-15",
+    "startDate": "2026-08-15",
+    "dueDate": "2026-08-30",
+    "actCompletionDate": "2026-08-30",
     "dependsOn": [
       "TASK-001"
     ],
     "assignee": "Sarah Chen",
     "complexity": "Medium",
     "confidence": "High",
-    "baselineDueDate": "2026-03-15",
-    "forecastDueDate": "2026-03-15"
+    "baselineDueDate": "2026-08-30",
+    "forecastDueDate": "2026-08-30"
   },
   {
     "name": "💎 Milestone: Security & Audit Sign-off",
@@ -57112,16 +57156,16 @@ Earned Value Management measures project performance and progress by comparing p
     "status": "In Progress",
     "priority": "Critical",
     "progress": 50,
-    "startDate": "2026-04-10",
-    "dueDate": "2026-05-18",
+    "startDate": "2026-09-01",
+    "dueDate": "2026-10-15",
     "dependsOn": [
       "TASK-002"
     ],
     "assignee": "Vikram S",
     "complexity": "Medium",
     "confidence": "Medium",
-    "baselineDueDate": "2026-05-10",
-    "forecastDueDate": "2026-05-18"
+    "baselineDueDate": "2026-10-15",
+    "forecastDueDate": "2026-10-15"
   },
   {
     "name": "💎 Milestone: Production Launch",
@@ -57131,33 +57175,33 @@ Earned Value Management measures project performance and progress by comparing p
     "status": "Not Started",
     "priority": "Critical",
     "progress": 0,
-    "startDate": "2026-12-28",
-    "dueDate": "2027-01-15",
+    "startDate": "2027-01-15",
+    "dueDate": "2027-02-15",
     "dependsOn": [
       "TASK-003"
     ],
     "assignee": "Alex Rivera",
     "complexity": "Medium",
     "confidence": "Low",
-    "baselineDueDate": "2026-12-28",
-    "forecastDueDate": "2027-01-15"
+    "baselineDueDate": "2027-02-15",
+    "forecastDueDate": "2027-02-15"
   },
   {
     "name": "DB: Migration to PostgreSQL",
     "category": "Backend",
     "module": "Core Engine",
     "moduleType": "Server",
-    "releaseVersion": "v2.0.0-Beta",
+    "releaseVersion": "v2.0.0-Alpha",
     "assignee": "Tasha K",
     "status": "Completed",
     "priority": "High",
     "progress": 100,
-    "startDate": "2026-04-10",
-    "dueDate": "2026-04-20",
-    "actCompletionDate": "2026-04-20",
+    "startDate": "2026-08-05",
+    "dueDate": "2026-08-20",
+    "actCompletionDate": "2026-08-20",
     "complexity": "Complex",
     "dependsOn": [
-      "TASK-002"
+      "TASK-001"
     ],
     "baselineEffort": 6,
     "estEffort": 8,
@@ -57169,8 +57213,8 @@ Earned Value Management measures project performance and progress by comparing p
         "status": "Completed",
         "done": true,
         "effort": 2,
-        "startDate": "2026-04-10",
-        "actCompletionDate": "2026-04-12",
+        "startDate": "2026-08-05",
+        "actCompletionDate": "2026-08-10",
         "actEffort": 2
       },
       {
@@ -57179,8 +57223,8 @@ Earned Value Management measures project performance and progress by comparing p
         "status": "Completed",
         "done": true,
         "effort": 6,
-        "startDate": "2026-04-12",
-        "actCompletionDate": "2026-04-20",
+        "startDate": "2026-08-10",
+        "actCompletionDate": "2026-08-20",
         "actEffort": 6
       }
     ]
@@ -57195,8 +57239,8 @@ Earned Value Management measures project performance and progress by comparing p
     "status": "In Progress",
     "priority": "Critical",
     "progress": 75,
-    "startDate": "2026-03-10",
-    "dueDate": "2026-05-30",
+    "startDate": "2026-08-20",
+    "dueDate": "2026-09-30",
     "dependsOn": [
       "TASK-005"
     ],
@@ -57218,39 +57262,38 @@ Earned Value Management measures project performance and progress by comparing p
     "category": "Backend",
     "module": "Core Engine",
     "moduleType": "Server",
-    "releaseVersion": "v2.1.0",
+    "releaseVersion": "v2.0.0-Beta",
     "assignee": "Tasha K",
-    "status": "On Hold",
+    "status": "In Progress",
     "priority": "High",
-    "progress": 10,
-    "startDate": "2026-04-20",
-    "dueDate": "2026-08-03",
+    "progress": 40,
+    "startDate": "2026-09-15",
+    "dueDate": "2026-10-31",
     "dependsOn": [
       "TASK-006"
     ],
     "baselineEffort": 8,
     "estEffort": 10,
-    "complexity": "Complex",
-    "notes": "Blocked by architecture review"
+    "complexity": "Complex"
   },
   {
     "name": "SRV: Overdue Maintenance",
     "category": "Backend",
     "module": "Core Engine",
     "moduleType": "Server",
+    "releaseVersion": "v2.0.0-Beta",
     "assignee": "Tasha K",
     "status": "In Progress",
     "priority": "High",
-    "progress": 20,
-    "startDate": "2026-04-01",
-    "dueDate": "2026-04-15",
+    "progress": 30,
+    "startDate": "2026-09-01",
+    "dueDate": "2026-10-15",
     "dependsOn": [
       "TASK-006"
     ],
     "baselineEffort": 4,
     "estEffort": 5,
-    "complexity": "Medium",
-    "notes": "PAST DUE - Critical attention"
+    "complexity": "Medium"
   },
   {
     "name": "GUI: Trading Dashboard",
@@ -57262,11 +57305,10 @@ Earned Value Management measures project performance and progress by comparing p
     "status": "In Progress",
     "priority": "High",
     "progress": 85,
-    "startDate": "2026-03-05",
-    "dueDate": "2026-05-22",
+    "startDate": "2026-08-25",
+    "dueDate": "2026-10-15",
     "dependsOn": [
-      "TASK-006",
-      "TASK-007"
+      "TASK-006"
     ],
     "estEffort": 12,
     "complexity": "Medium",
@@ -57283,14 +57325,14 @@ Earned Value Management measures project performance and progress by comparing p
     "category": "GUI Module",
     "module": "Trading UI",
     "moduleType": "GUI",
-    "releaseVersion": "v2.0.0-Beta",
+    "releaseVersion": "v2.0.0-Alpha",
     "assignee": "Elena Vance",
     "status": "Completed",
     "priority": "Medium",
     "progress": 100,
-    "startDate": "2026-04-15",
-    "dueDate": "2026-04-25",
-    "actCompletionDate": "2026-04-25",
+    "startDate": "2026-08-10",
+    "dueDate": "2026-08-28",
+    "actCompletionDate": "2026-08-28",
     "estEffort": 5,
     "actEffort": 5,
     "complexity": "Medium",
@@ -57309,8 +57351,8 @@ Earned Value Management measures project performance and progress by comparing p
     "status": "Not Started",
     "priority": "Low",
     "progress": 0,
-    "startDate": "2026-06-15",
-    "dueDate": "2026-07-01",
+    "startDate": "2026-11-01",
+    "dueDate": "2026-12-15",
     "dependsOn": [
       "TASK-007"
     ],
@@ -57327,8 +57369,8 @@ Earned Value Management measures project performance and progress by comparing p
     "status": "Not Started",
     "priority": "High",
     "progress": 0,
-    "startDate": "2026-06-01",
-    "dueDate": "2026-11-15",
+    "startDate": "2026-12-01",
+    "dueDate": "2027-01-20",
     "estEffort": 10,
     "complexity": "Medium",
     "subtasks": [
@@ -57372,8 +57414,8 @@ Earned Value Management measures project performance and progress by comparing p
     "status": "Not Started",
     "priority": "Low",
     "progress": 0,
-    "startDate": "2026-11-15",
-    "dueDate": "2027-01-05",
+    "startDate": "2026-12-15",
+    "dueDate": "2027-02-05",
     "estEffort": 4,
     "complexity": "Easy",
     "guiScreens": [
@@ -57392,8 +57434,8 @@ Earned Value Management measures project performance and progress by comparing p
     "status": "In Progress",
     "priority": "Critical",
     "progress": 40,
-    "startDate": "2026-03-15",
-    "dueDate": "2026-05-28",
+    "startDate": "2026-09-01",
+    "dueDate": "2026-11-15",
     "estEffort": 7,
     "complexity": "Complex",
     "notes": "Wait for vendor keys",
@@ -57413,11 +57455,11 @@ Earned Value Management measures project performance and progress by comparing p
     "moduleType": "Interface",
     "releaseVersion": "v2.0.0-Beta",
     "assignee": "Marcus Wong",
-    "status": "Under Review",
+    "status": "Not Started",
     "priority": "Critical",
-    "progress": 90,
-    "startDate": "2026-04-20",
-    "dueDate": "2026-05-30",
+    "progress": 0,
+    "startDate": "2026-10-15",
+    "dueDate": "2026-11-30",
     "estEffort": 5,
     "complexity": "Complex"
   },
@@ -57427,12 +57469,12 @@ Earned Value Management measures project performance and progress by comparing p
     "module": "Compliance",
     "moduleType": "Server",
     "releaseVersion": "v2.1.0",
-    "assignee": "Member B2",
+    "assignee": "Tasha K",
     "status": "Not Started",
     "priority": "Medium",
     "progress": 0,
-    "startDate": "2026-05-01",
-    "dueDate": "2026-07-30",
+    "startDate": "2026-11-01",
+    "dueDate": "2027-01-15",
     "estEffort": 6,
     "complexity": "Medium"
   },
@@ -57441,14 +57483,14 @@ Earned Value Management measures project performance and progress by comparing p
     "category": "Backend",
     "module": "Market Data",
     "moduleType": "Server",
-    "releaseVersion": "v2.0.0-Beta",
+    "releaseVersion": "v2.0.0-Alpha",
     "assignee": "Rahul P",
     "status": "Completed",
     "priority": "High",
     "progress": 100,
-    "startDate": "2026-04-01",
-    "dueDate": "2026-04-10",
-    "actCompletionDate": "2026-04-09",
+    "startDate": "2026-08-01",
+    "dueDate": "2026-08-25",
+    "actCompletionDate": "2026-08-25",
     "estEffort": 4,
     "complexity": "Medium"
   },
@@ -57461,8 +57503,9 @@ Earned Value Management measures project performance and progress by comparing p
     "status": "Completed",
     "priority": "Medium",
     "progress": 100,
-    "startDate": "2026-01-05",
-    "dueDate": "2026-01-20",
+    "startDate": "2026-08-01",
+    "dueDate": "2026-08-15",
+    "actCompletionDate": "2026-08-15",
     "estEffort": 10,
     "complexity": "Easy"
   },
@@ -57471,14 +57514,14 @@ Earned Value Management measures project performance and progress by comparing p
     "category": "Infrastructure",
     "module": "Infrastructure",
     "moduleType": "Server",
-    "releaseVersion": "v2.0.0-Beta",
+    "releaseVersion": "v2.0.0-Alpha",
     "assignee": "Vikram S",
     "status": "Completed",
     "priority": "Critical",
     "progress": 100,
-    "startDate": "2026-04-01",
-    "dueDate": "2026-04-15",
-    "actCompletionDate": "2026-04-14",
+    "startDate": "2026-08-05",
+    "dueDate": "2026-08-28",
+    "actCompletionDate": "2026-08-28",
     "estEffort": 3,
     "complexity": "Complex"
   },
@@ -57488,12 +57531,12 @@ Earned Value Management measures project performance and progress by comparing p
     "module": "Infrastructure",
     "moduleType": "Server",
     "releaseVersion": "v2.1.0",
-    "assignee": "Member C3",
+    "assignee": "Vikram S",
     "status": "In Progress",
     "priority": "Medium",
     "progress": 60,
-    "startDate": "2026-04-25",
-    "dueDate": "2026-07-15",
+    "startDate": "2026-10-01",
+    "dueDate": "2026-12-30",
     "estEffort": 2,
     "complexity": "Medium"
   },
@@ -57502,16 +57545,15 @@ Earned Value Management measures project performance and progress by comparing p
     "category": "Infrastructure",
     "module": "Infrastructure",
     "moduleType": "Server",
-    "releaseVersion": "v2.0.0-Beta",
+    "releaseVersion": "v2.1.0",
     "assignee": "Vikram S",
-    "status": "Cancelled",
+    "status": "Not Started",
     "priority": "Low",
     "progress": 0,
-    "startDate": "2026-02-10",
-    "dueDate": "2026-02-12",
+    "startDate": "2027-01-05",
+    "dueDate": "2027-02-15",
     "estEffort": 1,
-    "complexity": "Easy",
-    "notes": "Scope replaced by AWS migration"
+    "complexity": "Easy"
   },
   {
     "name": "SEC: Vulnerability Scan",
