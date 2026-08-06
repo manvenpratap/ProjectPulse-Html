@@ -39426,7 +39426,100 @@ Earned Value Management measures project performance and progress by comparing p
       return screen ? `Screen: ${screen}` : mod;
     }
 
-        function generateCxoEmailHtml() {
+    // Shared CXO Email / Report Helpers
+    function getCxoCadenceInfo(cadenceVal) {
+      const cadence      = cadenceVal || 'weekly';
+      const daysBack     = cadence === 'fortnightly' ? 14 : 7;
+      const cadenceLabel = cadence === 'fortnightly' ? 'Fortnightly Brief' : 'Weekly Brief';
+      const todayDate    = new Date(); todayDate.setHours(0,0,0,0);
+      const weekAgoDate  = new Date(todayDate); weekAgoDate.setDate(weekAgoDate.getDate() - daysBack);
+      const rpStart      = new Date(); rpStart.setDate(rpStart.getDate() - daysBack);
+      const reportPeriod = formatCxoDate(rpStart) + ' – ' + formatCxoDate(new Date());
+      return { cadence, daysBack, cadenceLabel, todayDate, weekAgoDate, rpStart, reportPeriod };
+    }
+
+    function getCxoSprintData(pState) {
+      const nowSp = new Date();
+      const monthNameSp = nowSp.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      const allSubItemsSp = getAllSubtaskItems(pState.tasks || []);
+      let monthTasksSp = allSubItemsSp.filter(st => {
+        if (!st.dueDate) return false;
+        const d = new Date(st.dueDate);
+        return d.getMonth() === nowSp.getMonth() && d.getFullYear() === nowSp.getFullYear();
+      });
+      if (!monthTasksSp.length) {
+        const futureLimit = new Date(nowSp); futureLimit.setDate(futureLimit.getDate() + 30);
+        monthTasksSp = allSubItemsSp.filter(st => {
+          if (!st.dueDate) return false;
+          const d = new Date(st.dueDate);
+          return d >= nowSp && d <= futureLimit;
+        }).slice(0, 20);
+      }
+      monthTasksSp.sort((a, b) => {
+        const aComp = a.status === 'Completed' || parseInt(a.progress, 10) === 100;
+        const bComp = b.status === 'Completed' || parseInt(b.progress, 10) === 100;
+        if (aComp !== bComp) return aComp ? 1 : -1;
+        return (a.dueDate || '').localeCompare(b.dueDate || '');
+      });
+      const mCompSp   = monthTasksSp.filter(st => st.status === 'Completed' || parseInt(st.progress, 10) === 100).length;
+      const mInProgSp = monthTasksSp.filter(st => { const p = parseInt(st.progress, 10) || 0; return st.status === 'In Progress' || (p > 0 && p < 100 && st.status !== 'Completed'); }).length;
+      const mNotStartSp = monthTasksSp.filter(st => { const p = parseInt(st.progress, 10) || 0; return (st.status === 'Not Started' || st.status === 'Planned') && p === 0; }).length;
+      const mTotalSp  = monthTasksSp.length || 1;
+      const mPctSp    = Math.round((mCompSp / mTotalSp) * 100);
+      const trendSp   = mPctSp >= 50 ? 'On Track' : 'Behind Target';
+      const trendColorSp = mPctSp >= 50 ? '#16a34a' : '#dc2626';
+
+      return { monthNameSp, monthTasksSp, mCompSp, mInProgSp, mNotStartSp, mTotalSp, mPctSp, trendSp, trendColorSp };
+    }
+
+    function computeCxoStatusBreakdown(subtasks) {
+      const totalT = subtasks.length;
+      const todayViz = new Date(); todayViz.setHours(0,0,0,0);
+
+      let cntCompleted = 0, cntInProgress = 0, cntInReview = 0, cntNotStarted = 0, cntOnHold = 0, cntOverdue = 0;
+      subtasks.forEach(st => {
+        const s = (st.status || '').toLowerCase();
+        const prog = parseInt(st.progress, 10) || 0;
+        if (s === 'completed' || prog === 100)          { cntCompleted++;  return; }
+        if (s === 'blocked' || s === 'on hold')         { cntOnHold++;     return; }
+        if (st.dueDate && s !== 'cancelled' && s !== 'not started' && s !== 'planned') {
+          const dd = new Date(st.dueDate); dd.setHours(0,0,0,0);
+          if (dd < todayViz && s !== 'completed')       { cntOverdue++;    return; }
+        }
+        if (s === 'review' || s === 'in review' || s === 'testing' || s === 'qa') { cntInReview++; return; }
+        if (s === 'in progress' || prog > 0)            { cntInProgress++; return; }
+        cntNotStarted++;
+      });
+
+      const statusBuckets = [
+        { label: 'Completed',   icon: '✅', key: 'completed',  count: cntCompleted,  color: '#16a34a', bg: '#f0fdf4' },
+        { label: 'In Progress', icon: '⚙️', key: 'inprogress', count: cntInProgress, color: '#2563eb', bg: '#eff6ff' },
+        { label: 'In Review',   icon: '🔍', key: 'review',     count: cntInReview,   color: '#8b5cf6', bg: '#faf5ff' },
+        { label: 'Not Started', icon: '⏳', key: 'notstarted', count: cntNotStarted, color: '#64748b', bg: '#f8fafc' },
+        { label: 'On Hold',     icon: '⏸️', key: 'blocked',    count: cntOnHold,     color: '#9333ea', bg: '#fdf4ff' },
+        { label: 'Overdue',     icon: '🚨', key: 'overdue',    count: cntOverdue,    color: '#dc2626', bg: '#fef2f2' }
+      ].filter(b => b.count > 0);
+
+      return { totalT, cntCompleted, cntInProgress, cntInReview, cntNotStarted, cntOnHold, cntOverdue, statusBuckets };
+    }
+
+    function getCxoStatusColor(s) {
+      if (s === 'Completed') return { bg: '#dcfce7', fg: '#16a34a' };
+      if (s === 'In Progress') return { bg: '#dbeafe', fg: '#2563eb' };
+      if (s === 'Under Review') return { bg: '#fef9c3', fg: '#ca8a04' };
+      if (s === 'On Hold') return { bg: '#fce7f3', fg: '#be185d' };
+      if (s === 'Cancelled') return { bg: '#fee2e2', fg: '#dc2626' };
+      return { bg: '#f1f5f9', fg: '#64748b' };
+    }
+
+    function getCxoPriorityColor(p) {
+      if (p === 'Critical') return '#dc2626';
+      if (p === 'High') return '#d97706';
+      if (p === 'Medium') return '#2563eb';
+      return '#64748b';
+    }
+
+    function generateCxoEmailHtml() {
       const pState = (typeof window !== "undefined" && window.P && window.P.tasks) ? window.P : (typeof P !== "undefined" ? P : {});
       const stats = computeGlobalStats();
       
@@ -39439,7 +39532,6 @@ Earned Value Management measures project performance and progress by comparing p
       const incChallenges = $id('cxo-sec-challenges')?.checked ?? true;
       const incAsk        = $id('cxo-sec-ask')?.checked ?? true;
 
-      
       const execNote = ($id('cxo-exec-note')?.value || '').trim();
       const execAsk  = ($id('cxo-exec-ask')?.value || '').trim();
 
@@ -39452,17 +39544,18 @@ Earned Value Management measures project performance and progress by comparing p
       const pmObj = members.find(m => m.role && (m.role.toLowerCase().includes('manager') || m.role.toLowerCase().includes('lead') || m.role.toLowerCase().includes('pm'))) || members[0] || {};
       const pmName = pmObj.name || 'Project Lead';
 
-      const cadence      = $id('cxo-report-cadence')?.value || 'weekly';
-      const daysBack     = cadence === 'fortnightly' ? 14 : 7;
-      const cadenceLabel = cadence === 'fortnightly' ? 'Fortnightly Brief' : 'Weekly Brief';
-      const todayDate    = new Date(); todayDate.setHours(0,0,0,0);
-      const weekAgoDate  = new Date(todayDate); weekAgoDate.setDate(weekAgoDate.getDate() - daysBack);
-      const rpStart      = new Date(); rpStart.setDate(rpStart.getDate() - daysBack);
-      const reportPeriod = formatCxoDate(rpStart) + ' – ' + formatCxoDate(new Date());
-      const guiPct       = stats.guiTotal > 0 ? Math.round((stats.guiCompleted / stats.guiTotal) * 100) : 0;
+      const { cadenceLabel, todayDate, weekAgoDate, reportPeriod, daysBack } = getCxoCadenceInfo($id('cxo-report-cadence')?.value);
+      const guiPct = stats.guiTotal > 0 ? Math.round((stats.guiCompleted / stats.guiTotal) * 100) : 0;
 
       const miniBar = function(pct, color) {
-        return '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top:4px; background-color:#e2e8f0; height:6px; border-radius:3px;"><tr><td width="' + Math.min(100, Math.max(0, pct)) + '%" bgcolor="' + color + '" style="background-color:' + color + '; height:6px; border-radius:3px; font-size:1px; line-height:1px;">&nbsp;</td><td style="font-size:1px; line-height:1px;">&nbsp;</td></tr></table>';
+        const cleanPct = Math.min(100, Math.max(0, parseInt(pct, 10) || 0));
+        if (cleanPct <= 0) {
+          return '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top:4px; background-color:#e2e8f0; height:6px; border-radius:3px;"><tr><td width="100%" style="font-size:1px; line-height:1px;">&nbsp;</td></tr></table>';
+        }
+        if (cleanPct >= 100) {
+          return '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top:4px; background-color:#e2e8f0; height:6px; border-radius:3px;"><tr><td width="100%" bgcolor="' + color + '" style="background-color:' + color + '; height:6px; border-radius:3px; font-size:1px; line-height:1px;">&nbsp;</td></tr></table>';
+        }
+        return '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top:4px; background-color:#e2e8f0; height:6px; border-radius:3px; table-layout:fixed;"><tr><td width="' + cleanPct + '%" bgcolor="' + color + '" style="background-color:' + color + '; height:6px; border-radius:3px 0 0 3px; font-size:1px; line-height:1px;">&nbsp;</td><td width="' + (100 - cleanPct) + '%" style="font-size:1px; line-height:1px;">&nbsp;</td></tr></table>';
       };
 
       const secHdr = function(color, icon, label) {
@@ -39575,52 +39668,8 @@ Earned Value Management measures project performance and progress by comparing p
 
       // 2. SPRINT TARGET FOR CURRENT MONTH
       if (incSprint) {
-        const nowSp = new Date();
-        const monthNameSp = nowSp.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-        const allSubItemsSp = getAllSubtaskItems(pState.tasks);
-        let monthTasksSp = allSubItemsSp.filter(st => {
-          if (!st.dueDate) return false;
-          const d = new Date(st.dueDate);
-          return d.getMonth() === nowSp.getMonth() && d.getFullYear() === nowSp.getFullYear();
-        });
-        // Fallback: show upcoming tasks from next 30 days if none in current month
-        if (!monthTasksSp.length) {
-          const futureLimit = new Date(nowSp); futureLimit.setDate(futureLimit.getDate() + 30);
-          monthTasksSp = allSubItemsSp.filter(st => {
-            if (!st.dueDate) return false;
-            const d = new Date(st.dueDate);
-            return d >= nowSp && d <= futureLimit;
-          }).slice(0, 20);
-        }
-        // Sort: incomplete first by due date, then completed
-        monthTasksSp.sort((a, b) => {
-          const aComp = a.status === 'Completed' || parseInt(a.progress, 10) === 100;
-          const bComp = b.status === 'Completed' || parseInt(b.progress, 10) === 100;
-          if (aComp !== bComp) return aComp ? 1 : -1;
-          return (a.dueDate || '').localeCompare(b.dueDate || '');
-        });
-        const mCompSp  = monthTasksSp.filter(st => st.status === 'Completed' || parseInt(st.progress, 10) === 100).length;
-        const mInProgSp = monthTasksSp.filter(st => { const p = parseInt(st.progress, 10) || 0; return st.status === 'In Progress' || (p > 0 && p < 100 && st.status !== 'Completed'); }).length;
-        const mNotStartSp = monthTasksSp.filter(st => { const p = parseInt(st.progress, 10) || 0; return (st.status === 'Not Started' || st.status === 'Planned') && p === 0; }).length;
-        const mTotalSp = monthTasksSp.length || 1;
-        const mPctSp   = Math.round((mCompSp / mTotalSp) * 100);
-        const trendSp      = mPctSp >= 50 ? 'On Track' : 'Behind Target';
-        const trendColorSp = mPctSp >= 50 ? '#16a34a' : '#dc2626';
+        const { monthNameSp, monthTasksSp, mCompSp, mInProgSp, mNotStartSp, mPctSp, trendSp, trendColorSp } = getCxoSprintData(pState);
 
-        const spStatusColor = (s) => {
-          if (s === 'Completed') return { bg: '#dcfce7', fg: '#16a34a' };
-          if (s === 'In Progress') return { bg: '#dbeafe', fg: '#2563eb' };
-          if (s === 'Under Review') return { bg: '#fef9c3', fg: '#ca8a04' };
-          if (s === 'On Hold') return { bg: '#fce7f3', fg: '#be185d' };
-          if (s === 'Cancelled') return { bg: '#fee2e2', fg: '#dc2626' };
-          return { bg: '#f1f5f9', fg: '#64748b' };
-        };
-        const spPriorityColor = (p) => {
-          if (p === 'Critical') return '#dc2626';
-          if (p === 'High') return '#d97706';
-          if (p === 'Medium') return '#2563eb';
-          return '#64748b';
-        };
         const spFmtDate = (d) => { if (!d) return '—'; try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch(e) { return d; } };
 
         html += '<tr><td style="padding-bottom:18px;">';
@@ -39657,8 +39706,8 @@ Earned Value Management measures project performance and progress by comparing p
         monthTasksSp.forEach((st, idx) => {
           const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
           const prog = parseInt(st.progress, 10) || (st.status === 'Completed' ? 100 : 0);
-          const sc = spStatusColor(st.status);
-          const pColor = spPriorityColor(st.parent ? st.parent.priority : (st.priority || ''));
+          const sc = getCxoStatusColor(st.status);
+          const pColor = getCxoPriorityColor(st.parent ? st.parent.priority : (st.priority || ''));
           const assignee = st.parent ? (st.parent.assignee || st.assignee || '—') : (st.assignee || '—');
           const priority = st.parent ? (st.parent.priority || st.priority || '—') : (st.priority || '—');
           html += '<tr bgcolor="' + rowBg + '" style="background:' + rowBg + ';">';
@@ -39666,7 +39715,7 @@ Earned Value Management measures project performance and progress by comparing p
           html += '<td style="padding:7px 8px; font-size:10px; color:#475569; border-bottom:1px solid #f1f5f9; white-space:nowrap;">' + escapeHTML((st.module || '').substring(0, 22)) + '</td>';
           html += '<td style="padding:7px 8px; font-size:10px; color:#475569; border-bottom:1px solid #f1f5f9; white-space:nowrap;">' + escapeHTML(assignee.split(' ')[0]) + '</td>';
           html += '<td style="padding:7px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap;"><span style="font-size:9px; font-weight:700; color:' + pColor + ';">' + escapeHTML(priority) + '</span></td>';
-          html += '<td style="padding:7px 8px; border-bottom:1px solid #f1f5f9;"><table width="100%" border="0" cellpadding="0" cellspacing="0" style="background:#e2e8f0; border-radius:2px; height:4px;"><tr><td width="' + Math.min(100, prog) + '%" bgcolor="#2563eb" style="background:#2563eb; height:4px; border-radius:2px; font-size:1px; line-height:1px;">&nbsp;</td><td style="font-size:1px;">&nbsp;</td></tr></table><div style="font-size:9px; color:#64748b; margin-top:1px;">' + prog + '%</div></td>';
+          html += '<td style="padding:7px 8px; border-bottom:1px solid #f1f5f9;">' + miniBar(prog, '#2563eb') + '<div style="font-size:9px; color:#64748b; margin-top:1px;">' + prog + '%</div></td>';
           html += '<td style="padding:7px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap;"><span style="display:inline-block; padding:2px 6px; border-radius:3px; font-size:9px; font-weight:700; background:' + sc.bg + '; color:' + sc.fg + ';">' + escapeHTML(st.status || 'Not Started') + '</span></td>';
           html += '<td style="padding:7px 8px; font-size:10px; color:#64748b; border-bottom:1px solid #f1f5f9; white-space:nowrap;">' + escapeHTML(spFmtDate(st.dueDate)) + '</td>';
           html += '</tr>';
@@ -39681,33 +39730,7 @@ Earned Value Management measures project performance and progress by comparing p
       // 3. STATUS-WISE PROJECT SNAPSHOT
       if (incStatusViz) {
         const allSubItemsViz = getAllSubtaskItems(pState.tasks);
-        const totalT = allSubItemsViz.length;
-        const todayViz = new Date(); todayViz.setHours(0,0,0,0);
-
-        let cntCompleted = 0, cntInProgress = 0, cntInReview = 0, cntNotStarted = 0, cntOnHold = 0, cntOverdue = 0;
-        allSubItemsViz.forEach(st => {
-          const s = (st.status || '').toLowerCase();
-          const prog = parseInt(st.progress, 10) || 0;
-          if (s === 'completed' || prog === 100)          { cntCompleted++;  return; }
-          if (s === 'blocked' || s === 'on hold')         { cntOnHold++;     return; }
-          // Only flag as Overdue if the task is actively in progress / has been started — not if it's Not Started or Planned
-          if (st.dueDate && s !== 'cancelled' && s !== 'not started' && s !== 'planned') {
-            const dd = new Date(st.dueDate); dd.setHours(0,0,0,0);
-            if (dd < todayViz && s !== 'completed')       { cntOverdue++;    return; }
-          }
-          if (s === 'review' || s === 'in review' || s === 'testing' || s === 'qa') { cntInReview++; return; }
-          if (s === 'in progress' || prog > 0)            { cntInProgress++; return; }
-          cntNotStarted++;
-        });
-
-        const statusBuckets = [
-          { label: 'Completed',   icon: '✅',  count: cntCompleted,  color: '#16a34a', bg: '#f0fdf4' },
-          { label: 'In Progress', icon: '⚙️',  count: cntInProgress, color: '#2563eb', bg: '#eff6ff' },
-          { label: 'In Review',   icon: '🔍',  count: cntInReview,   color: '#8b5cf6', bg: '#faf5ff' },
-          { label: 'Not Started', icon: '⏳',  count: cntNotStarted, color: '#64748b', bg: '#f8fafc' },
-          { label: 'On Hold',     icon: '⏸️',  count: cntOnHold,     color: '#9333ea', bg: '#fdf4ff' },
-          { label: 'Overdue',     icon: '🚨',  count: cntOverdue,    color: '#dc2626', bg: '#fef2f2' }
-        ].filter(b => b.count > 0);
+        const { totalT, statusBuckets } = computeCxoStatusBreakdown(allSubItemsViz);
 
         // Section header
         html += '<tr><td style="padding-top:4px; padding-bottom:6px;">';
@@ -39966,9 +39989,9 @@ Earned Value Management measures project performance and progress by comparing p
         });
 
         const allChallenges = [];
-        topRisks.forEach(r => allChallenges.push({ type: 'Being Managed', title: r.title || r.name, sev: r.severity || r.impact || 'High', text: r.mitigation || r.desc || 'Mitigation in progress' }));
-        openIssues.forEach(i => allChallenges.push({ type: 'In Progress', title: i.title || i.name, sev: i.severity || 'Major', text: i.desc || 'Resolution underway' }));
-        overdue.slice(0, 3).forEach(o => allChallenges.push({ type: 'Being Prioritised', title: o.name || o.title, sev: 'Expedited', text: 'Targeted for early closure — originally due ' + formatCxoDate(o.dueDate) }));
+        topRisks.forEach(r => allChallenges.push({ type: 'Being Managed', title: r.title || r.name, sev: r.severity || r.impact || 'High', text: r.mitigation || r.desc || 'Mitigation in progress', module: r.module || (r.task ? r.task.module : '') }));
+        openIssues.forEach(i => allChallenges.push({ type: 'In Progress', title: i.title || i.name, sev: i.severity || 'Major', text: i.desc || 'Resolution underway', module: i.module || (i.task ? i.task.module : '') }));
+        overdue.slice(0, 3).forEach(o => allChallenges.push({ type: 'Being Prioritised', title: o.name || o.title, sev: 'Expedited', text: 'Targeted for early closure — originally due ' + formatCxoDate(o.dueDate), module: o.module || (o.parent ? o.parent.module : '') || 'General', isSubtask: true }));
 
         html += '<tr><td style="padding-bottom:18px;">';
         html += secHdr('#0369a1', '🎯', 'Focus Areas & Management Actions (' + allChallenges.length + ')');
@@ -39978,8 +40001,9 @@ Earned Value Management measures project performance and progress by comparing p
           html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #bae6fd; font-size:12.5px;">';
           allChallenges.slice(0, 5).forEach((c, idx) => {
             const rowBg = idx % 2 === 0 ? '#ffffff' : '#f0f9ff';
+            const modBadge = c.module ? '<span style="font-size:11px; font-weight:600; color:#0284c7; background:#e0f2fe; padding:2px 6px; border-radius:4px; margin-left:6px; display:inline-block;">Module: ' + escapeHTML(c.module) + '</span>' : '';
             html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
-            html += '<td style="padding:8px 12px; border-bottom:1px solid #e0f2fe; font-weight:600; color:#0c4a6e;">📌 ' + escapeHTML(c.title) + '</td>';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #e0f2fe; font-weight:600; color:#0c4a6e;">📌 ' + escapeHTML(c.title) + modBadge + '</td>';
             html += '<td style="padding:8px 12px; border-bottom:1px solid #e0f2fe; color:#0369a1; font-size:11.5px; font-weight:700;" width="130">' + escapeHTML(c.type) + '</td>';
             html += '<td style="padding:8px 12px; border-bottom:1px solid #e0f2fe; color:#475569; font-size:11.5px; text-align:right;" width="120">' + escapeHTML(c.sev) + '</td>';
             html += '</tr>';
@@ -40054,13 +40078,7 @@ Earned Value Management measures project performance and progress by comparing p
       const execNote = ($id('cxo-exec-note')?.value || '').trim();
       const execAsk  = ($id('cxo-exec-ask')?.value || '').trim();
 
-      const cadence      = $id('cxo-report-cadence')?.value || 'weekly';
-      const daysBack     = cadence === 'fortnightly' ? 14 : 7;
-      const cadenceLabel = cadence === 'fortnightly' ? 'Fortnightly Brief' : 'Weekly Brief';
-      const todayDate    = new Date(); todayDate.setHours(0,0,0,0);
-      const weekAgoDate  = new Date(todayDate); weekAgoDate.setDate(weekAgoDate.getDate() - daysBack);
-      const rpStart      = new Date(); rpStart.setDate(rpStart.getDate() - daysBack);
-      const reportPeriod = formatCxoDate(rpStart) + ' – ' + formatCxoDate(new Date());
+      const { cadenceLabel, todayDate, weekAgoDate, reportPeriod, daysBack } = getCxoCadenceInfo($id('cxo-report-cadence')?.value);
 
       const healthColor = stats.health === 'On Track' ? '#16a34a' : stats.health === 'In Focus' ? '#d97706' : '#0369a1';
 
@@ -40129,27 +40147,9 @@ Earned Value Management measures project performance and progress by comparing p
 
       // 2. Sprint Target
       if (incSprint) {
-        const nowM = new Date();
-        const monthName = nowM.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-        const allSubItemsRT = getAllSubtaskItems(pState.tasks);
-        let monthTasksRT = allSubItemsRT.filter(t => {
-          if (!t.dueDate) return false;
-          const d = new Date(t.dueDate);
-          return d.getMonth() === nowM.getMonth() && d.getFullYear() === nowM.getFullYear();
-        });
-        if (!monthTasksRT.length) {
-          const futLimitRT = new Date(nowM); futLimitRT.setDate(futLimitRT.getDate() + 30);
-          monthTasksRT = allSubItemsRT.filter(t => { if (!t.dueDate) return false; const d = new Date(t.dueDate); return d >= nowM && d <= futLimitRT; }).slice(0, 20);
-        }
-        monthTasksRT.sort((a, b) => { const ac = a.status === 'Completed' || parseInt(a.progress,10)===100; const bc = b.status === 'Completed' || parseInt(b.progress,10)===100; if (ac!==bc) return ac?1:-1; return (a.dueDate||'').localeCompare(b.dueDate||''); });
-        const mComp = monthTasksRT.filter(t => t.status === 'Completed' || parseInt(t.progress, 10) === 100).length;
-        const mInProg = monthTasksRT.filter(t => { const p = parseInt(t.progress,10)||0; return t.status === 'In Progress' || (p > 0 && p < 100 && t.status !== 'Completed'); }).length;
-        const mNotStart = monthTasksRT.filter(t => { const p = parseInt(t.progress,10)||0; return (t.status === 'Not Started' || t.status === 'Planned') && p === 0; }).length;
-        const mTotal = monthTasksRT.length || 1;
-        const mPct = Math.round((mComp / mTotal) * 100);
+        const { monthNameSp: monthName, monthTasksSp: monthTasksRT, mCompSp: mComp, mInProgSp: mInProg, mNotStartSp: mNotStart, mTotalSp: mTotal, mPctSp: mPct, trendSp } = getCxoSprintData(pState);
         const trendLabel = mPct >= 50 ? 'Trending On Track 🟢' : 'Behind Target 🔴';
         const rtFmtDate = (d) => { if (!d) return '—'; try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch(e) { return d; } };
-        const rtPriColor = (p) => { if (p==='Critical') return '#dc2626'; if (p==='High') return '#d97706'; if (p==='Medium') return '#2563eb'; return '#64748b'; };
         const rtStBadge = (s) => { if (s==='Completed') return '✅'; if (s==='In Progress') return '⚙️'; if (s==='Under Review') return '🔍'; if (s==='On Hold') return '⏸'; return '⏳'; };
 
         html += '<h3 style="font-size: 15px; color: #2563eb; border-left: 4px solid #2563eb; padding-left: 8px; margin: 18px 0 10px 0;">🎯 Sprint Target — ' + escapeHTML(monthName) + '</h3>';
@@ -40174,7 +40174,7 @@ Earned Value Management measures project performance and progress by comparing p
           const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
           const assignee = t.parent ? (t.parent.assignee || t.assignee || '—') : (t.assignee || '—');
           const priority = t.parent ? (t.parent.priority || t.priority || '—') : (t.priority || '—');
-          const pColor = rtPriColor(priority);
+          const pColor = getCxoPriorityColor(priority);
           html += '<tr style="background:' + rowBg + ';">';
           html += '<td style="padding:6px 8px; border:1px solid #e2e8f0; color:#1e293b; font-weight:600;">' + escapeHTML((t.name||'').substring(0,45) + (t.name&&t.name.length>45?'…':'')) + '</td>';
           html += '<td style="padding:6px 8px; border:1px solid #e2e8f0; color:#475569;">' + escapeHTML((t.module||'').substring(0,24)) + '</td>';
@@ -40194,36 +40194,11 @@ Earned Value Management measures project performance and progress by comparing p
       // 3. Status Distribution
       if (incStatusViz) {
         const allTasks = getAllSubtaskItems(pState.tasks);
-        const totalT = allTasks.length;
-        const todayViz = new Date(); todayViz.setHours(0,0,0,0);
-
-        const statusBuckets = [
-          { key: 'completed', label: 'Completed', color: '#16a34a', count: 0 },
-          { key: 'inprogress', label: 'In Progress', color: '#2563eb', count: 0 },
-          { key: 'review', label: 'In Review', color: '#8b5cf6', count: 0 },
-          { key: 'notstarted', label: 'Not Started', color: '#64748b', count: 0 },
-          { key: 'blocked', label: 'Blocked', color: '#dc2626', count: 0 },
-          { key: 'overdue', label: 'Overdue', color: '#ea580c', count: 0 }
-        ];
-
-        allTasks.forEach(t => {
-          const s = (t.status || '').toLowerCase();
-          const prog = parseInt(t.progress, 10) || 0;
-          if (s === 'completed' || prog === 100) { statusBuckets[0].count++; return; }
-          if (s === 'blocked' || s === 'on hold') { statusBuckets[4].count++; return; }
-          // Only flag as Overdue if the task has been started — exclude Not Started / Planned
-          if (t.dueDate && s !== 'cancelled' && s !== 'not started' && s !== 'planned') {
-            const dd = new Date(t.dueDate); dd.setHours(0,0,0,0);
-            if (dd < todayViz && s !== 'completed') { statusBuckets[5].count++; return; }
-          }
-          if (s === 'review' || s === 'in review' || s === 'testing' || s === 'qa') { statusBuckets[2].count++; return; }
-          if (s === 'in progress' || prog > 0) { statusBuckets[1].count++; return; }
-          statusBuckets[3].count++;
-        });
+        const { totalT, statusBuckets } = computeCxoStatusBreakdown(allTasks);
 
         html += '<h3 style="font-size: 15px; color: #0ea5e9; border-left: 4px solid #0ea5e9; padding-left: 8px; margin: 18px 0 10px 0;">📈 Overall Status Snapshot (' + totalT + ' Total Deliverables)</h3>';
         html += '<ul style="margin: 0 0 16px 0; padding-left: 20px; font-size: 13px;">';
-        statusBuckets.filter(b => b.count > 0).forEach(b => {
+        statusBuckets.forEach(b => {
           const pct = totalT > 0 ? Math.round((b.count / totalT) * 100) : 0;
           html += '<li style="margin-bottom: 4px;"><strong>' + b.label + ':</strong> ' + b.count + ' deliverables (' + pct + '%)</li>';
         });
@@ -40398,9 +40373,9 @@ Earned Value Management measures project performance and progress by comparing p
         });
 
         const allChallenges = [];
-        topRisks.forEach(r => allChallenges.push({ type: 'Being Managed', title: r.title || r.name, sev: r.severity || r.impact || 'High' }));
-        openIssues.forEach(i => allChallenges.push({ type: 'In Progress', title: i.title || i.name, sev: i.severity || 'Major' }));
-        overdue.slice(0, 3).forEach(o => allChallenges.push({ type: 'Being Prioritised', title: o.name || o.title, sev: 'Expedited' }));
+        topRisks.forEach(r => allChallenges.push({ type: 'Being Managed', title: r.title || r.name, sev: r.severity || r.impact || 'High', module: r.module || (r.task ? r.task.module : '') }));
+        openIssues.forEach(i => allChallenges.push({ type: 'In Progress', title: i.title || i.name, sev: i.severity || 'Major', module: i.module || (i.task ? i.task.module : '') }));
+        overdue.slice(0, 3).forEach(o => allChallenges.push({ type: 'Being Prioritised', title: o.name || o.title, sev: 'Expedited', module: o.module || (o.parent ? o.parent.module : '') || 'General', isSubtask: true }));
 
         html += '<h3 style="font-size: 15px; color: #0369a1; border-left: 4px solid #0369a1; padding-left: 8px; margin: 18px 0 10px 0;">🎯 Focus Areas & Management Actions (' + allChallenges.length + ')</h3>';
         if (allChallenges.length === 0) {
@@ -40409,7 +40384,8 @@ Earned Value Management measures project performance and progress by comparing p
           html += '<ul style="margin: 0 0 16px 0; padding-left: 20px; font-size: 13px;">';
           const chToShow = isCondensed ? allChallenges.slice(0, 3) : allChallenges.slice(0, 5);
           chToShow.forEach(c => {
-            html += '<li style="margin-bottom: 4px;"><strong>📌 ' + escapeHTML(c.title) + '</strong> (' + escapeHTML(c.type) + ' — Priority: ' + escapeHTML(c.sev) + ')</li>';
+            const modTag = c.module ? ' [Module: ' + escapeHTML(c.module) + ']' : '';
+            html += '<li style="margin-bottom: 4px;"><strong>📌 ' + escapeHTML(c.title) + '</strong>' + modTag + ' (' + escapeHTML(c.type) + ' — Priority: ' + escapeHTML(c.sev) + ')</li>';
           });
           html += '</ul>';
         }
@@ -40456,11 +40432,8 @@ Earned Value Management measures project performance and progress by comparing p
       const members = pState.members || [];
       const pmObj = members.find(m => m.role && (m.role.toLowerCase().includes('manager') || m.role.toLowerCase().includes('lead') || m.role.toLowerCase().includes('pm'))) || members[0] || {};
       const pmName = pmObj.name || 'Project Lead';
-      const cadence      = $id('cxo-report-cadence')?.value || 'weekly';
-      const daysBack     = cadence === 'fortnightly' ? 14 : 7;
-      const cadenceLabel = cadence === 'fortnightly' ? 'Fortnightly Brief' : 'Weekly Brief';
-      const rpStart      = new Date(); rpStart.setDate(rpStart.getDate() - daysBack);
-      const reportPeriod = formatCxoDate(rpStart) + ' – ' + formatCxoDate(new Date());
+      
+      const { cadenceLabel, todayDate, weekAgoDate, reportPeriod, daysBack } = getCxoCadenceInfo($id('cxo-report-cadence')?.value);
 
       let text = '==================================================\n';
       text += 'STEERING BRIEF — ' + (pState.name || 'Project Status Update') + '\n';
@@ -40476,7 +40449,7 @@ Earned Value Management measures project performance and progress by comparing p
         text += '   • ' + pt.replace(/<\/?strong>/g, '') + '\n';
       });
       // Module overview inline within the summary section
-      const ptModules = getModuleSummaries(pState, new Date(Date.now() - 7*24*60*60*1000), new Date());
+      const ptModules = getModuleSummaries(pState, weekAgoDate, todayDate);
       if (ptModules.length > 0) {
         const ptTotal = ptModules.length;
         const ptComp  = ptModules.filter(m => m.status === 'Completed').length;
@@ -40495,28 +40468,11 @@ Earned Value Management measures project performance and progress by comparing p
 
       // 2. TARGET FOR CURRENT MONTH'S SPRINT & TRENDING
       const allSubItems = getAllSubtaskItems(pState.tasks);
-      const nowM = new Date();
-      const monthName = nowM.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-      let monthTasks = allSubItems.filter(st => {
-        if (!st.dueDate) return false;
-        const d = new Date(st.dueDate);
-        return d.getMonth() === nowM.getMonth() && d.getFullYear() === nowM.getFullYear();
-      });
-      if (!monthTasks.length) {
-        const futPT = new Date(nowM); futPT.setDate(futPT.getDate() + 30);
-        monthTasks = allSubItems.filter(st => { if (!st.dueDate) return false; const d = new Date(st.dueDate); return d >= nowM && d <= futPT; }).slice(0, 20);
-      }
-      monthTasks.sort((a, b) => { const ac = a.status === 'Completed' || parseInt(a.progress,10)===100; const bc = b.status === 'Completed' || parseInt(b.progress,10)===100; if (ac!==bc) return ac?1:-1; return (a.dueDate||'').localeCompare(b.dueDate||''); });
-      const mComp = monthTasks.filter(st => st.status === 'Completed' || parseInt(st.progress, 10) === 100).length;
-      const mInProg = monthTasks.filter(st => { const p=parseInt(st.progress,10)||0; return st.status==='In Progress'||(p>0&&p<100&&st.status!=='Completed'); }).length;
-      const mNotStart = monthTasks.filter(st => { const p=parseInt(st.progress,10)||0; return (st.status==='Not Started'||st.status==='Planned')&&p===0; }).length;
-      const mTotal = monthTasks.length || 1;
-      const mPct = Math.round((mComp / mTotal) * 100);
-      const ptFmtDate = (d) => { if (!d) return 'N/A'; try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch(e) { return d; } };
+      const { monthNameSp: monthName, monthTasksSp: monthTasks, mCompSp: mComp, mInProgSp: mInProg, mNotStartSp: mNotStart, mTotalSp: mTotal, mPctSp: mPct, trendSp } = getCxoSprintData(pState);
 
       text += '2. SPRINT TARGET — ' + monthName.toUpperCase() + '\n';
       text += '   Summary: ' + mTotal + ' Tasks | ' + mComp + ' Completed | ' + mInProg + ' In Progress | ' + mNotStart + ' Not Started\n';
-      text += '   Completion: ' + mPct + '% | ' + (mPct >= 50 ? 'On Track' : 'Behind Target') + '\n';
+      text += '   Completion: ' + mPct + '% | ' + trendSp + '\n';
       text += '   ' + '─'.repeat(72) + '\n';
       text += '   ' + 'TASK'.padEnd(38) + 'ASSIGNEE'.padEnd(14) + 'PRIORITY'.padEnd(10) + 'PROG'.padEnd(6) + 'STATUS' + '\n';
       text += '   ' + '─'.repeat(72) + '\n';
@@ -40531,32 +40487,7 @@ Earned Value Management measures project performance and progress by comparing p
       text += '\n';
 
       // 3. STATUS-WISE PROJECT VISUALIZER
-      const totalViz = allSubItems.length;
-      const todayVizPt = new Date(); todayVizPt.setHours(0,0,0,0);
-
-      const stBuckets = [
-        { label: 'Completed', count: 0 },
-        { label: 'In Progress', count: 0 },
-        { label: 'In Review', count: 0 },
-        { label: 'Not Started', count: 0 },
-        { label: 'Blocked', count: 0 },
-        { label: 'Overdue', count: 0 }
-      ];
-
-      allSubItems.forEach(st => {
-        const s = (st.status || '').toLowerCase();
-        const prog = parseInt(st.progress, 10) || 0;
-        if (s === 'completed' || prog === 100) { stBuckets[0].count++; return; }
-        if (s === 'blocked' || s === 'on hold') { stBuckets[4].count++; return; }
-        // Only flag as Overdue if the task has been started — exclude Not Started / Planned
-        if (st.dueDate && s !== 'cancelled' && s !== 'not started' && s !== 'planned') {
-          const dd = new Date(st.dueDate); dd.setHours(0,0,0,0);
-          if (dd < todayVizPt && s !== 'completed') { stBuckets[5].count++; return; }
-        }
-        if (s === 'review' || s === 'in review' || s === 'testing' || s === 'qa') { stBuckets[2].count++; return; }
-        if (s === 'in progress' || prog > 0) { stBuckets[1].count++; return; }
-        stBuckets[3].count++;
-      });
+      const { totalT: totalViz, statusBuckets: stBuckets } = computeCxoStatusBreakdown(allSubItems);
 
       text += '3. STATUS-WISE PROJECT SNAPSHOT (' + totalViz + ' Total Deliverables):\n';
       if (totalViz === 0) {
@@ -40670,11 +40601,26 @@ Earned Value Management measures project performance and progress by comparing p
 
       // 6. FOCUS AREAS & MANAGEMENT ACTIONS
       const topRisks = (pState.raids || []).filter(r => r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated' && (r.impact === 'High' || r.severity === 'S1 - Critical' || r.severity === 'S2 - Major' || r.probability === 'High'));
-      text += '7. FOCUS AREAS & MANAGEMENT ACTIONS (' + topRisks.length + ' Items Being Managed):\n';
-      if (topRisks.length === 0) text += '   ✓ All tracked items on track — no escalation needed.\n';
+      const openIssues = (pState.raids || []).filter(r => r.type === 'Issue' && r.status !== 'Closed' && r.status !== 'Resolved');
+      const overduePT = allSubItems.filter(st => {
+        const d = st.dueDate ? new Date(st.dueDate) : null;
+        const s = (st.status || '').toLowerCase();
+        return d && d < todayDate && s !== 'completed' && s !== 'cancelled' && s !== 'not started' && s !== 'planned';
+      });
+
+      const allChallengesPT = [];
+      topRisks.forEach(r => allChallengesPT.push({ type: 'Being Managed', title: r.title || r.name, sev: r.severity || r.impact || 'High', module: r.module || (r.task ? r.task.module : '') }));
+      openIssues.forEach(i => allChallengesPT.push({ type: 'In Progress', title: i.title || i.name, sev: i.severity || 'Major', module: i.module || (i.task ? i.task.module : '') }));
+      overduePT.slice(0, 3).forEach(o => allChallengesPT.push({ type: 'Being Prioritised', title: o.name || o.title, sev: 'Expedited', module: o.module || (o.parent ? o.parent.module : '') || 'General' }));
+
+      text += '7. FOCUS AREAS & MANAGEMENT ACTIONS (' + allChallengesPT.length + ' Items Being Managed):\n';
+      if (allChallengesPT.length === 0) text += '   ✓ All tracked items on track — no escalation needed.\n';
       else {
-        topRisks.forEach(r => {
-          text += '   📌  ' + (r.title || r.name) + ' [Being Managed]\n';
+        const isCondensedPT = ($id('cxo-brief-condensed')?.checked);
+        const chToShowPT = isCondensedPT ? allChallengesPT.slice(0, 3) : allChallengesPT.slice(0, 5);
+        chToShowPT.forEach(c => {
+          const modTag = c.module ? ' [Module: ' + c.module + ']' : '';
+          text += '   📌  ' + c.title + modTag + ' (' + c.type + ' — Priority: ' + c.sev + ')\n';
         });
       }
       text += '\n';
