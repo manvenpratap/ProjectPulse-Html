@@ -15209,6 +15209,24 @@
       return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
     };
     window.formatCxoDate = formatCxoDate;
+    const formatCxoDateNoYear = (dateInput) => {
+      if (!dateInput) return '—';
+      let d;
+      if (dateInput instanceof Date) { d = dateInput; }
+      else if (typeof dateInput === 'number') { d = new Date(dateInput); }
+      else if (typeof dateInput === 'string') {
+        const str = dateInput.trim();
+        const parts = str.split('T')[0].split('-');
+        if (parts.length === 3 && parts[0].length === 4) {
+          d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        } else { d = new Date(str); }
+      }
+      if (!d || isNaN(d.getTime())) return String(dateInput);
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`;
+    };
+    window.formatCxoDateNoYear = formatCxoDateNoYear;
 
     const getRaidDateSince = (r) => {
       if (!r) return todayStr();
@@ -33773,7 +33791,14 @@
           const remainingTasks = totalTasksCount - completedTasks;
           const tasksCompletionPct = totalTasksCount > 0 ? Math.round((completedTasks / totalTasksCount) * 100) : 0;
 
-          const overdueTasksList = tasks.filter(t => { const d = daysDiff(t.dueDate); return d !== null && d < 0 && t.status !== 'Completed' && t.status !== 'Cancelled'; });
+          const allSubItemsExec = (typeof getAllSubtaskItems === 'function') ? getAllSubtaskItems(tasks) : tasks;
+          const overdueTasksList = allSubItemsExec.filter(st => {
+            if (st.status === 'Completed' || st.status === 'Cancelled') return false;
+            if (isTaskInFutureRelease(st.parent || st)) return false;
+            const dDate = st.dueDate || getTaskDeadline(st.parent || st);
+            const d = daysDiff(dDate);
+            return d !== null && d < 0;
+          });
           const overdueCount = overdueTasksList.length;
           const formattedOverdueCount = overdueCount < 10 ? '0' + overdueCount : overdueCount;
 
@@ -33781,12 +33806,14 @@
           const blockedCount = blockedTasksList.length;
           const formattedBlockedCount = blockedCount < 10 ? '0' + blockedCount : blockedCount;
 
-          const overdueListHtml = overdueTasksList.slice(0, 3).map(t => {
-            const days = Math.abs(daysDiff(t.dueDate));
+          const overdueListHtml = overdueTasksList.slice(0, 3).map(st => {
+            const dDate = st.dueDate || getTaskDeadline(st.parent || st);
+            const days = Math.abs(daysDiff(dDate));
             const label = days === 1 ? 'yesterday' : `${days}d ago`;
+            const nameStr = st.title || st.name || (st.parent ? st.parent.name : 'Deliverable');
             return `
-              <div style="font-size: 11px; color: var(--color-text-muted); padding: 4px 6px; border-bottom: 1px solid var(--color-divider-faint); display: flex; align-items: center; justify-content: space-between; gap: 8px;" title="${esc(t.name)} (Due ${label})">
-                <span style="font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">• ${esc(t.name)}</span>
+              <div style="font-size: 11px; color: var(--color-text-muted); padding: 4px 6px; border-bottom: 1px solid var(--color-divider-faint); display: flex; align-items: center; justify-content: space-between; gap: 8px;" title="${esc(nameStr)} (Due ${label})">
+                <span style="font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">• ${esc(nameStr)}</span>
                 <span style="font-size: 9px; font-weight: 800; font-family: var(--mono); color: var(--red); background: rgba(239,68,68,0.1); padding: 1px 4px; border-radius: 4px; flex-shrink: 0;">${label}</span>
               </div>
             `;
@@ -39953,45 +39980,115 @@ Earned Value Management measures project performance and progress by comparing p
         if (moduleList.length === 0) {
           html += '<div style="font-size:12.5px; color:#94a3b8; font-style:italic; padding:8px 12px; background:#f8fafc; border-radius:6px; border:1px dashed #cbd5e1;">No module breakdown available.</div>';
         } else {
-          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-size:12.5px;">';
-          html += '<thead><tr bgcolor="#f8fafc" style="background-color:#f8fafc;">';
-          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:left;">Module Name</th>';
-          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:left; width:130px;">Planned Release</th>';
-          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:left; width:140px;">Completion Progress</th>';
-          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:center; width:160px;">Sub-tasks &amp; Screens (Server / GUI)</th>';
-          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:right; width:120px;">Weekly Pace &amp; Status</th>';
-          html += '</tr></thead><tbody>';
+          // Group modules by release version name
+          const releaseGroups = {};
+          const releaseOrder = [];
+          moduleList.forEach(m => {
+            const relKey = (m.earliestReleaseName || '').trim() || '__unassigned__';
+            if (!releaseGroups[relKey]) {
+              releaseGroups[relKey] = { name: m.earliestReleaseName || '', date: m.earliestReleaseDate || null, modules: [] };
+              releaseOrder.push(relKey);
+            }
+            releaseGroups[relKey].modules.push(m);
+            // Keep the latest date for the group
+            if (m.earliestReleaseDate && (!releaseGroups[relKey].date || new Date(m.earliestReleaseDate) > new Date(releaseGroups[relKey].date))) {
+              releaseGroups[relKey].date = m.earliestReleaseDate;
+            }
+          });
 
-          moduleList.forEach((m, idx) => {
-            const rowBg = idx % 2 === 0 ? '#ffffff' : '#fafafa';
-            let paceBadge = '<span style="color:#16a34a; font-weight:700; font-size:11px;">✓ +' + m.completedThisWeek + ' this week</span>';
-            if (m.status === 'Not Started' || m.avgProgress === 0) {
-              paceBadge = '<span style="color:#64748b; font-size:11px;">🗓️ Planned</span>';
-            } else if (m.overdue > 0) {
-              paceBadge = '<span style="color:#dc2626; font-weight:700; font-size:11px;">📌 ' + m.overdue + ' being prioritised</span>';
-            } else if (m.completedThisWeek === 0) {
-              paceBadge = '<span style="color:#64748b; font-size:11px;">Progressing</span>';
+          // Sort release groups by date (earliest first), unassigned last
+          releaseOrder.sort((a, b) => {
+            if (a === '__unassigned__') return 1;
+            if (b === '__unassigned__') return -1;
+            const da = releaseGroups[a].date ? new Date(releaseGroups[a].date).getTime() : Infinity;
+            const db = releaseGroups[b].date ? new Date(releaseGroups[b].date).getTime() : Infinity;
+            if (da !== db) return da - db;
+            return a.localeCompare(b);
+          });
+
+          const thStyle = 'padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569;';
+
+          releaseOrder.forEach((relKey, groupIdx) => {
+            const grp = releaseGroups[relKey];
+            const grpModules = grp.modules;
+            const grpCompleted = grpModules.reduce((s, m) => s + m.completed, 0);
+            const grpTotal = grpModules.reduce((s, m) => s + m.total, 0);
+            const grpAvg = grpTotal > 0 ? Math.round(grpModules.reduce((s, m) => s + m.sumProgress, 0) / grpTotal) : 0;
+
+            // Release group header
+            const isUnassigned = relKey === '__unassigned__';
+            const relLabel = isUnassigned ? 'Unassigned / No Release' : escapeHTML(grp.name);
+            const relDateStr = grp.date ? formatCxoDate(grp.date) : '';
+            const headerBg = isUnassigned ? '#f1f5f9' : '#eef2ff';
+            const headerColor = isUnassigned ? '#64748b' : '#4338ca';
+            const headerBorder = isUnassigned ? '#cbd5e1' : '#a5b4fc';
+
+            if (groupIdx > 0) {
+              html += '<div style="height:14px;"></div>';
             }
 
-            const releaseLabel = formatCxoReleaseLabel(m.earliestReleaseName, m.earliestReleaseDate, true);
+            html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-size:12.5px; margin-bottom:2px;">';
 
-            html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
-            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; font-weight:600; color:#0f172a;">' + escapeHTML(m.name) + '</td>';
-            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9;">' + releaseLabel + '</td>';
-            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#334155;">';
-            html += '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;"><strong style="font-size:12px;">' + m.avgProgress + '%</strong></div>';
-            html += miniBar(m.avgProgress, m.color);
-            html += '</td>';
-            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; text-align:center; font-size:12px;">';
-            html += '<strong style="color:#0f172a;">' + m.completed + ' / ' + m.total + '</strong><br>';
-            html += '<span style="font-size:10px; color:#475569; font-weight:600;">🖥️ ' + m.serverCompleted + '/' + m.serverTotal + ' Server &bull; 📱 ' + m.guiCompleted + '/' + m.guiTotal + ' GUI</span>';
-            html += '</td>';
-            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; text-align:right;">';
-            html += '<span style="display:inline-block; padding:2px 8px; border-radius:10px; font-weight:800; font-size:10.5px; background-color:' + m.bg + '; color:' + m.color + '; border:1px solid ' + m.color + '; margin-bottom:2px;">' + escapeHTML(m.status) + '</span><br>' + paceBadge;
+            // Release group banner row
+            html += '<tr bgcolor="' + headerBg + '" style="background-color:' + headerBg + ';">';
+            html += '<td colspan="5" style="padding:10px 14px; border:1px solid ' + headerBorder + ';">';
+            html += '<div style="display:flex; justify-content:space-between; align-items:center;">';
+            html += '<div>';
+            html += '<span style="font-size:13px; font-weight:800; color:' + headerColor + ';">' + (isUnassigned ? '📦' : '🚀') + ' ' + relLabel + '</span>';
+            if (relDateStr && !isUnassigned) {
+              html += ' <span style="font-size:11px; color:#64748b; font-weight:500;">— 📅 Target: ' + relDateStr + '</span>';
+            }
+            html += '</div>';
+            html += '<div style="text-align:right;">';
+            html += '<span style="font-size:11px; color:#475569; font-weight:600;">' + grpCompleted + '/' + grpTotal + ' items</span>';
+            html += ' <span style="font-size:11px; color:' + headerColor + '; font-weight:700;">(' + grpAvg + '%)</span>';
+            html += '</div>';
+            html += '</div>';
             html += '</td>';
             html += '</tr>';
+
+            // Column headers
+            html += '<tr bgcolor="#f8fafc" style="background-color:#f8fafc;">';
+            html += '<th style="' + thStyle + ' text-align:left;">Module Name</th>';
+            html += '<th style="' + thStyle + ' text-align:left; width:140px;">Completion Progress</th>';
+            html += '<th style="' + thStyle + ' text-align:center; width:160px;">Sub-tasks &amp; Screens (Server / GUI)</th>';
+            html += '<th style="' + thStyle + ' text-align:center; width:90px;">Status</th>';
+            html += '<th style="' + thStyle + ' text-align:right; width:120px;">Weekly Pace</th>';
+            html += '</tr>';
+
+            // Module rows
+            grpModules.forEach((m, idx) => {
+              const rowBg = idx % 2 === 0 ? '#ffffff' : '#fafafa';
+              let paceBadge = '<span style="color:#16a34a; font-weight:700; font-size:11px;">✓ +' + m.completedThisWeek + ' this week</span>';
+              if (m.status === 'Not Started' || m.avgProgress === 0) {
+                paceBadge = '<span style="color:#64748b; font-size:11px;">🗓️ Planned</span>';
+              } else if (m.overdue > 0) {
+                paceBadge = '<span style="color:#dc2626; font-weight:700; font-size:11px;">📌 ' + m.overdue + ' being prioritised</span>';
+              } else if (m.completedThisWeek === 0) {
+                paceBadge = '<span style="color:#64748b; font-size:11px;">Progressing</span>';
+              }
+
+              html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
+              html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; font-weight:600; color:#0f172a;">' + escapeHTML(m.name) + '</td>';
+              html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#334155;">';
+              html += '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;"><strong style="font-size:12px;">' + m.avgProgress + '%</strong></div>';
+              html += miniBar(m.avgProgress, m.color);
+              html += '</td>';
+              html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; text-align:center; font-size:12px;">';
+              html += '<strong style="color:#0f172a;">' + m.completed + ' / ' + m.total + '</strong><br>';
+              html += '<span style="font-size:10px; color:#475569; font-weight:600;">🖥️ ' + m.serverCompleted + '/' + m.serverTotal + ' Server &bull; 📱 ' + m.guiCompleted + '/' + m.guiTotal + ' GUI</span>';
+              html += '</td>';
+              html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; text-align:center;">';
+              html += '<span style="display:inline-block; padding:2px 8px; border-radius:10px; font-weight:800; font-size:10.5px; background-color:' + m.bg + '; color:' + m.color + '; border:1px solid ' + m.color + ';">' + escapeHTML(m.status) + '</span>';
+              html += '</td>';
+              html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; text-align:right;">';
+              html += paceBadge;
+              html += '</td>';
+              html += '</tr>';
+            });
+
+            html += '</table>';
           });
-          html += '</tbody></table>';
         }
         html += '</td></tr>';
       }
@@ -40015,16 +40112,21 @@ Earned Value Management measures project performance and progress by comparing p
           html += '<div style="font-size:12.5px; color:#94a3b8; font-style:italic; padding:8px 12px; background:#f8fafc; border-radius:6px; border:1px dashed #cbd5e1;">No completed sub-tasks or screens recorded in this reporting cycle.</div>';
         } else {
           html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-size:12.5px;">';
+          html += '<thead><tr bgcolor="#f8fafc" style="background-color:#f8fafc;">';
+          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:left;">Sub-task / Screen</th>';
+          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:left; width:180px;">Task Name (Module Type)</th>';
+          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:right; width:110px;">Completed On</th>';
+          html += '</tr></thead><tbody>';
           wins.forEach((w, i) => {
-            const compDate = (w.actCompletionDate || w.updatedAt) ? formatCxoDate(w.actCompletionDate || w.updatedAt) : 'This Cycle';
+            const compDate = (w.actCompletionDate || w.updatedAt) ? formatCxoDateNoYear(w.actCompletionDate || w.updatedAt) : 'This Cycle';
             const rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
             html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
             html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; font-weight:600; color:#0f172a;">✓ ' + escapeHTML(w.name || w.title || 'Sub-task') + '</td>';
-            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#64748b; font-size:11.5px;" width="180">' + escapeHTML(getDeliverableScreenLabel(w)) + '</td>';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#64748b; font-size:11.5px;" width="180">' + escapeHTML((w.parent ? (w.parent.name || w.parent.title || 'Task') : (w.name || 'Task')) + ' (' + (w.moduleType || 'General') + ')') + '</td>';
             html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#16a34a; font-weight:700; font-size:11.5px; text-align:right;" width="110">' + compDate + '</td>';
             html += '</tr>';
           });
-          html += '</table>';
+          html += '</tbody></table>';
         }
         html += '</td></tr>';
       }
@@ -40046,16 +40148,21 @@ Earned Value Management measures project performance and progress by comparing p
           html += '<div style="font-size:12.5px; color:#94a3b8; font-style:italic; padding:8px 12px; background:#f8fafc; border-radius:6px; border:1px dashed #cbd5e1;">No specific sub-tasks or screens scheduled for next week.</div>';
         } else {
           html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; font-size:12.5px;">';
+          html += '<thead><tr bgcolor="#f8fafc" style="background-color:#f8fafc;">';
+          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:left;">Sub-task / Screen</th>';
+          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:left; width:180px;">Task Name (Module Type)</th>';
+          html += '<th style="padding:8px 12px; font-weight:700; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; color:#475569; text-align:right; width:110px;">Due Date</th>';
+          html += '</tr></thead><tbody>';
           upcoming.forEach((t, i) => {
-            const dueStr = formatCxoDate(t.dueDate);
+            const dueStr = formatCxoDateNoYear(t.dueDate);
             const rowBg = i % 2 === 0 ? '#ffffff' : '#fafafa';
             html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
             html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; font-weight:600; color:#0f172a;">○ ' + escapeHTML(t.name || t.title || 'Sub-task') + '</td>';
-            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#64748b; font-size:11.5px;" width="180">' + escapeHTML(getDeliverableScreenLabel(t)) + '</td>';
+            html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#64748b; font-size:11.5px;" width="180">' + escapeHTML((t.parent ? (t.parent.name || t.parent.title || 'Task') : (t.name || 'Task')) + ' (' + (t.moduleType || 'General') + ')') + '</td>';
             html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#0891b2; font-weight:700; font-size:11.5px; text-align:right;" width="110">Due ' + dueStr + '</td>';
             html += '</tr>';
           });
-          html += '</table>';
+          html += '</tbody></table>';
         }
         html += '</td></tr>';
       }
@@ -44121,9 +44228,16 @@ Earned Value Management measures project performance and progress by comparing p
       const blockedTasks = tasks.filter(t => t.status === 'On Hold');
 
       // Overdue Work by Module
-      const overdueTasks = tasks.filter(t => { const d = daysDiff(t.dueDate); return d !== null && d < 0 && t.status !== 'Completed' && t.status !== 'Cancelled'; });
+      const allSubItemsMod = (typeof getAllSubtaskItems === 'function') ? getAllSubtaskItems(tasks) : tasks;
+      const overdueTasks = allSubItemsMod.filter(st => {
+        if (st.status === 'Completed' || st.status === 'Cancelled') return false;
+        if (isTaskInFutureRelease(st.parent || st)) return false;
+        const dDate = st.dueDate || getTaskDeadline(st.parent || st);
+        const d = daysDiff(dDate);
+        return d !== null && d < 0;
+      });
       const modCounts = {};
-      overdueTasks.forEach(t => { const m = t.module || 'General'; modCounts[m] = (modCounts[m] || 0) + 1; });
+      overdueTasks.forEach(st => { const m = (st.module || (st.parent ? st.parent.module : 'General')).trim(); modCounts[m] = (modCounts[m] || 0) + 1; });
       const sortedMods = Object.entries(modCounts).sort((a, b) => b[1] - a[1]);
 
       // Project Highlights & Good News Calculations
@@ -49264,7 +49378,14 @@ Earned Value Management measures project performance and progress by comparing p
         const styledVal = (text, color, bold) => ({ _styled: true, text: S(text), color: (color || COLORS.textDark).replace('#', ''), bold });
 
         const tasks = P.tasks; const total = tasks.length; const done = tasks.filter(t => t.status === 'Completed').length;
-        const overdueTasks = tasks.filter(t => { if (isTaskInFutureRelease(t)) return false; const dd = daysDiff(t.dueDate); return dd !== null && dd < 0 && t.status !== 'Completed' && t.status !== 'Cancelled'; });
+        const allSubItemsXls = (typeof getAllSubtaskItems === 'function') ? getAllSubtaskItems(tasks) : tasks;
+        const overdueTasks = allSubItemsXls.filter(st => {
+          if (st.status === 'Completed' || st.status === 'Cancelled') return false;
+          if (isTaskInFutureRelease(st.parent || st)) return false;
+          const dDate = st.dueDate || getTaskDeadline(st.parent || st);
+          const dd = daysDiff(dDate);
+          return dd !== null && dd < 0;
+        });
         const blocked = tasks.filter(isBlocked).length; const inProg = tasks.filter(t => t.status === 'In Progress' || t.status === 'Under Review').length;
         const completionPct = total ? Math.round(done / total * 100) : 0; const healthScore = getHealthScore(tasks);
 
