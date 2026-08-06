@@ -39196,37 +39196,49 @@ Earned Value Management measures project performance and progress by comparing p
         const isGui = st.type === 'screen';
         if (isGui) { m.guiTotal++; } else { m.serverTotal++; }
 
-        // Track earliest planned release date & name for sort
+        // Track planned release date & name (picking max end date across tasks in this module)
         const _pRels = (p.releases || []);
         let _stRelDate = null;
         let _stRelName = '';
-        if (st.releaseVersion || st.release) {
-          const _rv = String(st.releaseVersion || st.release).trim().toLowerCase();
+        const _rvRaw = st.releaseVersion || st.release || (st.parent ? (st.parent.releaseVersion || st.parent.release) : '');
+        if (_rvRaw) {
+          const _rv = String(_rvRaw).trim().toLowerCase();
           const _rel = _pRels.find(r => String(r.name || '').trim().toLowerCase() === _rv || String(r.id || '').trim().toLowerCase() === _rv);
           if (_rel) {
-            _stRelDate = _rel.date || _rel.endDate || _rel.targetDate || _rel.releaseDate || null;
+            _stRelDate = _rel.endDate || _rel.date || _rel.targetDate || _rel.releaseDate || _rel.dueDate || null;
             _stRelName = _rel.name || _rel.id || '';
+          } else if (typeof PulseUtils !== 'undefined' && PulseUtils.getReleaseDates) {
+            const rDates = PulseUtils.getReleaseDates(_rvRaw);
+            if (rDates && rDates.endDate) {
+              _stRelDate = rDates.endDate;
+              _stRelName = _rvRaw;
+            } else {
+              _stRelName = _rvRaw;
+            }
           } else {
-            _stRelName = st.releaseVersion || st.release;
+            _stRelName = _rvRaw;
           }
         }
         if (!_stRelDate && st.dueDate) { _stRelDate = st.dueDate; }
-        // If still no release name, look up the nearest release by date
+        // If release name missing, look up matching release by date
         if (_stRelDate && !_stRelName && _pRels.length > 0) {
           const _taskD = new Date(_stRelDate);
           const _sorted = _pRels
             .filter(r => r.date || r.endDate || r.targetDate || r.releaseDate)
             .map(r => ({ name: r.name || r.id || '', d: new Date(r.date || r.endDate || r.targetDate || r.releaseDate) }))
             .sort((a, b) => a.d - b.d);
-          // Pick the first release whose date is >= the task's due date (next milestone)
           const _nearest = _sorted.find(r => r.d >= _taskD) || _sorted[_sorted.length - 1];
           if (_nearest) _stRelName = _nearest.name;
         }
+
+        // Pick the release version having the MAX (latest) end date for this module
         if (_stRelDate) {
-          if (!m.earliestReleaseDate || new Date(_stRelDate) < new Date(m.earliestReleaseDate)) {
+          if (!m.earliestReleaseDate || new Date(_stRelDate) > new Date(m.earliestReleaseDate)) {
             m.earliestReleaseDate = _stRelDate;
             m.earliestReleaseName = _stRelName || m.earliestReleaseName || '';
           }
+        } else if (_stRelName && !m.earliestReleaseName) {
+          m.earliestReleaseName = _stRelName;
         }
 
         const prog = parseInt(st.progress, 10) || (st.status === 'Completed' ? 100 : 0);
@@ -39764,95 +39776,7 @@ Earned Value Management measures project performance and progress by comparing p
 
       // 4. OVERALL MODULE-WISE STATUS & WEEKLY PROGRESS VISUALIZER
       if (incModules) {
-        const modStatsMap = {};
-        const allSubItems = getAllSubtaskItems(pState.tasks);
-
-        allSubItems.forEach(st => {
-          const mName = (st.module || 'General').trim();
-          if (!modStatsMap[mName]) {
-            modStatsMap[mName] = { name: mName, total: 0, completed: 0, serverTotal: 0, serverCompleted: 0, guiTotal: 0, guiCompleted: 0, sumProgress: 0, overdue: 0, completedThisWeek: 0, earliestReleaseDate: null, earliestReleaseName: '' };
-          }
-          const m = modStatsMap[mName];
-          m.total++;
-          const isGui = st.type === 'screen';
-          if (isGui) { m.guiTotal++; } else { m.serverTotal++; }
-
-          // Track earliest planned release date & name for sort and display
-          const _eRels = (pState.releases || []);
-          let _stRel = null;
-          let _stRelName = '';
-          if (st.releaseVersion || st.release) {
-            const _rv = String(st.releaseVersion || st.release).trim().toLowerCase();
-            const _rel = _eRels.find(r => String(r.name || '').trim().toLowerCase() === _rv || String(r.id || '').trim().toLowerCase() === _rv);
-            if (_rel) {
-              _stRel = _rel.date || _rel.endDate || _rel.targetDate || _rel.releaseDate || null;
-              _stRelName = _rel.name || _rel.id || '';
-            } else {
-              _stRelName = st.releaseVersion || st.release;
-            }
-          }
-          if (!_stRel && st.dueDate) { _stRel = st.dueDate; }
-          // If still no release name, look up the nearest release by date
-          if (_stRel && !_stRelName && _eRels.length > 0) {
-            const _taskD2 = new Date(_stRel);
-            const _sorted2 = _eRels
-              .filter(r => r.date || r.endDate || r.targetDate || r.releaseDate)
-              .map(r => ({ name: r.name || r.id || '', d: new Date(r.date || r.endDate || r.targetDate || r.releaseDate) }))
-              .sort((a, b) => a.d - b.d);
-            const _nearest2 = _sorted2.find(r => r.d >= _taskD2) || _sorted2[_sorted2.length - 1];
-            if (_nearest2) _stRelName = _nearest2.name;
-          }
-          if (_stRel) {
-            if (!m.earliestReleaseDate || new Date(_stRel) < new Date(m.earliestReleaseDate)) {
-              m.earliestReleaseDate = _stRel;
-              m.earliestReleaseName = _stRelName || m.earliestReleaseName || '';
-            }
-          }
-
-          const prog = parseInt(st.progress, 10) || (st.status === 'Completed' ? 100 : 0);
-          m.sumProgress += prog;
-          if (st.status === 'Completed' || prog === 100) {
-            m.completed++;
-            if (isGui) m.guiCompleted++; else m.serverCompleted++;
-
-            const rawAct = st.actCompletionDate;
-            if (rawAct && rawAct !== '-' && rawAct !== '—' && rawAct !== 'null') {
-              const compD = new Date(rawAct);
-              if (!isNaN(compD.getTime())) {
-                compD.setHours(0,0,0,0);
-                if (compD >= weekAgoDate) m.completedThisWeek++;
-              }
-            }
-          } else if (st.dueDate) {
-            const dd = new Date(st.dueDate); dd.setHours(0,0,0,0);
-            if (dd < todayDate && st.status !== 'Not Started') m.overdue++;
-          }
-        });
-
-        const moduleList = Object.values(modStatsMap).map(m => {
-          const avg = m.total > 0 ? Math.round(m.sumProgress / m.total) : 0;
-          let status = 'Not Started';
-          let color = '#64748b';
-          let bg = '#f8fafc';
-
-          if (avg === 100 || (m.total > 0 && m.completed === m.total)) {
-            status = 'Completed'; color = '#16a34a'; bg = '#f0fdf4';
-          } else if (m.overdue >= 2) {
-            status = 'Overdue'; color = '#dc2626'; bg = '#fef2f2';
-          } else if (m.overdue === 1) {
-            status = 'At Risk'; color = '#d97706'; bg = '#fffbeb';
-          } else if (avg > 0 || m.completed > 0 || m.completedThisWeek > 0) {
-            status = 'In Progress'; color = '#0369a1'; bg = '#eff6ff';
-          } else {
-            status = 'Not Started'; color = '#64748b'; bg = '#f8fafc';
-          }
-          return { ...m, avgProgress: avg, status, color, bg };
-        }).sort((a, b) => {
-          const da = a.earliestReleaseDate ? new Date(a.earliestReleaseDate).getTime() : Infinity;
-          const db = b.earliestReleaseDate ? new Date(b.earliestReleaseDate).getTime() : Infinity;
-          if (da !== db) return da - db;
-          return b.avgProgress - a.avgProgress;
-        });
+        const moduleList = getModuleSummaries(pState, weekAgoDate, todayDate);
 
         html += '<tr><td style="padding-bottom:18px;">';
         html += secHdr('#6366f1', '📊', 'Overall Module Status &amp; Weekly Progress Visualizer');
