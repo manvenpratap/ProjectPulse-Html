@@ -39068,8 +39068,7 @@ Earned Value Management measures project performance and progress by comparing p
     }
 
     function escapeHTML(str) {
-      if (!str) return '';
-      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+      return esc(str);
     }
 
     function openCxoEmailFlyout() {
@@ -39284,7 +39283,35 @@ Earned Value Management measures project performance and progress by comparing p
         const db = b.earliestReleaseDate ? new Date(b.earliestReleaseDate).getTime() : Infinity;
         if (da !== db) return da - db;
         return b.avgProgress - a.avgProgress;
-      });
+    }
+
+    function getCxoDeliverableIcon(st) {
+      return (st && st.type === 'screen') ? '📱' : '🖥️';
+    }
+
+    function formatCxoDateShort(d) {
+      if (!d) return '—';
+      try {
+        return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      } catch(e) {
+        return d;
+      }
+    }
+
+    function formatCxoReleaseLabel(relName, relDate, isHtml) {
+      if (!relName && !relDate) return isHtml ? '<span style="color:#94a3b8; font-size:11px; font-style:italic;">—</span>' : '—';
+      const rNameStr = relName ? escapeHTML(relName) : '';
+      const rDateStr = relDate ? formatCxoDate(relDate) : '';
+      if (isHtml) {
+        if (rNameStr && rDateStr) {
+          return '<strong style="color:#4f46e5; font-size:11.5px;">🚀 ' + rNameStr + '</strong><br><span style="font-size:10.5px; color:#64748b;">📅 ' + rDateStr + '</span>';
+        } else if (rNameStr) {
+          return '<strong style="color:#4f46e5; font-size:11.5px;">🚀 ' + rNameStr + '</strong>';
+        }
+        return '<span style="font-size:11px; color:#64748b;">📅 ' + rDateStr + '</span>';
+      }
+      if (rNameStr && rDateStr) return rNameStr + ' (' + rDateStr + ')';
+      return rNameStr || rDateStr || '—';
     }
 
     function computeGlobalStats() {
@@ -39803,18 +39830,7 @@ Earned Value Management measures project performance and progress by comparing p
               paceBadge = '<span style="color:#64748b; font-size:11px;">Progressing</span>';
             }
 
-            let releaseLabel = '<span style="color:#94a3b8; font-size:11px; font-style:italic;">—</span>';
-            if (m.earliestReleaseName || m.earliestReleaseDate) {
-              const rNameStr = m.earliestReleaseName ? escapeHTML(m.earliestReleaseName) : '';
-              const rDateStr = m.earliestReleaseDate ? formatCxoDate(m.earliestReleaseDate) : '';
-              if (rNameStr && rDateStr) {
-                releaseLabel = '<strong style="color:#4f46e5; font-size:11.5px;">🚀 ' + rNameStr + '</strong><br><span style="font-size:10.5px; color:#64748b;">📅 ' + rDateStr + '</span>';
-              } else if (rNameStr) {
-                releaseLabel = '<strong style="color:#4f46e5; font-size:11.5px;">🚀 ' + rNameStr + '</strong>';
-              } else if (rDateStr) {
-                releaseLabel = '<span style="font-size:11px; color:#64748b;">📅 ' + rDateStr + '</span>';
-              }
-            }
+            const releaseLabel = formatCxoReleaseLabel(m.earliestReleaseName, m.earliestReleaseDate, true);
 
             html += '<tr bgcolor="' + rowBg + '" style="background-color:' + rowBg + ';">';
             html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; font-weight:600; color:#0f172a;">' + escapeHTML(m.name) + '</td>';
