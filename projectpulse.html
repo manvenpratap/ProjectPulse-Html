@@ -39326,10 +39326,29 @@ Earned Value Management measures project performance and progress by comparing p
         }
         return { ...m, avgProgress: avg, status, color, bg };
       }).sort((a, b) => {
-        const da = a.earliestReleaseDate ? new Date(a.earliestReleaseDate).getTime() : Infinity;
-        const db = b.earliestReleaseDate ? new Date(b.earliestReleaseDate).getTime() : Infinity;
+        const getRelTime = (m) => {
+          if (m.earliestReleaseDate) {
+            const t = new Date(m.earliestReleaseDate).getTime();
+            if (!isNaN(t)) return t;
+          }
+          if (m.earliestReleaseName && p.releases && p.releases.length) {
+            const rn = String(m.earliestReleaseName).trim().toLowerCase();
+            const rel = p.releases.find(r => String(r.name || '').trim().toLowerCase() === rn || String(r.id || '').trim().toLowerCase() === rn);
+            if (rel) {
+              const rd = rel.endDate || rel.date || rel.targetDate || rel.releaseDate;
+              if (rd) {
+                const t = new Date(rd).getTime();
+                if (!isNaN(t)) return t;
+              }
+            }
+          }
+          return Infinity;
+        };
+        const da = getRelTime(a);
+        const db = getRelTime(b);
         if (da !== db) return da - db;
-        return b.avgProgress - a.avgProgress;
+        if (b.avgProgress !== a.avgProgress) return b.avgProgress - a.avgProgress;
+        return a.name.localeCompare(b.name);
       });
     }
 
@@ -39497,21 +39516,21 @@ Earned Value Management measures project performance and progress by comparing p
         }).slice(0, 20);
       }
       monthTasksSp.sort((a, b) => {
-        const aComp = isSubtaskCompleted(a);
-        const bComp = isSubtaskCompleted(b);
-        if (aComp !== bComp) return aComp ? 1 : -1;
+        const progA = (a.status === 'Completed' || (typeof isSubtaskCompleted === 'function' && isSubtaskCompleted(a))) ? 100 : (parseInt(a.progress, 10) || 0);
+        const progB = (b.status === 'Completed' || (typeof isSubtaskCompleted === 'function' && isSubtaskCompleted(b))) ? 100 : (parseInt(b.progress, 10) || 0);
+        if (progB !== progA) return progB - progA;
         return (a.dueDate || '').localeCompare(b.dueDate || '');
       });
-      const mCompSp   = monthTasksSp.filter(isSubtaskCompleted).length;
-      const mInProgSp = monthTasksSp.filter(st => { const p = parseInt(st.progress, 10) || 0; return st.status === 'In Progress' || (p > 0 && p < 100 && !isSubtaskCompleted(st)); }).length;
+      const mCompSp   = monthTasksSp.filter(st => st.status === 'Completed' || parseInt(st.progress, 10) === 100 || (typeof isSubtaskCompleted === 'function' && isSubtaskCompleted(st))).length;
+      const mInProgSp = monthTasksSp.filter(st => { const p = parseInt(st.progress, 10) || 0; return st.status === 'In Progress' || (p > 0 && p < 100 && st.status !== 'Completed'); }).length;
       const mNotStartSp = monthTasksSp.filter(st => { const p = parseInt(st.progress, 10) || 0; return (st.status === 'Not Started' || st.status === 'Planned') && p === 0; }).length;
       const mTotalSp  = monthTasksSp.length || 1;
-      const mPctSp    = calcPct(mCompSp, monthTasksSp.length);
+      const mPctSp    = Math.round((mCompSp / mTotalSp) * 100);
       const trendSp   = mPctSp >= 50 ? 'On Track' : 'Behind Target';
-      const trendColorSp = mPctSp >= 50 ? PulseUI.STATUS_COLORS.Completed.fg : PulseUI.STATUS_COLORS.Overdue.fg;
+      const trendColorSp = mPctSp >= 50 ? '#16a34a' : '#dc2626';
 
       return { monthNameSp, monthTasksSp, mCompSp, mInProgSp, mNotStartSp, mTotalSp, mPctSp, trendSp, trendColorSp };
-    };
+    }
 
     function generateHealthPoints(stats) {
       const projectName = escapeHTML(P.name || 'This project');
@@ -39606,40 +39625,6 @@ Earned Value Management measures project performance and progress by comparing p
       const rpStart      = new Date(); rpStart.setDate(rpStart.getDate() - daysBack);
       const reportPeriod = formatCxoDate(rpStart) + ' – ' + formatCxoDate(new Date());
       return { cadence, daysBack, cadenceLabel, todayDate, weekAgoDate, rpStart, reportPeriod };
-    }
-
-    function getCxoSprintData(pState) {
-      const nowSp = new Date();
-      const monthNameSp = nowSp.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-      const allSubItemsSp = getAllSubtaskItems(pState.tasks || []);
-      let monthTasksSp = allSubItemsSp.filter(st => {
-        if (!st.dueDate) return false;
-        const d = new Date(st.dueDate);
-        return d.getMonth() === nowSp.getMonth() && d.getFullYear() === nowSp.getFullYear();
-      });
-      if (!monthTasksSp.length) {
-        const futureLimit = new Date(nowSp); futureLimit.setDate(futureLimit.getDate() + 30);
-        monthTasksSp = allSubItemsSp.filter(st => {
-          if (!st.dueDate) return false;
-          const d = new Date(st.dueDate);
-          return d >= nowSp && d <= futureLimit;
-        }).slice(0, 20);
-      }
-      monthTasksSp.sort((a, b) => {
-        const aComp = a.status === 'Completed' || parseInt(a.progress, 10) === 100;
-        const bComp = b.status === 'Completed' || parseInt(b.progress, 10) === 100;
-        if (aComp !== bComp) return aComp ? 1 : -1;
-        return (a.dueDate || '').localeCompare(b.dueDate || '');
-      });
-      const mCompSp   = monthTasksSp.filter(st => st.status === 'Completed' || parseInt(st.progress, 10) === 100).length;
-      const mInProgSp = monthTasksSp.filter(st => { const p = parseInt(st.progress, 10) || 0; return st.status === 'In Progress' || (p > 0 && p < 100 && st.status !== 'Completed'); }).length;
-      const mNotStartSp = monthTasksSp.filter(st => { const p = parseInt(st.progress, 10) || 0; return (st.status === 'Not Started' || st.status === 'Planned') && p === 0; }).length;
-      const mTotalSp  = monthTasksSp.length || 1;
-      const mPctSp    = Math.round((mCompSp / mTotalSp) * 100);
-      const trendSp   = mPctSp >= 50 ? 'On Track' : 'Behind Target';
-      const trendColorSp = mPctSp >= 50 ? '#16a34a' : '#dc2626';
-
-      return { monthNameSp, monthTasksSp, mCompSp, mInProgSp, mNotStartSp, mTotalSp, mPctSp, trendSp, trendColorSp };
     }
 
     function computeCxoStatusBreakdown(subtasks) {
@@ -39800,7 +39785,7 @@ Earned Value Management measures project performance and progress by comparing p
         html += '</tr></table>';
         html += '</td></tr>';
 
-        // Module summary — divider row then inline counts (combined within the same card)
+        // Module summary — card UI container with mini status tiles (combined within the same section block)
         const execModules = getModuleSummaries(pState, weekAgoDate, todayDate);
         if (execModules.length > 0) {
           const totalMods = execModules.length;
@@ -39810,89 +39795,116 @@ Earned Value Management measures project performance and progress by comparing p
           const notStartedMods = execModules.filter(m => m.status === 'Not Started').length;
           const overallModProgress = Math.round(execModules.reduce((acc, m) => acc + m.avgProgress, 0) / totalMods);
 
-          html += '<tr><td style="padding:0 14px;"><table width="100%" border="0" cellpadding="0" cellspacing="0"><tr><td height="1" bgcolor="#e2e8f0" style="background:#e2e8f0; height:1px; font-size:1px; line-height:1px;">&nbsp;</td></tr></table></td></tr>';
-          html += '<tr><td style="padding:10px 14px 12px 14px;">';
-          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size:12px;"><tr>';
-          html += '<td>';
-          html += '<div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.7px; color:#64748b; margin-bottom:4px;">📦 Overall Modules (' + totalMods + ' Total)</div>';
-          html += '<div style="font-size:12.5px; font-weight:700; color:#0f172a; line-height:1.8;">';
-          html += '<span style="color:#16a34a;">✅ ' + completedMods + ' Completed</span>&nbsp;&bull;&nbsp;';
-          html += '<span style="color:#2563eb;">⚙️ ' + inProgressMods + ' In Progress</span>&nbsp;&bull;&nbsp;';
-          if (atRiskMods > 0) {
-            html += '<span style="color:#dc2626;">🚨 ' + atRiskMods + ' At Risk</span>&nbsp;&bull;&nbsp;';
-          }
-          html += '<span style="color:#64748b;">⏳ ' + notStartedMods + ' Not Started</span>';
-          html += '</div>';
-          html += '</td>';
-          html += '<td align="right" valign="middle" style="text-align:right; white-space:nowrap; padding-left:12px;">';
-          html += '<div style="font-size:9.5px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:2px;">Module Delivery</div>';
-          html += '<div style="font-size:18px; font-weight:900; color:#2563eb;">' + overallModProgress + '%</div>';
-          html += '</td>';
+          html += '<tr><td style="padding:10px 14px 14px 14px;">';
+          html += '<table width="100%" border="0" cellpadding="10" cellspacing="0" bgcolor="#f8fafc" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px;"><tr><td>';
+          
+          // Header inside module breakdown card
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:8px;"><tr>';
+          html += '<td style="font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.7px; color:#475569; font-family:Arial, Helvetica, sans-serif;">📦 Overall Module Breakdown (' + totalMods + ' Total)</td>';
+          html += '<td align="right" style="font-size:11px; font-weight:800; color:#2563eb; font-family:Arial, Helvetica, sans-serif;">Avg Progress: ' + overallModProgress + '%</td>';
           html += '</tr></table>';
+
+          // Grid of mini-cards inside the module breakdown card
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0"><tr>';
+          
+          // Completed Card
+          html += '<td style="padding-right:4px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff; border:1px solid #bbf7d0; border-radius:6px; text-align:center;"><tr><td>';
+          html += '<div style="font-size:15px; font-weight:900; color:#16a34a;">' + completedMods + '</div><div style="font-size:9px; font-weight:700; color:#15803d; text-transform:uppercase;">✅ Completed</div>';
+          html += '</td></tr></table></td>';
+
+          // In Progress Card
+          html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff; border:1px solid #bfdbfe; border-radius:6px; text-align:center;"><tr><td>';
+          html += '<div style="font-size:15px; font-weight:900; color:#2563eb;">' + inProgressMods + '</div><div style="font-size:9px; font-weight:700; color:#1d4ed8; text-transform:uppercase;">⚙️ In Progress</div>';
+          html += '</td></tr></table></td>';
+
+          // At Risk Card (if > 0)
+          if (atRiskMods > 0) {
+            html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff; border:1px solid #fecaca; border-radius:6px; text-align:center;"><tr><td>';
+            html += '<div style="font-size:15px; font-weight:900; color:#dc2626;">' + atRiskMods + '</div><div style="font-size:9px; font-weight:700; color:#b91c1c; text-transform:uppercase;">🚨 At Risk</div>';
+            html += '</td></tr></table></td>';
+          }
+
+          // Not Started Card
+          html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; text-align:center;"><tr><td>';
+          html += '<div style="font-size:15px; font-weight:900; color:#64748b;">' + notStartedMods + '</div><div style="font-size:9px; font-weight:700; color:#475569; text-transform:uppercase;">⏳ Not Started</div>';
+          html += '</td></tr></table></td>';
+
+          // Overall Module Delivery Card
+          html += '<td style="padding-left:4px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff; border:1px solid #93c5fd; border-radius:6px; text-align:center;"><tr><td>';
+          html += '<div style="font-size:15px; font-weight:900; color:#2563eb;">' + overallModProgress + '%</div><div style="font-size:9px; font-weight:700; color:#1e40af; text-transform:uppercase;">🎯 Delivery</div>';
+          html += '</td></tr></table></td>';
+
+          html += '</tr></table>';
+          html += '</td></tr></table>';
           html += '</td></tr>';
         }
 
-        html += '</table>';
-        html += '</td></tr>';
-      }
+        // Sprint Target breakdown card (embedded in combined section)
+        if (incSprint) {
+          const { monthNameSp, monthTasksSp, mCompSp, mInProgSp, mNotStartSp, mPctSp, trendSp, trendColorSp } = getCxoSprintData(pState);
+          const spFmtDate = (d) => { if (!d) return '—'; try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch(e) { return d; } };
 
-      // 2. SPRINT TARGET FOR CURRENT MONTH
-      if (incSprint) {
-        const { monthNameSp, monthTasksSp, mCompSp, mInProgSp, mNotStartSp, mPctSp, trendSp, trendColorSp } = getCxoSprintData(pState);
+          html += '<tr><td style="padding:0 14px 14px 14px;">';
+          html += '<table width="100%" border="0" cellpadding="10" cellspacing="0" bgcolor="#f8fafc" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px;"><tr><td>';
+          
+          // Header inside sprint target breakdown card
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:8px;"><tr>';
+          html += '<td style="font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.7px; color:#2563eb; font-family:Arial, Helvetica, sans-serif;">🎯 Sprint Target — ' + escapeHTML(monthNameSp) + '</td>';
+          html += '<td align="right" style="font-size:11px; font-weight:800; color:' + trendColorSp + '; font-family:Arial, Helvetica, sans-serif;">Completion: ' + mPctSp + '% (' + escapeHTML(trendSp) + ')</td>';
+          html += '</tr></table>';
 
-        const spFmtDate = (d) => { if (!d) return '—'; try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch(e) { return d; } };
+          // Summary mini cards
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:10px;"><tr>';
+          html += '<td style="padding-right:4px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff; border:1px solid #bbf7d0; border-radius:6px; text-align:center;"><tr><td>';
+          html += '<div style="font-size:15px; font-weight:900; color:#16a34a;">' + mCompSp + '</div><div style="font-size:9px; font-weight:700; color:#15803d; text-transform:uppercase;">Completed</div>';
+          html += '</td></tr></table></td>';
+          html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff; border:1px solid #bfdbfe; border-radius:6px; text-align:center;"><tr><td>';
+          html += '<div style="font-size:15px; font-weight:900; color:#2563eb;">' + mInProgSp + '</div><div style="font-size:9px; font-weight:700; color:#1d4ed8; text-transform:uppercase;">In Progress</div>';
+          html += '</td></tr></table></td>';
+          html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; text-align:center;"><tr><td>';
+          html += '<div style="font-size:15px; font-weight:900; color:#64748b;">' + mNotStartSp + '</div><div style="font-size:9px; font-weight:700; color:#475569; text-transform:uppercase;">Not Started</div>';
+          html += '</td></tr></table></td>';
+          html += '<td style="padding-left:4px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:6px; text-align:center;"><tr><td>';
+          html += '<div style="font-size:15px; font-weight:900; color:' + trendColorSp + ';">' + mPctSp + '%</div><div style="font-size:9px; font-weight:700; color:' + trendColorSp + '; text-transform:uppercase;">' + escapeHTML(trendSp) + '</div>';
+          html += '</td></tr></table></td>';
+          html += '</tr></table>';
 
-        html += '<tr><td style="padding-bottom:18px;">';
-        html += secHdr('#2563eb', '🎯', 'Sprint Target — ' + escapeHTML(monthNameSp));
-
-        // Summary bar
-        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:10px; border-collapse:collapse;"><tr>';
-        html += '<td style="padding-right:6px;"><table width="100%" border="0" cellpadding="8" cellspacing="0" bgcolor="#f0fdf4" style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; text-align:center;"><tr><td>';
-        html += '<div style="font-size:18px; font-weight:900; color:#16a34a;">' + mCompSp + '</div><div style="font-size:9px; font-weight:700; color:#15803d; text-transform:uppercase;">Completed</div>';
-        html += '</td></tr></table></td>';
-        html += '<td style="padding-right:6px;"><table width="100%" border="0" cellpadding="8" cellspacing="0" bgcolor="#dbeafe" style="background:#dbeafe; border:1px solid #bfdbfe; border-radius:6px; text-align:center;"><tr><td>';
-        html += '<div style="font-size:18px; font-weight:900; color:#2563eb;">' + mInProgSp + '</div><div style="font-size:9px; font-weight:700; color:#1d4ed8; text-transform:uppercase;">In Progress</div>';
-        html += '</td></tr></table></td>';
-        html += '<td style="padding-right:6px;"><table width="100%" border="0" cellpadding="8" cellspacing="0" bgcolor="#f1f5f9" style="background:#f1f5f9; border:1px solid #e2e8f0; border-radius:6px; text-align:center;"><tr><td>';
-        html += '<div style="font-size:18px; font-weight:900; color:#64748b;">' + mNotStartSp + '</div><div style="font-size:9px; font-weight:700; color:#475569; text-transform:uppercase;">Not Started</div>';
-        html += '</td></tr></table></td>';
-        html += '<td><table width="100%" border="0" cellpadding="8" cellspacing="0" bgcolor="#f8fafc" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; text-align:center;"><tr><td>';
-        html += '<div style="font-size:18px; font-weight:900; color:' + trendColorSp + ';">' + mPctSp + '%</div><div style="font-size:9px; font-weight:700; color:' + trendColorSp + '; text-transform:uppercase;">' + escapeHTML(trendSp) + '</div>';
-        html += '</td></tr></table></td>';
-        html += '</tr></table>';
-
-        // Detailed task table
-        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;">';
-        // Header row
-        html += '<tr bgcolor="#f1f5f9" style="background:#f1f5f9;">';
-        html += '<td style="padding:7px 10px; font-size:9.5px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0;">Task</td>';
-        html += '<td style="padding:7px 8px; font-size:9.5px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0;">Module</td>';
-        html += '<td style="padding:7px 8px; font-size:9.5px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0;">Assignee</td>';
-        html += '<td style="padding:7px 8px; font-size:9.5px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0;">Priority</td>';
-        html += '<td style="padding:7px 8px; font-size:9.5px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0; min-width:80px;">Progress</td>';
-        html += '<td style="padding:7px 8px; font-size:9.5px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0;">Status</td>';
-        html += '<td style="padding:7px 8px; font-size:9.5px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0;">Due</td>';
-        html += '</tr>';
-        monthTasksSp.forEach((st, idx) => {
-          const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
-          const prog = parseInt(st.progress, 10) || (st.status === 'Completed' ? 100 : 0);
-          const sc = getCxoStatusColor(st.status);
-          const pColor = getCxoPriorityColor(st.parent ? st.parent.priority : (st.priority || ''));
-          const assignee = st.parent ? (st.parent.assignee || st.assignee || '—') : (st.assignee || '—');
-          const priority = st.parent ? (st.parent.priority || st.priority || '—') : (st.priority || '—');
-          html += '<tr bgcolor="' + rowBg + '" style="background:' + rowBg + ';">';
-          html += '<td style="padding:7px 10px; font-size:11px; color:#1e293b; border-bottom:1px solid #f1f5f9; max-width:160px;">' + escapeHTML((st.name || '').substring(0, 40) + (st.name && st.name.length > 40 ? '…' : '')) + '</td>';
-          html += '<td style="padding:7px 8px; font-size:10px; color:#475569; border-bottom:1px solid #f1f5f9; white-space:nowrap;">' + escapeHTML((st.module || '').substring(0, 22)) + '</td>';
-          html += '<td style="padding:7px 8px; font-size:10px; color:#475569; border-bottom:1px solid #f1f5f9; white-space:nowrap;">' + escapeHTML(assignee.split(' ')[0]) + '</td>';
-          html += '<td style="padding:7px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap;"><span style="font-size:9px; font-weight:700; color:' + pColor + ';">' + escapeHTML(priority) + '</span></td>';
-          html += '<td style="padding:7px 8px; border-bottom:1px solid #f1f5f9;">' + miniBar(prog, '#2563eb') + '<div style="font-size:9px; color:#64748b; margin-top:1px;">' + prog + '%</div></td>';
-          html += '<td style="padding:7px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap;"><span style="display:inline-block; padding:2px 6px; border-radius:3px; font-size:9px; font-weight:700; background:' + sc.bg + '; color:' + sc.fg + ';">' + escapeHTML(st.status || 'Not Started') + '</span></td>';
-          html += '<td style="padding:7px 8px; font-size:10px; color:#64748b; border-bottom:1px solid #f1f5f9; white-space:nowrap;">' + escapeHTML(spFmtDate(st.dueDate)) + '</td>';
+          // Detailed task table
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse; border:1px solid #e2e8f0; border-radius:6px; overflow:hidden;">';
+          html += '<tr bgcolor="#f1f5f9" style="background:#f1f5f9;">';
+          html += '<td style="padding:6px 8px; font-size:9px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0;">Task</td>';
+          html += '<td style="padding:6px 8px; font-size:9px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0;">Module</td>';
+          html += '<td style="padding:6px 8px; font-size:9px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0;">Assignee</td>';
+          html += '<td style="padding:6px 8px; font-size:9px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0;">Priority</td>';
+          html += '<td style="padding:6px 8px; font-size:9px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0; min-width:70px;">Progress</td>';
+          html += '<td style="padding:6px 8px; font-size:9px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0;">Status</td>';
+          html += '<td style="padding:6px 8px; font-size:9px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #e2e8f0;">Due</td>';
           html += '</tr>';
-        });
-        if (!monthTasksSp.length) {
-          html += '<tr><td colspan="7" style="padding:16px; text-align:center; font-size:12px; color:#94a3b8;">No sprint tasks planned for this period.</td></tr>';
+          monthTasksSp.forEach((st, idx) => {
+            const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+            const prog = parseInt(st.progress, 10) || (st.status === 'Completed' ? 100 : 0);
+            const sc = getCxoStatusColor(st.status);
+            const pColor = getCxoPriorityColor(st.parent ? st.parent.priority : (st.priority || ''));
+            const assignee = st.parent ? (st.parent.assignee || st.assignee || '—') : (st.assignee || '—');
+            const priority = st.parent ? (st.parent.priority || st.priority || '—') : (st.priority || '—');
+            html += '<tr bgcolor="' + rowBg + '" style="background:' + rowBg + ';">';
+            html += '<td style="padding:6px 8px; font-size:10.5px; color:#1e293b; border-bottom:1px solid #f1f5f9; max-width:160px;">' + escapeHTML((st.name || '').substring(0, 40) + (st.name && st.name.length > 40 ? '…' : '')) + '</td>';
+            html += '<td style="padding:6px 8px; font-size:9.5px; color:#475569; border-bottom:1px solid #f1f5f9; white-space:nowrap;">' + escapeHTML((st.module || '').substring(0, 22)) + '</td>';
+            html += '<td style="padding:6px 8px; font-size:9.5px; color:#475569; border-bottom:1px solid #f1f5f9; white-space:nowrap;">' + escapeHTML(assignee.split(' ')[0]) + '</td>';
+            html += '<td style="padding:6px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap;"><span style="font-size:9px; font-weight:700; color:' + pColor + ';">' + escapeHTML(priority) + '</span></td>';
+            html += '<td style="padding:6px 8px; border-bottom:1px solid #f1f5f9;">' + miniBar(prog, '#2563eb') + '<div style="font-size:9px; color:#64748b; margin-top:1px;">' + prog + '%</div></td>';
+            html += '<td style="padding:6px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap;"><span style="display:inline-block; padding:2px 5px; border-radius:3px; font-size:8.5px; font-weight:700; background:' + sc.bg + '; color:' + sc.fg + ';">' + escapeHTML(st.status || 'Not Started') + '</span></td>';
+            html += '<td style="padding:6px 8px; font-size:9.5px; color:#64748b; border-bottom:1px solid #f1f5f9; white-space:nowrap;">' + escapeHTML(spFmtDate(st.dueDate)) + '</td>';
+            html += '</tr>';
+          });
+          if (!monthTasksSp.length) {
+            html += '<tr><td colspan="7" style="padding:14px; text-align:center; font-size:11.5px; color:#94a3b8;">No sprint tasks planned for this period.</td></tr>';
+          }
+          html += '</table>';
+          html += '</td></tr></table>';
+          html += '</td></tr>';
         }
+
         html += '</table>';
         html += '</td></tr>';
       }
@@ -40186,7 +40198,7 @@ Earned Value Management measures project performance and progress by comparing p
         });
         html += '</ul>';
 
-        // Module overview — divider then inline row (same section block)
+        // Module overview — card UI container with mini status tiles (same section block)
         const execModsRT = getModuleSummaries(pState, weekAgoDate, todayDate);
         if (execModsRT.length > 0) {
           const totRT = execModsRT.length;
@@ -40196,70 +40208,83 @@ Earned Value Management measures project performance and progress by comparing p
           const pendRT = execModsRT.filter(m => m.status === 'Not Started').length;
           const avgProgRT = Math.round(execModsRT.reduce((acc, m) => acc + m.avgProgress, 0) / totRT);
 
-          html += '<div style="margin-top:12px; padding-top:10px; border-top:1px dashed #e2e8f0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">';
-          html += '<div style="font-size:12.5px; font-weight:700; color:#0f172a;">';
-          html += '<span style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0.6px; color:#64748b; margin-right:8px;">📦 ' + totRT + ' Modules:</span>';
-          html += '<span style="color:#16a34a;">✅ ' + compRT + ' Completed</span>';
-          html += '<span style="color:#94a3b8; margin:0 5px;">·</span>';
-          html += '<span style="color:#2563eb;">⚙️ ' + progRT + ' In Progress</span>';
-          if (riskRT > 0) {
-            html += '<span style="color:#94a3b8; margin:0 5px;">·</span>';
-            html += '<span style="color:#dc2626;">🚨 ' + riskRT + ' At Risk</span>';
-          }
-          html += '<span style="color:#94a3b8; margin:0 5px;">·</span>';
-          html += '<span style="color:#64748b;">⏳ ' + pendRT + ' Not Started</span>';
+          html += '<div style="margin-top:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">';
+          html += '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:11px; font-family:Arial, Helvetica, sans-serif;">';
+          html += '<div style="font-weight:800; text-transform:uppercase; letter-spacing:0.6px; color:#475569;">📦 Overall Module Breakdown (' + totRT + ' Total)</div>';
+          html += '<div style="font-weight:800; color:#2563eb;">Avg Delivery: ' + avgProgRT + '%</div>';
           html += '</div>';
-          html += '<div style="font-size:12px; font-weight:800; color:#2563eb; white-space:nowrap;">Module Score: ' + avgProgRT + '%</div>';
+          html += '<div style="display:flex; flex-wrap:wrap; gap:6px;">';
+          html += '<div style="flex:1; min-width:80px; background:#ffffff; border:1px solid #bbf7d0; border-radius:6px; padding:6px; text-align:center;">';
+          html += '<div style="font-size:14px; font-weight:800; color:#16a34a;">' + compRT + '</div>';
+          html += '<div style="font-size:9.5px; font-weight:700; color:#15803d; text-transform:uppercase;">✅ Completed</div>';
+          html += '</div>';
+          html += '<div style="flex:1; min-width:80px; background:#ffffff; border:1px solid #bfdbfe; border-radius:6px; padding:6px; text-align:center;">';
+          html += '<div style="font-size:14px; font-weight:800; color:#2563eb;">' + progRT + '</div>';
+          html += '<div style="font-size:9.5px; font-weight:700; color:#1d4ed8; text-transform:uppercase;">⚙️ In Progress</div>';
+          html += '</div>';
+          if (riskRT > 0) {
+            html += '<div style="flex:1; min-width:80px; background:#ffffff; border:1px solid #fecaca; border-radius:6px; padding:6px; text-align:center;">';
+            html += '<div style="font-size:14px; font-weight:800; color:#dc2626;">' + riskRT + '</div>';
+            html += '<div style="font-size:9.5px; font-weight:700; color:#b91c1c; text-transform:uppercase;">🚨 At Risk</div>';
+            html += '</div>';
+          }
+          html += '<div style="flex:1; min-width:80px; background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; padding:6px; text-align:center;">';
+          html += '<div style="font-size:14px; font-weight:800; color:#64748b;">' + pendRT + '</div>';
+          html += '<div style="font-size:9.5px; font-weight:700; color:#475569; text-transform:uppercase;">⏳ Not Started</div>';
+          html += '</div>';
+          html += '<div style="flex:1; min-width:80px; background:#ffffff; border:1px solid #93c5fd; border-radius:6px; padding:6px; text-align:center;">';
+          html += '<div style="font-size:14px; font-weight:800; color:#2563eb;">' + avgProgRT + '%</div>';
+          html += '<div style="font-size:9.5px; font-weight:700; color:#1e40af; text-transform:uppercase;">🎯 Delivery</div>';
+          html += '</div>';
+          html += '</div>';
           html += '</div>';
         }
+
+        // Sprint Target inside combined section
+        if (incSprint) {
+          const { monthNameSp: monthName, monthTasksSp: monthTasksRT, mCompSp: mComp, mInProgSp: mInProg, mNotStartSp: mNotStart, mTotalSp: mTotal, mPctSp: mPct } = getCxoSprintData(pState);
+          const trendLabel = mPct >= 50 ? 'Trending On Track 🟢' : 'Behind Target 🔴';
+          const rtFmtDate = (d) => { if (!d) return '—'; try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch(e) { return d; } };
+          const rtStBadge = (s) => { if (s==='Completed') return '✅'; if (s==='In Progress') return '⚙️'; if (s==='Under Review') return '🔍'; if (s==='On Hold') return '⏸'; return '⏳'; };
+
+          html += '<div style="margin-top:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">';
+          html += '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:11px; font-family:Arial, Helvetica, sans-serif;">';
+          html += '<div style="font-weight:800; text-transform:uppercase; letter-spacing:0.6px; color:#2563eb;">🎯 Sprint Target — ' + escapeHTML(monthName) + ' (' + mTotal + ' Tasks)</div>';
+          html += '<div style="font-weight:800; color:#2563eb;">' + mPct + '% Completed (' + trendLabel + ')</div>';
+          html += '</div>';
+          html += '<table style="width:100%; border-collapse:collapse; font-size:11.5px; margin-bottom:4px;">';
+          html += '<tr style="background:#f1f5f9;"><th style="padding:5px 7px; text-align:left; border:1px solid #e2e8f0; color:#475569; font-size:9.5px; text-transform:uppercase;">Task</th>';
+          html += '<th style="padding:5px 7px; text-align:left; border:1px solid #e2e8f0; color:#475569; font-size:9.5px; text-transform:uppercase;">Module</th>';
+          html += '<th style="padding:5px 7px; text-align:left; border:1px solid #e2e8f0; color:#475569; font-size:9.5px; text-transform:uppercase;">Assignee</th>';
+          html += '<th style="padding:5px 7px; text-align:left; border:1px solid #e2e8f0; color:#475569; font-size:9.5px; text-transform:uppercase;">Priority</th>';
+          html += '<th style="padding:5px 7px; text-align:left; border:1px solid #e2e8f0; color:#475569; font-size:9.5px; text-transform:uppercase;">Progress</th>';
+          html += '<th style="padding:5px 7px; text-align:left; border:1px solid #e2e8f0; color:#475569; font-size:9.5px; text-transform:uppercase;">Status</th>';
+          html += '<th style="padding:5px 7px; text-align:left; border:1px solid #e2e8f0; color:#475569; font-size:9.5px; text-transform:uppercase;">Due</th></tr>';
+          monthTasksRT.forEach((t, idx) => {
+            const prog = parseInt(t.progress, 10) || (t.status === 'Completed' ? 100 : 0);
+            const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+            const assignee = t.parent ? (t.parent.assignee || t.assignee || '—') : (t.assignee || '—');
+            const priority = t.parent ? (t.parent.priority || t.priority || '—') : (t.priority || '—');
+            const pColor = getCxoPriorityColor(priority);
+            html += '<tr style="background:' + rowBg + ';">';
+            html += '<td style="padding:5px 7px; border:1px solid #e2e8f0; color:#1e293b; font-weight:600;">' + escapeHTML((t.name||'').substring(0,45) + (t.name&&t.name.length>45?'…':'')) + '</td>';
+            html += '<td style="padding:5px 7px; border:1px solid #e2e8f0; color:#475569;">' + escapeHTML((t.module||'').substring(0,24)) + '</td>';
+            html += '<td style="padding:5px 7px; border:1px solid #e2e8f0; color:#475569;">' + escapeHTML(assignee) + '</td>';
+            html += '<td style="padding:5px 7px; border:1px solid #e2e8f0; font-weight:700; color:' + pColor + ';">' + escapeHTML(priority) + '</td>';
+            html += '<td style="padding:5px 7px; border:1px solid #e2e8f0; color:#334155;">' + prog + '%</td>';
+            html += '<td style="padding:5px 7px; border:1px solid #e2e8f0; color:#334155;">' + rtStBadge(t.status) + ' ' + escapeHTML(t.status || 'Not Started') + '</td>';
+            html += '<td style="padding:5px 7px; border:1px solid #e2e8f0; color:#64748b;">' + escapeHTML(rtFmtDate(t.dueDate)) + '</td>';
+            html += '</tr>';
+          });
+          if (!monthTasksRT.length) {
+            html += '<tr><td colspan="7" style="padding:10px; text-align:center; color:#94a3b8;">No sprint tasks found for this period.</td></tr>';
+          }
+          html += '</table>';
+          html += '</div>';
+        }
+
         html += '</div>'; // body close
         html += '</div>'; // block close
-      }
-
-      // 2. Sprint Target
-      if (incSprint) {
-        const { monthNameSp: monthName, monthTasksSp: monthTasksRT, mCompSp: mComp, mInProgSp: mInProg, mNotStartSp: mNotStart, mTotalSp: mTotal, mPctSp: mPct, trendSp } = getCxoSprintData(pState);
-        const trendLabel = mPct >= 50 ? 'Trending On Track 🟢' : 'Behind Target 🔴';
-        const rtFmtDate = (d) => { if (!d) return '—'; try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch(e) { return d; } };
-        const rtStBadge = (s) => { if (s==='Completed') return '✅'; if (s==='In Progress') return '⚙️'; if (s==='Under Review') return '🔍'; if (s==='On Hold') return '⏸'; return '⏳'; };
-
-        html += '<h3 style="font-size: 15px; color: #2563eb; border-left: 4px solid #2563eb; padding-left: 8px; margin: 18px 0 10px 0;">🎯 Sprint Target — ' + escapeHTML(monthName) + '</h3>';
-        html += '<p style="font-size: 12px; margin: 0 0 10px 0; color:#334155;">';
-        html += '<strong>' + mTotal + ' Tasks Planned</strong> &nbsp;|&nbsp; ';
-        html += '<span style="color:#16a34a; font-weight:700;">✅ ' + mComp + ' Completed</span> &nbsp;&bull;&nbsp; ';
-        html += '<span style="color:#2563eb; font-weight:700;">⚙️ ' + mInProg + ' In Progress</span> &nbsp;&bull;&nbsp; ';
-        html += '<span style="color:#64748b; font-weight:700;">⏳ ' + mNotStart + ' Not Started</span> &nbsp;|&nbsp; ';
-        html += '<strong>Completion:</strong> ' + mPct + '% &nbsp;|&nbsp; ' + trendLabel;
-        html += '</p>';
-        // Detailed task table
-        html += '<table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:14px;">';
-        html += '<tr style="background:#f1f5f9;"><th style="padding:6px 8px; text-align:left; border:1px solid #e2e8f0; color:#475569; font-size:10px; text-transform:uppercase;">Task</th>';
-        html += '<th style="padding:6px 8px; text-align:left; border:1px solid #e2e8f0; color:#475569; font-size:10px; text-transform:uppercase;">Module</th>';
-        html += '<th style="padding:6px 8px; text-align:left; border:1px solid #e2e8f0; color:#475569; font-size:10px; text-transform:uppercase;">Assignee</th>';
-        html += '<th style="padding:6px 8px; text-align:left; border:1px solid #e2e8f0; color:#475569; font-size:10px; text-transform:uppercase;">Priority</th>';
-        html += '<th style="padding:6px 8px; text-align:left; border:1px solid #e2e8f0; color:#475569; font-size:10px; text-transform:uppercase;">Progress</th>';
-        html += '<th style="padding:6px 8px; text-align:left; border:1px solid #e2e8f0; color:#475569; font-size:10px; text-transform:uppercase;">Status</th>';
-        html += '<th style="padding:6px 8px; text-align:left; border:1px solid #e2e8f0; color:#475569; font-size:10px; text-transform:uppercase;">Due</th></tr>';
-        monthTasksRT.forEach((t, idx) => {
-          const prog = parseInt(t.progress, 10) || (t.status === 'Completed' ? 100 : 0);
-          const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
-          const assignee = t.parent ? (t.parent.assignee || t.assignee || '—') : (t.assignee || '—');
-          const priority = t.parent ? (t.parent.priority || t.priority || '—') : (t.priority || '—');
-          const pColor = getCxoPriorityColor(priority);
-          html += '<tr style="background:' + rowBg + ';">';
-          html += '<td style="padding:6px 8px; border:1px solid #e2e8f0; color:#1e293b; font-weight:600;">' + escapeHTML((t.name||'').substring(0,45) + (t.name&&t.name.length>45?'…':'')) + '</td>';
-          html += '<td style="padding:6px 8px; border:1px solid #e2e8f0; color:#475569;">' + escapeHTML((t.module||'').substring(0,24)) + '</td>';
-          html += '<td style="padding:6px 8px; border:1px solid #e2e8f0; color:#475569;">' + escapeHTML(assignee) + '</td>';
-          html += '<td style="padding:6px 8px; border:1px solid #e2e8f0; font-weight:700; color:' + pColor + ';">' + escapeHTML(priority) + '</td>';
-          html += '<td style="padding:6px 8px; border:1px solid #e2e8f0; color:#334155;">' + prog + '%</td>';
-          html += '<td style="padding:6px 8px; border:1px solid #e2e8f0; color:#334155;">' + rtStBadge(t.status) + ' ' + escapeHTML(t.status || 'Not Started') + '</td>';
-          html += '<td style="padding:6px 8px; border:1px solid #e2e8f0; color:#64748b;">' + escapeHTML(rtFmtDate(t.dueDate)) + '</td>';
-          html += '</tr>';
-        });
-        if (!monthTasksRT.length) {
-          html += '<tr><td colspan="7" style="padding:12px; text-align:center; color:#94a3b8;">No sprint tasks found for this period.</td></tr>';
-        }
-        html += '</table>';
       }
 
       // 3. Status Distribution
@@ -40351,10 +40376,29 @@ Earned Value Management measures project performance and progress by comparing p
           else status = 'Not Started';
           return { ...m, avgProgress: avg, status };
         }).sort((a, b) => {
-          const da = a.earliestReleaseDate ? new Date(a.earliestReleaseDate).getTime() : Infinity;
-          const db = b.earliestReleaseDate ? new Date(b.earliestReleaseDate).getTime() : Infinity;
+          const getRelTime = (m) => {
+            if (m.earliestReleaseDate) {
+              const t = new Date(m.earliestReleaseDate).getTime();
+              if (!isNaN(t)) return t;
+            }
+            if (m.earliestReleaseName && pState.releases && pState.releases.length) {
+              const rn = String(m.earliestReleaseName).trim().toLowerCase();
+              const rel = pState.releases.find(r => String(r.name || '').trim().toLowerCase() === rn || String(r.id || '').trim().toLowerCase() === rn);
+              if (rel) {
+                const rd = rel.endDate || rel.date || rel.targetDate || rel.releaseDate;
+                if (rd) {
+                  const t = new Date(rd).getTime();
+                  if (!isNaN(t)) return t;
+                }
+              }
+            }
+            return Infinity;
+          };
+          const da = getRelTime(a);
+          const db = getRelTime(b);
           if (da !== db) return da - db;
-          return b.avgProgress - a.avgProgress;
+          if (b.avgProgress !== a.avgProgress) return b.avgProgress - a.avgProgress;
+          return a.name.localeCompare(b.name);
         });
 
         html += '<h3 style="font-size: 15px; color: #6366f1; border-left: 4px solid #6366f1; padding-left: 8px; margin: 18px 0 10px 0;">📊 Module Performance</h3>';
