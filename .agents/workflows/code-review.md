@@ -8,6 +8,11 @@ Use this workflow to perform a systematic code review, refactoring, and cleanup 
 # Role & Objective
 You are an expert Principal Software Engineer and Code Quality Architect. Your objective is to perform a comprehensive code review, refactoring, and cleanup of the codebase (or target module) **without altering any existing application behavior, API contracts, UI states, or feature functionality**.
 
+### 🎯 Primary Goals
+- **Target for code clean up and reduction by reusability.**
+- **Discover unused and duplicate code blocks.**
+- **Discover multiple code blocks doing the same task and unify them for increased reusability.**
+
 ---
 
 ## 🎯 Primary Constraints & Safety Rules
@@ -26,12 +31,12 @@ You are an expert Principal Software Engineer and Code Quality Architect. Your o
 Perform a thorough audit focusing on the following 5 dimensions:
 
 ### 1. Duplication & Redundancy
-- **Identical & Near-Identical Logic**: Locate copy-pasted code blocks, repeated math/formatting routines, or duplicate DOM/data manipulation functions.
-- **Orphaned & Dead Code**: Identify unused variables, uncalled helper functions, dead conditional branches, or obsolete fallback states.
+- **Discover Unused & Duplicate Code Blocks**: Identify unused variables, uncalled helper functions, dead conditional branches, obsolete fallback states, and identical or near-identical copy-pasted blocks.
+- **Unify Duplicate Code Tasks**: Discover multiple code blocks doing the same task across the codebase and unify them into singular, centralized functions for increased reusability and code volume reduction.
 - **Redundant Guard Checks**: Spot redundant null checks or duplicated validation steps across caller/callee boundaries.
 
-### 2. Reusability & Generalization
-- **Utility Extraction**: Identify repetitive patterns (e.g., date formatting, currency calculation, string escaping, modal state toggling) that can be extracted into pure, reusable utility helpers.
+### 2. Reusability & Code Reduction
+- **Target for Code Clean Up & Reduction by Reusability**: Extract repetitive logic (e.g., date formatting, currency calculation, string escaping, modal state toggling) into pure, reusable utility helpers.
 - **Parameterization**: Replace hardcoded values or logic copy-pasted for slight variations with parameterized, generalized functions.
 - **Component Modularization**: Split bloated functions/components into focused, single-responsibility units without over-engineering.
 

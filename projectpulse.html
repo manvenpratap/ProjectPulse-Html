@@ -39262,7 +39262,7 @@ Earned Value Management measures project performance and progress by comparing p
       allSubItems.forEach(st => {
         const mName = (st.module || 'General').trim();
         if (!modStatsMap[mName]) {
-          modStatsMap[mName] = { name: mName, total: 0, completed: 0, serverTotal: 0, serverCompleted: 0, guiTotal: 0, guiCompleted: 0, sumProgress: 0, overdue: 0, completedThisWeek: 0, earliestReleaseDate: null, earliestReleaseName: '' };
+          modStatsMap[mName] = { name: mName, total: 0, completed: 0, serverTotal: 0, serverCompleted: 0, guiTotal: 0, guiCompleted: 0, sumProgress: 0, overdue: 0, completedThisWeek: 0, serverThisWeek: 0, guiThisWeek: 0, earliestReleaseDate: null, earliestReleaseName: '' };
         }
         const m = modStatsMap[mName];
         m.total++;
@@ -39325,7 +39325,10 @@ Earned Value Management measures project performance and progress by comparing p
             const compD = new Date(rawAct);
             if (!isNaN(compD.getTime())) {
               compD.setHours(0,0,0,0);
-              if (weekAgoDate && compD >= weekAgoDate) m.completedThisWeek++;
+              if (weekAgoDate && compD >= weekAgoDate) {
+                m.completedThisWeek++;
+                if (isGui) m.guiThisWeek++; else m.serverThisWeek++;
+              }
             }
           }
         } else if (st.dueDate && todayDate) {
@@ -39551,12 +39554,23 @@ Earned Value Management measures project performance and progress by comparing p
       const mCompSp   = monthTasksSp.filter(st => st.status === 'Completed' || parseInt(st.progress, 10) === 100 || (typeof isSubtaskCompleted === 'function' && isSubtaskCompleted(st))).length;
       const mInProgSp = monthTasksSp.filter(st => { const p = parseInt(st.progress, 10) || 0; return st.status === 'In Progress' || (p > 0 && p < 100 && st.status !== 'Completed'); }).length;
       const mNotStartSp = monthTasksSp.filter(st => { const p = parseInt(st.progress, 10) || 0; return (st.status === 'Not Started' || st.status === 'Planned') && p === 0; }).length;
-      const mTotalSp  = monthTasksSp.length || 1;
-      const mPctSp    = Math.round((mCompSp / mTotalSp) * 100);
-      const trendSp   = mPctSp >= 50 ? 'On Track' : 'Behind Target';
+      const nowMs = new Date().getTime();
+      const weekMs = 7 * 24 * 60 * 60 * 1000;
+      const mThisWeekSp = monthTasksSp.filter(st => {
+        const isC = st.status === 'Completed' || parseInt(st.progress, 10) === 100 || (typeof isSubtaskCompleted === 'function' && isSubtaskCompleted(st));
+        if (!isC) return false;
+        if (st.completedDate) {
+          const t = new Date(st.completedDate).getTime();
+          return !isNaN(t) && (nowMs - t <= weekMs);
+        }
+        return true;
+      }).length;
+      const mTotalSp = monthTasksSp.length;
+      const mPctSp = mTotalSp > 0 ? Math.round((mCompSp / mTotalSp) * 100) : 0;
+      const trendSp = mPctSp >= 50 ? 'Trending On Track 🟢' : 'Behind Target 🔴';
       const trendColorSp = mPctSp >= 50 ? '#16a34a' : '#dc2626';
 
-      return { monthNameSp, monthTasksSp, mCompSp, mInProgSp, mNotStartSp, mTotalSp, mPctSp, trendSp, trendColorSp };
+      return { monthNameSp, monthTasksSp, mCompSp, mInProgSp, mNotStartSp, mThisWeekSp, mTotalSp, mPctSp, trendSp, trendColorSp };
     }
 
     function generateHealthPoints(stats) {
@@ -39868,7 +39882,7 @@ Earned Value Management measures project performance and progress by comparing p
 
         // Sprint Target breakdown card (embedded in combined section)
         if (incSprint) {
-          const { monthNameSp, monthTasksSp, mCompSp, mInProgSp, mNotStartSp, mPctSp, trendSp, trendColorSp } = getCxoSprintData(pState);
+          const { monthNameSp, monthTasksSp, mCompSp, mInProgSp, mNotStartSp, mThisWeekSp, mPctSp, trendSp, trendColorSp } = getCxoSprintData(pState);
           const spFmtDate = (d) => { if (!d) return '—'; try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch(e) { return d; } };
 
           html += '<tr><td style="padding:0 14px 14px 14px;">';
@@ -39882,7 +39896,7 @@ Earned Value Management measures project performance and progress by comparing p
 
           // Summary mini cards
           html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:10px;"><tr>';
-          html += '<td style="padding-right:4px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff; border:1px solid #bbf7d0; border-radius:6px; text-align:center;"><tr><td>';
+          html += '<td style="padding-right:2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff; border:1px solid #bbf7d0; border-radius:6px; text-align:center;"><tr><td>';
           html += '<div style="font-size:15px; font-weight:900; color:#16a34a;">' + mCompSp + '</div><div style="font-size:9px; font-weight:700; color:#15803d; text-transform:uppercase;">Completed</div>';
           html += '</td></tr></table></td>';
           html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff; border:1px solid #bfdbfe; border-radius:6px; text-align:center;"><tr><td>';
@@ -39891,7 +39905,10 @@ Earned Value Management measures project performance and progress by comparing p
           html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; text-align:center;"><tr><td>';
           html += '<div style="font-size:15px; font-weight:900; color:#64748b;">' + mNotStartSp + '</div><div style="font-size:9px; font-weight:700; color:#475569; text-transform:uppercase;">Not Started</div>';
           html += '</td></tr></table></td>';
-          html += '<td style="padding-left:4px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:6px; text-align:center;"><tr><td>';
+          html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff; border:1px solid #fed7aa; border-radius:6px; text-align:center;"><tr><td>';
+          html += '<div style="font-size:15px; font-weight:900; color:#ea580c;">+' + mThisWeekSp + '</div><div style="font-size:9px; font-weight:700; color:#c2410c; text-transform:uppercase;">Weekly Pace</div>';
+          html += '</td></tr></table></td>';
+          html += '<td style="padding-left:2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:6px; text-align:center;"><tr><td>';
           html += '<div style="font-size:15px; font-weight:900; color:' + trendColorSp + ';">' + mPctSp + '%</div><div style="font-size:9px; font-weight:700; color:' + trendColorSp + '; text-transform:uppercase;">' + escapeHTML(trendSp) + '</div>';
           html += '</td></tr></table></td>';
           html += '</tr></table>';
@@ -40059,7 +40076,11 @@ Earned Value Management measures project performance and progress by comparing p
             // Module rows
             grpModules.forEach((m, idx) => {
               const rowBg = idx % 2 === 0 ? '#ffffff' : '#fafafa';
-              let paceBadge = '<span style="color:#16a34a; font-weight:700; font-size:11px;">✓ +' + m.completedThisWeek + ' this week</span>';
+              let paceDetails = [];
+              if (m.serverThisWeek > 0) paceDetails.push(m.serverThisWeek + ' Server');
+              if (m.guiThisWeek > 0) paceDetails.push(m.guiThisWeek + ' GUI');
+              let paceText = paceDetails.length > 0 ? paceDetails.join(', ') : m.completedThisWeek + ' items';
+              let paceBadge = '<span style="color:#16a34a; font-weight:700; font-size:11px;">✓ +' + paceText + ' this week</span>';
               if (m.status === 'Not Started' || m.avgProgress === 0) {
                 paceBadge = '<span style="color:#64748b; font-size:11px;">🗓️ Planned</span>';
               } else if (m.overdue > 0) {
@@ -40348,7 +40369,7 @@ Earned Value Management measures project performance and progress by comparing p
 
         // Sprint Target inside combined section
         if (incSprint) {
-          const { monthNameSp: monthName, monthTasksSp: monthTasksRT, mCompSp: mComp, mInProgSp: mInProg, mNotStartSp: mNotStart, mTotalSp: mTotal, mPctSp: mPct } = getCxoSprintData(pState);
+          const { monthNameSp: monthName, monthTasksSp: monthTasksRT, mCompSp: mComp, mInProgSp: mInProg, mNotStartSp: mNotStart, mThisWeekSp: mThisWeek, mTotalSp: mTotal, mPctSp: mPct, trendSp, trendColorSp } = getCxoSprintData(pState);
           const trendLabel = mPct >= 50 ? 'Trending On Track 🟢' : 'Behind Target 🔴';
           const rtFmtDate = (d) => { if (!d) return '—'; try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch(e) { return d; } };
           const rtStBadge = (s) => { if (s==='Completed') return '✅'; if (s==='In Progress') return '⚙️'; if (s==='Under Review') return '🔍'; if (s==='On Hold') return '⏸'; return '⏳'; };
@@ -40356,7 +40377,16 @@ Earned Value Management measures project performance and progress by comparing p
           html += '<div style="margin-top:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">';
           html += '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:11px; font-family:Arial, Helvetica, sans-serif;">';
           html += '<div style="font-weight:800; text-transform:uppercase; letter-spacing:0.6px; color:#2563eb;">🎯 Sprint Target — ' + escapeHTML(monthName) + ' (' + mTotal + ' Tasks)</div>';
-          html += '<div style="font-weight:800; color:#2563eb;">' + mPct + '% Completed (' + trendLabel + ')</div>';
+          html += '<div style="font-weight:800; color:' + trendColorSp + ';">' + mPct + '% Completed (' + trendLabel + ')</div>';
+          html += '</div>';
+
+          // Summary 5 Cards Row
+          html += '<div style="display:flex; gap:6px; margin-bottom:10px;">';
+          html += '<div style="flex:1; background:#ffffff; border:1px solid #bbf7d0; border-radius:6px; padding:6px; text-align:center;"><div style="font-size:14px; font-weight:800; color:#16a34a;">' + mComp + '</div><div style="font-size:9px; font-weight:700; color:#15803d; text-transform:uppercase;">Completed</div></div>';
+          html += '<div style="flex:1; background:#ffffff; border:1px solid #bfdbfe; border-radius:6px; padding:6px; text-align:center;"><div style="font-size:14px; font-weight:800; color:#2563eb;">' + mInProg + '</div><div style="font-size:9px; font-weight:700; color:#1d4ed8; text-transform:uppercase;">In Progress</div></div>';
+          html += '<div style="flex:1; background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; padding:6px; text-align:center;"><div style="font-size:14px; font-weight:800; color:#64748b;">' + mNotStart + '</div><div style="font-size:9px; font-weight:700; color:#475569; text-transform:uppercase;">Not Started</div></div>';
+          html += '<div style="flex:1; background:#ffffff; border:1px solid #fed7aa; border-radius:6px; padding:6px; text-align:center;"><div style="font-size:14px; font-weight:800; color:#ea580c;">+' + mThisWeek + '</div><div style="font-size:9px; font-weight:700; color:#c2410c; text-transform:uppercase;">Weekly Pace</div></div>';
+          html += '<div style="flex:1; background:#ffffff; border:1px solid #e2e8f0; border-radius:6px; padding:6px; text-align:center;"><div style="font-size:14px; font-weight:800; color:' + trendColorSp + ';">' + mPct + '%</div><div style="font-size:9px; font-weight:700; color:' + trendColorSp + '; text-transform:uppercase;">' + escapeHTML(trendSp) + '</div></div>';
           html += '</div>';
           html += '<table style="width:100%; border-collapse:collapse; font-size:11.5px; margin-bottom:4px;">';
           html += '<tr style="background:#f1f5f9;"><th style="padding:5px 7px; text-align:left; border:1px solid #e2e8f0; color:#475569; font-size:9.5px; text-transform:uppercase;">Task</th>';
@@ -40414,7 +40444,7 @@ Earned Value Management measures project performance and progress by comparing p
         allSubItems.forEach(st => {
           const mName = (st.module || 'General').trim();
           if (!modStatsMap[mName]) {
-            modStatsMap[mName] = { name: mName, total: 0, completed: 0, serverTotal: 0, serverCompleted: 0, guiTotal: 0, guiCompleted: 0, sumProgress: 0, overdue: 0, completedThisWeek: 0, earliestReleaseDate: null, earliestReleaseName: '' };
+            modStatsMap[mName] = { name: mName, total: 0, completed: 0, serverTotal: 0, serverCompleted: 0, guiTotal: 0, guiCompleted: 0, sumProgress: 0, overdue: 0, completedThisWeek: 0, serverThisWeek: 0, guiThisWeek: 0, earliestReleaseDate: null, earliestReleaseName: '' };
           }
           const m = modStatsMap[mName];
           m.total++;
@@ -40463,7 +40493,10 @@ Earned Value Management measures project performance and progress by comparing p
               const compD = new Date(rawAct);
               if (!isNaN(compD.getTime())) {
                 compD.setHours(0,0,0,0);
-                if (compD >= weekAgoDate) m.completedThisWeek++;
+                if (compD >= weekAgoDate) {
+                  m.completedThisWeek++;
+                  if (isGui) m.guiThisWeek++; else m.serverThisWeek++;
+                }
               }
             }
           } else if (st.dueDate) {
@@ -40689,10 +40722,10 @@ Earned Value Management measures project performance and progress by comparing p
 
       // 2. TARGET FOR CURRENT MONTH'S SPRINT & TRENDING
       const allSubItems = getAllSubtaskItems(pState.tasks);
-      const { monthNameSp: monthName, monthTasksSp: monthTasks, mCompSp: mComp, mInProgSp: mInProg, mNotStartSp: mNotStart, mTotalSp: mTotal, mPctSp: mPct, trendSp } = getCxoSprintData(pState);
+      const { monthNameSp: monthName, monthTasksSp: monthTasks, mCompSp: mComp, mInProgSp: mInProg, mNotStartSp: mNotStart, mThisWeekSp: mThisWeek, mTotalSp: mTotal, mPctSp: mPct, trendSp } = getCxoSprintData(pState);
 
       text += '2. SPRINT TARGET — ' + monthName.toUpperCase() + '\n';
-      text += '   Summary: ' + mTotal + ' Tasks | ' + mComp + ' Completed | ' + mInProg + ' In Progress | ' + mNotStart + ' Not Started\n';
+      text += '   Summary: ' + mTotal + ' Tasks | ' + mComp + ' Completed | ' + mInProg + ' In Progress | ' + mNotStart + ' Not Started | +' + mThisWeek + ' Weekly Pace\n';
       text += '   Completion: ' + mPct + '% | ' + trendSp + '\n';
       text += '   ' + '─'.repeat(72) + '\n';
       text += '   ' + 'TASK'.padEnd(38) + 'ASSIGNEE'.padEnd(14) + 'PRIORITY'.padEnd(10) + 'PROG'.padEnd(6) + 'STATUS' + '\n';
