@@ -17038,18 +17038,18 @@
 
         P.members = [
           { id: 'MEM-001', name: 'Alex Rivera', role: 'Engineering Manager', status: 'Active', birthday: '12 May', phone: '+1 555-0101' },
-          { id: 'MEM-002', name: 'Sarah Chen', role: 'Senior Architect', reportsTo: 'Alex Rivera', status: 'On Leave', birthday: '24 Aug', plannedLeaves: [{ from: "2026-04-16", to: "2026-04-06", reason: 'Vacation' }] },
+          { id: 'MEM-002', name: 'Sarah Chen', role: 'Senior Architect', reportsTo: 'Alex Rivera', status: 'On Leave', birthday: '24 Aug', plannedLeaves: [{ from: "2026-04-06", to: "2026-04-16", reason: 'Vacation' }] },
           { id: 'MEM-003', name: 'Jordan Smyth', role: 'Fullstack Dev', reportsTo: 'Sarah Chen', status: 'Other Assignment', birthday: '05 Jan' },
           { id: 'MEM-004', name: 'Elena Vance', role: 'UI/UX Designer', reportsTo: 'Alex Rivera', status: 'Serving Notice Period', birthday: '15 Oct' },
           { id: 'MEM-005', name: 'Marcus Wong', role: 'QA Lead', reportsTo: 'Alex Rivera', status: 'Departed', birthday: '30 Mar' },
-          { id: 'MEM-006', name: 'Tasha K', role: 'Backend Dev', reportsTo: 'Sarah Chen', status: 'Active', birthday: '12 Sep', plannedLeaves: [{ from: "2026-04-29", to: "2026-04-25", reason: 'Medical Leave' }] }
+          { id: 'MEM-006', name: 'Tasha K', role: 'Backend Dev', reportsTo: 'Sarah Chen', status: 'Active', birthday: '12 Sep', plannedLeaves: [{ from: "2026-04-25", to: "2026-04-29", reason: 'Medical Leave' }] }
         ];
 
         // Add dummy releases
         P.releases = [
           { id: 'rel-1', name: 'v1.0.0', date: "2026-04-11", status: 'Active' },
-          { id: 'rel-2', name: 'v1.1.0', date: "2026-03-17", status: 'Planned' },
-          { id: 'rel-3', name: 'v2.0-Beta', date: "2026-01-31", status: 'Planned' }
+          { id: 'rel-2', name: 'v1.1.0', date: "2026-05-15", status: 'Planned' },
+          { id: 'rel-3', name: 'v2.0-Beta', date: "2026-06-30", status: 'Planned' }
         ];
 
         P.features = [
@@ -23837,8 +23837,49 @@
             if (c.key === 'assignee') opts = [...opts, ...getTeamNames()];
             if (P.dropdowns[c.key]) opts = [...opts, ...P.dropdowns[c.key]];
 
-            [...new Set(opts)].forEach(o => { const opt = document.createElement('option'); opt.value = o; opt.textContent = o; if (o === val) opt.selected = true; sel.appendChild(opt); });
+            [...new Set(opts)].forEach(o => {
+              const opt = document.createElement('option');
+              opt.value = o;
+              let labelText = o;
+              if (c.key === 'releaseVersion' && o) {
+                const relDates = typeof PulseUtils !== 'undefined' && PulseUtils.getReleaseDates ? PulseUtils.getReleaseDates(o) : null;
+                const rObj = (P.releases || []).find(r => String(r.name || r.id || '').trim().toLowerCase() === String(o).trim().toLowerCase());
+                const targetDate = (rObj && (rObj.date || rObj.endDate || rObj.targetDate || rObj.releaseDate)) || (relDates && relDates.endDate);
+                if (targetDate) {
+                  const formattedDate = typeof formatCxoDate === 'function' ? formatCxoDate(targetDate) : targetDate;
+                  labelText += ` (Target: ${formattedDate})`;
+                }
+              }
+              opt.textContent = labelText;
+              if (o === val) opt.selected = true;
+              sel.appendChild(opt);
+            });
             fg.appendChild(sel);
+
+            if (c.key === 'releaseVersion') {
+              sel.addEventListener('change', () => {
+                const selectedRel = sel.value;
+                if (!selectedRel) return;
+                const relDates = typeof PulseUtils !== 'undefined' && PulseUtils.getReleaseDates ? PulseUtils.getReleaseDates(selectedRel) : null;
+                const rObj = (P.releases || []).find(r => String(r.name || r.id || '').trim().toLowerCase() === String(selectedRel).trim().toLowerCase());
+                const relStart = (rObj && (rObj.startDate || rObj.date)) || (relDates && relDates.startDate);
+                const relTarget = (rObj && (rObj.date || rObj.endDate || rObj.targetDate || rObj.releaseDate)) || (relDates && relDates.endDate);
+
+                const baseStartInp = $id('ff_baselineStartDate');
+                const baseDueInp = $id('ff_baselineDueDate');
+                const startInp = $id('ff_startDate');
+                const dueInp = $id('ff_dueDate');
+
+                if (relStart) {
+                  if (baseStartInp) { baseStartInp.value = relStart; baseStartInp.dispatchEvent(new Event('input')); }
+                  if (startInp) { startInp.value = relStart; startInp.dispatchEvent(new Event('input')); }
+                }
+                if (relTarget) {
+                  if (baseDueInp) { baseDueInp.value = relTarget; baseDueInp.dispatchEvent(new Event('input')); }
+                  if (dueInp) { dueInp.value = relTarget; dueInp.dispatchEvent(new Event('input')); }
+                }
+              });
+            }
 
             if (c.key === 'category') {
               sel.addEventListener('change', () => {
