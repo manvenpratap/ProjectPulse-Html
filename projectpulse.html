@@ -21505,7 +21505,15 @@
       if (P.filters.missingField) {
         const mf = P.filters.missingField;
         if (mf === 'estEffort') {
-          t = t.filter(x => !x.estEffort && x.estEffort !== 0);
+          t = t.filter(x => !x.estEffort || parseFloat(x.estEffort) <= 0);
+        } else if (mf === 'assignee') {
+          t = t.filter(x => !x.assignee || x.assignee === 'Unassigned');
+        } else if (mf === 'dateHierarchy' || mf === 'dueDate') {
+          t = t.filter(x => !x.dueDate || !x.startDate || (x.startDate && x.dueDate && new Date(x.startDate) > new Date(x.dueDate)) || (x.actCompletionDate && x.startDate && new Date(x.actCompletionDate) < new Date(x.startDate)));
+        } else if (mf === 'actCompletionDate' || mf === 'completionIntegrity') {
+          t = t.filter(x => (x.status === 'Completed' && !x.actCompletionDate) || (x.status === 'Completed' && (parseInt(x.progress) || 0) < 100));
+        } else if (mf === 'module') {
+          t = t.filter(x => !x.module || (x.module === 'General' && P.tasks.length > 5));
         } else {
           t = t.filter(x => !x[mf]);
         }
@@ -35321,10 +35329,12 @@
           // ── CARD: Data Quality & Completeness ──
           const dqTotal = tasks.length;
           const dqFields = [
-            { label: 'Due Date', field: 'dueDate', missing: tasks.filter(t => !t.dueDate).length },
-            { label: 'Assignee', field: 'assignee', missing: tasks.filter(t => !t.assignee).length },
-            { label: 'Est. Effort', field: 'estEffort', missing: tasks.filter(t => !t.estEffort && t.estEffort !== 0).length },
-            { label: 'Category', field: 'category', missing: tasks.filter(t => !t.category).length }
+            { label: 'Schedule Dates', field: 'dueDate', missing: tasks.filter(t => !t.dueDate || !t.startDate || (t.startDate && t.dueDate && new Date(t.startDate) > new Date(t.dueDate))).length, desc: 'Missing start/due dates or inverted date hierarchy' },
+            { label: 'Completion Dates', field: 'actCompletionDate', missing: tasks.filter(t => (t.status === 'Completed' && !t.actCompletionDate) || (t.status === 'Completed' && (parseInt(t.progress) || 0) < 100)).length, desc: 'Completed tasks missing actual completion date or <100% progress' },
+            { label: 'Module Owner', field: 'assignee', missing: tasks.filter(t => !t.assignee || t.assignee === 'Unassigned').length, desc: 'Unassigned tasks lacking single accountable lead' },
+            { label: 'Est. Effort', field: 'estEffort', missing: tasks.filter(t => !t.estEffort || parseFloat(t.estEffort) <= 0).length, desc: 'Missing or zero effort estimates' },
+            { label: 'Category', field: 'category', missing: tasks.filter(t => !t.category).length, desc: 'Unclassified tasks lacking category taxonomy' },
+            { label: 'Module Link', field: 'module', missing: tasks.filter(t => !t.module || (t.module === 'General' && tasks.length > 5)).length, desc: 'Tasks unlinked to specific functional module' }
           ];
           const dqAvgComplete = dqTotal ? Math.round(
             dqFields.reduce((s, f) => s + ((dqTotal - f.missing) / dqTotal), 0) / dqFields.length * 100
@@ -35333,14 +35343,19 @@
 
           const dqId = 'dash-data-quality';
           const dqSpan = (P.widgetSpans && P.widgetSpans[dqId]) || 1;
-          const dqCard = mkCC('Data Quality Score', 'Completeness of fields your analytics depend on', dqId, '', 'standard', "<b>Data Quality Score:</b> Measures how complete your task data is across the fields that drive EVM, burndown, and forecasting accuracy (due date, assignee, effort estimate, category). Low completeness reduces confidence in derived analytics. Click any row to view the tasks missing that field.", 'View Explanation');
+          const dqCard = mkCC('Data Quality Score', 'Completeness of fields your analytics depend on', dqId, '', 'standard', "<b>Data Quality Score:</b> Measures task data integrity across 6 critical health dimensions: schedule date hierarchy, completion dates, module ownership, effort estimation, category taxonomy, and architectural module linkage. Low quality data reduces accuracy of Earned Value Management (EVM), burndown velocity, and automated forecasting. Click any row to view and resolve offending tasks.", 'View Explanation');
           dqCard.style.gridColumn = `span ${dqSpan}`;
           grid.appendChild(dqCard);
           dqCard.querySelector('.cb').innerHTML = `
                   <div style="display:flex;flex-direction:column;padding:10px;gap:10px">
-                    <div style="display:flex;align-items:baseline;gap:8px">
-                      <div style="font-size:28px;font-weight:900;font-family:var(--mono);color:${dqColor};line-height:1">${dqAvgComplete}%</div>
-                      <div style="font-size:11px;color:var(--color-text-muted)">fields complete</div>
+                    <div style="display:flex;align-items:baseline;justify-content:space-between">
+                      <div style="display:flex;align-items:baseline;gap:8px">
+                        <div style="font-size:28px;font-weight:900;font-family:var(--mono);color:${dqColor};line-height:1">${dqAvgComplete}%</div>
+                        <div style="font-size:11px;color:var(--color-text-muted)">overall health</div>
+                      </div>
+                      <div style="font-size:10px;font-weight:700;color:${dqColor};background:var(--color-surface-2);padding:2px 6px;border-radius:4px;border:1px solid var(--color-divider)">
+                        ${dqAvgComplete >= 90 ? 'Optimal' : dqAvgComplete >= 70 ? 'Attention Needed' : 'Action Required'}
+                      </div>
                     </div>
                     <div style="display:flex;flex-direction:column;gap:6px">
                       ${dqFields.map(f => {
@@ -35348,17 +35363,18 @@
     const barColor = pct >= 90 ? 'var(--green)' : pct >= 70 ? 'var(--amber)' : 'var(--red)';
     const clickable = f.missing > 0;
     return `
-                      <div class="${clickable ? 'dq-row-clickable' : ''}" ${clickable ? `onclick="filterDashboardMetric('missingField','${f.field}')" title="Click to view ${f.missing} task(s) missing ${f.label}"` : ''}
-                           style="display:flex;align-items:center;gap:8px;${clickable ? 'cursor:pointer;border-radius:6px;padding:2px 4px;margin:-2px -4px;' : ''}">
-                        <span style="font-size:10px;color:var(--color-text-muted);width:72px;flex-shrink:0">${f.label}</span>
+                      <div class="${clickable ? 'dq-row-clickable' : ''}" ${clickable ? `onclick="filterDashboardMetric('missingField','${f.field}')" title="Click to view ${f.missing} task(s) with ${f.desc}"` : `title="${f.desc}"`}
+                           style="display:flex;align-items:center;gap:8px;${clickable ? 'cursor:pointer;border-radius:6px;padding:3px 4px;margin:-1px -4px;' : 'padding:3px 0;'}">
+                        <span style="font-size:10px;font-weight:600;color:var(--color-text-muted);width:95px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.label}</span>
                         <div style="flex:1;height:6px;background:var(--color-divider);border-radius:3px;overflow:hidden">
                           <div style="width:${pct}%;height:100%;background:${barColor};border-radius:3px"></div>
                         </div>
                         <span style="font-size:10px;font-weight:700;color:${barColor};width:32px;text-align:right;flex-shrink:0">${pct}%</span>
+                        ${f.missing > 0 ? `<span style="font-size:9px;font-weight:700;color:var(--red);background:rgba(239,68,68,0.1);padding:1px 5px;border-radius:10px;margin-left:2px">${f.missing}</span>` : ''}
                       </div>`;
   }).join('')}
                     </div>
-                    ${dqAvgComplete < 90 ? `<div style="font-size:10px;color:var(--color-text-faint)">Missing data may reduce accuracy of EVM, burndown, and forecast widgets. Click a row above to fix.</div>` : ''}
+                    ${dqAvgComplete < 90 ? `<div style="font-size:10px;color:var(--color-text-faint)">Missing data reduces accuracy of EVM, burndown, and forecast widgets. Click any row above to fix offending tasks.</div>` : ''}
                   </div>
                 `;
         } else if (sec.id === 'module_status_matrix' || sec.id === 'module_matrix') {
