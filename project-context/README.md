@@ -254,6 +254,11 @@ Status transitions must strictly match the following mapping. Comment logging is
   - Implemented an interactive horizontal timeline, bento-grid KPI cards, and custom gauge needle animations.
   - Styled overdue and blocked tables with clean layouts, segment tabs, and warning badges.
   - Added `scripts/check_syntax.py` to validate JavaScript syntax.
+* **📅 [2026-08-09] Release Roadmap Date Alignment & Task Data Metric Reconciliation**:
+  - Reconciled Release Roadmap start and target dates (`startDate`, `date`) across sample presets and added the missing `v2.1.0` release.
+  - Performed data audit and reconciled all 143 sample tasks in `sampleTasks` and `samples.hierarchical.tasks` to eliminate discrepancies between task status and logged completion actuals.
+  - Enhanced `syncTaskToTemplate` for completed subtask inheritance and `PulseScheduler.recalcDatesAndStatus` for `actCompletionDate` fallback calculation.
+  - Cleaned temporary files and synchronized AST knowledge graph via `graphify update .`.
 
 ---
 

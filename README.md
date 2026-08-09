@@ -61,6 +61,7 @@ ProjectPulse/
   - **Tier 2 (IndexedDB)**: State snapshots, backups, and file handle tracking.
   - **Tier 3 (File System Access API)**: Synchronized local Excel workbooks and background file backups.
 - **Calculated Metric Engine**: Real-time project health scores, delivery confidence meters, and dependency path tracking.
+- **Release Roadmap & Task Data Consistency**: Integrated release version roadmaps with explicit start/target dates, complete sample data cleanliness, and automated subtask completion state sync.
 - **Defect and RAID Logs**: Embedded trackers mapping defects directly to tasks, features, and team members.
 
 ---
