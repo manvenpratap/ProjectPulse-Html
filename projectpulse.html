@@ -20382,15 +20382,15 @@
           let configMd = `# Configuration Reference\n\nThis page is auto-generated daily to reflect the active configuration settings, role schemas, and taxonomy types configured in the ProjectPulse codebase.\n\n---\n\n## Active Dropdown Options\n\n`;
           for (const [key, values] of Object.entries(P.dropdowns || {})) {
             const title = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
-            configMd += `### \${title}\n*   **Key**: \\\`\${key}\\\`\n*   **Options**:\n`;
+            configMd += `### ${title}\n*   **Key**: \\\`${key}\\\`\n*   **Options**:\n`;
             if (Array.isArray(values)) {
-              values.forEach(val => { configMd += `    - \${val}\n`; });
+              values.forEach(val => { configMd += `    - ${val}\n`; });
             } else {
               configMd += `    - *No options configured.*\n`;
             }
             configMd += `\n`;
           }
-          configMd += `---\n\n*Last compiled on: \${new Date().toUTCString()}*\n`;
+          configMd += `---\n\n*Last compiled on: ${new Date().toUTCString()}*\n`;
 
           const configFile = await manualDir.getFileHandle('configuration_reference.md', { create: true });
           const configWr = await configFile.createWritable();
@@ -20406,25 +20406,25 @@
           const activeRaids = P.raids ? P.raids.filter(r => r.status === 'Active' || r.status === 'Identified').length : 0;
 
           let statusMd = `# Live Project Status Dashboard\n\nThis status dashboard is updated daily. It aggregates the live operational statistics of the project, including progress indices, risk logs, and team loads.\n\n## Real-time Telemetry Dashboard\n\n### 1. High-level Summary\n`;
-          statusMd += `- **Project Name**: \${P.name || 'Unnamed Project'}\n`;
-          statusMd += `- **Description**: \${P.desc || 'No description provided.'}\n`;
-          statusMd += `- **Overall Completion**: **\${progressAvg}%**\n`;
-          statusMd += `- **Active RAID Log Count**: **\${activeRaids}** elements\n`;
-          statusMd += `- **Open Defects**: **\${activeDefects}** (out of \${defectCount} logged)\n\n`;
-          statusMd += `### 2. Task Completion Progress\n- **Total Registered Tasks**: \${taskCount}\n- **Completed Tasks**: \${completedTasks}\n- **Pending Tasks**: \${taskCount - completedTasks}\n\n`;
+          statusMd += `- **Project Name**: ${P.name || 'Unnamed Project'}\n`;
+          statusMd += `- **Description**: ${P.desc || 'No description provided.'}\n`;
+          statusMd += `- **Overall Completion**: **${progressAvg}%**\n`;
+          statusMd += `- **Active RAID Log Count**: **${activeRaids}** elements\n`;
+          statusMd += `- **Open Defects**: **${activeDefects}** (out of ${defectCount} logged)\n\n`;
+          statusMd += `### 2. Task Completion Progress\n- **Total Registered Tasks**: ${taskCount}\n- **Completed Tasks**: ${completedTasks}\n- **Pending Tasks**: ${taskCount - completedTasks}\n\n`;
           statusMd += `### 3. Core Task List Summary\n| ID | Module | Task Name | Assignee | Status | Progress |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n`;
 
           if (P.tasks && P.tasks.length > 0) {
             P.tasks.slice(0, 20).forEach(t => {
-              statusMd += `| \${t.id || 'N/A'} | \${t.module || 'N/A'} | \${t.name || 'N/A'} | \${t.assignee || 'Unassigned'} | \${t.status || 'N/A'} | \${t.progress || 0}% |\n`;
+              statusMd += `| ${t.id || 'N/A'} | ${t.module || 'N/A'} | ${t.name || 'N/A'} | ${t.assignee || 'Unassigned'} | ${t.status || 'N/A'} | ${t.progress || 0}% |\n`;
             });
             if (P.tasks.length > 20) {
-              statusMd += `| ... | ... | ... and \${P.tasks.length - 20} more tasks ... | ... | ... | ... |\n`;
+              statusMd += `| ... | ... | ... and ${P.tasks.length - 20} more tasks ... | ... | ... | ... |\n`;
             }
           } else {
             statusMd += `| *No tasks configured.* | | | | | |\n`;
           }
-          statusMd += `\n---\n*Last updated: \${new Date().toUTCString()}*\n`;
+          statusMd += `\n---\n*Last updated: ${new Date().toUTCString()}*\n`;
 
           const statusFile = await manualDir.getFileHandle('project_status.md', { create: true });
           const statusWr = await statusFile.createWritable();
@@ -20754,12 +20754,32 @@
       else if (field === 'priority') opts = PRIORITIES;
       else if (field === 'assignee') opts = getTeamNames();
       else if (field === 'complexity') opts = ['Easy', 'Medium', 'Complex'];
+      else if (field === 'releaseVersion' || field === 'release' || field === 'version') {
+        const relOpts = (P.releases && P.releases.length)
+          ? P.releases.map(r => (typeof r === 'string' ? r : (r.name || r.id || ''))).filter(Boolean)
+          : (typeof VERSIONS !== 'undefined' && VERSIONS.length
+              ? VERSIONS
+              : (P.dropdowns && (P.dropdowns.releaseVersion || P.dropdowns.version)
+                  ? (P.dropdowns.releaseVersion || P.dropdowns.version)
+                  : []));
+        opts = Array.from(new Set(relOpts));
+      }
       else if (P.dropdowns && P.dropdowns[field]) opts = P.dropdowns[field];
 
       opts.forEach(o => {
         const opt = document.createElement('option');
         opt.value = o;
-        opt.textContent = o;
+        let labelText = o;
+        if ((field === 'releaseVersion' || field === 'release' || field === 'version') && o) {
+          const relDates = typeof PulseUtils !== 'undefined' && PulseUtils.getReleaseDates ? PulseUtils.getReleaseDates(o) : null;
+          const rObj = (P.releases || []).find(r => String(r.name || r.id || '').trim().toLowerCase() === String(o).trim().toLowerCase());
+          const targetDate = (rObj && (rObj.date || rObj.endDate || rObj.targetDate || rObj.releaseDate)) || (relDates && relDates.endDate);
+          if (targetDate) {
+            const formattedDate = typeof formatCxoDate === 'function' ? formatCxoDate(targetDate) : targetDate;
+            labelText += ` (Target: ${formattedDate})`;
+          }
+        }
+        opt.textContent = labelText;
         valSelect.appendChild(opt);
       });
       $id('bulk-apply-btn').textContent = `Apply to ${bulkSelectedTasks.size} Tasks`;
@@ -20775,6 +20795,13 @@
         if (bulkSelectedTasks.has(t.id) && t[field] !== value) {
           t[field] = value;
           t.updatedAt = new Date().toISOString();
+          if (field === 'releaseVersion' || field === 'release') {
+            if (typeof PulseState !== 'undefined' && PulseState.syncTaskBaselineFromRelease) {
+              PulseState.syncTaskBaselineFromRelease(t);
+            } else if (typeof syncTaskBaselineFromRelease === 'function') {
+              syncTaskBaselineFromRelease(t);
+            }
+          }
           addLog(`Bulk updated ${field} to ${value}`, t.id, t.name);
           updatedCount++;
         }
@@ -66049,7 +66076,7 @@ Earned Value Management measures project performance and progress by comparing p
             contribChips.innerHTML = contribs.map((name, ci) => {
               const bg = AV_C[ci % AV_C.length];
               const initials = name.split(' ').map(p => p[0] || '').join('').slice(0,2).toUpperCase();
-              return `<span title="${esc(name)}" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;background:${bg}18;border:1px solid ${bg}44;font-size:11px;color:${bg};font-weight:700"><span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:${bg};color:#fff;font-size:8px;font-weight:900">${initials}</span>${esc(name)}</span>`;
+              return \`<span title="\${esc(name)}" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;background:\${bg}18;border:1px solid \${bg}44;font-size:11px;color:\${bg};font-weight:700"><span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:\${bg};color:#fff;font-size:8px;font-weight:900">\${initials}</span>\${esc(name)}</span>\`;
             }).join('');
           }
         }
