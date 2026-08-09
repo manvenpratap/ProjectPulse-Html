@@ -109,6 +109,21 @@
 - **Card 1: Project Steering Hero**: Restyled the horizontal release phases to use interactive glassmorphic phase node elements and dynamic connecting track highlights on top-level tracks. Configured counts and sub-stats inside spacious bento-grid cards.
 - **Card 2: Project Health Gauge**: Redrawn the SVG gauge with a thin colored arc, rounded path tracks, and a tapered sweep-animated needle. Configured an interactive score breakdown overlay detailing positive/negative scoring parameters.
 - **Card 3: Schedule & Status Overview**: Replaced standard button tabs with a unified segment control bar. Styled tables with custom layouts, borders, hover highlights, and warning badges.
-- **Linter & Verification**: Developed `scripts/check_syntax.py` to validate inline JS within `projectpulse.html` and resolve all syntax errors, ensuring the codebase compiles successfully.
+## 📅 [2026-08-09] - Release Roadmap Date Alignment & Task Data Metric Reconciliation
+- **Release Roadmap Date & Version Reconciliation**:
+  - Configured explicit `startDate` and target date (`date`) fields for all release objects in `P.releases` across sample datasets, restoring full visibility of start and target dates in the Release Roadmap table.
+  - Added missing `v2.1.0` release version to align strategic features, mapped tasks, and release roadmap asset trackers.
+- **Task Status & Completion Metric Reconciliation**:
+  - Performed a comprehensive data audit across all 143 sample tasks in both standard (`sampleTasks`) and hierarchical (`samples.hierarchical.tasks`) preset configurations.
+  - Reconciled 22+ tasks with `"status": "Not Started"` that held logged actual hours (`actHours > 0`) or progress, resetting `actHours: 0`, `actEffort: 0`, `progress: 0`, and clearing stray actual completion dates.
+  - Reconciled `"status": "Completed"` tasks to guarantee `progress: 100`, valid `actualStartDate` (or `actStartDate`), `actualEndDate` (or `actCompletionDate`), and logged actual effort.
+  - Standardized `TASK-001` (`💎 Milestone: Project Kickoff`) and all 5 child subtasks to completed statuses with exact date tracking.
+- **Subtask Sync & Scheduler Auto-Fixes**:
+  - Enhanced `syncTaskToTemplate` (line ~16460) so generated subtasks inherit `status: 'Completed'`, `done: true`, `progress: 100`, and `actCompletionDate` when the parent task is marked completed.
+  - Enhanced `PulseScheduler.recalcDatesAndStatus` (line ~21281) to automatically calculate `actCompletionDate` from subtasks (or target date) whenever a task transitions to `'Completed'`.
+- **Project Directory Cleanup & Documentation**:
+  - Removed temporary Office lock files (`~$*`) and scratch test scripts from workspace.
+  - Synchronized AST knowledge graph (`graphify update .`).
+
 
 
