@@ -16069,7 +16069,8 @@
           { key: 'module', label: 'Module', w: 120, type: 'select', opts: [], edit: true, required: true },
           { key: 'moduleType', label: 'Module Type', w: 105, type: 'select', opts: [], edit: true, required: true },
           { key: 'name', label: 'Task Name', w: 180, type: 'text', edit: true, required: true },
-          { key: 'assignee', label: 'Assignee', w: 105, type: 'select', opts: [], edit: true },
+          { key: 'assignee', label: 'Module Owner', w: 115, type: 'select', opts: [], edit: true, tooltip: 'Module Owner: The single accountable lead responsible for this module. Sub-task contributors are auto-derived.' },
+          { key: 'contributors', label: 'Contributors', w: 170, type: 'text', edit: false, tooltip: 'Auto-derived from sub-task assignees. Shows all team members actively working on this module alongside the owner.' },
           { key: 'category', label: 'Category', w: 110, type: 'select', opts: [], edit: true },
           { key: 'status', label: 'Status', w: 120, type: 'select', opts: [], edit: true },
           { key: 'priority', label: 'Priority', w: 90, type: 'select', opts: [], edit: true },
@@ -16108,7 +16109,7 @@
         ],
         nextTaskId: 1, nextMemberId: 1, nextReportId: 1, nextSubId: 1, nextDefectId: 1,
         nextRaidId: 1, nextDecisionId: 1,
-        search: '', filters: { status: new Set(), priority: new Set(), assignee: new Set(), module: new Set(), feature: new Set(), category: new Set() },
+        search: '', filters: { status: new Set(), priority: new Set(), assignee: new Set(), contributors: new Set(), module: new Set(), feature: new Set(), category: new Set() },
         collapsedNodes: new Set(),
         sort: { col: 'id', dir: 'asc' }, view: 'tasks', sbOpen: true,
         theme: localStorage.getItem('pp-theme') || 'paper',
@@ -19755,6 +19756,7 @@
                 status: new Set(d.filters.status || []),
                 priority: new Set(d.filters.priority || []),
                 assignee: new Set(d.filters.assignee || []),
+                contributors: new Set(d.filters.contributors || []),
                 module: new Set(d.filters.module || []),
                 feature: new Set(d.filters.feature || []),
                 category: new Set(d.filters.category || []),
@@ -19811,11 +19813,13 @@
             if (!P.collapsedNodes) P.collapsedNodes = new Set();
             if (!P.filters) {
               P.filters = {
-                status: new Set(), priority: new Set(), assignee: new Set(), module: new Set(), feature: new Set(), category: new Set(),
+                status: new Set(), priority: new Set(), assignee: new Set(), contributors: new Set(), module: new Set(), feature: new Set(), category: new Set(),
                 action: new Set(), field: new Set(), featComplexity: new Set(), featScreens: new Set(), featModules: new Set(),
                 moduleType: new Set(), featModuleTypes: new Set()
               };
             }
+            // Ensure contributors filter exists for existing projects
+            if (!P.filters.contributors) P.filters.contributors = new Set();
 
             // Ensure defect properties exist for legacy data
             if (!P.defects) P.defects = [];
@@ -21289,67 +21293,56 @@
         else task.status = 'Not Started';
       }
 
+
       if (task.status !== oldStatus && !skipLog) {
         addLog('Status Changed', task.id, task.name, 'status', oldStatus, task.status, 'Auto-calculated from subtasks');
       }
 
-      // 2. Date Derivation
-      if (isGUI) {
-        // Assignee-based Sequential Logic: 
-        // Screens for the same assignee are sequential. 
-        // Screens for different assignees are parallel.
-        if (task.startDate) {
-          const groups = {};
-          subs.forEach(s => {
-            const who = s.assignee || task.assignee || 'Unassigned';
-            if (!groups[who]) groups[who] = [];
-            groups[who].push(s);
-          });
+      // 2. Date Derivation — Parallel-lane scheduling per assignee for ALL module types.
+      //    Sub-tasks belonging to the same assignee run sequentially within their lane.
+      //    Lanes for different assignees run in parallel, so the module finishes when
+      //    the last lane finishes. This is accurate when multiple people share a module.
+      if (task.startDate) {
+        const groups = {};
+        const prioScore = { 'Critical': 0, 'High': 1, 'Medium': 2, 'Low': 3 };
+        subs.forEach(s => {
+          const who = s.assignee || task.assignee || 'Unassigned';
+          if (!groups[who]) groups[who] = [];
+          groups[who].push(s);
+        });
 
-          let maxTaskDueDate = task.startDate;
-          const prioScore = { 'Critical': 0, 'High': 1, 'Medium': 2, 'Low': 3 };
-          Object.values(groups).forEach(group => {
-            let currentQueueDate = task.startDate;
-            // Sort by Priority (Critical first)
-            group.sort((a, b) => (prioScore[a.priority] || 2) - (prioScore[b.priority] || 2));
-            group.forEach(s => {
-              const effort = Math.ceil(parseFloat(s.effort) || 1);
-              // Only set startDate if not already set — do not overwrite manually entered dates
-              if (!s.startDate) s.startDate = currentQueueDate;
-              s.dueDate = addBusDays(s.startDate, effort);
-
-              if (s.type === 'screen') {
-                recalcGUIScreen(s);
-                // recalcGUIScreen sets s.dueDate based on its steps, so we use that
-                s.dueDate = s.dueDate || addBusDays(s.startDate, effort);
-              }
-
-              const isScreenDone = s.status === 'Completed' || s.done;
-              const screenFinishDate = (isScreenDone && s.actCompletionDate && s.actCompletionDate !== '-' && s.actCompletionDate !== '—' && s.actCompletionDate !== 'null') ? s.actCompletionDate : s.dueDate;
-              currentQueueDate = getNextBusDay(screenFinishDate);
-              if (s.dueDate > maxTaskDueDate) maxTaskDueDate = s.dueDate;
-            });
-          });
-          task.dueDate = maxTaskDueDate;
-        }
-      } else {
-        // Sequential Tasks: Propagate dates
-        if (task.startDate) {
-          let currentDate = task.startDate;
-          subs.forEach(s => {
+        let maxTaskDueDate = task.startDate;
+        Object.values(groups).forEach(group => {
+          let currentQueueDate = task.startDate;
+          // Sort by Priority within each lane (Critical first)
+          group.sort((a, b) => (prioScore[a.priority] || 2) - (prioScore[b.priority] || 2));
+          group.forEach(s => {
             const effort = Math.ceil(parseFloat(s.effort) || 1);
-            // Only set startDate if not already set — do not overwrite manually entered dates
-            if (!s.startDate) s.startDate = currentDate;
+            // Only set startDate if not already manually set
+            if (!s.startDate) s.startDate = currentQueueDate;
             s.dueDate = addBusDays(s.startDate, effort);
+
+            if (s.type === 'screen') {
+              recalcGUIScreen(s);
+              s.dueDate = s.dueDate || addBusDays(s.startDate, effort);
+            }
+
             const isDone = s.status === 'Completed' || s.done;
             const finishDate = (isDone && s.actCompletionDate && s.actCompletionDate !== '-' && s.actCompletionDate !== '—' && s.actCompletionDate !== 'null') ? s.actCompletionDate : s.dueDate;
-            currentDate = getNextBusDay(finishDate);
+            currentQueueDate = getNextBusDay(finishDate);
+            if (s.dueDate > maxTaskDueDate) maxTaskDueDate = s.dueDate;
           });
-          if (subs.length > 0) {
-            task.dueDate = subs[subs.length - 1].dueDate;
-          }
-        }
+        });
+        task.dueDate = maxTaskDueDate;
       }
+
+      // 3. Auto-derive contributors: union of all sub-task assignees, excluding the module owner.
+      //    This keeps the contributors list always accurate without any manual maintenance.
+      const subAssigneeSet = new Set(
+        subs.map(s => s.assignee).filter(a => a && a !== 'Unassigned' && a !== '' && a !== task.assignee)
+      );
+      task.contributors = [...subAssigneeSet];
+
       if (task.progress === 100 && task.status !== 'Completed') {
         const valid = VALID_TRANSITIONS[task.status] || [];
         if (valid.includes('Completed')) updateField(task.id, 'status', 'Completed', 'All sub-tasks completed');
@@ -21358,6 +21351,7 @@
         if (valid.includes('In Progress')) updateField(task.id, 'status', 'In Progress', 'Sub-task started');
       }
     };
+
 
     const recalcDatesAndStatus = PulseScheduler.recalcDatesAndStatus;
     function applyTemplate(taskId, tplIdx) {
@@ -22368,6 +22362,23 @@
             }
             else if (col.type === 'number') { td.innerHTML = `<div class="td-inner" style="justify-content:flex-end;font-family:var(--mono);font-size:11.5px">${val || '—'}</div>`; }
             else if (col.type === 'checkbox') { td.innerHTML = `<div class="td-inner" style="justify-content:center"><input type="checkbox" ${val ? 'checked' : ''} onclick="updateField('${task.id}', '${col.key}', this.checked); event.stopPropagation();" ${P.readonly ? 'disabled' : ''}></div>`; }
+            else if (col.key === 'contributors') {
+              const contribs = Array.isArray(val) ? val : (val ? String(val).split(',').map(s => s.trim()).filter(Boolean) : []);
+              const AV_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f43f5e','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#06b6d4'];
+              if (contribs.length === 0) {
+                td.innerHTML = `<div class="td-inner"><span style="color:var(--color-text-faint);font-size:11px">—</span></div>`;
+              } else {
+                const visContribs = contribs.slice(0, 5);
+                const extra = contribs.length - 5;
+                const chips = visContribs.map((name, ci) => {
+                  const bg = AV_COLORS[ci % AV_COLORS.length];
+                  const initials = name.split(' ').map(p => p[0] || '').join('').slice(0, 2).toUpperCase();
+                  return `<span title="${esc(name)}" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${bg};color:#fff;font-size:8px;font-weight:900;margin-right:2px;flex-shrink:0;border:2px solid var(--color-surface)">${initials}</span>`;
+                }).join('');
+                const label = contribs.join(', ');
+                td.innerHTML = `<div class="td-inner" style="gap:2px;flex-wrap:nowrap" title="${esc(label)}">${chips}${extra > 0 ? `<span style="font-size:10px;color:var(--color-text-muted);margin-left:3px;font-weight:600">+${extra}</span>` : ''}</div>`;
+              }
+            }
             else {
               let display = esc(val || '—');
               if (col.key === 'name') {
@@ -30948,7 +30959,10 @@
         if (modules.length) mkMultiSelect('sb-mf', 'module', modules, 'Module', 'Filter tasks by project module');
         const moduleTypes = [...new Set(P.tasks.map(t => t.moduleType).filter(Boolean))].sort();
         if (moduleTypes.length) mkMultiSelect('sb-mtf', 'moduleType', moduleTypes, 'Module Type', 'Filter tasks by project module type');
-        mkMultiSelect('sb-af', 'assignee', getTeamNames(), 'Assignee', 'Filter tasks by the assigned team member');
+        mkMultiSelect('sb-af', 'assignee', getTeamNames(), 'Module Owner', 'Filter tasks by the module owner (single lead responsible for this module)');
+        // Contributors filter — shows all team members who appear as contributors on any task
+        const allContribs = [...new Set(P.tasks.flatMap(t => Array.isArray(t.contributors) ? t.contributors : []).filter(Boolean))].sort();
+        if (allContribs.length) mkMultiSelect('sb-contrib-f', 'contributors', allContribs, 'Contributors', 'Filter tasks by contributing team member (auto-derived from sub-task assignees)');
         mkChips('sb-sf', 'status', STATUSES, 'Status', 'Filter tasks by their workflow state');
         mkChips('sb-pf', 'priority', PRIORITIES, 'Priority', 'Filter tasks by urgency/impact level');
         if (typeof CATEGORIES !== 'undefined' && CATEGORIES.length) mkChips('sb-cf', 'category', CATEGORIES, 'Category', 'Filter tasks by category');
@@ -53425,7 +53439,8 @@ Earned Value Management measures project performance and progress by comparing p
                 <tr style="background:var(--color-surface-3); border-bottom:1px solid var(--color-border)">
                   <th style="width:220px; padding:14px 16px"><div class="thin" style="font-size:11px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase">Module Name</div></th>
                   <th style="width:130px; padding:14px 16px"><div class="thin" style="font-size:11px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase">Type</div></th>
-                  <th style="width:160px; padding:14px 16px"><div class="thin" style="font-size:11px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase">Assignee</div></th>
+                  <th style="width:160px; padding:14px 16px"><div class="thin" style="font-size:11px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase">Module Owner</div></th>
+                  <th style="width:200px; padding:14px 16px"><div class="thin" style="font-size:11px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase">Contributors</div></th>
                   <th style="width:130px; padding:14px 16px"><div class="thin" style="font-size:11px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase">Priority</div></th>
                   <th style="width:150px; padding:14px 16px"><div class="thin" style="font-size:11px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase">Status</div></th>
                   <th style="width:150px; padding:14px 16px"><div class="thin" style="font-size:11px; font-weight:700; color:var(--color-text-muted); text-transform:uppercase">Release Version</div></th>
@@ -53447,6 +53462,11 @@ Earned Value Management measures project performance and progress by comparing p
                         <option value="">Unassigned</option>
                         ${getTeamNames().map(n => `<option value="${n}" ${m.assignee === n ? 'selected' : ''}>${n}</option>`).join('')}
                       </select>
+                    </td>
+                    <td style="padding:8px 16px">
+                      <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:36px">
+                        ${(() => { const AV_C=['#6366f1','#8b5cf6','#ec4899','#f43f5e','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#06b6d4']; return getTeamNames().map((n,ni)=>{ const sel=(m.contributors||[]).includes(n); const bg=AV_C[ni%AV_C.length]; const init=n.split(' ').map(p=>p[0]||'').join('').slice(0,2).toUpperCase(); return `<span title="${esc(n)}" onclick="toggleScaffoldContrib(${i},'${esc(n)}')" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:${sel?bg:'var(--color-surface-3)'};color:${sel?'#fff':'var(--color-text-muted)'};font-size:9px;font-weight:900;cursor:pointer;border:2px solid ${sel?bg:'var(--color-border)'};transition:all 0.15s">${init}</span>`; }).join('')+((m.contributors||[]).length===0?'<span style="font-size:10px;color:var(--color-text-faint)">Click to add</span>':''); })()}
+                      </div>
                     </td>
                     <td style="padding:8px 16px">
                       <select class="fsel no-bg" style="font-size:13px; padding:8px 12px; border-radius:6px; border:1px solid transparent; transition:all 0.2s" onchange="updateScaffold(${i}, 'priority', this.value)" onfocus="this.style.borderColor='var(--color-primary)'; this.style.background='var(--color-surface)'" onblur="this.style.borderColor='transparent'; this.style.background='transparent'">
@@ -53666,6 +53686,7 @@ Earned Value Management measures project performance and progress by comparing p
         name: '',
         type: (P.dropdowns.moduleType && P.dropdowns.moduleType[0]) || 'GUI',
         assignee: '',
+        contributors: [],
         priority: 'Medium',
         status: 'Not Started',
         releaseVersion: '',
@@ -57669,6 +57690,13 @@ Earned Value Management measures project performance and progress by comparing p
       }
     }
     function updateScaffold(idx, field, val) { P._scaffold[idx][field] = val; }
+    function toggleScaffoldContrib(idx, name) {
+      if (!P._scaffold[idx].contributors) P._scaffold[idx].contributors = [];
+      const c = P._scaffold[idx].contributors;
+      const pos = c.indexOf(name);
+      if (pos >= 0) c.splice(pos, 1); else c.push(name);
+      if (typeof renderScaffoldStep1 === 'function') renderScaffoldStep1($id('blueprint-container'));
+    }
 
     function generateFromScaffold() {
       if (!P._scaffold?.length) { notify('Add at least one module first', 'err'); return; }
@@ -57690,6 +57718,7 @@ Earned Value Management measures project performance and progress by comparing p
           module: m.name,
           moduleType: m.type,
           assignee: m.assignee,
+          contributors: Array.isArray(m.contributors) ? m.contributors : [],
           priority: m.priority,
           status: m.status,
           releaseVersion: m.release
@@ -64074,8 +64103,14 @@ Earned Value Management measures project performance and progress by comparing p
             </select>
           </div>
           <div class="pp-form-group">
-            <label class="pp-form-label" for="edit-task-assignee">Assignee</label>
-            <input type="text" class="pp-form-input" id="edit-task-assignee" placeholder="Assignee Name" />
+            <label class="pp-form-label" for="edit-task-assignee">Module Owner</label>
+            <input type="text" class="pp-form-input" id="edit-task-assignee" placeholder="Module Owner Name" />
+          </div>
+          <div class="pp-form-group">
+            <label class="pp-form-label">Contributors <span style="font-size:10px;color:var(--color-text-faint);font-weight:400">(auto-derived from sub-task assignees)</span></label>
+            <div id="edit-task-contributors-chips" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;padding:6px 10px;border-radius:var(--radius);background:rgba(var(--color-text-rgb),0.03);border:1px solid var(--color-border)">
+              <span style="font-size:11px;color:var(--color-text-faint)">—</span>
+            </div>
           </div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
             <div class="pp-form-group">
@@ -65695,10 +65730,10 @@ Earned Value Management measures project performance and progress by comparing p
             if (barMaxW > 14) {
               ctx.fillStyle = isDarkTheme ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
               drawRR(ctx, barX, metaY - 4, barMaxW, 4, 2); ctx.fill();
-              if (pct > 0) {
-                ctx.fillStyle = healthC;
-                drawRR(ctx, barX, metaY - 4, barMaxW * (pct / 100), 4, 2); ctx.fill();
-              }
+              ctx.fillStyle = fillC;
+              drawRR(ctx, barX, metaY - 4, barMaxW * (pct / 100), 4, 2); ctx.fill();
+            }
+
               ctx.fillStyle = healthC;
               ctx.font = '700 7.5px Plus Jakarta Sans, sans-serif';
               ctx.fillText(pct + '%', barX + barMaxW + 3, metaY);
@@ -65986,6 +66021,22 @@ Earned Value Management measures project performance and progress by comparing p
         \$id('edit-task-assignee').value = item.assignee || 'Unassigned';
         \$id('edit-task-start').value = item.startDate || '';
         \$id('edit-task-due').value = item.dueDate || '';
+
+        // Populate contributors chips (read-only, auto-derived from sub-task assignees)
+        const contribChips = \$id('edit-task-contributors-chips');
+        if (contribChips) {
+          const contribs = Array.isArray(item.contributors) ? item.contributors : [];
+          if (contribs.length === 0) {
+            contribChips.innerHTML = '<span style="font-size:11px;color:var(--color-text-faint)">—</span>';
+          } else {
+            const AV_C = ['#6366f1','#8b5cf6','#ec4899','#f43f5e','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#06b6d4'];
+            contribChips.innerHTML = contribs.map((name, ci) => {
+              const bg = AV_C[ci % AV_C.length];
+              const initials = name.split(' ').map(p => p[0] || '').join('').slice(0,2).toUpperCase();
+              return `<span title="${esc(name)}" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;background:${bg}18;border:1px solid ${bg}44;font-size:11px;color:${bg};font-weight:700"><span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:${bg};color:#fff;font-size:8px;font-weight:900">${initials}</span>${esc(name)}</span>`;
+            }).join('');
+          }
+        }
       }
 
       const deleteBtn = \$id('delete-item-btn');
