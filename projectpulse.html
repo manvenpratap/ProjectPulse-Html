@@ -11918,6 +11918,10 @@
               <span style="font-size:16px;margin-right:8px"><i data-lucide="folder"></i></span>
               Open Project Excel…
             </button>
+            <button class="dd-item" onclick="loadSample('hierarchical');closeDD()" title="Load Investment Platform 2.0 Sample Project">
+              <span style="font-size:16px;margin-right:8px"><i data-lucide="sparkles"></i></span>
+              Load Sample Project…
+            </button>
             <button class="dd-item" onclick="exportProjectExcel();closeDD()" title="Export current state to Excel">
               <span style="font-size:16px;margin-right:8px"><i data-lucide="download"></i></span>
               Export Project Excel…
@@ -16344,7 +16348,7 @@
           if (data.progress < 100) data.progress = 100;
           if (!data.actCompletionDate) data.actCompletionDate = new Date().toISOString().split('T')[0];
         }
-        if (!data.category || data.category === 'Feature') {
+        if (!data.category) {
           if (data.moduleType === 'GUI' && data.guiScreens && data.guiScreens.length > 0) {
             data.category = 'GUI Screen';
           } else if (data.moduleType === 'GUI') {
@@ -16453,16 +16457,19 @@
           }
         } else {
           const existing = task.subtasks || [];
+          const taskIsDone = task.status === 'Completed' || task.progress === 100;
           task.subtasks = PulseState.smartSyncWorkflow(existing, oldSteps, tpl.steps, (step) => ({
             id: 'ST-' + String(stateP.nextSubId++).padStart(3, '0'),
             name: step.name,
-            status: 'Not Started',
-            progress: 0,
+            status: taskIsDone ? 'Completed' : (task.status || 'Not Started'),
+            done: taskIsDone,
+            progress: taskIsDone ? 100 : 0,
             assignee: task.assignee || '',
             effort: step.effort || 1,
-            actEffort: 0,
+            actEffort: taskIsDone ? (step.effort || 1) : 0,
             startDate: task.startDate || todayStr(),
-            dueDate: task.dueDate || todayStr()
+            dueDate: task.dueDate || todayStr(),
+            actCompletionDate: taskIsDone ? (task.actCompletionDate || task.dueDate || todayStr()) : ''
           }));
         }
         recalcDatesAndStatus(task);
@@ -17025,6 +17032,12 @@
       },
 
       injectSampleData() {
+        if (typeof loadSample === 'function') {
+          return loadSample('hierarchical');
+        }
+        if (typeof window !== 'undefined' && typeof window.loadSample === 'function') {
+          return window.loadSample('hierarchical');
+        }
         clearProjectState();
         P.name = 'Investment Platform 2.0';
         P.desc = 'Modernizing core banking modules with unified Server and GUI hierarchical tracking.';
@@ -17109,6 +17122,7 @@
     "actualStartDate": "2026-04-26",
     "dueDate": "2026-04-26",
     "actCompletionDate": "2026-04-26",
+    "actualEndDate": "2026-04-26",
     "baselineStartDate": "2026-04-26",
     "baselineDueDate": "2026-04-26",
     "baselineEffort": 8,
@@ -21266,6 +21280,10 @@
 
       if (allDone) {
         task.status = 'Completed';
+        if (!task.actCompletionDate) {
+          const maxSubEnd = subs.reduce((max, s) => (s.actCompletionDate && s.actCompletionDate > max ? s.actCompletionDate : max), '');
+          task.actCompletionDate = maxSubEnd || task.dueDate || todayStr();
+        }
       } else if (!['On Hold', 'Blocked', 'Under Review', 'Cancelled'].includes(task.status)) {
         if (anyStarted || task.progress > 0) task.status = 'In Progress';
         else task.status = 'Not Started';
