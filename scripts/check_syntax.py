@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+import os
 import subprocess
 import re
 
@@ -29,18 +30,18 @@ def main():
             continue
             
         if not in_script:
+            # Match actual HTML script start tag at line beginning/HTML context (ignore strings like '${"<script"')
             match_start = script_start_re.search(line)
-            if match_start:
+            if match_start and not line.strip().startswith(('$', "'", '"', '`', '+', 'html')):
                 in_script = True
-                # Replace the <script> tag itself with a blank line to preserve line numbers
                 js_lines.append('\n')
             else:
                 js_lines.append('\n')
         else:
             match_end = script_end_re.search(line)
-            if match_end:
+            # Ignore matches that are inside template strings/JS code like '${'</script>'}'
+            if match_end and not ("'</script>'" in line or '"</script>"' in line or "'/script'" in line or '"/script"' in line):
                 in_script = False
-                # Replace the </script> tag itself with a blank line to preserve line numbers
                 js_lines.append('\n')
             else:
                 js_lines.append(line)
@@ -76,6 +77,12 @@ def main():
     except Exception as e:
         print(f"Error running node check: {e}")
         sys.exit(1)
+    finally:
+        if os.path.exists(temp_js_path):
+            try:
+                os.remove(temp_js_path)
+            except Exception:
+                pass
 
 if __name__ == '__main__':
     main()

@@ -56,6 +56,94 @@ Here is the current taxonomical setup utilized in the Delivery Matrix, RAID Regi
     - Payment Module
     - Database Migration
     - Infrastructure
+    - Market Intelligence
+    - Compliance
+    - Trading UI
+    - Reporting
+    - Notifications Hub
+    - Identity Provider
+    - Customer Relations (CRM)
+    - Enterprise Resource (ERP)
+    - Risk Assessment
+    - Audit Logging
+    - Document Vault
+    - Billing & Subscriptions
+    - Customer Onboarding
+    - KYC Verification
+    - AML Monitoring
+    - Tax Calculation
+    - Settlements Engine
+    - Order Routing
+    - Fee Calculation
+    - Digital Signatures
+    - Key Vault Service
+    - Margin Management
+    - Collateral Tracking
+    - Liquidity Pools
+    - Yield Optimization
+    - Cross-Border FX
+    - Credit Scoring
+    - Fraud Detection
+    - Reconciliation Service
+    - Corporate Actions
+    - Dividend Distribution
+    - Securities Lending
+    - Custody Services
+    - ESG Ratings Engine
+    - Algorithmic Execution
+    - Derivatives Pricing
+    - Fixed Income Engine
+    - Commodities Feed
+    - Crypto Gateway
+    - Staking Operations
+    - Tokenomics Engine
+    - Asset Tokenization
+    - Smart Contract Auditor
+    - Gas Fee Estimator
+    - Bridge Service
+    - Oracle Feeds Engine
+    - Data Warehouse ETL
+    - BI Data Mart
+    - Realtime Stream Processor
+    - ML Model Registry
+    - Feature Store Service
+    - Model Serving Pipeline
+    - A/B Testing Platform
+    - User Analytics
+    - Session Replay Engine
+    - Feature Flag Router
+    - Rate Limiter Gateway
+    - Load Balancer Controller
+    - Service Mesh Proxy
+    - Secrets Rotator
+    - Disaster Recovery Manager
+    - Backup & Archive Service
+    - CDN Distribution
+    - DNS Routing Service
+    - Edge Worker Functions
+    - Webinar & Media Platform
+    - Support Helpdesk Router
+    - Feedback Processing
+    - Knowledge Base Index
+    - Community Portal
+    - Partner API Portal
+    - Developer Dashboard
+    - Webhook Dispatcher
+    - SDK Generator Service
+    - API Sandbox Environment
+    - GraphQL Gateway
+    - Event Bus Relay
+    - Message Queue Broker
+    - Cache Cluster Manager
+    - Search Indexer
+    - Vector DB Service
+    - Graph DB Engine
+    - Time-Series Collector
+    - Blob Storage Router
+    - Config Sync Engine
+    - System Health Monitor
+    - Incident Response Hub
+    - Telemetry Ingestion
 
 ### Module Type
 *   **Key**: `moduleType`
@@ -182,4 +270,4 @@ Here is the current taxonomical setup utilized in the Delivery Matrix, RAID Regi
 
 ---
 
-*Last compiled on: Wed, 01 Jul 2026 18:30:01 GMT*
+*Last compiled on: Thu, 13 Aug 2026 18:38:49 GMT*

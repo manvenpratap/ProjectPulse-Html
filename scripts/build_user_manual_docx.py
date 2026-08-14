@@ -11,7 +11,8 @@ production-quality DOCX with:
   • Consistent typography and professional layout
 """
 
-import os, datetime, glob
+import os, sys, datetime, glob
+sys.path.insert(0, os.path.dirname(__file__))
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor, Emu
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
@@ -20,252 +21,13 @@ from docx.enum.style import WD_STYLE_TYPE
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 import copy
+from docx_helpers import *
 
 # ── Paths ──────────────────────────────────────────────────────────────────
 BASE_DIR   = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SS_DIR     = os.path.join(BASE_DIR, "docs", "screenshots")
 OUT_PATH   = os.path.join(BASE_DIR, "docs", "ProjectPulse_Product_Capabilities_Manual.docx")
 LOGO_PATH  = None   # set if you have a logo PNG
-
-# ── Brand Palette ──────────────────────────────────────────────────────────
-CLR_NAVY    = RGBColor(0x0D, 0x1B, 0x2A)   # Deep navy heading
-CLR_TEAL    = RGBColor(0x00, 0xC2, 0xA8)   # Accent teal
-CLR_ACCENT  = RGBColor(0x1E, 0x9E, 0xD5)   # Sky blue
-CLR_WHITE   = RGBColor(0xFF, 0xFF, 0xFF)
-CLR_LIGHT   = RGBColor(0xF4, 0xF7, 0xFA)   # Light grey bg
-CLR_DARK    = RGBColor(0x1A, 0x1A, 0x2E)
-CLR_WARN    = RGBColor(0xE6, 0x7E, 0x22)   # Amber warning
-CLR_DANGER  = RGBColor(0xC0, 0x39, 0x2B)   # Red
-CLR_SUCCESS = RGBColor(0x27, 0xAE, 0x60)   # Green
-CLR_TEXT    = RGBColor(0x1C, 0x1C, 0x1E)   # Primary text
-CLR_MUTED   = RGBColor(0x6C, 0x75, 0x7D)   # Secondary text
-CLR_BORDER  = RGBColor(0xD1, 0xD5, 0xDB)   # Table borders
-
-# ── Helpers ────────────────────────────────────────────────────────────────
-
-def set_cell_bg(cell, hex_color: str):
-    """Set cell background shading via XML."""
-    tc = cell._tc
-    tcPr = tc.get_or_add_tcPr()
-    shd = OxmlElement("w:shd")
-    shd.set(qn("w:val"), "clear")
-    shd.set(qn("w:color"), "auto")
-    shd.set(qn("w:fill"), hex_color)
-    tcPr.append(shd)
-
-
-def set_cell_border(cell, **kwargs):
-    tc = cell._tc
-    tcPr = tc.get_or_add_tcPr()
-    tcBorders = OxmlElement("w:tcBorders")
-    for edge in ("top", "left", "bottom", "right"):
-        tag = OxmlElement(f"w:{edge}")
-        tag.set(qn("w:val"), kwargs.get(edge, {}).get("val", "single"))
-        tag.set(qn("w:sz"), str(kwargs.get(edge, {}).get("sz", 4)))
-        tag.set(qn("w:color"), kwargs.get(edge, {}).get("color", "D1D5DB"))
-        tcBorders.append(tag)
-    tcPr.append(tcBorders)
-
-
-def add_horizontal_rule(doc, color="D1D5DB"):
-    p = doc.add_paragraph()
-    pPr = p._p.get_or_add_pPr()
-    pBdr = OxmlElement("w:pBdr")
-    bottom = OxmlElement("w:bottom")
-    bottom.set(qn("w:val"), "single")
-    bottom.set(qn("w:sz"), "6")
-    bottom.set(qn("w:space"), "1")
-    bottom.set(qn("w:color"), color)
-    pBdr.append(bottom)
-    pPr.append(pBdr)
-    p.paragraph_format.space_before = Pt(0)
-    p.paragraph_format.space_after  = Pt(6)
-    return p
-
-
-def make_heading(doc, text, level=1, color=None, space_before=18, space_after=6):
-    """Add a styled heading paragraph."""
-    h = doc.add_heading(text, level=level)
-    h.paragraph_format.space_before = Pt(space_before)
-    h.paragraph_format.space_after  = Pt(space_after)
-    run = h.runs[0] if h.runs else h.add_run(text)
-    if color:
-        run.font.color.rgb = color
-    return h
-
-
-def make_body(doc, text, space_before=0, space_after=6, color=None, bold=False, italic=False, size=10.5):
-    p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(space_before)
-    p.paragraph_format.space_after  = Pt(space_after)
-    run = p.add_run(text)
-    run.font.size = Pt(size)
-    if color: run.font.color.rgb = color
-    if bold:  run.bold = True
-    if italic: run.italic = True
-    return p
-
-
-def make_bullet(doc, text, level=0, space_after=3):
-    p = doc.add_paragraph(style="List Bullet")
-    p.paragraph_format.space_before = Pt(0)
-    p.paragraph_format.space_after  = Pt(space_after)
-    p.paragraph_format.left_indent  = Inches(0.25 + level * 0.25)
-    run = p.add_run(text)
-    run.font.size = Pt(10.5)
-    return p
-
-
-def make_numbered(doc, text, level=0, space_after=3):
-    p = doc.add_paragraph(style="List Number")
-    p.paragraph_format.space_before = Pt(0)
-    p.paragraph_format.space_after  = Pt(space_after)
-    run = p.add_run(text)
-    run.font.size = Pt(10.5)
-    return p
-
-
-def add_screenshot(doc, filename, caption, width_inches=6.3):
-    """Embed a screenshot from SS_DIR with a styled caption."""
-    # Try exact name, then glob
-    candidates = [
-        os.path.join(SS_DIR, filename),
-        os.path.join(SS_DIR, filename + ".png"),
-    ]
-    path = None
-    for c in candidates:
-        if os.path.exists(c):
-            path = c
-            break
-    if not path:
-        # Try glob prefix match
-        matches = glob.glob(os.path.join(SS_DIR, f"{filename}*"))
-        if matches:
-            path = sorted(matches)[0]
-
-    if path and os.path.exists(path):
-        p_img = doc.add_paragraph()
-        p_img.paragraph_format.space_before = Pt(8)
-        p_img.paragraph_format.space_after  = Pt(0)
-        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = p_img.add_run()
-        run.add_picture(path, width=Inches(width_inches))
-    else:
-        # Placeholder
-        p_img = doc.add_paragraph(f"[Screenshot: {filename}]")
-        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p_img.runs[0].font.color.rgb = CLR_MUTED
-        p_img.runs[0].font.italic = True
-
-    # Caption
-    cap = doc.add_paragraph()
-    cap.paragraph_format.space_before = Pt(4)
-    cap.paragraph_format.space_after  = Pt(14)
-    cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = cap.add_run(caption)
-    run.font.size = Pt(9)
-    run.font.italic = True
-    run.font.color.rgb = CLR_MUTED
-    return p_img
-
-
-def add_callout(doc, text, style="note"):
-    """Add a styled callout / note box."""
-    configs = {
-        "note":    ("ℹ  NOTE",    "0D4F8B", "E8F4FD", "1565C0"),
-        "tip":     ("💡 TIP",     "145A32", "E9F7EF", "1E8449"),
-        "warning": ("⚠  WARNING", "7D4E00", "FEF9E7", "C67C00"),
-        "caution": ("⛔ CAUTION", "6E2222", "FDEDEC", "C0392B"),
-    }
-    label, label_col, bg_col, border_col = configs.get(style, configs["note"])
-
-    tbl = doc.add_table(rows=1, cols=1)
-    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
-    tbl.style = "Table Grid"
-    cell = tbl.cell(0, 0)
-    set_cell_bg(cell, bg_col)
-    # Left border accent
-    tc = cell._tc
-    tcPr = tc.get_or_add_tcPr()
-    tcBorders = OxmlElement("w:tcBorders")
-    for edge, col, sz in [("left", border_col, 18), ("top", "FFFFFF", 4), ("right", "FFFFFF", 4), ("bottom", "FFFFFF", 4)]:
-        tag = OxmlElement(f"w:{edge}")
-        tag.set(qn("w:val"), "single")
-        tag.set(qn("w:sz"), str(sz))
-        tag.set(qn("w:color"), col)
-        tcBorders.append(tag)
-    tcPr.append(tcBorders)
-
-    p = cell.paragraphs[0]
-    p.paragraph_format.space_before = Pt(6)
-    p.paragraph_format.space_after  = Pt(2)
-    p.paragraph_format.left_indent  = Inches(0.1)
-    lbl_run = p.add_run(label + "  ")
-    lbl_run.bold = True
-    lbl_run.font.size = Pt(9)
-    lbl_run.font.color.rgb = RGBColor.from_string(label_col)
-
-    p2 = cell.add_paragraph()
-    p2.paragraph_format.space_before = Pt(2)
-    p2.paragraph_format.space_after  = Pt(6)
-    p2.paragraph_format.left_indent  = Inches(0.1)
-    body_run = p2.add_run(text)
-    body_run.font.size = Pt(10)
-    doc.add_paragraph()
-    return tbl
-
-
-def add_data_table(doc, headers, rows, col_widths=None, header_bg="0D1B2A", header_fg="FFFFFF"):
-    """Add a styled data table."""
-    tbl = doc.add_table(rows=1 + len(rows), cols=len(headers))
-    tbl.style = "Table Grid"
-    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
-
-    # Header row
-    hdr_cells = tbl.rows[0].cells
-    for i, h in enumerate(headers):
-        hdr_cells[i].text = h
-        set_cell_bg(hdr_cells[i], header_bg)
-        p = hdr_cells[i].paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = p.runs[0]
-        run.bold = True
-        run.font.size = Pt(9.5)
-        run.font.color.rgb = RGBColor.from_string(header_fg)
-
-    # Data rows
-    for r_idx, row in enumerate(rows):
-        cells = tbl.rows[r_idx + 1].cells
-        bg = "F8F9FA" if r_idx % 2 == 0 else "FFFFFF"
-        for c_idx, val in enumerate(row):
-            cells[c_idx].text = str(val)
-            set_cell_bg(cells[c_idx], bg)
-            p = cells[c_idx].paragraphs[0]
-            p.paragraph_format.space_before = Pt(3)
-            p.paragraph_format.space_after  = Pt(3)
-            if p.runs:
-                p.runs[0].font.size = Pt(9.5)
-
-    # Column widths
-    if col_widths:
-        for i, w in enumerate(col_widths):
-            for row in tbl.rows:
-                row.cells[i].width = Inches(w)
-
-    doc.add_paragraph().paragraph_format.space_after = Pt(6)
-    return tbl
-
-
-def add_page_break(doc):
-    doc.add_page_break()
-
-
-def set_page_margins(doc, top=1.0, bottom=1.0, left=1.1, right=1.1):
-    section = doc.sections[0]
-    section.top_margin    = Inches(top)
-    section.bottom_margin = Inches(bottom)
-    section.left_margin   = Inches(left)
-    section.right_margin  = Inches(right)
 
 
 # ── Cover Page ─────────────────────────────────────────────────────────────
@@ -1355,7 +1117,11 @@ def build_docx():
     print(f"{'═'*60}\n")
 
     doc = Document()
-    set_page_margins(doc)
+    for section in doc.sections:
+        section.top_margin = Inches(1.0)
+        section.bottom_margin = Inches(1.0)
+        section.left_margin = Inches(1.0)
+        section.right_margin = Inches(1.0)
 
     # Default paragraph font
     style = doc.styles["Normal"]

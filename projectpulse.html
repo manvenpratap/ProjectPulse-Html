@@ -7599,14 +7599,36 @@
 
     .sl-lane-body {
       display: flex;
-      overflow: hidden;
+      /* Cap each lane to ~8 feature rows so long lanes stay compact.
+         ROW_H=48px, HEAD_H=48px → 8 rows + header = 432px.
+         Users can scroll within the lane body for the rest. */
+      max-height: 432px;
+      overflow-y: auto;
+      overflow-x: hidden;
       background: var(--color-bg);
-      max-height: 1200px;
       transition: max-height 0.3s ease;
+      /* Custom scrollbar — thin and subtle */
+      scrollbar-width: thin;
+      scrollbar-color: var(--color-border) transparent;
+    }
+
+    .sl-lane-body::-webkit-scrollbar {
+      width: 6px;
+    }
+    .sl-lane-body::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .sl-lane-body::-webkit-scrollbar-thumb {
+      background: var(--color-border);
+      border-radius: 3px;
+    }
+    .sl-lane-body::-webkit-scrollbar-thumb:hover {
+      background: var(--color-text-faint);
     }
 
     .sl-lane.collapsed .sl-lane-body {
       max-height: 0 !important;
+      overflow: hidden;
     }
 
     .sl-lane-left {
@@ -7637,7 +7659,8 @@
     .sl-lane-right {
       flex: 1;
       overflow-x: auto;
-      overflow-y: hidden;
+      /* vertical overflow is handled by .sl-lane-body, so this must not clip */
+      overflow-y: visible;
       background: var(--color-bg);
       position: relative;
     }
@@ -7648,6 +7671,8 @@
 
     .sl-row-head {
       height: 48px;
+      min-height: 48px;
+      flex-shrink: 0;
       display: flex;
       align-items: flex-end;
       padding: 0 10px 4px;
@@ -7658,12 +7683,15 @@
       letter-spacing: .5px;
       border-bottom: 2px solid var(--color-border);
       background: var(--color-surface);
+      box-sizing: border-box;
     }
 
     .sl-row {
       display: flex;
       align-items: center;
       height: 32px;
+      min-height: 32px;
+      flex-shrink: 0;
       padding: 0 10px;
       border-bottom: 1px solid var(--color-divider);
       font-size: 11px;
@@ -14185,22 +14213,6 @@
     };
     window.PulseForecastEngine = PulseForecastEngine;
 
-    function getTaskDeadline(task) {
-      if (!task) return '';
-      if (task.releaseVersion && window.P && window.P.releases) {
-        const rel = window.P.releases.find(r => 
-          String(r.name).trim().toLowerCase() === String(task.releaseVersion).trim().toLowerCase() ||
-          String(r.id).trim().toLowerCase() === String(task.releaseVersion).trim().toLowerCase()
-        );
-        if (rel && (rel.date || rel.endDate || rel.targetDate || rel.releaseDate)) {
-          return rel.date || rel.endDate || rel.targetDate || rel.releaseDate;
-        }
-      }
-      if (task.baselineDueDate) return task.baselineDueDate;
-      return task.dueDate || '';
-    }
-    window.getTaskDeadline = getTaskDeadline;
-
     function isTaskInFutureRelease(task) {
       if (!task) return false;
       const PObj = window.P || (typeof P !== 'undefined' ? P : null);
@@ -15001,8 +15013,8 @@
         if (window.lucide) lucide.createIcons(body);
       },
 
-      openModal(id) { $id(id).classList.add('open'); },
-      closeModal(id) { $id(id).classList.remove('open'); },
+      openModal(id) { const el = $id(id); if (el) { el.classList.add('open'); el.classList.add('active'); } },
+      closeModal(id) { const el = $id(id); if (el) { el.classList.remove('open'); el.classList.remove('active'); } },
       showConfirm(msg, onOk) {
         $id('confirm-msg').textContent = msg;
         $id('confirm-ok').onclick = () => { onOk(); closeModal('confirm-modal'); };
@@ -15084,6 +15096,20 @@
         }, 400); // matches transition time
       },
 
+      addOpacity(colorStr, alpha) {
+        const c = window.resolveColor(colorStr) || colorStr;
+        if (c.startsWith('rgba')) return c.replace(/[^,]+(?=\))/, alpha);
+        if (c.startsWith('rgb')) return c.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
+        if (c.startsWith('#')) {
+          let hex = c.replace('#', '');
+          if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
+          const r = parseInt(hex.substring(0, 2), 16);
+          const g = parseInt(hex.substring(2, 4), 16);
+          const b = parseInt(hex.substring(4, 6), 16);
+          return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+        return `rgba(120, 120, 120, ${alpha})`;
+      }
 
     };
     window.PulseUI = PulseUI;
@@ -15150,6 +15176,10 @@
     function fmtDate(d) { return PulseUI.fmtDate(d); }
     function parseDateDMY(str) { return PulseUI.parseDateDMY(str); }
     window.parseDateDMY = parseDateDMY;
+    function addOpacity(colorStr, alpha) { return PulseUI.addOpacity(colorStr, alpha); }
+    window.addOpacity = addOpacity;
+    function addOp(colorStr, alpha) { return PulseUI.addOpacity(colorStr, alpha); }
+    window.addOp = addOp;
 
     function closeDynamicModal(id) { return PulseUI.closeDynamicModal(id); }
     function updateColorModeBtn() { return PulseUI.updateColorModeBtn(); }
@@ -15231,6 +15261,17 @@
       return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`;
     };
     window.formatCxoDateNoYear = formatCxoDateNoYear;
+
+    const escapeHTML = (str) => {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    };
+    window.escapeHTML = escapeHTML;
 
     const getRaidDateSince = (r) => {
       if (!r) return todayStr();
@@ -15456,103 +15497,9 @@
           { name: 'Development', effort: 5 },
           { name: 'Code Review', effort: 1 },
           { name: 'QA Verification', effort: 2 },
-          { name: 'Deployment', effort: 1 }
         ]
-      },
-    ];
-
-    function renderViewToggle() {
-      if (!P.settings) P.settings = {};
-      if (!P.settings.viewOrder || !Array.isArray(P.settings.viewOrder) || P.settings.viewOrder.length === 0 ||
-        P.settings.viewOrder[2] === 'tasks' || P.settings.viewOrder[5] === 'reports') {
-        P.settings.viewOrder = ALL_VIEWS.map(v => v.id);
       }
-
-      const vsw = document.querySelector('.vsw');
-      const mobileNav = $id('mobile-nav');
-      const sbNav = $id('sb-nav');
-      if (vsw) vsw.innerHTML = '';
-      if (mobileNav) mobileNav.innerHTML = '';
-      if (sbNav) sbNav.innerHTML = '';
-
-      P.settings.viewOrder.forEach(vid => {
-        const viewDef = ALL_VIEWS.find(v => v.id === vid);
-        if (!viewDef) return;
-
-        // Desktop .vsw
-        if (vsw) {
-          const btn = document.createElement('button');
-          btn.className = 'btn';
-          if (P.view === vid) btn.classList.add('active');
-          btn.setAttribute('data-v', vid);
-          btn.onclick = () => {
-            if (vid === 'reports') P.activeReportId = null;
-            setView(vid);
-          };
-          btn.title = viewDef.title;
-          if (vid === 'log') {
-            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label} <span id="log-badge" class="badge" style="display:none;margin-left:6px;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">0</span>`;
-          } else {
-            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label}`;
-          }
-          vsw.appendChild(btn);
-        }
-
-        // Sidebar #sb-nav
-        if (sbNav) {
-          const btn = document.createElement('button');
-          btn.className = 'sb-nav-item';
-          if (P.view === vid) btn.classList.add('active');
-          btn.setAttribute('data-v', vid);
-          btn.onclick = () => {
-            if (vid === 'reports') P.activeReportId = null;
-            setView(vid);
-          };
-          btn.title = viewDef.title;
-          if (vid === 'log') {
-            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span class="sb-nav-label">${viewDef.label}</span><span id="sb-log-badge" class="badge" style="display:none;margin-left:auto;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">0</span>`;
-          } else {
-            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span class="sb-nav-label">${viewDef.label}</span>`;
-          }
-          sbNav.appendChild(btn);
-        }
-
-
-
-        // Mobile #mobile-nav
-        if (mobileNav) {
-          const mBtn = document.createElement('button');
-          mBtn.className = 'mobile-nav-item';
-          if (P.view === vid) mBtn.classList.add('active');
-          mBtn.setAttribute('data-v', vid);
-          mBtn.onclick = () => {
-            if (vid === 'reports') P.activeReportId = null;
-            setView(vid);
-          };
-          if (vid === 'log') {
-            mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${P.hideLabels ? '' : viewDef.label}</span><span id="log-badge-mobile" class="badge" style="display:none;position:absolute;top:4px;right:4px;background:var(--red);color:white;font-size:9px;padding:1px 4px;border-radius:10px;line-height:1">0</span>`;
-          } else {
-            mBtn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span>${P.hideLabels ? '' : viewDef.label}</span>`;
-          }
-          mobileNav.appendChild(mBtn);
-        }
-      });
-
-      document.body.classList.toggle('hide-labels', !!P.hideLabels);
-
-      if (window.lucide) window.lucide.createIcons();
-
-      // Update log badge counts dynamically
-      const cnt = P.log.filter(l => l.ts && typeof l.ts === 'string' && l.ts.startsWith(todayStr())).length;
-      ['log-badge', 'log-badge-mobile', 'sb-log-badge'].forEach(id => {
-        const b = $id(id);
-        if (b) {
-          if (cnt > 0) { b.style.display = ''; b.textContent = cnt; }
-          else b.style.display = 'none';
-        }
-      });
-    }
-
+    ];
 
     // ══════ KEYBOARD SHORTCUTS ══════
     window.addEventListener('keydown', e => {
@@ -16103,10 +16050,457 @@
           { key: 'updatedAt', label: 'Updated', w: 90, type: 'date', edit: false },
         ],
         features: [
-          { name: 'Core Infrastructure', screens: ['Database Schema', 'Core Services', 'API Gateway'], desc: 'Fundamental system services and architecture.' },
-          { name: 'User Management', screens: ['Cash Accounts', 'Security Accounts', 'Authentication'], desc: 'User lifecycle and account security.' },
-          { name: 'Market Intelligence', screens: ['Portfolio Valuations', 'Market Data Feed', 'Analytics Dashboard'], desc: 'Data processing and reporting.' }
-        ],
+          {
+                    "name": "Core Infrastructure",
+                    "screens": [
+                              "Database Schema",
+                              "Core Services",
+                              "API Gateway"
+                    ],
+                    "desc": "Fundamental system services and architecture."
+          },
+          {
+                    "name": "User Management",
+                    "screens": [
+                              "Cash Accounts",
+                              "Security Accounts",
+                              "Authentication"
+                    ],
+                    "desc": "User lifecycle and account security."
+          },
+          {
+                    "name": "Market Intelligence",
+                    "screens": [
+                              "Portfolio Valuations",
+                              "Market Data Feed",
+                              "Analytics Dashboard"
+                    ],
+                    "desc": "Data processing and reporting."
+          },
+          {
+                    "name": "Order Entry & Execution",
+                    "screens": [
+                              "Order Entry",
+                              "Matching Engine",
+                              "Trade Confirmation"
+                    ],
+                    "desc": "Trade order creation, routing, and instant validation."
+          },
+          {
+                    "name": "Portfolio Performance Analytics",
+                    "screens": [
+                              "Portfolio Overview",
+                              "Sunburst Chart",
+                              "Legend Details"
+                    ],
+                    "desc": "Visual analytics and asset allocation sunburst breakdown."
+          },
+          {
+                    "name": "Governance & Compliance",
+                    "screens": [
+                              "Compliance Audit",
+                              "AML Integration",
+                              "Sanctions Checker"
+                    ],
+                    "desc": "Regulatory tracking, AML verification workflows, and security auditing."
+          },
+          {
+                    "name": "Identity & Access Control (IAM)",
+                    "screens": [
+                              "Profile Edit",
+                              "MFA Settings",
+                              "Settings Panel"
+                    ],
+                    "desc": "User profile editing, security settings including Multi-Factor Authentication (MFA), and system configurations."
+          },
+          {
+                    "name": "Realtime Market Data Feed",
+                    "screens": [
+                              "Ticker Stream",
+                              "Level-2 Orderbook",
+                              "Depth Chart"
+                    ],
+                    "desc": "High-throughput WebSocket stream for live prices and orderbook depth."
+          },
+          {
+                    "name": "Risk Exposure & VaR Engine",
+                    "screens": [
+                              "Value-at-Risk Calculator",
+                              "Exposure Limits Panel",
+                              "Stress Testing Matrix"
+                    ],
+                    "desc": "Monte Carlo simulation for portfolio risk exposure and regulatory reporting."
+          },
+          {
+                    "name": "Customer Onboarding & KYC",
+                    "screens": [
+                              "Document Upload",
+                              "ID Verification Portal",
+                              "Biometric Check"
+                    ],
+                    "desc": "Automated KYC identity check and document verification pipeline."
+          },
+          {
+                    "name": "Payment Gateway Integration",
+                    "screens": [
+                              "Payment Methods",
+                              "Checkout Flow",
+                              "Transaction History"
+                    ],
+                    "desc": "Multi-currency payment processing and instant settlement gateway."
+          },
+          {
+                    "name": "Automated Rebalancing Engine",
+                    "screens": [
+                              "Rebalance Parameters",
+                              "Model Portfolios",
+                              "Trade Generator"
+                    ],
+                    "desc": "Algorithmic portfolio rebalancing against target asset allocations."
+          },
+          {
+                    "name": "Notification & Alert Hub",
+                    "screens": [
+                              "Alert Rule Builder",
+                              "Push Notification Channel",
+                              "Notification Center"
+                    ],
+                    "desc": "Cross-channel real-time notifications for prices, trades, and system events."
+          },
+          {
+                    "name": "Corporate Actions & Dividends",
+                    "screens": [
+                              "Corporate Actions Feed",
+                              "Dividend Schedule",
+                              "Entitlement Calculator"
+                    ],
+                    "desc": "Automated processing of stock splits, dividends, and corporate action events."
+          },
+          {
+                    "name": "FX Rates & Currency Conversion",
+                    "screens": [
+                              "FX Spot Rates",
+                              "Cross-Currency Matrix",
+                              "Currency Converter"
+                    ],
+                    "desc": "Realtime foreign exchange rate feeds and multi-currency ledger conversions."
+          },
+          {
+                    "name": "Securities Lending & Borrowing",
+                    "screens": [
+                              "Borrow Availability",
+                              "Lending Rate Desk",
+                              "Collateral Manager"
+                    ],
+                    "desc": "Securities lending pool management and collateral margin verification."
+          },
+          {
+                    "name": "Margin & Collateral Management",
+                    "screens": [
+                              "Margin Requirements",
+                              "Collateral Valuation",
+                              "Liquidation Monitor"
+                    ],
+                    "desc": "Realtime margin calculation and automated collateral call triggers."
+          },
+          {
+                    "name": "Algorithmic Order Execution",
+                    "screens": [
+                              "Algo Strategy Config",
+                              "TWAP/VWAP Router",
+                              "Execution Analytics"
+                    ],
+                    "desc": "Smart order routing using TWAP, VWAP, and Iceberg algorithmic strategies."
+          },
+          {
+                    "name": "Fixed Income & Bonds Desk",
+                    "screens": [
+                              "Bond Yield Curve",
+                              "Fixed Income Screener",
+                              "Duration Calculator"
+                    ],
+                    "desc": "Government and corporate bond pricing, yield curves, and duration analytics."
+          },
+          {
+                    "name": "Derivatives & Options Pricing",
+                    "screens": [
+                              "Option Chain",
+                              "Greeks Calculator",
+                              "Implied Volatility Surface"
+                    ],
+                    "desc": "Options pricing, Black-Scholes Greeks analysis, and volatility modeling."
+          },
+          {
+                    "name": "ESG Ratings & Sustainability",
+                    "screens": [
+                              "ESG Scorecard",
+                              "Carbon Footprint Tracker",
+                              "Sustainability Index"
+                    ],
+                    "desc": "Environmental, Social, and Governance (ESG) scoring for portfolio assets."
+          },
+          {
+                    "name": "Crypto & Digital Asset Gateway",
+                    "screens": [
+                              "Wallet Integration",
+                              "Blockchain Explorer",
+                              "Staking Dashboard"
+                    ],
+                    "desc": "Custodial crypto wallet integration, staking operations, and token tracking."
+          },
+          {
+                    "name": "Data Warehouse & BI ETL",
+                    "screens": [
+                              "Pipeline Monitor",
+                              "ETL Job Scheduler",
+                              "Data Quality Dashboard"
+                    ],
+                    "desc": "Automated ETL pipelines processing raw telemetry into BI data marts."
+          },
+          {
+                    "name": "A/B Testing & Experimentation",
+                    "screens": [
+                              "Experiment Configurator",
+                              "Cohort Segmenter",
+                              "Conversion Funnel"
+                    ],
+                    "desc": "Feature flag routing and statistical A/B test result evaluation."
+          },
+          {
+                    "name": "Audit Logging & Forensics",
+                    "screens": [
+                              "Audit Trail Viewer",
+                              "Log Search Engine",
+                              "Security Incident Log"
+                    ],
+                    "desc": "Tamper-evident audit logging for all compliance and security interactions."
+          },
+          {
+                    "name": "Billing & Automated Invoicing",
+                    "screens": [
+                              "Subscription Plans",
+                              "Invoice Generator",
+                              "Billing History"
+                    ],
+                    "desc": "Recurring SaaS billing, fee schedules, and automated PDF invoice delivery."
+          },
+          {
+                    "name": "Omnichannel Customer Support",
+                    "screens": [
+                              "Support Ticket Queue",
+                              "Live Chat Console",
+                              "Knowledge Base Index"
+                    ],
+                    "desc": "Helpdesk ticket routing, live chat assistance, and self-serve knowledge base."
+          },
+          {
+                    "name": "Developer API Portal & SDKs",
+                    "screens": [
+                              "API Documentation",
+                              "Developer Dashboard",
+                              "Webhook Configurator"
+                    ],
+                    "desc": "Public API portal, API key generation, webhooks, and client SDK downloads."
+          },
+          {
+                    "name": "Service Mesh & Traffic Routing",
+                    "screens": [
+                              "Ingress Controller",
+                              "Traffic Splitter",
+                              "Circuit Breaker Dashboard"
+                    ],
+                    "desc": "Istio-based service mesh traffic management and dynamic load balancing."
+          },
+          {
+                    "name": "Secrets Rotator & Key Vault",
+                    "screens": [
+                              "Key Vault Console",
+                              "Secret Rotation Schedule",
+                              "Encryption Manager"
+                    ],
+                    "desc": "Automated HSM-backed API key, database credential, and certificate rotation."
+          },
+          {
+                    "name": "Disaster Recovery & Backup",
+                    "screens": [
+                              "Snapshot Scheduler",
+                              "Failover Console",
+                              "Recovery Time Tester"
+                    ],
+                    "desc": "Automated cross-region database replication and one-click failover."
+          },
+          {
+                    "name": "System Health & Telemetry",
+                    "screens": [
+                              "Metrics Dashboard",
+                              "APM Trace Viewer",
+                              "SLA Uptime Monitor"
+                    ],
+                    "desc": "Prometheus metrics, distributed tracing, and real-time SLA monitor."
+          },
+          {
+                    "name": "Tax Calculation & Reporting",
+                    "screens": [
+                              "Capital Gains Calculator",
+                              "Tax Loss Harvesting",
+                              "Form 1099 Export"
+                    ],
+                    "desc": "Realized capital gains calculation and tax report generation engine."
+          },
+          {
+                    "name": "Reconciliation & Settlement",
+                    "screens": [
+                              "Matching Engine Logs",
+                              "Bank Statement Reconciler",
+                              "Discrepancy Resolver"
+                    ],
+                    "desc": "End-of-day cash and position reconciliation against custodian clearing houses."
+          },
+          {
+                    "name": "Fee Schedule & Commission Engine",
+                    "screens": [
+                              "Tiered Fee Structure",
+                              "Commission Breakdown",
+                              "Rebate Manager"
+                    ],
+                    "desc": "Flexible fee tier calculation, commission splits, and broker rebates."
+          },
+          {
+                    "name": "Digital Signatures & E-Signing",
+                    "screens": [
+                              "Document Vault",
+                              "Signature Request Flow",
+                              "Audit Stamp Viewer"
+                    ],
+                    "desc": "Legally binding digital contract signing and document vault storage."
+          },
+          {
+                    "name": "Liquidity Pools & Yield Aggregator",
+                    "screens": [
+                              "Pool Explorer",
+                              "Yield APY Tracker",
+                              "Liquidity Provider Portal"
+                    ],
+                    "desc": "Automated market maker liquidity pool management and yield optimization."
+          },
+          {
+                    "name": "Cross-Border Remittance & Wire",
+                    "screens": [
+                              "SWIFT/SEPA Router",
+                              "Wire Transfer Form",
+                              "FX Rate Lock"
+                    ],
+                    "desc": "International SWIFT and SEPA wire transfer execution with guaranteed FX rates."
+          },
+          {
+                    "name": "Credit Scoring & Underwriting",
+                    "screens": [
+                              "Scorecard Builder",
+                              "Credit Risk Assessor",
+                              "Application Decision Matrix"
+                    ],
+                    "desc": "Automated credit score analysis and underwriting risk evaluation."
+          },
+          {
+                    "name": "Fraud Detection & Anomaly Screening",
+                    "screens": [
+                              "Anomaly Alert Console",
+                              "Behavioral Pattern Detector",
+                              "Fraud Rule Engine"
+                    ],
+                    "desc": "ML-driven real-time fraud pattern detection on incoming transactions."
+          },
+          {
+                    "name": "Community Portal & Forums",
+                    "screens": [
+                              "Forum Feed",
+                              "User Reputation Badge",
+                              "Moderation Panel"
+                    ],
+                    "desc": "Investor community discussion forum, peer insights, and moderation tools."
+          },
+          {
+                    "name": "GraphQL Federation Gateway",
+                    "screens": [
+                              "Schema Composer",
+                              "GraphQL Playground",
+                              "Query Performance Monitor"
+                    ],
+                    "desc": "Unified GraphQL schema federation across microservices."
+          },
+          {
+                    "name": "Cache Management & Redis Routing",
+                    "screens": [
+                              "Cache Hit Ratio Monitor",
+                              "Invalidation Manager",
+                              "Redis Cluster Health"
+                    ],
+                    "desc": "Distributed Redis cluster caching, key invalidation, and warm-up jobs."
+          },
+          {
+                    "name": "Vector Search & Semantic Index",
+                    "screens": [
+                              "Vector Embeddings Index",
+                              "Semantic Search Tester",
+                              "Similarity Engine"
+                    ],
+                    "desc": "Vector database integration for AI-powered semantic search across documents."
+          },
+          {
+                    "name": "Time-Series Metric Collector",
+                    "screens": [
+                              "InfluxDB Monitor",
+                              "Metric Collector Config",
+                              "Retention Policy Editor"
+                    ],
+                    "desc": "High-frequency time-series data collection and retention management."
+          },
+          {
+                    "name": "Config Sync Engine",
+                    "screens": [
+                              "Feature Flags Console",
+                              "Global Config Editor",
+                              "Version Rollback Utility"
+                    ],
+                    "desc": "Dynamic runtime feature flag toggles and global configuration sync."
+          },
+          {
+                    "name": "Incident Response & Runbooks",
+                    "screens": [
+                              "PagerDuty Integration",
+                              "Runbook Automation",
+                              "Post-Mortem Logger"
+                    ],
+                    "desc": "Incident escalation routing, automated remediation runbooks, and post-mortems."
+          },
+          {
+                    "name": "Asset Tokenization & Smart Contracts",
+                    "screens": [
+                              "Token Minting Portal",
+                              "Smart Contract Auditor",
+                              "Cap Table Manager"
+                    ],
+                    "desc": "Real-world asset tokenization, smart contract auditing, and cap table tracking."
+          },
+          {
+                    "name": "Session Replay & UX Analytics",
+                    "screens": [
+                              "Heatmap Viewer",
+                              "Session Recording Console",
+                              "User Journey Analyzer"
+                    ],
+                    "desc": "User session playback, DOM heatmaps, and drop-off funnel analytics."
+          },
+          {
+                    "name": "Partner API Sandbox",
+                    "screens": [
+                              "Sandbox Environment",
+                              "Mock Data Generator",
+                              "Partner Onboarding Guide"
+                    ],
+                    "desc": "Isolated sandbox environment for third-party developer integration testing."
+          }
+],
         nextTaskId: 1, nextMemberId: 1, nextReportId: 1, nextSubId: 1, nextDefectId: 1,
         nextRaidId: 1, nextDecisionId: 1,
         search: '', filters: { status: new Set(), priority: new Set(), assignee: new Set(), contributors: new Set(), module: new Set(), feature: new Set(), category: new Set() },
@@ -16616,7 +17010,9 @@
         const name = parts[0].trim();
         const effort = parts.length > 1 ? parseFloat(parts[1]) || 1 : 1;
         const defPriority = (stateP.dropdownDefaults && stateP.dropdownDefaults.priority) || 'Medium';
-        const st = { id: 'ST-' + stateP.nextSubId++, name, status: 'Not Started', priority: priority || defPriority, assignee: '', notes: '', effort };
+        const isGuiTask = t.moduleType === 'GUI' || t.category === 'GUI Screen' || t.category === 'GUI Module';
+        const catVal = isGuiTask ? 'GUI Screen' : (t.category || '');
+        const st = { id: 'ST-' + stateP.nextSubId++, name, status: 'Not Started', priority: priority || defPriority, category: catVal, assignee: '', notes: '', effort };
         t.subtasks.push(st);
         PulseState.addLog('Updated', taskId, t.name, 'subtask', '', 'Added: ' + name);
         recalcDatesAndStatus(t);
@@ -17073,10 +17469,507 @@
         ];
 
         P.features = [
-          { name: 'Core Infrastructure', screens: ['Database Schema', 'Core Services', 'API Gateway'], desc: 'Fundamental system services and architecture.', release: 'v1.0.0' },
-          { name: 'User Management', screens: ['Cash Accounts', 'Security Accounts', 'Authentication'], desc: 'User lifecycle and account security.', release: 'v1.0.0' },
-          { name: 'Market Intelligence', screens: ['Portfolio Valuations', 'Market Data Feed', 'Analytics Dashboard'], desc: 'Data processing and reporting.', release: 'v1.1.0' }
-        ];
+          {
+                    "name": "Core Infrastructure",
+                    "screens": [
+                              "Database Schema",
+                              "Core Services",
+                              "API Gateway"
+                    ],
+                    "desc": "Fundamental system services and architecture.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "User Management",
+                    "screens": [
+                              "Cash Accounts",
+                              "Security Accounts",
+                              "Authentication"
+                    ],
+                    "desc": "User lifecycle and account security.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Market Intelligence",
+                    "screens": [
+                              "Portfolio Valuations",
+                              "Market Data Feed",
+                              "Analytics Dashboard"
+                    ],
+                    "desc": "Data processing and reporting.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Order Entry & Execution",
+                    "screens": [
+                              "Order Entry",
+                              "Matching Engine",
+                              "Trade Confirmation"
+                    ],
+                    "desc": "Trade order creation, routing, and instant validation.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Portfolio Performance Analytics",
+                    "screens": [
+                              "Portfolio Overview",
+                              "Sunburst Chart",
+                              "Legend Details"
+                    ],
+                    "desc": "Visual analytics and asset allocation sunburst breakdown.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Governance & Compliance",
+                    "screens": [
+                              "Compliance Audit",
+                              "AML Integration",
+                              "Sanctions Checker"
+                    ],
+                    "desc": "Regulatory tracking, AML verification workflows, and security auditing.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Identity & Access Control (IAM)",
+                    "screens": [
+                              "Profile Edit",
+                              "MFA Settings",
+                              "Settings Panel"
+                    ],
+                    "desc": "User profile editing, security settings including Multi-Factor Authentication (MFA), and system configurations.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Realtime Market Data Feed",
+                    "screens": [
+                              "Ticker Stream",
+                              "Level-2 Orderbook",
+                              "Depth Chart"
+                    ],
+                    "desc": "High-throughput WebSocket stream for live prices and orderbook depth.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Risk Exposure & VaR Engine",
+                    "screens": [
+                              "Value-at-Risk Calculator",
+                              "Exposure Limits Panel",
+                              "Stress Testing Matrix"
+                    ],
+                    "desc": "Monte Carlo simulation for portfolio risk exposure and regulatory reporting.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Customer Onboarding & KYC",
+                    "screens": [
+                              "Document Upload",
+                              "ID Verification Portal",
+                              "Biometric Check"
+                    ],
+                    "desc": "Automated KYC identity check and document verification pipeline.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Payment Gateway Integration",
+                    "screens": [
+                              "Payment Methods",
+                              "Checkout Flow",
+                              "Transaction History"
+                    ],
+                    "desc": "Multi-currency payment processing and instant settlement gateway.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Automated Rebalancing Engine",
+                    "screens": [
+                              "Rebalance Parameters",
+                              "Model Portfolios",
+                              "Trade Generator"
+                    ],
+                    "desc": "Algorithmic portfolio rebalancing against target asset allocations.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Notification & Alert Hub",
+                    "screens": [
+                              "Alert Rule Builder",
+                              "Push Notification Channel",
+                              "Notification Center"
+                    ],
+                    "desc": "Cross-channel real-time notifications for prices, trades, and system events.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Corporate Actions & Dividends",
+                    "screens": [
+                              "Corporate Actions Feed",
+                              "Dividend Schedule",
+                              "Entitlement Calculator"
+                    ],
+                    "desc": "Automated processing of stock splits, dividends, and corporate action events.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "FX Rates & Currency Conversion",
+                    "screens": [
+                              "FX Spot Rates",
+                              "Cross-Currency Matrix",
+                              "Currency Converter"
+                    ],
+                    "desc": "Realtime foreign exchange rate feeds and multi-currency ledger conversions.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Securities Lending & Borrowing",
+                    "screens": [
+                              "Borrow Availability",
+                              "Lending Rate Desk",
+                              "Collateral Manager"
+                    ],
+                    "desc": "Securities lending pool management and collateral margin verification.",
+                    "release": "v2.0-Beta"
+          },
+          {
+                    "name": "Margin & Collateral Management",
+                    "screens": [
+                              "Margin Requirements",
+                              "Collateral Valuation",
+                              "Liquidation Monitor"
+                    ],
+                    "desc": "Realtime margin calculation and automated collateral call triggers.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Algorithmic Order Execution",
+                    "screens": [
+                              "Algo Strategy Config",
+                              "TWAP/VWAP Router",
+                              "Execution Analytics"
+                    ],
+                    "desc": "Smart order routing using TWAP, VWAP, and Iceberg algorithmic strategies.",
+                    "release": "v2.0-Beta"
+          },
+          {
+                    "name": "Fixed Income & Bonds Desk",
+                    "screens": [
+                              "Bond Yield Curve",
+                              "Fixed Income Screener",
+                              "Duration Calculator"
+                    ],
+                    "desc": "Government and corporate bond pricing, yield curves, and duration analytics.",
+                    "release": "v2.0-Beta"
+          },
+          {
+                    "name": "Derivatives & Options Pricing",
+                    "screens": [
+                              "Option Chain",
+                              "Greeks Calculator",
+                              "Implied Volatility Surface"
+                    ],
+                    "desc": "Options pricing, Black-Scholes Greeks analysis, and volatility modeling.",
+                    "release": "v2.0-Beta"
+          },
+          {
+                    "name": "ESG Ratings & Sustainability",
+                    "screens": [
+                              "ESG Scorecard",
+                              "Carbon Footprint Tracker",
+                              "Sustainability Index"
+                    ],
+                    "desc": "Environmental, Social, and Governance (ESG) scoring for portfolio assets.",
+                    "release": "v2.1.0"
+          },
+          {
+                    "name": "Crypto & Digital Asset Gateway",
+                    "screens": [
+                              "Wallet Integration",
+                              "Blockchain Explorer",
+                              "Staking Dashboard"
+                    ],
+                    "desc": "Custodial crypto wallet integration, staking operations, and token tracking.",
+                    "release": "v2.1.0"
+          },
+          {
+                    "name": "Data Warehouse & BI ETL",
+                    "screens": [
+                              "Pipeline Monitor",
+                              "ETL Job Scheduler",
+                              "Data Quality Dashboard"
+                    ],
+                    "desc": "Automated ETL pipelines processing raw telemetry into BI data marts.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "A/B Testing & Experimentation",
+                    "screens": [
+                              "Experiment Configurator",
+                              "Cohort Segmenter",
+                              "Conversion Funnel"
+                    ],
+                    "desc": "Feature flag routing and statistical A/B test result evaluation.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Audit Logging & Forensics",
+                    "screens": [
+                              "Audit Trail Viewer",
+                              "Log Search Engine",
+                              "Security Incident Log"
+                    ],
+                    "desc": "Tamper-evident audit logging for all compliance and security interactions.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Billing & Automated Invoicing",
+                    "screens": [
+                              "Subscription Plans",
+                              "Invoice Generator",
+                              "Billing History"
+                    ],
+                    "desc": "Recurring SaaS billing, fee schedules, and automated PDF invoice delivery.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Omnichannel Customer Support",
+                    "screens": [
+                              "Support Ticket Queue",
+                              "Live Chat Console",
+                              "Knowledge Base Index"
+                    ],
+                    "desc": "Helpdesk ticket routing, live chat assistance, and self-serve knowledge base.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Developer API Portal & SDKs",
+                    "screens": [
+                              "API Documentation",
+                              "Developer Dashboard",
+                              "Webhook Configurator"
+                    ],
+                    "desc": "Public API portal, API key generation, webhooks, and client SDK downloads.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Service Mesh & Traffic Routing",
+                    "screens": [
+                              "Ingress Controller",
+                              "Traffic Splitter",
+                              "Circuit Breaker Dashboard"
+                    ],
+                    "desc": "Istio-based service mesh traffic management and dynamic load balancing.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Secrets Rotator & Key Vault",
+                    "screens": [
+                              "Key Vault Console",
+                              "Secret Rotation Schedule",
+                              "Encryption Manager"
+                    ],
+                    "desc": "Automated HSM-backed API key, database credential, and certificate rotation.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Disaster Recovery & Backup",
+                    "screens": [
+                              "Snapshot Scheduler",
+                              "Failover Console",
+                              "Recovery Time Tester"
+                    ],
+                    "desc": "Automated cross-region database replication and one-click failover.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "System Health & Telemetry",
+                    "screens": [
+                              "Metrics Dashboard",
+                              "APM Trace Viewer",
+                              "SLA Uptime Monitor"
+                    ],
+                    "desc": "Prometheus metrics, distributed tracing, and real-time SLA monitor.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Tax Calculation & Reporting",
+                    "screens": [
+                              "Capital Gains Calculator",
+                              "Tax Loss Harvesting",
+                              "Form 1099 Export"
+                    ],
+                    "desc": "Realized capital gains calculation and tax report generation engine.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Reconciliation & Settlement",
+                    "screens": [
+                              "Matching Engine Logs",
+                              "Bank Statement Reconciler",
+                              "Discrepancy Resolver"
+                    ],
+                    "desc": "End-of-day cash and position reconciliation against custodian clearing houses.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Fee Schedule & Commission Engine",
+                    "screens": [
+                              "Tiered Fee Structure",
+                              "Commission Breakdown",
+                              "Rebate Manager"
+                    ],
+                    "desc": "Flexible fee tier calculation, commission splits, and broker rebates.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Digital Signatures & E-Signing",
+                    "screens": [
+                              "Document Vault",
+                              "Signature Request Flow",
+                              "Audit Stamp Viewer"
+                    ],
+                    "desc": "Legally binding digital contract signing and document vault storage.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Liquidity Pools & Yield Aggregator",
+                    "screens": [
+                              "Pool Explorer",
+                              "Yield APY Tracker",
+                              "Liquidity Provider Portal"
+                    ],
+                    "desc": "Automated market maker liquidity pool management and yield optimization.",
+                    "release": "v2.0-Beta"
+          },
+          {
+                    "name": "Cross-Border Remittance & Wire",
+                    "screens": [
+                              "SWIFT/SEPA Router",
+                              "Wire Transfer Form",
+                              "FX Rate Lock"
+                    ],
+                    "desc": "International SWIFT and SEPA wire transfer execution with guaranteed FX rates.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Credit Scoring & Underwriting",
+                    "screens": [
+                              "Scorecard Builder",
+                              "Credit Risk Assessor",
+                              "Application Decision Matrix"
+                    ],
+                    "desc": "Automated credit score analysis and underwriting risk evaluation.",
+                    "release": "v2.0-Beta"
+          },
+          {
+                    "name": "Fraud Detection & Anomaly Screening",
+                    "screens": [
+                              "Anomaly Alert Console",
+                              "Behavioral Pattern Detector",
+                              "Fraud Rule Engine"
+                    ],
+                    "desc": "ML-driven real-time fraud pattern detection on incoming transactions.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Community Portal & Forums",
+                    "screens": [
+                              "Forum Feed",
+                              "User Reputation Badge",
+                              "Moderation Panel"
+                    ],
+                    "desc": "Investor community discussion forum, peer insights, and moderation tools.",
+                    "release": "v2.1.0"
+          },
+          {
+                    "name": "GraphQL Federation Gateway",
+                    "screens": [
+                              "Schema Composer",
+                              "GraphQL Playground",
+                              "Query Performance Monitor"
+                    ],
+                    "desc": "Unified GraphQL schema federation across microservices.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Cache Management & Redis Routing",
+                    "screens": [
+                              "Cache Hit Ratio Monitor",
+                              "Invalidation Manager",
+                              "Redis Cluster Health"
+                    ],
+                    "desc": "Distributed Redis cluster caching, key invalidation, and warm-up jobs.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Vector Search & Semantic Index",
+                    "screens": [
+                              "Vector Embeddings Index",
+                              "Semantic Search Tester",
+                              "Similarity Engine"
+                    ],
+                    "desc": "Vector database integration for AI-powered semantic search across documents.",
+                    "release": "v2.1.0"
+          },
+          {
+                    "name": "Time-Series Metric Collector",
+                    "screens": [
+                              "InfluxDB Monitor",
+                              "Metric Collector Config",
+                              "Retention Policy Editor"
+                    ],
+                    "desc": "High-frequency time-series data collection and retention management.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Config Sync Engine",
+                    "screens": [
+                              "Feature Flags Console",
+                              "Global Config Editor",
+                              "Version Rollback Utility"
+                    ],
+                    "desc": "Dynamic runtime feature flag toggles and global configuration sync.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Incident Response & Runbooks",
+                    "screens": [
+                              "PagerDuty Integration",
+                              "Runbook Automation",
+                              "Post-Mortem Logger"
+                    ],
+                    "desc": "Incident escalation routing, automated remediation runbooks, and post-mortems.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Asset Tokenization & Smart Contracts",
+                    "screens": [
+                              "Token Minting Portal",
+                              "Smart Contract Auditor",
+                              "Cap Table Manager"
+                    ],
+                    "desc": "Real-world asset tokenization, smart contract auditing, and cap table tracking.",
+                    "release": "v2.1.0"
+          },
+          {
+                    "name": "Session Replay & UX Analytics",
+                    "screens": [
+                              "Heatmap Viewer",
+                              "Session Recording Console",
+                              "User Journey Analyzer"
+                    ],
+                    "desc": "User session playback, DOM heatmaps, and drop-off funnel analytics.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Partner API Sandbox",
+                    "screens": [
+                              "Sandbox Environment",
+                              "Mock Data Generator",
+                              "Partner Onboarding Guide"
+                    ],
+                    "desc": "Isolated sandbox environment for third-party developer integration testing.",
+                    "release": "v1.2.0"
+          }
+];
 
         // Standardize Dropdowns for this sample with 100 Modules
         P.dropdowns.module = [
@@ -21235,10 +22128,23 @@
 
       const subs = task.subtasks || [];
 
+      // Auto-set category of screen subtasks to 'GUI Screen'
+      subs.forEach(s => {
+        if (s.type === 'screen' || s.windowName || s.category === 'GUI Screen' || s.category === 'GUI Module' || task.moduleType === 'GUI' || task.category === 'GUI Screen') {
+          s.category = 'GUI Screen';
+          if (s.type === 'screen' || s.windowName || task.moduleType === 'GUI' || task.category === 'GUI Screen') {
+            s.type = 'screen';
+          }
+        }
+      });
+
       // Keep task.guiScreens in sync with subtasks of type 'screen'
       const screenSubs = subs.filter(s => s.type === 'screen').map(s => s.name);
       if (screenSubs.length > 0) {
         task.guiScreens = screenSubs;
+        if (!task.category || task.category === 'Feature' || task.category === 'GUI Module') {
+          task.category = 'GUI Screen';
+        }
       } else if (subs.length > 0) {
         task.guiScreens = [];
       }
@@ -22472,7 +23378,9 @@
                   inner.appendChild(badge); std.appendChild(inner);
                 }
                 else if (col.key === 'category') {
-                  std.innerHTML = `<div class="td-inner" style="font-size:10px;color:var(--color-text-muted)">${esc(st.category || '—')}</div>`;
+                  const isGuiTask = isScreen || st.type === 'screen' || !!st.windowName || st.category === 'GUI Screen' || st.category === 'GUI Module' || task.moduleType === 'GUI' || task.category === 'GUI Screen';
+                  const catVal = isGuiTask ? 'GUI Screen' : (st.category || task.category || '—');
+                  std.innerHTML = `<div class="td-inner" style="font-size:10px;color:var(--color-text-muted)">${esc(catVal)}</div>`;
                 }
                 else if (col.key === 'priority') { std.innerHTML = `<div class="td-inner">${st.priority ? `<span class="pri-badge pri-${PRI_CLS[st.priority] || 'medium'}" style="font-size:10px">${esc(st.priority)}</span>` : '<span style="color:var(--color-text-faint);font-size:11px">—</span>'}</div>`; }
                 else if (col.key === 'assignee') { std.innerHTML = `<div class="td-inner" style="font-size:11px">${esc(st.assignee || '—')}</div>`; }
@@ -25744,278 +26652,7 @@
       // Render Org Chart dynamically inside its layout-wrapper if in layout
       const orgWrapper = inner.querySelector('.team-widget-wrapper[data-id="org_chart"]');
       if (orgWrapper) {
-        const title = document.createElement('div'); title.className = 'sec-title';
-        title.textContent = 'Organization Chart'; title.style.marginTop = '24px';
-        inner.appendChild(title);
-
-        const canvasWrap = document.createElement('div');
-        canvasWrap.className = 'org-canvas-wrap glass';
-        canvasWrap.style.height = '600px';
-        canvasWrap.style.marginTop = '12px';
-        canvasWrap.style.position = 'relative';
-        canvasWrap.style.overflow = 'hidden';
-        canvasWrap.style.borderRadius = 'var(--radius-lg)';
-        canvasWrap.style.border = '1px solid var(--color-border)';
-        canvasWrap.style.background = 'var(--color-surface-2)';
-
-        const canvas = document.createElement('canvas');
-        canvas.style.width = '100%';
-        canvas.style.height = '100%';
-        canvas.style.cursor = 'grab';
-        canvasWrap.appendChild(canvas);
-
-        const controls = document.createElement('div');
-        controls.style.position = 'absolute';
-        controls.style.top = '12px';
-        controls.style.right = '12px';
-        controls.style.display = 'flex';
-        controls.style.gap = '8px';
-        controls.innerHTML = `
-          <button class="btn ghost outline mini" onclick="orgResetView()" title="Reset Pan & Zoom">⟲</button>
-          <button class="btn ghost outline mini" onclick="orgZoom(0.9)" title="Zoom Out">−</button>
-          <button class="btn ghost outline mini" onclick="orgZoom(1.1)" title="Zoom In">+</button>
-        `;
-        canvasWrap.appendChild(controls);
-        inner.appendChild(canvasWrap);
-
-        // State for Canvas
-        if (!P._org) P._org = { panX: 0, panY: 40, zoom: 0.8, drag: false, lastX: 0, lastY: 0 };
-
-
-        class ONode {
-          constructor(m, depth = 0, number = 0) {
-            this.m = m; this.id = m.id; this.name = m.name; this.role = m.role || 'Member';
-            this.depth = depth; this.number = number;
-            this.children = []; this.parent = null;
-            this.x = 0; this.y = 0; this.mod = 0; this.prelim = 0;
-            this.ancestor = this; this.thread = null;
-            this.change = 0; this.shift = 0;
-            this.isCollapsed = P.collapsedNodes.has(m.id);
-          }
-          getLeftSibling() { return (this.parent && this.number > 0) ? this.parent.children[this.number - 1] : null; }
-          getLeftMostSibling() { return (this.parent && this.number > 0) ? this.parent.children[0] : null; }
-        }
-
-        const buildTree = () => {
-          const map = {};
-          P.members.forEach(m => map[m.name] = new ONode(m));
-          const treeRoots = [];
-          P.members.forEach(m => {
-            const node = map[m.name];
-            if (m.reportsTo && map[m.reportsTo]) {
-              node.parent = map[m.reportsTo];
-              node.number = node.parent.children.length;
-              node.parent.children.push(node);
-            } else {
-              treeRoots.push(node);
-            }
-          });
-          return treeRoots;
-        };
-
-        const firstWalk = (v, distance) => {
-          if (v.children.length === 0 || v.isCollapsed) {
-            const left = v.getLeftSibling();
-            v.prelim = left ? left.prelim + distance : 0;
-          } else {
-            let defaultAncestor = v.children[0];
-            v.children.forEach(c => {
-              c.depth = v.depth + 1;
-              firstWalk(c, distance);
-              defaultAncestor = apportion(c, defaultAncestor, distance);
-            });
-            executeShifts(v);
-            const mid = (v.children[0].prelim + v.children[v.children.length - 1].prelim) / 2;
-            const left = v.getLeftSibling();
-            if (left) {
-              v.prelim = left.prelim + distance;
-              v.mod = v.prelim - mid;
-            } else {
-              v.prelim = mid;
-            }
-          }
-        };
-
-        const apportion = (v, defaultAncestor, distance) => {
-          const w = v.getLeftSibling();
-          if (w) {
-            let v_i_p = v, v_o_p = v, v_i_m = w, v_o_m = v_i_p.getLeftMostSibling();
-            let s_i_p = v.mod, s_o_p = v.mod, s_i_m = v_i_m.mod, s_o_m = v_o_m.mod;
-            while (nextRight(v_i_m) && nextLeft(v_i_p)) {
-              v_i_m = nextRight(v_i_m); v_i_p = nextLeft(v_i_p);
-              v_o_m = nextLeft(v_o_m); v_o_p = nextRight(v_o_p);
-              v_o_p.ancestor = v;
-              const shift = (v_i_m.prelim + s_i_m) - (v_i_p.prelim + s_i_p) + distance;
-              if (shift > 0) {
-                moveSubtree(ancestor(v_i_m, v, defaultAncestor), v, shift);
-                s_i_p += shift; s_o_p += shift;
-              }
-              s_i_m += v_i_m.mod; s_i_p += v_i_p.mod;
-              s_o_m += v_o_m.mod; s_o_p += v_o_p.mod;
-            }
-            if (nextRight(v_i_m) && !nextRight(v_o_p)) {
-              v_o_p.thread = nextRight(v_i_m); v_o_p.mod += s_i_m - s_o_p;
-            }
-            if (nextLeft(v_i_p) && !nextLeft(v_o_m)) {
-              v_o_m.thread = nextLeft(v_i_p); v_o_m.mod += s_i_p - s_o_m;
-              defaultAncestor = v;
-            }
-          }
-          return defaultAncestor;
-        };
-
-        const moveSubtree = (w, v, shift) => {
-          const subtrees = v.number - w.number;
-          v.change -= shift / subtrees; v.shift += shift;
-          w.change += shift / subtrees; v.prelim += shift; v.mod += shift;
-        };
-
-        const executeShifts = (v) => {
-          let shift = 0, change = 0;
-          for (let i = v.children.length - 1; i >= 0; i--) {
-            const c = v.children[i];
-            c.prelim += shift; c.mod += shift;
-            change += c.change; shift += c.shift + change;
-          }
-        };
-
-        const nextLeft = (v) => v.children.length > 0 && !v.isCollapsed ? v.children[0] : v.thread;
-        const nextRight = (v) => v.children.length > 0 && !v.isCollapsed ? v.children[v.children.length - 1] : v.thread;
-        const ancestor = (v_i_m, v, defaultAncestor) => v_i_m.ancestor.parent === v.parent ? v_i_m.ancestor : defaultAncestor;
-        const secondWalk = (v, m) => {
-          v.x = v.prelim + m; v.y = v.depth;
-          v.children.forEach(c => secondWalk(c, m + v.mod));
-        };
-
-        const ctx = canvas.getContext('2d');
-        const getV = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-
-        const renderCanvas = () => {
-          const dpr = window.devicePixelRatio || 1;
-          const w = canvasWrap.clientWidth, h = canvasWrap.clientHeight;
-          canvas.width = w * dpr; canvas.height = h * dpr;
-          ctx.scale(dpr, dpr);
-
-          // Theme Colors
-          const cBg = getV('--color-surface-2') || '#f9fafb';
-          const cSurf = getV('--color-surface') || '#ffffff';
-          const cText = getV('--color-text') || '#1f2937';
-          const cMuted = getV('--color-text-muted') || '#6b7280';
-          const cBorder = getV('--color-border') || '#e5e7eb';
-
-          ctx.clearRect(0, 0, w, h);
-
-          const treeRoots = buildTree();
-          const NODE_W = 190, NODE_H = 60, DIST_X = 250, DIST_Y = 80;
-
-          treeRoots.forEach((root, i) => {
-            firstWalk(root, 1);
-            secondWalk(root, i * 2);
-          });
-
-          ctx.save();
-          ctx.translate(P._org.panX, P._org.panY);
-          ctx.scale(P._org.zoom, P._org.zoom);
-
-          const drawLines = (n) => {
-            if (n.isCollapsed) return;
-            n.children.forEach(c => {
-              const x1 = n.y * DIST_X + NODE_W, y1 = n.x * DIST_Y + NODE_H / 2;
-              const x2 = c.y * DIST_X, y2 = c.x * DIST_Y + NODE_H / 2;
-              ctx.beginPath();
-              ctx.moveTo(x1, y1);
-              const midX = (x1 + x2) / 2;
-              ctx.lineTo(midX, y1);
-              ctx.lineTo(midX, y2);
-              ctx.lineTo(x2, y2);
-              ctx.strokeStyle = cBorder; ctx.lineWidth = 1.5;
-              ctx.stroke();
-              drawLines(c);
-            });
-          };
-
-          const drawNodes = (n) => {
-            const px = n.y * DIST_X, py = n.x * DIST_Y;
-            ctx.shadowBlur = 8; ctx.shadowColor = 'rgba(0,0,0,0.06)'; ctx.shadowOffsetY = 3;
-            ctx.beginPath();
-            ctx.roundRect(px, py, NODE_W, NODE_H, 8);
-            ctx.fillStyle = cSurf; ctx.fill();
-            ctx.shadowBlur = 0;
-
-            const grad = ctx.createLinearGradient(px, py, px + NODE_W, py);
-            grad.addColorStop(0, CC[P.members.indexOf(n.m) % CC.length]); grad.addColorStop(1, cBorder);
-            ctx.strokeStyle = grad; ctx.lineWidth = 2; ctx.stroke();
-
-            ctx.fillStyle = cText; ctx.font = 'bold 12px var(--font-display)';
-            ctx.fillText(n.name, px + 15, py + 25);
-            ctx.fillStyle = cMuted; ctx.font = '600 9px var(--font-body)';
-            ctx.fillText(n.role.toUpperCase(), px + 15, py + 42);
-
-            if (n.children.length > 0) {
-              ctx.beginPath(); ctx.arc(px + NODE_W, py + NODE_H / 2, 10, 0, Math.PI * 2);
-              ctx.fillStyle = cBg; ctx.fill();
-              ctx.strokeStyle = cBorder; ctx.lineWidth = 1; ctx.stroke();
-              ctx.fillStyle = cText; ctx.font = 'bold 12px var(--font-body)'; ctx.textAlign = 'center';
-              ctx.fillText(n.isCollapsed ? '+' : '−', px + NODE_W, py + NODE_H / 2 + 4);
-              ctx.textAlign = 'left';
-            }
-            if (!n.isCollapsed) n.children.forEach(drawNodes);
-          };
-
-          treeRoots.forEach(r => { drawLines(r); drawNodes(r); });
-          ctx.restore();
-        };
-
-        window.orgZoom = (f) => { P._org.zoom = Math.max(0.2, Math.min(3, P._org.zoom * f)); renderCanvas(); };
-        window.orgResetView = () => { P._org.panX = 0; P._org.panY = 40; P._org.zoom = 0.8; renderCanvas(); };
-
-        canvas.onmousedown = (e) => { P._org.drag = true; P._org.lastX = e.clientX; P._org.lastY = e.clientY; canvas.style.cursor = 'grabbing'; };
-        window.onmousemove = (e) => {
-          if (!P._org.drag) return;
-          P._org.panX += (e.clientX - P._org.lastX); P._org.panY += (e.clientY - P._org.lastY);
-          P._org.lastX = e.clientX; P._org.lastY = e.clientY; renderCanvas();
-        };
-        window.onmouseup = () => { P._org.drag = false; canvas.style.cursor = 'grab'; };
-        canvas.onwheel = (e) => {
-          e.preventDefault();
-          // Normalize zoom speed - touchpads send high-frequency small deltas
-          const delta = e.deltaMode === 1 ? e.deltaY * 20 : e.deltaY;
-          const factor = Math.pow(0.999, delta);
-          orgZoom(factor);
-        };
-
-        canvas.onclick = (e) => {
-          const rect = canvas.getBoundingClientRect();
-          const mx = (e.offsetX - P._org.panX) / P._org.zoom;
-          const my = (e.offsetY - P._org.panY) / P._org.zoom;
-
-          const roots = buildTree();
-          const NODE_W = 190, NODE_H = 60, DIST_X = 250, DIST_Y = 80;
-          roots.forEach((root, i) => {
-            firstWalk(root, 1);
-            secondWalk(root, i * 2);
-          });
-
-          const findAndToggle = (nodes) => {
-            for (const n of nodes) {
-              const px = n.y * DIST_X, py = n.x * DIST_Y;
-              // Toggle button hit
-              if (n.children.length > 0 && Math.hypot(mx - (px + NODE_W), my - (py + NODE_H / 2)) < 25) {
-                toggleOrgNode(n.id); return true;
-              }
-              // Card hit
-              if (mx >= px && mx <= px + NODE_W && my >= py && my <= py + NODE_H) {
-                openAddMember(n.id); return true;
-              }
-              if (!n.isCollapsed && findAndToggle(n.children)) return true;
-            }
-            return false;
-          };
-          findAndToggle(roots);
-        };
-
-        requestAnimationFrame(renderCanvas);
-        window.addEventListener('resize', renderCanvas);
+        renderOrgChartWidget(orgWrapper);
       }
     }
 
@@ -27870,22 +28507,7 @@
       cvs._chartData = { entries, colors, maxVal, lightMode, rolling, rollingLabel };
       if (cvs._hoverIdx === undefined) cvs._hoverIdx = null;
 
-      function addOpacity(colorStr, alpha) {
-        const c = window.resolveColor(colorStr) || colorStr;
-        if (c.startsWith('rgba')) return c.replace(/[^,]+(?=\))/, alpha);
-        if (c.startsWith('rgb')) return c.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
-        if (c.startsWith('#')) {
-          let hex = c.replace('#', '');
-          if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
-          const r = parseInt(hex.substring(0, 2), 16);
-          const g = parseInt(hex.substring(2, 4), 16);
-          const b = parseInt(hex.substring(4, 6), 16);
-          return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-        }
-        return `rgba(120, 120, 120, ${alpha})`;
-      }
-
-      function render() {
+      function renderVBar() {
         const { entries, colors, maxVal: mV, lightMode, rolling, rollingLabel } = cvs._chartData;
         const { ctx, W, H } = gCtx(cvs, lightMode); if (!ctx || W <= 0 || H <= 0) return;
         const themeText = lightMode ? '#1e1b4b' : (getComputedStyle(document.body).getPropertyValue('--color-text').trim() || '#1a1a1a');
@@ -28093,18 +28715,18 @@
           if (idx >= numPoints) idx = numPoints - 1;
           if (cvs._hoverIdx !== idx) {
             cvs._hoverIdx = idx;
-            render();
+            renderVBar();
           }
         });
         cvs.addEventListener('mouseleave', () => {
           if (cvs._hoverIdx !== null) {
             cvs._hoverIdx = null;
-            render();
+            renderVBar();
           }
         });
       }
 
-      render();
+      renderVBar();
     }
 
     function drawMiniHistory(cvs, data, color, xTitle, yTitle) {
@@ -28188,18 +28810,6 @@
       const pL = 145, pR = 50, pT = 6, pB = 6, aW = W - pL - pR, aH = H - pT - pB;
       const bH = Math.min(aH / entries.length - 3, 22), rowH = aH / entries.length;
 
-      function addOp(colorStr, alpha) {
-        const c = window.resolveColor(colorStr) || colorStr;
-        if (c.startsWith('rgba')) return c.replace(/[^,]+(?=\))/, alpha);
-        if (c.startsWith('rgb')) return c.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
-        if (c.startsWith('#')) {
-          let hex = c.replace('#', '');
-          if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
-          return `rgba(${parseInt(hex.substring(0, 2), 16)}, ${parseInt(hex.substring(2, 4), 16)}, ${parseInt(hex.substring(4, 6), 16)}, ${alpha})`;
-        }
-        return `rgba(120, 120, 120, ${alpha})`;
-      }
-
       entries.forEach(([lbl, val], i) => {
         const y = pT + i * rowH + (rowH - bH) / 2, bW = (val / maxV) * aW;
 
@@ -28254,18 +28864,6 @@
       const maxT = Math.max(...totals) || 1; const bW = Math.min(aW / labels.length * 0.6, 40);
       const themeBg = getComputedStyle(document.body).getPropertyValue('--color-surface').trim() || '#ffffff';
 
-      function addOp(colorStr, alpha) {
-        const c = window.resolveColor(colorStr) || colorStr;
-        if (c.startsWith('rgba')) return c.replace(/[^,]+(?=\))/, alpha);
-        if (c.startsWith('rgb')) return c.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
-        if (c.startsWith('#')) {
-          let hex = c.replace('#', '');
-          if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
-          return `rgba(${parseInt(hex.substring(0, 2), 16)}, ${parseInt(hex.substring(2, 4), 16)}, ${parseInt(hex.substring(4, 6), 16)}, ${alpha})`;
-        }
-        return `rgba(120, 120, 120, ${alpha})`;
-      }
-
       labels.forEach((lbl, i) => {
         const x = pL + i * (aW / labels.length) + (aW / labels.length - bW) / 2; let y = pT + aH;
 
@@ -28317,18 +28915,6 @@
       const { ctx, W, H } = gCtx(cvs); const pL = 40, pR = 16, pT = 24, pB = 26, aW = W - pL - pR, aH = H - pT - pB;
       const rawMax = Math.max(...d1, ...d2) || 1; const maxV = rawMax * 1.15;
       const gW = aW / labels.length, bW = Math.min(gW * .32, 18);
-
-      function addOp(colorStr, alpha) {
-        const c = window.resolveColor(colorStr) || colorStr;
-        if (c.startsWith('rgba')) return c.replace(/[^,]+(?=\))/, alpha);
-        if (c.startsWith('rgb')) return c.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
-        if (c.startsWith('#')) {
-          let hex = c.replace('#', '');
-          if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
-          return `rgba(${parseInt(hex.substring(0, 2), 16)}, ${parseInt(hex.substring(2, 4), 16)}, ${parseInt(hex.substring(4, 6), 16)}, ${alpha})`;
-        }
-        return `rgba(120, 120, 120, ${alpha})`;
-      }
 
       ctx.strokeStyle = window.resolveColor ? window.resolveColor('var(--color-divider)') : '#e2e8f0'; ctx.lineWidth = 0.5;
       [0, .5, 1].forEach(p => {
@@ -39191,7 +39777,7 @@ Earned Value Management measures project performance and progress by comparing p
       dashFragment.querySelectorAll('.dash-widget-wrapper').forEach(wrapper => {
         const secId = wrapper.dataset.id;
 
-        // Reorder if we have saved order
+// Reorder if we have saved order
         if (P.innerGridOrder && P.innerGridOrder[secId]) {
           P.innerGridOrder[secId].forEach(cid => {
             const card = wrapper.querySelector(`.card.cc[data-id="${cid}"], .scard[data-id="${cid}"]`);
@@ -39200,207 +39786,23 @@ Earned Value Management measures project performance and progress by comparing p
             }
           });
         }
-
-        if (P.customRearrangeMode) {
-          const cards = Array.from(wrapper.querySelectorAll('.card.cc, .scard'));
-          cards.forEach((card, idx) => {
-            if (!card.dataset.id) card.dataset.id = secId + '-card-' + idx;
-            card.classList.add('custom-jiggle');
-            card.draggable = true;
-            card.style.position = 'relative';
-            const isScard = card.classList.contains('scard');
-            const badge = document.createElement('div');
-            badge.className = 'custom-widget-badge';
-            if (isScard) { badge.style.top = '-8px'; badge.style.left = '-8px'; badge.style.padding = '2px 6px'; badge.style.fontSize = '9px'; }
-            badge.innerHTML = `<i data-lucide="grip-horizontal" style="width:12px;height:12px"></i> ${isScard ? '' : 'Drag'}`;
-            card.appendChild(badge);
-
-            if (!isScard) {
-              const currSpan = (P.widgetSpans && P.widgetSpans[card.dataset.id]) || parseInt((card.style.gridColumn || '').replace('span ', '')) || 2;
-              const sizeText = currSpan === 1 ? 'Small' : currSpan === 2 ? 'Medium' : 'Full';
-              const resizeBadge = document.createElement('div');
-              resizeBadge.className = 'custom-widget-resize';
-              resizeBadge.style.cssText = 'position:absolute;bottom:8px;right:8px;background:var(--color-surface-2);border:1px solid var(--color-border);padding:4px 8px;border-radius:12px;font-size:9px;font-weight:700;display:flex;align-items:center;gap:4px;cursor:pointer;z-index:10;';
-              resizeBadge.innerHTML = `<i data-lucide="maximize-2" style="width:12px;height:12px"></i> Size: ${sizeText}`;
-              resizeBadge.onclick = (e) => {
-                e.preventDefault(); e.stopPropagation();
-                if (P.readonly) return;
-                const spans = [1, 2, 4];
-                let currIdx = spans.indexOf(currSpan);
-                const next = spans[currIdx === -1 ? 0 : (currIdx + 1) % 3];
-                if (!P.widgetSpans) P.widgetSpans = {};
-                P.widgetSpans[card.dataset.id] = next;
-                save();
-                renderDash();
-                setTimeout(() => {
-                  const newCard = $id(card.dataset.id) || document.querySelector(`[data-id="${card.dataset.id}"]`);
-                  if (newCard) {
-                    newCard.classList.add('widget-resize-highlight');
-                    setTimeout(() => newCard.classList.remove('widget-resize-highlight'), 800);
-                  }
-                }, 10);
-                notify(`Resized widget to ${next === 1 ? 'Small' : next === 2 ? 'Medium' : 'Full'}`, 'ok');
-              };
-              card.appendChild(resizeBadge);
-            }
-
-            card.ondragstart = (e) => {
-              if (P.readonly) return;
-              e.dataTransfer.setData('text/plain', card.dataset.id);
-              e.dataTransfer.setData('source-sec', secId);
-              e.dataTransfer.effectAllowed = 'move';
-              setTimeout(() => card.classList.add('dragging'), 10);
-            };
-            card.ondragover = (e) => {
-              if (P.readonly) return;
-              e.preventDefault();
-              e.dataTransfer.dropEffect = 'move';
-              if (!card.classList.contains('drag-over')) card.classList.add('drag-over');
-            };
-            card.ondragleave = (e) => {
-              if (P.readonly) return;
-              card.classList.remove('drag-over');
-            };
-            card.ondrop = (e) => {
-              if (P.readonly) return;
-              e.preventDefault();
-              card.classList.remove('drag-over');
-              const draggedId = e.dataTransfer.getData('text/plain');
-              const sourceSec = e.dataTransfer.getData('source-sec');
-
-              if (sourceSec === secId && draggedId !== card.dataset.id) {
-                const draggedCard = wrapper.querySelector(`[data-id="${draggedId}"]`);
-                if (draggedCard && draggedCard.parentElement === card.parentElement) {
-                  const parent = card.parentElement;
-                  const allCards = Array.from(parent.children);
-                  const fromIdx = allCards.indexOf(draggedCard);
-                  const toIdx = allCards.indexOf(card);
-
-                  if (fromIdx < toIdx) card.after(draggedCard);
-                  else card.before(draggedCard);
-
-                  draggedCard.classList.remove('dragging');
-                  draggedCard.classList.add('widget-resize-highlight');
-                  setTimeout(() => draggedCard.classList.remove('widget-resize-highlight'), 800);
-
-                  if (!P.innerGridOrder) P.innerGridOrder = {};
-                  P.innerGridOrder[secId] = Array.from(parent.children).map(c => c.dataset.id).filter(id => id);
-                  save();
-                }
-              }
-            };
-            card.ondragend = (e) => {
-              if (P.readonly) return;
-              card.classList.remove('dragging');
-              wrapper.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over'));
-            };
-          });
-        }
       });
 
+      dashInnerContainer.innerHTML = '';
       dashInnerContainer.appendChild(dashFragment);
-      // Smooth fade-in to eliminate flicker on content swap
-      dashInnerContainer.style.opacity = '0';
-      dashInnerContainer.style.transition = 'opacity 0.22s ease';
-      requestAnimationFrame(() => { dashInnerContainer.style.opacity = '1'; });
-      if (window.lucide) lucide.createIcons(dashInnerContainer);
-      requestAnimationFrame(() => animateCounters(dashInnerContainer));
-      renderSidebar();
 
-      requestAnimationFrame(() => {
-        dashDrawQueue.forEach(fn => fn());
-        PP.log('renderDash:', performance.now() - startTime, 'ms');
-      });
-    }
-
-    function toggleExportDD() {
-      $id('export-dd-wrap').classList.toggle('open');
-    }
-
-    function triggerGlobalExport(type) {
-      const exWrap = $id('export-dd-wrap');
-      if (exWrap) exWrap.classList.remove('open');
-
-      const viewMap = {
-        'overview': 'vw-overview',
-        'dash': 'vw-dash',
-        'tasks': 'vw-tasks',
-        'risks': 'vw-risks',
-        'team': 'vw-team',
-        'reports': 'vw-reports',
-        'defects': 'vw-defects',
-        'admin': 'vw-admin',
-        'features': 'vw-admin',
-        'releases': 'vw-admin',
-        'steps': 'vw-steps',
-        'log': 'vw-log',
-        'share': 'vw-share'
-      };
-      const contId = viewMap[P.view];
-      if (!contId) return;
-
-      if (type === 'cxo-email') openCxoEmailModal();
-      if (type === 'copy') copyAllShares(contId);
-      if (type === 'gantt-html') downloadGanttAsHtml();
-      if (type === 'pdf') printContainer(contId);
-      if (type === 'excel') {
-        if (P.view === 'log') exportLogCSV();
-        else if (P.view === 'features' || (P.view === 'admin' && P._adminActiveTab === 'features')) exportFeatureMatrixExcel();
-        else exportProjectExcel(false, true);
-      }
-      if (type === 'share') shareView(contId);
-    }
-
-    function escapeHTML(str) {
-      return esc(str);
-    }
-
-    function openCxoEmailFlyout() {
-      const f = $id('cxo-email-flyout');
-      const o = $id('flyout-overlay');
-      if (f) f.classList.add('on');
-      if (o) o.classList.add('on');
-      updateCxoEmailPreview();
-      if (window.lucide) lucide.createIcons(f);
-    }
-
-    function closeCxoEmailFlyout() {
-      const f = $id('cxo-email-flyout');
-      const o = $id('flyout-overlay');
-      if (f) f.classList.remove('on');
-      if (o) o.classList.remove('on');
-    }
-
-    function openCxoEmailModal() {
-      openCxoEmailFlyout();
-    }
-
-    function closeCxoEmailModal() {
-      closeCxoEmailFlyout();
-    }
-
-    function updateCxoEmailPreview() {
-      const contentEl = $id('cxo-email-preview-content');
-      if (contentEl) {
+      // Execute queued chart/canvas drawing functions after DOM mounting
+      dashDrawQueue.forEach(fn => {
         try {
-          contentEl.innerHTML = generateCxoEmailHtml();
-        } catch(e) {
-          contentEl.innerHTML = '<p style="color:#dc2626; font-size:13px; padding:16px;">Preview error: ' + escapeHTML(e.message) + '</p>';
-          console.error('CXO Preview Error:', e);
+          if (typeof fn === 'function') fn();
+        } catch (e) {
+          console.warn('[ProjectPulse] Error executing dashboard draw queue callback:', e);
         }
+      });
+      if (window.lucide) {
+        try { lucide.createIcons(dashInnerContainer); } catch (e) {}
       }
     }
-
-    function selectAllCxoSections(checked) {
-      const ids = ['cxo-sec-summary', 'cxo-sec-sprint', 'cxo-sec-statusviz', 'cxo-sec-modules', 'cxo-sec-wins', 'cxo-sec-next', 'cxo-sec-challenges', 'cxo-sec-ask'];
-      ids.forEach(id => {
-        const el = $id(id);
-        if (el) el.checked = !!checked;
-      });
-      updateCxoEmailPreview();
-    }
-
-
 
     function getAllSubtaskItems(tasks) {
       const items = [];
@@ -39409,14 +39811,15 @@ Earned Value Management measures project performance and progress by comparing p
         const hasScreens = Array.isArray(t.guiScreens) && t.guiScreens.length > 0;
         if (hasSubs) {
           t.subtasks.forEach((st, idx) => {
-            const isGuiScreen = st.category === 'GUI Screen' || st.type === 'screen' || !!st.windowName || t.moduleType === 'GUI';
+            const isGuiScreen = st.category === 'GUI Screen' || st.category === 'GUI Module' || st.type === 'screen' || !!st.windowName || st.moduleType === 'GUI' || t.moduleType === 'GUI' || t.category === 'GUI Module' || t.category === 'GUI Screen';
             const prog = st.progress !== undefined ? parseInt(st.progress, 10) : (st.status === 'Completed' ? 100 : (parseInt(t.progress, 10) || 0));
             const stStatus = st.status || (prog === 100 ? 'Completed' : t.status);
             items.push({
               id: st.id || `${t.id}-st-${idx}`,
               name: st.name || t.name,
               module: (t.module || 'General').trim(),
-              moduleType: t.moduleType,
+              moduleType: st.moduleType || t.moduleType,
+              category: st.category || t.category,
               status: stStatus,
               progress: prog,
               dueDate: st.dueDate || t.dueDate,
@@ -39435,6 +39838,7 @@ Earned Value Management measures project performance and progress by comparing p
               name: scrName,
               module: (t.module || 'General').trim(),
               moduleType: t.moduleType,
+              category: t.category,
               status: stStatus,
               progress: prog,
               dueDate: t.dueDate,
@@ -39621,8 +40025,9 @@ Earned Value Management measures project performance and progress by comparing p
       return rNameStr || rDateStr || '—';
     }
 
-    function computeGlobalStats() {
-      const tasks = P.tasks || [];
+    function computeGlobalStats(pState) {
+      const p = pState || (typeof PulseState !== "undefined" && PulseState.P) || (typeof window !== "undefined" && window.P) || (typeof P !== "undefined" && P ? P : {});
+      const tasks = p.tasks || [];
       const subItems = getAllSubtaskItems(tasks);
       const total = subItems.length;
       const completed = subItems.filter(st => st.status === 'Completed' || parseInt(st.progress, 10) === 100).length;
@@ -39654,7 +40059,7 @@ Earned Value Management measures project performance and progress by comparing p
       const score = (typeof getHealthScore === 'function') ? getHealthScore(tasks) : Math.min(100, Math.max(0, progress));
       const health = score >= 80 ? 'On Track' : score >= 55 ? 'In Focus' : 'Needs Attention';
 
-      const history = P.healthHistory || [];
+      const history = p.healthHistory || [];
       let trend = 0;
       if (history.length >= 1) {
         const lastHist = history[history.length - 1];
@@ -39662,13 +40067,13 @@ Earned Value Management measures project performance and progress by comparing p
         trend = score - prevScore;
       }
 
-      const raids = P.raids || [];
+      const raids = p.raids || [];
       const highCritRisks = raids.filter(r =>
         r.type === 'Risk' && r.status !== 'Closed' && r.status !== 'Mitigated' &&
         (r.impact === 'High' || r.severity === 'S1 - Critical' || r.severity === 'S2 - Major' || r.severity === 'S1 - Blocker')
       ).length;
 
-      const defects = P.defects || [];
+      const defects = p.defects || [];
       const highCritDefects = defects.filter(d =>
         d.status !== 'Closed' && d.status !== 'Rejected' && d.status !== 'Resolved' &&
         (d.severity === 'S1 - Blocker' || d.severity === 'S2 - High' || d.priority === 'Critical')
@@ -39682,9 +40087,9 @@ Earned Value Management measures project performance and progress by comparing p
         if (String(st.status || '').toLowerCase() === 'on hold') onHoldTasks++;
       });
 
-      const pendingDecisions = (P.decisions || []).filter(d => d.status !== 'Approved' && d.status !== 'Resolved' && d.status !== 'Closed').length;
+      const pendingDecisions = (p.decisions || []).filter(d => d.status !== 'Approved' && d.status !== 'Resolved' && d.status !== 'Closed').length;
 
-      const moduleSummaries = getModuleSummaries(P, null, today);
+      const moduleSummaries = getModuleSummaries(p, null, today);
 
       return { progress, moduleProgress, cpTotal, cpCompleted, score, health, trend, highCritRisks, highCritDefects, overdueTasks, onHoldTasks, total, completed, serverTotal, serverCompleted, guiTotal, guiCompleted, pendingDecisions, moduleSummaries };
     }
@@ -39741,7 +40146,7 @@ Earned Value Management measures project performance and progress by comparing p
     function getCxoSprintData(pState) {
       const nowSp = new Date();
       const monthNameSp = nowSp.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-      const allSubItemsSp = getAllSubtaskItems(pState.tasks || []);
+      const allSubItemsSp = getAllSubtaskItems((pState && pState.tasks) || []);
       let monthTasksSp = allSubItemsSp.filter(st => {
         if (!st.dueDate) return false;
         const d = new Date(st.dueDate);
@@ -39783,8 +40188,9 @@ Earned Value Management measures project performance and progress by comparing p
       return { monthNameSp, monthTasksSp, mCompSp, mInProgSp, mNotStartSp, mThisWeekSp, mTotalSp, mPctSp, trendSp, trendColorSp };
     }
 
-    function generateHealthPoints(stats) {
-      const projectName = escapeHTML(P.name || 'This project');
+    function generateHealthPoints(stats, pState) {
+      const p = pState || (typeof PulseState !== "undefined" && PulseState.P) || (typeof window !== "undefined" && window.P) || (typeof P !== "undefined" && P ? P : {});
+      const projectName = escapeHTML(p.name || 'This project');
       const dateStr = formatCxoDate(new Date());
       const points = [];
 
@@ -39830,8 +40236,8 @@ Earned Value Management measures project performance and progress by comparing p
       return points;
     }
 
-    function generateHealthNarrative(stats) {
-      const points = generateHealthPoints(stats);
+    function generateHealthNarrative(stats, pState) {
+      const points = generateHealthPoints(stats, pState);
       return points.map(pt => pt.replace(/<\/?strong>/g, '')).join(' ');
     }
 
@@ -39926,8 +40332,8 @@ Earned Value Management measures project performance and progress by comparing p
     }
 
     function generateCxoEmailHtml() {
-      const pState = (typeof window !== "undefined" && window.P && window.P.tasks) ? window.P : (typeof P !== "undefined" ? P : {});
-      const stats = computeGlobalStats();
+      const pState = (typeof PulseState !== "undefined" && PulseState.P) ? PulseState.P : ((typeof window !== "undefined" && window.P) ? window.P : (typeof P !== "undefined" && P ? P : {}));
+      const stats = computeGlobalStats(pState);
       
       const incSummary    = $id('cxo-sec-summary')?.checked ?? true;
       const incSprint     = $id('cxo-sec-sprint')?.checked ?? true;
@@ -40306,7 +40712,7 @@ Earned Value Management measures project performance and progress by comparing p
               html += miniBar(m.avgProgress, m.color);
               html += '</td>';
               html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; text-align:center; font-size:12px;">';
-              html += '<span style="font-size:11px; color:#334155; font-weight:600;">🖥️ ' + m.serverCompleted + ' Server &bull; 📱 ' + m.guiCompleted + ' GUI</span>';
+              html += '<span style="font-size:11px; color:#334155; font-weight:600;">🖥️ ' + m.serverCompleted + '/' + m.serverTotal + ' Server &bull; 📱 ' + m.guiCompleted + '/' + m.guiTotal + ' GUI</span>';
               html += '</td>';
               html += '<td style="padding:8px 12px; border-bottom:1px solid #f1f5f9; text-align:center;">';
               html += '<span style="display:inline-block; width:85px; text-align:center; padding:2px 0; border-radius:10px; font-weight:800; font-size:10.5px; background-color:' + m.bg + '; color:' + m.color + '; border:1px solid ' + m.color + '; box-sizing:border-box;">' + escapeHTML(m.status) + '</span>';
@@ -40480,8 +40886,8 @@ Earned Value Management measures project performance and progress by comparing p
     }
 
     function generateCxoRichTextHtml() {
-      const pState = (typeof window !== "undefined" && window.P && window.P.tasks) ? window.P : (typeof P !== "undefined" ? P : {});
-      const stats = computeGlobalStats();
+      const pState = (typeof PulseState !== "undefined" && PulseState.P) ? PulseState.P : ((typeof window !== "undefined" && window.P) ? window.P : (typeof P !== "undefined" && P ? P : {}));
+      const stats = computeGlobalStats(pState);
       const allSubItems = getAllSubtaskItems(pState.tasks);
       
       const incSummary    = $id('cxo-sec-summary')?.checked ?? true;
@@ -40889,8 +41295,8 @@ Earned Value Management measures project performance and progress by comparing p
     }
 
     function generateCxoEmailPlainText() {
-      const pState = (typeof window !== "undefined" && window.P && window.P.tasks) ? window.P : (typeof P !== "undefined" ? P : {});
-      const stats = computeGlobalStats();
+      const pState = (typeof PulseState !== "undefined" && PulseState.P) ? PulseState.P : ((typeof window !== "undefined" && window.P) ? window.P : (typeof P !== "undefined" && P ? P : {}));
+      const stats = computeGlobalStats(pState);
       const execNote = ($id('cxo-exec-note')?.value || '').trim();
       const execAsk  = ($id('cxo-exec-ask')?.value || '').trim();
       const members = pState.members || [];
@@ -55332,6 +55738,19 @@ Earned Value Management measures project performance and progress by comparing p
     }
 
     function setFeatViewMode(mode) {
+      // Restore outer panel scroll/padding when leaving swimlane mode
+      if (P._featViewMode === 'swimlane' && mode !== 'swimlane') {
+        const vwAdmin = $id('vw-admin');
+        if (vwAdmin) {
+          vwAdmin.style.overflowY = vwAdmin._origOverflow != null ? vwAdmin._origOverflow : '';
+          vwAdmin.style.padding   = vwAdmin._origPadding  != null ? vwAdmin._origPadding  : '';
+        }
+        const adminBody = document.querySelector('#vw-admin .admin-body');
+        if (adminBody) {
+          adminBody.style.padding  = adminBody._origPadding != null ? adminBody._origPadding : '';
+          adminBody.style.maxWidth = '';
+        }
+      }
       P._featViewMode = mode;
       renderFeatureHub();
       if (typeof renderSidebar === 'function') renderSidebar();
@@ -55627,7 +56046,7 @@ Earned Value Management measures project performance and progress by comparing p
           </div>
         </div>
       ` : P._featViewMode === 'swimlane' ? `
-        <div class="swimlane-outer active" id="feat-swimlane-outer" style="height: calc(100vh - 200px); overflow-y:auto; padding:12px 0;"></div>
+        <div class="swimlane-outer active" id="feat-swimlane-outer" style="overflow-y:auto; padding:12px 0;"></div>
       ` : `
         <div id="feature-matrix-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap:16px; padding:20px;">
           ${P.features.length ? P.features.map((f, actualIdx) => {
@@ -56957,6 +57376,29 @@ Earned Value Management measures project performance and progress by comparing p
       swimOuter.innerHTML = '';
       let hitAreas = [];
 
+      // Make the swimlane fill remaining viewport height and suppress outer panel scroll
+      const vwAdmin = $id('vw-admin');
+      if (vwAdmin) {
+        vwAdmin._origOverflow = vwAdmin._origOverflow || vwAdmin.style.overflowY || '';
+        vwAdmin._origPadding  = vwAdmin._origPadding  || vwAdmin.style.padding  || '';
+        vwAdmin.style.overflowY = 'hidden';
+        vwAdmin.style.padding   = '0';
+      }
+      const adminBody = swimOuter.closest('.admin-body');
+      if (adminBody) {
+        adminBody._origPadding = adminBody._origPadding || adminBody.style.padding || '';
+        adminBody.style.padding = '0';
+        adminBody.style.maxWidth = 'none';
+      }
+      // Size swimlane to fill viewport minus navbar + tab strip
+      const navBar   = document.querySelector('.nav-bar, #nav-bar, header') || { offsetHeight: 56 };
+      const tabStrip = document.querySelector('.admin-tabs, #admin-tabs') || { offsetHeight: 48 };
+      const kpiStrip = swimOuter.previousElementSibling;
+      const kpiH     = kpiStrip ? kpiStrip.offsetHeight : 0;
+      const reserved = (navBar.offsetHeight || 56) + (tabStrip.offsetHeight || 48) + kpiH + 4;
+      swimOuter.style.height  = `calc(100vh - ${reserved}px)`;
+      swimOuter.style.minHeight = '300px';
+
       if (filteredFeatures.length === 0) {
         swimOuter.innerHTML = '<div style="padding:40px 16px;text-align:center;color:var(--color-text-muted)"><div style="font-size:24px;margin-bottom:6px">📅</div>No features match the criteria</div>';
         return;
@@ -57118,12 +57560,16 @@ Earned Value Management measures project performance and progress by comparing p
 
         lane.appendChild(header);
 
+        const canvasH = HEAD_H + laneFeatures.length * ROW_H + 8;
+
         const body = document.createElement('div');
         body.className = 'sl-lane-body';
+        // No explicit min-height here — CSS caps it at 432px and adds scroll.
 
         // Left Panel (Feature List)
         const left = document.createElement('div');
         left.className = 'sl-lane-left';
+        left.style.cssText = `min-height:${canvasH}px; flex-shrink:0;`;
 
         // Add resizer handle
         const resizer = document.createElement('div');
@@ -57157,7 +57603,7 @@ Earned Value Management measures project performance and progress by comparing p
 
         const rowHead = document.createElement('div');
         rowHead.className = 'sl-row-head';
-        rowHead.style.cssText = `height:${HEAD_H}px; display:flex; align-items:center;`;
+        rowHead.style.cssText = `height:${HEAD_H}px; min-height:${HEAD_H}px; flex-shrink:0; display:flex; align-items:center; box-sizing:border-box;`;
         rowHead.textContent = 'Feature Name';
         left.appendChild(rowHead);
 
@@ -57165,7 +57611,7 @@ Earned Value Management measures project performance and progress by comparing p
           const mObj = featMetricsMap[f.name] || { avgP: 0, tot: 0, done: 0, overdue: 0 };
           const row = document.createElement('div');
           row.className = 'sl-row';
-          row.style.cssText = `height:${ROW_H}px; display:flex; align-items:center; padding:0 12px 0 0; position:relative; cursor:pointer; border-bottom:1px solid var(--color-divider);`;
+          row.style.cssText = `height:${ROW_H}px; min-height:${ROW_H}px; flex-shrink:0; display:flex; align-items:center; padding:0 12px 0 0; position:relative; cursor:pointer; border-bottom:1px solid var(--color-divider); box-sizing:border-box;`;
           if (i % 2 === 1) row.style.background = 'rgba(0,0,0,0.013)';
 
           row.onclick = (e) => {
@@ -57236,9 +57682,8 @@ Earned Value Management measures project performance and progress by comparing p
         // Right Canvas Wrap
         const canvasWrap = document.createElement('div');
         canvasWrap.className = 'sl-lane-right';
-        canvasWrap.style.cssText = `flex:1; overflow-x:auto; position:relative;`;
+        canvasWrap.style.cssText = `flex:1; overflow-x:auto; position:relative; min-height:${canvasH}px;`;
 
-        const canvasH = HEAD_H + laneFeatures.length * ROW_H + 8;
         const cvs = document.createElement('canvas');
         const dpr = window.devicePixelRatio || 1;
         cvs.width = W * dpr;
@@ -57867,15 +58312,513 @@ Earned Value Management measures project performance and progress by comparing p
           name: 'Investment Platform 2.0',
           desc: 'Full-scale enterprise project with 40-member team, hierarchical tracking, and release management.',
           features: [
-            { name: 'Trading Terminal', release: 'v2.0.0-Beta', screens: ['Order Entry', 'Position View', 'Execution History', 'Matching Engine', 'Trade Confirmation'], desc: 'High-frequency trading interface, core matching engine integration, and trade confirmations.' },
-            { name: 'Portfolio Intelligence', release: 'v2.0.0-Beta', screens: ['Sunburst Chart', 'Legend Details', 'Portfolio Overview'], desc: 'Visual analytics, asset allocation sunburst breakdown, and portfolio holdings summary.' },
-            { name: 'Governance & Compliance', release: 'v2.0.0-Beta', screens: ['Compliance Audit', 'AML Integration'], desc: 'Regulatory tracking, AML verification workflows, and security auditing.' },
-            { name: 'Identity & Access Management', release: 'v2.1.0', screens: ['Profile Edit', 'MFA Settings', 'Settings Panel'], desc: 'User profile editing, security settings including Multi-Factor Authentication (MFA), and system configurations.' }
-          ],
+          {
+                    "name": "Core Infrastructure",
+                    "screens": [
+                              "Database Schema",
+                              "Core Services",
+                              "API Gateway"
+                    ],
+                    "desc": "Fundamental system services and architecture.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "User Management",
+                    "screens": [
+                              "Cash Accounts",
+                              "Security Accounts",
+                              "Authentication"
+                    ],
+                    "desc": "User lifecycle and account security.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Market Intelligence",
+                    "screens": [
+                              "Portfolio Valuations",
+                              "Market Data Feed",
+                              "Analytics Dashboard"
+                    ],
+                    "desc": "Data processing and reporting.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Order Entry & Execution",
+                    "screens": [
+                              "Order Entry",
+                              "Matching Engine",
+                              "Trade Confirmation"
+                    ],
+                    "desc": "Trade order creation, routing, and instant validation.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Portfolio Performance Analytics",
+                    "screens": [
+                              "Portfolio Overview",
+                              "Sunburst Chart",
+                              "Legend Details"
+                    ],
+                    "desc": "Visual analytics and asset allocation sunburst breakdown.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Governance & Compliance",
+                    "screens": [
+                              "Compliance Audit",
+                              "AML Integration",
+                              "Sanctions Checker"
+                    ],
+                    "desc": "Regulatory tracking, AML verification workflows, and security auditing.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Identity & Access Control (IAM)",
+                    "screens": [
+                              "Profile Edit",
+                              "MFA Settings",
+                              "Settings Panel"
+                    ],
+                    "desc": "User profile editing, security settings including Multi-Factor Authentication (MFA), and system configurations.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Realtime Market Data Feed",
+                    "screens": [
+                              "Ticker Stream",
+                              "Level-2 Orderbook",
+                              "Depth Chart"
+                    ],
+                    "desc": "High-throughput WebSocket stream for live prices and orderbook depth.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Risk Exposure & VaR Engine",
+                    "screens": [
+                              "Value-at-Risk Calculator",
+                              "Exposure Limits Panel",
+                              "Stress Testing Matrix"
+                    ],
+                    "desc": "Monte Carlo simulation for portfolio risk exposure and regulatory reporting.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Customer Onboarding & KYC",
+                    "screens": [
+                              "Document Upload",
+                              "ID Verification Portal",
+                              "Biometric Check"
+                    ],
+                    "desc": "Automated KYC identity check and document verification pipeline.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Payment Gateway Integration",
+                    "screens": [
+                              "Payment Methods",
+                              "Checkout Flow",
+                              "Transaction History"
+                    ],
+                    "desc": "Multi-currency payment processing and instant settlement gateway.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Automated Rebalancing Engine",
+                    "screens": [
+                              "Rebalance Parameters",
+                              "Model Portfolios",
+                              "Trade Generator"
+                    ],
+                    "desc": "Algorithmic portfolio rebalancing against target asset allocations.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Notification & Alert Hub",
+                    "screens": [
+                              "Alert Rule Builder",
+                              "Push Notification Channel",
+                              "Notification Center"
+                    ],
+                    "desc": "Cross-channel real-time notifications for prices, trades, and system events.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Corporate Actions & Dividends",
+                    "screens": [
+                              "Corporate Actions Feed",
+                              "Dividend Schedule",
+                              "Entitlement Calculator"
+                    ],
+                    "desc": "Automated processing of stock splits, dividends, and corporate action events.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "FX Rates & Currency Conversion",
+                    "screens": [
+                              "FX Spot Rates",
+                              "Cross-Currency Matrix",
+                              "Currency Converter"
+                    ],
+                    "desc": "Realtime foreign exchange rate feeds and multi-currency ledger conversions.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Securities Lending & Borrowing",
+                    "screens": [
+                              "Borrow Availability",
+                              "Lending Rate Desk",
+                              "Collateral Manager"
+                    ],
+                    "desc": "Securities lending pool management and collateral margin verification.",
+                    "release": "v2.0.0-Beta"
+          },
+          {
+                    "name": "Margin & Collateral Management",
+                    "screens": [
+                              "Margin Requirements",
+                              "Collateral Valuation",
+                              "Liquidation Monitor"
+                    ],
+                    "desc": "Realtime margin calculation and automated collateral call triggers.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Algorithmic Order Execution",
+                    "screens": [
+                              "Algo Strategy Config",
+                              "TWAP/VWAP Router",
+                              "Execution Analytics"
+                    ],
+                    "desc": "Smart order routing using TWAP, VWAP, and Iceberg algorithmic strategies.",
+                    "release": "v2.0.0-Beta"
+          },
+          {
+                    "name": "Fixed Income & Bonds Desk",
+                    "screens": [
+                              "Bond Yield Curve",
+                              "Fixed Income Screener",
+                              "Duration Calculator"
+                    ],
+                    "desc": "Government and corporate bond pricing, yield curves, and duration analytics.",
+                    "release": "v2.0.0-Beta"
+          },
+          {
+                    "name": "Derivatives & Options Pricing",
+                    "screens": [
+                              "Option Chain",
+                              "Greeks Calculator",
+                              "Implied Volatility Surface"
+                    ],
+                    "desc": "Options pricing, Black-Scholes Greeks analysis, and volatility modeling.",
+                    "release": "v2.0.0-Beta"
+          },
+          {
+                    "name": "ESG Ratings & Sustainability",
+                    "screens": [
+                              "ESG Scorecard",
+                              "Carbon Footprint Tracker",
+                              "Sustainability Index"
+                    ],
+                    "desc": "Environmental, Social, and Governance (ESG) scoring for portfolio assets.",
+                    "release": "v2.1.0"
+          },
+          {
+                    "name": "Crypto & Digital Asset Gateway",
+                    "screens": [
+                              "Wallet Integration",
+                              "Blockchain Explorer",
+                              "Staking Dashboard"
+                    ],
+                    "desc": "Custodial crypto wallet integration, staking operations, and token tracking.",
+                    "release": "v2.1.0"
+          },
+          {
+                    "name": "Data Warehouse & BI ETL",
+                    "screens": [
+                              "Pipeline Monitor",
+                              "ETL Job Scheduler",
+                              "Data Quality Dashboard"
+                    ],
+                    "desc": "Automated ETL pipelines processing raw telemetry into BI data marts.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "A/B Testing & Experimentation",
+                    "screens": [
+                              "Experiment Configurator",
+                              "Cohort Segmenter",
+                              "Conversion Funnel"
+                    ],
+                    "desc": "Feature flag routing and statistical A/B test result evaluation.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Audit Logging & Forensics",
+                    "screens": [
+                              "Audit Trail Viewer",
+                              "Log Search Engine",
+                              "Security Incident Log"
+                    ],
+                    "desc": "Tamper-evident audit logging for all compliance and security interactions.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Billing & Automated Invoicing",
+                    "screens": [
+                              "Subscription Plans",
+                              "Invoice Generator",
+                              "Billing History"
+                    ],
+                    "desc": "Recurring SaaS billing, fee schedules, and automated PDF invoice delivery.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Omnichannel Customer Support",
+                    "screens": [
+                              "Support Ticket Queue",
+                              "Live Chat Console",
+                              "Knowledge Base Index"
+                    ],
+                    "desc": "Helpdesk ticket routing, live chat assistance, and self-serve knowledge base.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Developer API Portal & SDKs",
+                    "screens": [
+                              "API Documentation",
+                              "Developer Dashboard",
+                              "Webhook Configurator"
+                    ],
+                    "desc": "Public API portal, API key generation, webhooks, and client SDK downloads.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Service Mesh & Traffic Routing",
+                    "screens": [
+                              "Ingress Controller",
+                              "Traffic Splitter",
+                              "Circuit Breaker Dashboard"
+                    ],
+                    "desc": "Istio-based service mesh traffic management and dynamic load balancing.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Secrets Rotator & Key Vault",
+                    "screens": [
+                              "Key Vault Console",
+                              "Secret Rotation Schedule",
+                              "Encryption Manager"
+                    ],
+                    "desc": "Automated HSM-backed API key, database credential, and certificate rotation.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Disaster Recovery & Backup",
+                    "screens": [
+                              "Snapshot Scheduler",
+                              "Failover Console",
+                              "Recovery Time Tester"
+                    ],
+                    "desc": "Automated cross-region database replication and one-click failover.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "System Health & Telemetry",
+                    "screens": [
+                              "Metrics Dashboard",
+                              "APM Trace Viewer",
+                              "SLA Uptime Monitor"
+                    ],
+                    "desc": "Prometheus metrics, distributed tracing, and real-time SLA monitor.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Tax Calculation & Reporting",
+                    "screens": [
+                              "Capital Gains Calculator",
+                              "Tax Loss Harvesting",
+                              "Form 1099 Export"
+                    ],
+                    "desc": "Realized capital gains calculation and tax report generation engine.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Reconciliation & Settlement",
+                    "screens": [
+                              "Matching Engine Logs",
+                              "Bank Statement Reconciler",
+                              "Discrepancy Resolver"
+                    ],
+                    "desc": "End-of-day cash and position reconciliation against custodian clearing houses.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Fee Schedule & Commission Engine",
+                    "screens": [
+                              "Tiered Fee Structure",
+                              "Commission Breakdown",
+                              "Rebate Manager"
+                    ],
+                    "desc": "Flexible fee tier calculation, commission splits, and broker rebates.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Digital Signatures & E-Signing",
+                    "screens": [
+                              "Document Vault",
+                              "Signature Request Flow",
+                              "Audit Stamp Viewer"
+                    ],
+                    "desc": "Legally binding digital contract signing and document vault storage.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Liquidity Pools & Yield Aggregator",
+                    "screens": [
+                              "Pool Explorer",
+                              "Yield APY Tracker",
+                              "Liquidity Provider Portal"
+                    ],
+                    "desc": "Automated market maker liquidity pool management and yield optimization.",
+                    "release": "v2.0.0-Beta"
+          },
+          {
+                    "name": "Cross-Border Remittance & Wire",
+                    "screens": [
+                              "SWIFT/SEPA Router",
+                              "Wire Transfer Form",
+                              "FX Rate Lock"
+                    ],
+                    "desc": "International SWIFT and SEPA wire transfer execution with guaranteed FX rates.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Credit Scoring & Underwriting",
+                    "screens": [
+                              "Scorecard Builder",
+                              "Credit Risk Assessor",
+                              "Application Decision Matrix"
+                    ],
+                    "desc": "Automated credit score analysis and underwriting risk evaluation.",
+                    "release": "v2.0.0-Beta"
+          },
+          {
+                    "name": "Fraud Detection & Anomaly Screening",
+                    "screens": [
+                              "Anomaly Alert Console",
+                              "Behavioral Pattern Detector",
+                              "Fraud Rule Engine"
+                    ],
+                    "desc": "ML-driven real-time fraud pattern detection on incoming transactions.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Community Portal & Forums",
+                    "screens": [
+                              "Forum Feed",
+                              "User Reputation Badge",
+                              "Moderation Panel"
+                    ],
+                    "desc": "Investor community discussion forum, peer insights, and moderation tools.",
+                    "release": "v2.1.0"
+          },
+          {
+                    "name": "GraphQL Federation Gateway",
+                    "screens": [
+                              "Schema Composer",
+                              "GraphQL Playground",
+                              "Query Performance Monitor"
+                    ],
+                    "desc": "Unified GraphQL schema federation across microservices.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Cache Management & Redis Routing",
+                    "screens": [
+                              "Cache Hit Ratio Monitor",
+                              "Invalidation Manager",
+                              "Redis Cluster Health"
+                    ],
+                    "desc": "Distributed Redis cluster caching, key invalidation, and warm-up jobs.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Vector Search & Semantic Index",
+                    "screens": [
+                              "Vector Embeddings Index",
+                              "Semantic Search Tester",
+                              "Similarity Engine"
+                    ],
+                    "desc": "Vector database integration for AI-powered semantic search across documents.",
+                    "release": "v2.1.0"
+          },
+          {
+                    "name": "Time-Series Metric Collector",
+                    "screens": [
+                              "InfluxDB Monitor",
+                              "Metric Collector Config",
+                              "Retention Policy Editor"
+                    ],
+                    "desc": "High-frequency time-series data collection and retention management.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Config Sync Engine",
+                    "screens": [
+                              "Feature Flags Console",
+                              "Global Config Editor",
+                              "Version Rollback Utility"
+                    ],
+                    "desc": "Dynamic runtime feature flag toggles and global configuration sync.",
+                    "release": "v1.0.0"
+          },
+          {
+                    "name": "Incident Response & Runbooks",
+                    "screens": [
+                              "PagerDuty Integration",
+                              "Runbook Automation",
+                              "Post-Mortem Logger"
+                    ],
+                    "desc": "Incident escalation routing, automated remediation runbooks, and post-mortems.",
+                    "release": "v1.1.0"
+          },
+          {
+                    "name": "Asset Tokenization & Smart Contracts",
+                    "screens": [
+                              "Token Minting Portal",
+                              "Smart Contract Auditor",
+                              "Cap Table Manager"
+                    ],
+                    "desc": "Real-world asset tokenization, smart contract auditing, and cap table tracking.",
+                    "release": "v2.1.0"
+          },
+          {
+                    "name": "Session Replay & UX Analytics",
+                    "screens": [
+                              "Heatmap Viewer",
+                              "Session Recording Console",
+                              "User Journey Analyzer"
+                    ],
+                    "desc": "User session playback, DOM heatmaps, and drop-off funnel analytics.",
+                    "release": "v1.2.0"
+          },
+          {
+                    "name": "Partner API Sandbox",
+                    "screens": [
+                              "Sandbox Environment",
+                              "Mock Data Generator",
+                              "Partner Onboarding Guide"
+                    ],
+                    "desc": "Isolated sandbox environment for third-party developer integration testing.",
+                    "release": "v1.2.0"
+          }
+],
           releases: [
-            { id: 'rel-1', name: 'v2.0.0-Alpha', startDate: '2026-06-01', date: '2026-08-30', status: 'Released' },
-            { id: 'rel-2', name: 'v2.0.0-Beta', startDate: '2026-08-31', date: '2026-11-15', status: 'Active' },
-            { id: 'rel-3', name: 'v2.1.0', startDate: '2026-11-16', date: '2027-02-15', status: 'Planned' }
+            { id: 'rel-1', name: 'v1.0.0', startDate: '2026-02-15', date: '2026-04-11', status: 'Released' },
+            { id: 'rel-2', name: 'v1.1.0', startDate: '2026-04-12', date: '2026-05-15', status: 'Active' },
+            { id: 'rel-3', name: 'v1.2.0', startDate: '2026-05-16', date: '2026-07-31', status: 'Active' },
+            { id: 'rel-4', name: 'v2.0.0-Beta', startDate: '2026-08-01', date: '2026-10-31', status: 'Active' },
+            { id: 'rel-5', name: 'v2.1.0', startDate: '2026-11-01', date: '2027-01-31', status: 'Planned' }
           ],
           team: [
             { n: 'Alex Rivera', r: 'Engineering Manager', p: '+1-555-0100', b: '15 May' },
@@ -60338,7 +61281,7 @@ Earned Value Management measures project performance and progress by comparing p
         moduleType: ['Server', 'GUI', 'Interface'],
         category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Module', 'GUI Screen', 'Backend', 'Frontend', 'Infrastructure', 'Integration', 'Security', 'Reporting'],
         role: ['Lead Designer', 'Senior Developer', 'Frontend Developer', 'QA Specialist', 'Product Manager'],
-        version: ['v1.0.0', 'v1.1.0', 'v2.0.0-Beta', 'Next Major']
+        version: ['v1.0.0', 'v1.1.0', 'v1.2.0', 'v2.0.0-Beta', 'v2.1.0', 'Next Major']
       };
       samples.mobile.dropdowns = {
         module: ['Core Engine', 'Infrastructure', 'User Interface', 'Security'],
@@ -60373,7 +61316,7 @@ Earned Value Management measures project performance and progress by comparing p
         moduleType: ['Server', 'GUI', 'Interface', 'Service'],
         category: ['Feature', 'Bug', 'Improvement', 'Research', 'Documentation', 'DevOps', 'Testing', 'Design', 'Server Module', 'GUI Module', 'GUI Screen', 'Backend', 'Frontend', 'Infrastructure', 'Integration', 'Security', 'Reporting'],
         role: ['Engineering Manager', 'Lead Architect', 'Lead Frontend', 'Lead Design', 'Jr Lead Backend', 'Jr Lead Infra', 'Jr Lead UI', 'Jr Lead Core', 'Jr Lead UX', 'Jr Lead Research', 'Developer'],
-        version: ['v2.0.0-Beta', 'v2.1.0', 'Next Major']
+        version: ['v1.0.0', 'v1.1.0', 'v1.2.0', 'v2.0.0-Beta', 'v2.1.0', 'Next Major']
       };
 
       const sRaw = samples[type]; if (!sRaw) return;
@@ -61966,22 +62909,7 @@ Earned Value Management measures project performance and progress by comparing p
       cvs._chartData = { labels, data, label, color, maxOverride };
       if (cvs._hoverIdx === undefined) cvs._hoverIdx = null;
 
-      function addOpacity(colorStr, alpha) {
-        const c = window.resolveColor(colorStr) || colorStr;
-        if (c.startsWith('rgba')) return c.replace(/[^,]+(?=\))/, alpha);
-        if (c.startsWith('rgb')) return c.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
-        if (c.startsWith('#')) {
-          let hex = c.replace('#', '');
-          if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
-          const r = parseInt(hex.substring(0, 2), 16);
-          const g = parseInt(hex.substring(2, 4), 16);
-          const b = parseInt(hex.substring(4, 6), 16);
-          return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-        }
-        return `rgba(120, 120, 120, ${alpha})`;
-      }
-
-      function render() {
+      function renderLineChart() {
         const { labels, data, label, color, maxOverride } = cvs._chartData;
         const { ctx, W, H } = gCtx(cvs); if (W <= 0 || H <= 0) return;
         const pL = 40, pR = 15, pT = 15, pB = 25, aW = W - pL - pR, aH = H - pT - pB;
@@ -62219,37 +63147,24 @@ Earned Value Management measures project performance and progress by comparing p
           if (idx >= numPoints) idx = numPoints - 1;
           if (cvs._hoverIdx !== idx) {
             cvs._hoverIdx = idx;
-            render();
+            renderLineChart();
           }
         });
         cvs.addEventListener('mouseleave', () => {
           if (cvs._hoverIdx !== null) {
             cvs._hoverIdx = null;
-            render();
+            renderLineChart();
           }
         });
       }
 
-      render();
+      renderLineChart();
     }
 
     // ── Enhanced Burn-Down & Burn-Up Projection Chart ──────────────────────
     function drawBurndownChart(cvs, labels, ideal, actual, burnUp, projMostLikely, projOptimistic, projPessimistic, todayIdx, uLabel) {
       cvs._bdData = { labels, ideal, actual, burnUp, projMostLikely, projOptimistic, projPessimistic, todayIdx, uLabel };
       if (cvs._hoverIdx === undefined) cvs._hoverIdx = null;
-
-      function addOpacity(colorStr, alpha) {
-        const c = (window.resolveColor ? window.resolveColor(colorStr) : null) || colorStr;
-        if (c && c.startsWith('rgba')) return c.replace(/[^,]+(?=\))/, alpha);
-        if (c && c.startsWith('rgb')) return c.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
-        if (c && c.startsWith('#')) {
-          let hex = c.replace('#', '');
-          if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
-          const r = parseInt(hex.substring(0, 2), 16), g = parseInt(hex.substring(2, 4), 16), b = parseInt(hex.substring(4, 6), 16);
-          return `rgba(${r},${g},${b},${alpha})`;
-        }
-        return `rgba(120,120,120,${alpha})`;
-      }
 
       function renderBD() {
         const { labels, ideal, actual, burnUp, projMostLikely, projOptimistic, projPessimistic, todayIdx, uLabel } = cvs._bdData;
@@ -62681,16 +63596,7 @@ Earned Value Management measures project performance and progress by comparing p
       cvs._chartData = { labels, stacks, stackLabels, colors };
       if (cvs._hoverIdx === undefined) cvs._hoverIdx = null;
 
-      function addOpacity(cStr, alpha) {
-        let c = window.resolveColor(cStr) || cStr;
-        if (c.startsWith('#')) {
-          let r = parseInt(c.slice(1, 3), 16), g = parseInt(c.slice(3, 5), 16), b = parseInt(c.slice(5, 7), 16);
-          return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-        }
-        return `rgba(120, 120, 120, ${alpha})`;
-      }
-
-      function render() {
+      function renderAreaChart() {
         const { labels, stacks, stackLabels, colors } = cvs._chartData;
         const { ctx, W, H } = gCtx(cvs); if (!ctx || W <= 0 || H <= 0) return;
         const pL = 40, pR = 15, pT = 15, pB = 30, aW = W - pL - pR, aH = H - pT - pB;
@@ -62907,18 +63813,18 @@ Earned Value Management measures project performance and progress by comparing p
           if (idx >= numPoints) idx = numPoints - 1;
           if (cvs._hoverIdx !== idx) {
             cvs._hoverIdx = idx;
-            render();
+            renderAreaChart();
           }
         });
         cvs.addEventListener('mouseleave', () => {
           if (cvs._hoverIdx !== null) {
             cvs._hoverIdx = null;
-            render();
+            renderAreaChart();
           }
         });
       }
 
-      render();
+      renderAreaChart();
     }
 
     // ══════ DROPDOWN MENU ══════
@@ -66626,18 +67532,6 @@ Earned Value Management measures project performance and progress by comparing p
       const max = Math.max(5, ...data);
       const barW = (cw / data.length) * 0.7;
       const gap = cw / data.length;
-
-      function addOp(colorStr, alpha) {
-        const c = window.resolveColor(colorStr) || colorStr;
-        if (c.startsWith('rgba')) return c.replace(/[^,]+(?=\))/, alpha);
-        if (c.startsWith('rgb')) return c.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
-        if (c.startsWith('#')) {
-          let hex = c.replace('#', '');
-          if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
-          return `rgba(${parseInt(hex.substring(0, 2), 16)}, ${parseInt(hex.substring(2, 4), 16)}, ${parseInt(hex.substring(4, 6), 16)}, ${alpha})`;
-        }
-        return `rgba(120, 120, 120, ${alpha})`;
-      }
 
       data.forEach((v, i) => {
         const x = padL + (i * gap) + (gap - barW) / 2;
