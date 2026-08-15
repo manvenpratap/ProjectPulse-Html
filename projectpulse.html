@@ -65309,7 +65309,40 @@ Earned Value Management measures project performance and progress by comparing p
       // Build data payload to serialize inside the offline HTML file
       let itemsPayload = [];
       if (!isFeat) {
-        const tasks = getFiltered().filter(t => t.startDate && t.dueDate).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+        const rawTasks = typeof getFiltered === 'function' ? getFiltered() : (P.tasks || []);
+        const tasks = rawTasks.map(t => {
+          let sDate = t.startDate;
+          let dDate = t.dueDate || (typeof getTaskDeadline === 'function' ? getTaskDeadline(t) : '');
+          if (!sDate && t.subtasks && t.subtasks.length > 0) {
+            const subStarts = t.subtasks.map(s => s.startDate).filter(Boolean);
+            if (subStarts.length > 0) sDate = subStarts.sort()[0];
+          }
+          if (!dDate && t.subtasks && t.subtasks.length > 0) {
+            const subDues = t.subtasks.map(s => s.dueDate).filter(Boolean);
+            if (subDues.length > 0) dDate = subDues.sort()[subDues.length - 1];
+          }
+          if (!sDate && dDate) {
+            const d = new Date(dDate + 'T00:00:00');
+            const spanDays = Math.max(3, t.estHours ? Math.ceil(t.estHours / 8) : 14);
+            const calcStart = new Date(d.getTime() - spanDays * 864e5);
+            sDate = calcStart.toISOString().split('T')[0];
+          } else if (sDate && !dDate) {
+            const s = new Date(sDate + 'T00:00:00');
+            const spanDays = Math.max(3, t.estHours ? Math.ceil(t.estHours / 8) : 14);
+            const calcDue = new Date(s.getTime() + spanDays * 864e5);
+            dDate = calcDue.toISOString().split('T')[0];
+          } else if (!sDate && !dDate) {
+            const now = new Date();
+            sDate = now.toISOString().split('T')[0];
+            dDate = new Date(now.getTime() + 14 * 864e5).toISOString().split('T')[0];
+          }
+          return {
+            ...t,
+            startDate: sDate,
+            dueDate: dDate
+          };
+        }).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+
         const mcResults = typeof runMonteCarloSimulation === 'function' ? runMonteCarloSimulation(tasks, 100) : null;
         itemsPayload = tasks.map(t => ({
           id: t.id,
