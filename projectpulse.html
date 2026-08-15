@@ -56720,7 +56720,7 @@ Earned Value Management measures project performance and progress by comparing p
             const r = parseInt(baseColor.slice(1, 3), 16);
             const g = parseInt(baseColor.slice(3, 5), 16);
             const b = parseInt(baseColor.slice(5, 7), 16);
-            rgbaColor = `rgba(${r}, ${g}, ${b}, 0.05)`;
+            rgbaColor = 'rgba(' + r + ', ' + g + ', ' + b + ', 0.05)';
           }
           ctx.fillStyle = rgbaColor;
           ctx.fillRect(lastX, HEAD_H, rx - lastX, H - HEAD_H);
@@ -56855,7 +56855,7 @@ Earned Value Management measures project performance and progress by comparing p
           ctx.stroke();
           ctx.restore();
 
-          const lbl = `${rel.name} ${suffix}`;
+          const lbl = rel.name + ' ' + suffix;
           ctx.font = `bold 9px ${themeFont}`;
           const lblW = ctx.measureText(lbl).width + 10;
           const lblX = Math.min(rx + 3, W - lblW - 4);
@@ -58228,7 +58228,7 @@ Earned Value Management measures project performance and progress by comparing p
               const r = parseInt(baseColor.slice(1, 3), 16);
               const g = parseInt(baseColor.slice(3, 5), 16);
               const b = parseInt(baseColor.slice(5, 7), 16);
-              rgbaColor = `rgba(${r}, ${g}, ${b}, 0.05)`;
+              rgbaColor = 'rgba(' + r + ', ' + g + ', ' + b + ', 0.05)';
             }
             ctx.fillStyle = rgbaColor;
             ctx.fillRect(lastX, 0, rx - lastX, canvasH);
@@ -62597,7 +62597,7 @@ Earned Value Management measures project performance and progress by comparing p
           aCtx.lineTo(rx, HEAD_H);
           aCtx.stroke();
 
-          const lbl = `${rel.name} ${suffix}`;
+          const lbl = rel.name + ' ' + suffix;
           aCtx.font = 'bold 8.5px ' + (window.bodyFont || 'Inter,sans-serif');
           const lblW = aCtx.measureText(lbl).width + 8;
           const lblX = Math.min(rx + 2, W - lblW - 4);
@@ -63332,7 +63332,7 @@ Earned Value Management measures project performance and progress by comparing p
               const r = parseInt(baseColor.slice(1, 3), 16);
               const g = parseInt(baseColor.slice(3, 5), 16);
               const b = parseInt(baseColor.slice(5, 7), 16);
-              rgbaColor = `rgba(${r}, ${g}, ${b}, 0.05)`;
+              rgbaColor = 'rgba(' + r + ', ' + g + ', ' + b + ', 0.05)';
             }
             ctx.fillStyle = rgbaColor;
             ctx.fillRect(lastX, HEAD_H, rx - lastX, H - HEAD_H);
@@ -63450,7 +63450,7 @@ Earned Value Management measures project performance and progress by comparing p
             ctx.restore();
 
             // Release label badge drawn on header
-            const lbl = `${rel.name} ${suffix}`;
+            const lbl = rel.name + ' ' + suffix;
             ctx.save();
             ctx.font = 'bold 8.5px ' + (window.bodyFont || 'Inter,sans-serif');
             const lblW = ctx.measureText(lbl).width + 8;
@@ -65257,8 +65257,8 @@ Earned Value Management measures project performance and progress by comparing p
       }
     }
 
-    function downloadGanttAsHtml() {
-      const isFeat = (P.view === 'features' || (P.view === 'admin' && P._adminActiveTab === 'features'));
+    function downloadGanttAsHtml(viewTypeOverride) {
+      const isFeat = viewTypeOverride === 'features' ? true : viewTypeOverride === 'tasks' ? false : (P.view === 'features' || (P.view === 'admin' && P._adminActiveTab === 'features'));
       
       const hasItems = isFeat ? (P.features && P.features.length > 0) : (P.tasks && P.tasks.length > 0);
       if (!hasItems) {
@@ -65341,6 +65341,18 @@ Earned Value Management measures project performance and progress by comparing p
               if (!end || ed > end) end = ed;
             }
           });
+          if (!start && f.startDate) start = new Date(f.startDate);
+          if (!end && f.dueDate) end = new Date(f.dueDate);
+          if (!start && f.release) {
+            const rel = (P.releases || []).find(r => r.name === f.release);
+            if (rel && rel.date) {
+              end = new Date(rel.date);
+              start = new Date(end.getTime() - 14 * 864e5);
+            }
+          }
+          if (!start) start = new Date();
+          if (!end) end = new Date(start.getTime() + 14 * 864e5);
+
           return {
             id: 'feat-' + i,
             name: f.name,
@@ -65348,8 +65360,8 @@ Earned Value Management measures project performance and progress by comparing p
             category: f.category || '',
             progress: mObj.avgP,
             overdue: mObj.overdue,
-            startDate: start ? start.toISOString().split('T')[0] : null,
-            dueDate: end ? end.toISOString().split('T')[0] : null,
+            startDate: start.toISOString().split('T')[0],
+            dueDate: end.toISOString().split('T')[0],
             screensCount: mObj.tot,
             screensDone: mObj.done
           };
@@ -65504,11 +65516,17 @@ Earned Value Management measures project performance and progress by comparing p
     .gantt-left {
       width: 280px;
       flex-shrink: 0;
-      overflow-y: hidden;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: none;
       background: var(--color-surface);
       display: flex;
       flex-direction: column;
       user-select: none;
+      height: 100%;
+    }
+    .gantt-left::-webkit-scrollbar {
+      display: none;
     }
     .gantt-splitter {
       width: 4px;
@@ -65516,6 +65534,7 @@ Earned Value Management measures project performance and progress by comparing p
       cursor: col-resize;
       flex-shrink: 0;
       transition: background 0.15s;
+      z-index: 20;
     }
     .gantt-splitter:hover, .gantt-splitter.dragging {
       background: var(--color-primary);
@@ -65525,6 +65544,25 @@ Earned Value Management measures project performance and progress by comparing p
       overflow: auto;
       background: var(--color-surface-2);
       position: relative;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .gantt-axis-wrap {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--color-surface-2);
+      border-bottom: 2px solid var(--color-border);
+      flex-shrink: 0;
+      height: 48px;
+    }
+    .gantt-axis-wrap.feat-axis {
+      height: 56px;
+    }
+    .gantt-body-wrap {
+      flex: 1;
+      width: 100%;
     }
     .gl-head {
       height: 48px;
@@ -65540,6 +65578,9 @@ Earned Value Management measures project performance and progress by comparing p
       background: var(--color-surface-2);
       flex-shrink: 0;
       box-sizing: border-box;
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
     .gl-row {
       height: 32px;
@@ -65679,12 +65720,13 @@ Earned Value Management measures project performance and progress by comparing p
       width: var(--sl-left-w);
       min-width: var(--sl-left-w);
       flex-shrink: 0;
-      overflow-y: hidden;
+      overflow: hidden;
       background: var(--color-surface);
       display: flex;
       flex-direction: column;
       user-select: none;
       border-right: 1px solid var(--color-border);
+      height: 100%;
     }
     .sl-splitter {
       width: 4px;
@@ -65692,7 +65734,7 @@ Earned Value Management measures project performance and progress by comparing p
       cursor: col-resize;
       flex-shrink: 0;
       transition: background 0.15s;
-      z-index: 10;
+      z-index: 20;
     }
     .sl-splitter:hover, .sl-splitter.dragging {
       background: var(--color-primary);
@@ -65704,6 +65746,7 @@ Earned Value Management measures project performance and progress by comparing p
       display: flex;
       flex-direction: column;
       position: relative;
+      height: 100%;
     }
     .sl-axis-left-header {
       height: 36px;
@@ -65719,6 +65762,9 @@ Earned Value Management measures project performance and progress by comparing p
       background: var(--color-surface-2);
       box-sizing: border-box;
       flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 15;
     }
     .sl-axis-right-container {
       height: 36px;
@@ -65726,13 +65772,22 @@ Earned Value Management measures project performance and progress by comparing p
       background: var(--color-surface-2);
       flex-shrink: 0;
       box-sizing: border-box;
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
     .sl-left-lanes-container {
       flex: 1;
-      overflow-y: hidden;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: none;
+    }
+    .sl-left-lanes-container::-webkit-scrollbar {
+      display: none;
     }
     .sl-right-lanes-container {
       flex: 1;
+      width: 100%;
     }
     .sl-lane-left-group {
       display: flex;
@@ -66012,7 +66067,12 @@ Earned Value Management measures project performance and progress by comparing p
     <div class="gantt-left" id="export-gantt-left"></div>
     <div class="gantt-splitter" id="export-gantt-splitter"></div>
     <div class="gantt-right" id="export-gantt-right">
-      <canvas id="export-gantt-canvas"></canvas>
+      <div class="gantt-axis-wrap" id="export-gantt-axis-wrap">
+        <canvas id="export-gantt-axis-canvas"></canvas>
+      </div>
+      <div class="gantt-body-wrap" id="export-gantt-body-wrap">
+        <canvas id="export-gantt-canvas"></canvas>
+      </div>
     </div>
   </div>
   <div class="swimlane-outer" id="export-swimlane-outer"></div>
@@ -66518,7 +66578,7 @@ Earned Value Management measures project performance and progress by comparing p
 
       leftPanel.innerHTML = '';
       const lh = document.createElement('div');
-      lh.className = 'gl-head';
+      lh.className = 'gl-head' + (isFeat ? ' feat-head' : '');
       lh.innerHTML = isFeat ? 'Feature / Release' : 'Task';
       leftPanel.appendChild(lh);
 
@@ -66609,6 +66669,8 @@ Earned Value Management measures project performance and progress by comparing p
       if (filtered.length === 0) {
         cvs.width = 0;
         cvs.height = 0;
+        const axisCvs = \$id('export-gantt-axis-canvas');
+        if (axisCvs) { axisCvs.width = 0; axisCvs.height = 0; }
         return;
       }
 
@@ -66633,9 +66695,147 @@ Earned Value Management measures project performance and progress by comparing p
       const totalDays = Math.ceil((maxDate - minDate) / 864e5);
 
       const W = totalDays * dayW + PAD_L * 2;
-      const H = HEAD_H + filtered.length * ROW_H;
+      const H = filtered.length * ROW_H;
 
       const dpr = window.devicePixelRatio || 1;
+      const colors = getThemeColors();
+
+      // ─── 1. Render Sticky Top Axis Canvas ───
+      const axisCvs = \$id('export-gantt-axis-canvas');
+      const axisWrap = \$id('export-gantt-axis-wrap');
+      if (axisWrap) {
+        axisWrap.style.height = HEAD_H + 'px';
+        axisWrap.className = 'gantt-axis-wrap' + (isFeat ? ' feat-axis' : '');
+      }
+      if (axisCvs) {
+        axisCvs.style.width = W + 'px';
+        axisCvs.style.height = HEAD_H + 'px';
+        axisCvs.width = W * dpr;
+        axisCvs.height = HEAD_H * dpr;
+
+        const actx = axisCvs.getContext('2d');
+        actx.scale(dpr, dpr);
+        actx.fillStyle = colors.bg2;
+        actx.fillRect(0, 0, W, HEAD_H);
+
+        actx.strokeStyle = colors.border;
+        actx.lineWidth = 1;
+
+        for (let d = 0; d < totalDays; d++) {
+          const dt = new Date(minDate.getTime() + d * 864e5);
+          const x = PAD_L + d * dayW;
+
+          if (dt.getDay() === 1 || currentZoom === 'day') {
+            actx.strokeStyle = colors.divider;
+            actx.beginPath();
+            actx.moveTo(x, 0);
+            actx.lineTo(x, HEAD_H);
+            actx.stroke();
+          }
+
+          if (currentZoom === 'day') {
+            actx.fillStyle = colors.faint;
+            actx.font = '9px var(--font-body)';
+            actx.textAlign = 'center';
+            actx.fillText(dt.getDate(), x + dayW / 2, HEAD_H - (isFeat ? 8 : 4));
+            if (dt.getDate() === 1 || d === 0) {
+              actx.fillStyle = colors.muted;
+              actx.font = 'bold 9px var(--font-body)';
+              actx.fillText(dt.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), x + dayW / 2, HEAD_H - (isFeat ? 24 : 16));
+            }
+          } else if (currentZoom === 'week' && dt.getDay() === 1) {
+            actx.fillStyle = colors.faint;
+            actx.font = '9px var(--font-body)';
+            actx.textAlign = 'left';
+            actx.fillText(dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), x + 2, HEAD_H - 4);
+          } else if (currentZoom === 'month' && dt.getDate() === 1) {
+            actx.fillStyle = colors.muted;
+            actx.font = 'bold 9px var(--font-body)';
+            actx.textAlign = 'left';
+            actx.fillText(dt.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), x + 2, HEAD_H - 4);
+          }
+        }
+
+        // Today label on axis
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (today >= minDate && today <= maxDate) {
+          const tx = PAD_L + Math.floor((today - minDate) / 864e5) * dayW;
+          actx.strokeStyle = '#ef4444';
+          actx.lineWidth = 1.5;
+          actx.setLineDash([2, 3]);
+          actx.beginPath();
+          actx.moveTo(tx, 0);
+          actx.lineTo(tx, HEAD_H);
+          actx.stroke();
+          actx.setLineDash([]);
+          actx.fillStyle = '#ef4444';
+          actx.font = 'bold 8px var(--font-body)';
+          actx.textAlign = 'left';
+          actx.fillText('Today', tx + 2, HEAD_H - 6);
+        }
+
+        // Releases on axis
+        (DATA.releases || []).forEach(rel => {
+          const relTasks = (items || []).filter(t => t.release === rel.name && t.startDate && t.dueDate);
+          let relStart = null, relEnd = null;
+          if (relTasks.length > 0) {
+            const starts = relTasks.map(t => new Date(t.startDate + 'T00:00:00'));
+            const ends = relTasks.map(t => new Date(t.dueDate + 'T00:00:00'));
+            relStart = new Date(Math.min(...starts));
+            relEnd = new Date(Math.max(...ends));
+          } else if (rel.date) {
+            relStart = new Date(rel.date + 'T00:00:00');
+            relEnd = new Date(rel.date + 'T00:00:00');
+          }
+
+          if (!relStart || !relEnd) return;
+          const relC = RELEASE_STATUS_COLORS[rel.status] || '#94a3b8';
+
+          const drawReleaseAxisBadge = (date, suffix) => {
+            date.setHours(0, 0, 0, 0);
+            if (date < minDate || date > maxDate) return;
+            const rx = PAD_L + Math.floor((date - minDate) / 864e5) * dayW;
+
+            actx.save();
+            actx.strokeStyle = relC;
+            actx.lineWidth = 2.5;
+            actx.beginPath();
+            actx.moveTo(rx, 0);
+            actx.lineTo(rx, HEAD_H);
+            actx.stroke();
+            actx.restore();
+
+            const lbl = rel.name + ' ' + suffix;
+            actx.save();
+            actx.font = 'bold 8.5px var(--font-body)';
+            const lblW = actx.measureText(lbl).width + 8;
+            const lblX = Math.min(rx + 2, W - lblW - 4);
+            const lblY = 3;
+            actx.fillStyle = relC;
+            actx.globalAlpha = 0.15;
+            actx.beginPath();
+            if (actx.roundRect) actx.roundRect(lblX, lblY, lblW, 12, 3);
+            else actx.rect(lblX, lblY, lblW, 12);
+            actx.fill();
+
+            actx.globalAlpha = 1.0;
+            actx.fillStyle = relC;
+            actx.textAlign = 'left';
+            actx.fillText(lbl, lblX + 4, lblY + 9);
+            actx.restore();
+          };
+
+          if (relStart.getTime() === relEnd.getTime()) {
+            drawReleaseAxisBadge(relStart, 'Target');
+          } else {
+            drawReleaseAxisBadge(relStart, 'Start');
+            drawReleaseAxisBadge(relEnd, 'End');
+          }
+        });
+      }
+
+      // ─── 2. Render Main Body Canvas ───
       cvs.style.width = W + 'px';
       cvs.style.height = H + 'px';
       cvs.width = W * dpr;
@@ -66644,7 +66844,6 @@ Earned Value Management measures project performance and progress by comparing p
       const ctx = cvs.getContext('2d');
       ctx.scale(dpr, dpr);
 
-      const colors = getThemeColors();
       ctx.fillStyle = colors.bg;
       ctx.fillRect(0, 0, W, H);
 
@@ -66665,20 +66864,15 @@ Earned Value Management measures project performance and progress by comparing p
             const r = parseInt(baseColor.slice(1, 3), 16);
             const g = parseInt(baseColor.slice(3, 5), 16);
             const b = parseInt(baseColor.slice(5, 7), 16);
-            rgbaColor = \`rgba(\${r}, \${g}, \${b}, 0.05)\`;
+            rgbaColor = 'rgba(' + r + ', ' + g + ', ' + b + ', 0.05)';
           }
           ctx.fillStyle = rgbaColor;
-          ctx.fillRect(lastX, HEAD_H, rx - lastX, H - HEAD_H);
+          ctx.fillRect(lastX, 0, rx - lastX, H);
         }
         lastX = Math.max(0, rx);
       });
 
       hitAreas = [];
-
-      ctx.fillStyle = colors.bg2;
-      ctx.fillRect(0, 0, W, HEAD_H);
-      ctx.strokeStyle = colors.border;
-      ctx.lineWidth = 1;
 
       for (let d = 0; d < totalDays; d++) {
         const dt = new Date(minDate.getTime() + d * 864e5);
@@ -66687,35 +66881,13 @@ Earned Value Management measures project performance and progress by comparing p
         if (dt.getDay() === 1 || currentZoom === 'day') {
           ctx.strokeStyle = colors.divider;
           ctx.beginPath();
-          ctx.moveTo(x, HEAD_H);
+          ctx.moveTo(x, 0);
           ctx.lineTo(x, H);
           ctx.stroke();
         }
         if (dt.getDay() === 0 || dt.getDay() === 6) {
           ctx.fillStyle = isDarkTheme ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.02)';
-          ctx.fillRect(x, HEAD_H, dayW, H - HEAD_H);
-        }
-
-        if (currentZoom === 'day') {
-          ctx.fillStyle = colors.faint;
-          ctx.font = '9px var(--font-body)';
-          ctx.textAlign = 'center';
-          ctx.fillText(dt.getDate(), x + dayW / 2, HEAD_H - (isFeat ? 8 : 4));
-          if (dt.getDate() === 1 || d === 0) {
-            ctx.fillStyle = colors.muted;
-            ctx.font = 'bold 9px var(--font-body)';
-            ctx.fillText(dt.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), x + dayW / 2, HEAD_H - (isFeat ? 24 : 16));
-          }
-        } else if (currentZoom === 'week' && dt.getDay() === 1) {
-          ctx.fillStyle = colors.faint;
-          ctx.font = '9px var(--font-body)';
-          ctx.textAlign = 'left';
-          ctx.fillText(dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), x + 2, HEAD_H - 4);
-        } else if (currentZoom === 'month' && dt.getDate() === 1) {
-          ctx.fillStyle = colors.muted;
-          ctx.font = 'bold 9px var(--font-body)';
-          ctx.textAlign = 'left';
-          ctx.fillText(dt.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), x + 2, HEAD_H - 4);
+          ctx.fillRect(x, 0, dayW, H);
         }
       }
 
@@ -66727,14 +66899,10 @@ Earned Value Management measures project performance and progress by comparing p
         ctx.lineWidth = 1.5;
         ctx.setLineDash([2, 3]); // Dotted red line
         ctx.beginPath();
-        ctx.moveTo(tx, HEAD_H);
+        ctx.moveTo(tx, 0);
         ctx.lineTo(tx, H);
         ctx.stroke();
         ctx.setLineDash([]);
-        ctx.fillStyle = '#ef4444';
-        ctx.font = 'bold 8px var(--font-body)';
-        ctx.textAlign = 'left';
-        ctx.fillText('Today', tx + 2, HEAD_H + 10);
       }
 
       (DATA.releases || []).forEach(rel => {
@@ -66754,54 +66922,33 @@ Earned Value Management measures project performance and progress by comparing p
         if (!relStart || !relEnd) return;
         const relC = RELEASE_STATUS_COLORS[rel.status] || '#94a3b8';
 
-        const drawReleaseLine = (date, suffix) => {
+        const drawReleaseLine = (date) => {
           date.setHours(0, 0, 0, 0);
           if (date < minDate || date > maxDate) return;
           const rx = PAD_L + Math.floor((date - minDate) / 864e5) * dayW;
 
-          // Bold vertical separator line through full chart
           ctx.save();
           ctx.strokeStyle = relC;
-          ctx.lineWidth   = 2.5; // Bold
+          ctx.lineWidth   = 2.5;
           ctx.beginPath();
           ctx.moveTo(rx, 0);
           ctx.lineTo(rx, H);
           ctx.stroke();
           ctx.restore();
-
-          // Release label badge drawn on header
-          const lbl = \`\${rel.name} \${suffix}\`;
-          ctx.save();
-          ctx.font = 'bold 8.5px var(--font-body)';
-          const lblW = ctx.measureText(lbl).width + 8;
-          const lblX = Math.min(rx + 2, W - lblW - 4);
-          const lblY = 3;
-          ctx.fillStyle = relC;
-          ctx.globalAlpha = 0.15;
-          ctx.beginPath();
-          if (ctx.roundRect) ctx.roundRect(lblX, lblY, lblW, 12, 3);
-          else ctx.rect(lblX, lblY, lblW, 12);
-          ctx.fill();
-
-          ctx.globalAlpha = 1.0;
-          ctx.fillStyle = relC;
-          ctx.textAlign = 'left';
-          ctx.fillText(lbl, lblX + 4, lblY + 9);
-          ctx.restore();
         };
 
         if (relStart.getTime() === relEnd.getTime()) {
-          drawReleaseLine(relStart, 'Target');
+          drawReleaseLine(relStart);
         } else {
-          drawReleaseLine(relStart, 'Start');
-          drawReleaseLine(relEnd, 'End');
+          drawReleaseLine(relStart);
+          drawReleaseLine(relEnd);
         }
       });
 
       ctx.strokeStyle = colors.border;
       ctx.lineWidth = 0.5;
       for (let i = 0; i <= filtered.length; i++) {
-        const y = HEAD_H + i * ROW_H;
+        const y = i * ROW_H;
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(W, y);
@@ -66814,10 +66961,10 @@ Earned Value Management measures project performance and progress by comparing p
         s.setHours(0, 0, 0, 0); e.setHours(0, 0, 0, 0);
         const x1 = PAD_L + Math.max(0, Math.floor((s - minDate) / 864e5)) * dayW;
         const x2 = PAD_L + Math.floor((e - minDate) / 864e5) * dayW + dayW;
-        const y = HEAD_H + i * ROW_H + (ROW_H - BAR_H) / 2;
+        const y = i * ROW_H + (ROW_H - BAR_H) / 2;
         const bw = Math.max(x2 - x1, dayW);
 
-        hitAreas.push({ x: x1, x2: x1 + bw, y: HEAD_H + i * ROW_H, y2: HEAD_H + (i + 1) * ROW_H, item: t, idx: i });
+        hitAreas.push({ x: x1, x2: x1 + bw, y: i * ROW_H, y2: (i + 1) * ROW_H, item: t, idx: i });
 
         if (isFeat) {
           const bc = t.overdue > 0 ? '#ef4444' : FEAT_PALETTE[i % FEAT_PALETTE.length];
@@ -66939,11 +67086,23 @@ Earned Value Management measures project performance and progress by comparing p
 
     const leftScroll = leftPanel;
     const rightScroll = \$id('export-gantt-right');
+    let isSyncingTimeline = false;
     rightScroll.addEventListener('scroll', () => {
+      if (isSyncingTimeline) return;
+      isSyncingTimeline = true;
       leftScroll.scrollTop = rightScroll.scrollTop;
-    });
+      isSyncingTimeline = false;
+    }, { passive: true });
+    leftScroll.addEventListener('scroll', () => {
+      if (isSyncingTimeline) return;
+      isSyncingTimeline = true;
+      rightScroll.scrollTop = leftScroll.scrollTop;
+      isSyncingTimeline = false;
+    }, { passive: true });
     leftScroll.addEventListener('wheel', (e) => {
-      rightScroll.scrollTop += e.deltaY;
+      if (e.deltaY) {
+        rightScroll.scrollTop += e.deltaY;
+      }
     }, { passive: true });
 
     // ─── Swimlane renderer ───────────────────────────────────────────────────
@@ -66992,15 +67151,30 @@ Earned Value Management measures project performance and progress by comparing p
       }
 
       // Sync scrolling
-      const leftCol = swimOuter.querySelector('.sl-left-col');
+      const leftContainer = swimOuter.querySelector('.sl-left-lanes-container');
       const rightCol = swimOuter.querySelector('.sl-right-col');
-      if (leftCol && rightCol) {
+      if (leftContainer && rightCol) {
+        let isSyncingSwim = false;
         rightCol.addEventListener('scroll', () => {
-          leftCol.scrollTop = rightCol.scrollTop;
-        });
-        leftCol.addEventListener('wheel', (e) => {
-          rightCol.scrollTop += e.deltaY;
+          if (isSyncingSwim) return;
+          isSyncingSwim = true;
+          leftContainer.scrollTop = rightCol.scrollTop;
+          isSyncingSwim = false;
         }, { passive: true });
+        leftContainer.addEventListener('scroll', () => {
+          if (isSyncingSwim) return;
+          isSyncingSwim = true;
+          rightCol.scrollTop = leftContainer.scrollTop;
+          isSyncingSwim = false;
+        }, { passive: true });
+        const leftCol = swimOuter.querySelector('.sl-left-col');
+        if (leftCol) {
+          leftCol.addEventListener('wheel', (e) => {
+            if (e.deltaY) {
+              rightCol.scrollTop += e.deltaY;
+            }
+          }, { passive: true });
+        }
       }
 
       const q = searchQuery;
@@ -67052,7 +67226,6 @@ Earned Value Management measures project performance and progress by comparing p
 
       drawSwimlaneAxis(axisCvs, dpr, minDate, maxDate, W, 36);
 
-      const leftContainer = swimOuter.querySelector('.sl-left-lanes-container');
       const rightContainer = swimOuter.querySelector('.sl-right-lanes-container');
 
       if (!window._collapsedLanes) window._collapsedLanes = new Set();
@@ -67275,7 +67448,7 @@ Earned Value Management measures project performance and progress by comparing p
           label = tickCursor.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
           tickCursor.setDate(tickCursor.getDate() + 1);
         } else if (z === 'week') {
-          label = tickCursor.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + '\n' + tickCursor.getFullYear();
+          label = tickCursor.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + String.fromCharCode(10) + tickCursor.getFullYear();
           tickCursor.setDate(tickCursor.getDate() + 7);
         } else {
           label = tickCursor.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
@@ -67284,7 +67457,7 @@ Earned Value Management measures project performance and progress by comparing p
 
         ctx.fillStyle = colors.muted;
         ctx.font = '500 8.5px var(--font-body), sans-serif';
-        const lParts = label.split('\n');
+        const lParts = label.split(String.fromCharCode(10));
         if (lParts.length > 1) {
           ctx.fillText(lParts[0], tx, H / 2 - 4);
           ctx.globalAlpha = 0.5;
@@ -67351,7 +67524,7 @@ Earned Value Management measures project performance and progress by comparing p
           ctx.restore();
 
           // Release label badge drawn on header
-          const lbl = \`\${rel.name} \${suffix}\`;
+          const lbl = rel.name + ' ' + suffix;
           ctx.save();
           ctx.font = 'bold 8px var(--font-body), sans-serif';
           const lblW = ctx.measureText(lbl).width + 8;
@@ -67414,7 +67587,7 @@ Earned Value Management measures project performance and progress by comparing p
             const r = parseInt(baseColor.slice(1, 3), 16);
             const g = parseInt(baseColor.slice(3, 5), 16);
             const b = parseInt(baseColor.slice(5, 7), 16);
-            rgbaColor = \`rgba(\${r}, \${g}, \${b}, 0.05)\`;
+            rgbaColor = 'rgba(' + r + ', ' + g + ', ' + b + ', 0.05)';
           }
           ctx.fillStyle = rgbaColor;
           ctx.fillRect(lastX, 0, rx - lastX, H);
@@ -67612,6 +67785,7 @@ Earned Value Management measures project performance and progress by comparing p
 
           if (isFeatureRow) {
             const healthC = t.overdue > 0 ? '#ef4444' : (t.progress || 0) >= 80 ? '#10b981' : (t.progress || 0) >= 40 ? '#6366f1' : '#f59e0b';
+            const fillC = FEAT_PALETTE[idx % FEAT_PALETTE.length] || '#6366f1';
             const pct = t.progress || 0;
 
             // Left health accent stripe
@@ -67680,10 +67854,9 @@ Earned Value Management measures project performance and progress by comparing p
               drawRR(ctx, barX, metaY - 4, barMaxW * (pct / 100), 4, 2); ctx.fill();
             }
 
-              ctx.fillStyle = healthC;
-              ctx.font = '700 7.5px Plus Jakarta Sans, sans-serif';
-              ctx.fillText(pct + '%', barX + barMaxW + 3, metaY);
-            }
+            ctx.fillStyle = healthC;
+            ctx.font = '700 7.5px Plus Jakarta Sans, sans-serif';
+            ctx.fillText(pct + '%', barX + barMaxW + 3, metaY);
 
           } else {
             const isMS = t.startDate === t.dueDate || t.category === 'Milestone';
@@ -67710,13 +67883,17 @@ Earned Value Management measures project performance and progress by comparing p
 
         if (currentViewMode === 'timeline') {
           const leftEl = \$id('export-gantt-left');
+          const axisCvs = \$id('export-gantt-axis-canvas');
           const rightCvs = \$id('export-gantt-canvas');
-          if (!leftEl || !rightCvs) { if (btn) { btn.textContent = '📷 Copy Image'; btn.disabled = false; } return; }
+          if (!leftEl || !axisCvs || !rightCvs) { if (btn) { btn.textContent = '📷 Copy Image'; btn.disabled = false; } return; }
 
           const leftW = leftEl.offsetWidth;
           const rightW = rightCvs.offsetWidth || (rightCvs.width / dpr);
           const totalW = leftW + rightW;
-          const totalH = rightCvs.offsetHeight || (rightCvs.height / dpr);
+          const headH = isFeat ? 56 : 48;
+          const rowH = isFeat ? 48 : 32;
+          const bodyH = rightCvs.offsetHeight || (rightCvs.height / dpr);
+          const totalH = headH + bodyH;
 
           finalCvs.width = Math.round(totalW * dpr);
           finalCvs.height = Math.round(totalH * dpr);
@@ -67725,11 +67902,10 @@ Earned Value Management measures project performance and progress by comparing p
 
           const fCtx = finalCvs.getContext('2d');
           fCtx.scale(dpr, dpr);
-
           fCtx.fillStyle = colors.bg;
           fCtx.fillRect(0, 0, totalW, totalH);
 
-          const headH = isFeat ? 56 : 48;
+          // Top left header
           fCtx.fillStyle = colors.bg2;
           fCtx.fillRect(0, 0, leftW, headH);
           fCtx.fillStyle = colors.muted;
@@ -67741,7 +67917,10 @@ Earned Value Management measures project performance and progress by comparing p
           fCtx.lineWidth = 2;
           fCtx.beginPath(); fCtx.moveTo(0, headH); fCtx.lineTo(leftW, headH); fCtx.stroke();
 
-          const rowH = isFeat ? 48 : 32;
+          // Top right axis
+          fCtx.drawImage(axisCvs, 0, 0, axisCvs.width, axisCvs.height, leftW, 0, axisCvs.width / dpr, axisCvs.height / dpr);
+
+          // Left rows
           const rows = leftEl.querySelectorAll('.gl-row');
           rows.forEach((r, idx) => {
             const y = headH + idx * rowH;
@@ -67751,13 +67930,12 @@ Earned Value Management measures project performance and progress by comparing p
             drawLeftRow(fCtx, t, 0, y, leftW, rowH, idx, isFeat);
           });
 
-          // Draw right canvas (scaled correctly for dpr)
-          fCtx.drawImage(rightCvs, 0, 0, rightCvs.width, rightCvs.height, leftW, 0, rightCvs.width / dpr, rightCvs.height / dpr);
+          // Draw right canvas body
+          fCtx.drawImage(rightCvs, 0, 0, rightCvs.width, rightCvs.height, leftW, headH, rightCvs.width / dpr, rightCvs.height / dpr);
 
           fCtx.strokeStyle = colors.border;
           fCtx.lineWidth = 1;
           fCtx.beginPath(); fCtx.moveTo(leftW, 0); fCtx.lineTo(leftW, totalH); fCtx.stroke();
-
         } else {
           const leftCol = document.querySelector('.sl-left-col');
           const rightCol = document.querySelector('.sl-right-col');
