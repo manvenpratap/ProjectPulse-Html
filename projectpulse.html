@@ -16294,6 +16294,11 @@
       health: 'Project Health & Quality',
       defect_intel: 'Defect Intelligence',
       feature_insights: 'Feature Intelligence',
+      delivery_insights: 'Delivery & Deployment Intelligence',
+      'dash-del-pipeline': 'Delivery Pipeline Status',
+      'dash-del-env': 'Environment Distribution & Rollouts',
+      'dash-del-leadtime': 'Delivery Lead Time & Velocity',
+      'dash-del-quality': 'Sign-Off & Quality Governance',
       release_timeline: 'Release Timeline',
       burndown: 'Burndown Chart',
       velocity: 'Weekly Velocity',
@@ -16333,6 +16338,7 @@
       'module_matrix': 'dash-msm-main',
       'high_impact_entities': 'dash-high-impact-entities',
       'feature_insights': 'dash-feat-main',
+      'delivery_insights': 'dash-del-pipeline',
       'release_timeline': 'dash-rel-time',
       'burndown': 'dash-burndown',
       'velocity': 'dash-velocity',
@@ -16359,6 +16365,7 @@
         case 'defect_intel': return ['dash-defect-sev', 'dash-defect-pri', 'dash-defect-type', 'dash-defect-mod', 'dash-defect-trend', 'dash-defect-rate', 'dash-defect-impact'];
         case 'high_impact_entities': return ['dash-high-impact-entities'];
         case 'feature_insights': return ['dash-feat-main', 'dash-feat-cx', 'dash-feat-sd', 'dash-feat-mat', 'dash-feat-risk', 'dash-feat-health'];
+        case 'delivery_insights': return ['dash-del-pipeline', 'dash-del-env', 'dash-del-leadtime', 'dash-del-quality', 'dash-del-shaping'];
         case 'release_timeline': return ['dash-rel-time'];
         case 'burndown': return ['dash-burndown'];
         case 'velocity': return ['dash-velocity'];
@@ -33059,6 +33066,7 @@
                       { id: 'module_status_matrix', t: 'Strategic Module Status', on: true },
                       { id: 'module_health', t: 'Module & Release Health', on: true },
                       { id: 'feature_insights', t: 'Feature Intelligence', on: true },
+                      { id: 'delivery_insights', t: 'Delivery & Deployment Intelligence', on: true },
                       { id: 'screen_status', t: 'Screen Status Details', on: true },
                       { id: 'release_timeline', t: 'Release Timeline', on: true },
                       { id: 'milestone-timeline', t: 'Milestone Timeline', on: true },
@@ -34299,6 +34307,7 @@
         { id: 'module_status_matrix', t: 'Strategic Module Status', on: true },
         { id: 'module_health', t: 'Module & Release Health', on: true },
         { id: 'feature_insights', t: 'Feature Intelligence', on: true },
+        { id: 'delivery_insights', t: 'Delivery & Deployment Intelligence', on: true },
         { id: 'screen_status', t: 'Screen Status Details', on: true },
         { id: 'release_timeline', t: 'Release Timeline', on: true },
         { id: 'milestone-timeline', t: 'Milestone Timeline', on: true },
@@ -37851,6 +37860,397 @@
               </div>
             `;
             grid.appendChild(emptyCard);
+          }
+        } else if (sec.id === 'delivery_insights') {
+          const dels = P.deliveries || [];
+          if (dels.length) {
+            addST(inner, 'Delivery & Deployment Intelligence');
+            const grid = addGrid(inner);
+
+            // Pre-calculate aggregate metrics for Deliveries
+            const totalDels = dels.length;
+            const statusCounts = {};
+            const envCounts = {};
+            const signOffCounts = {};
+            const smokeCounts = {};
+            const moduleLeadTimes = {}; // mod -> { sum, count }
+            let totalLeadDays = 0;
+            let countWithLead = 0;
+            let onTimeCount = 0;
+            let delayedCount = 0;
+            let deployedCount = 0;
+            let pendingProdSignOff = 0;
+            let failedSmokes = 0;
+
+            dels.forEach(d => {
+              // Status
+              const st = d.status || 'Scheduled';
+              statusCounts[st] = (statusCounts[st] || 0) + 1;
+              if (st === 'Deployed') deployedCount++;
+
+              // Environment
+              const env = d.environment || 'Production';
+              envCounts[env] = (envCounts[env] || 0) + 1;
+
+              // SignOff
+              const so = d.signOffStatus || 'Pending';
+              signOffCounts[so] = (signOffCounts[so] || 0) + 1;
+              if (env === 'Production' && so === 'Pending' && st !== 'Cancelled' && st !== 'Deployed') {
+                pendingProdSignOff++;
+              }
+
+              // Smoke
+              const smk = d.smokeTestStatus || 'Not Run';
+              smokeCounts[smk] = (smokeCounts[smk] || 0) + 1;
+              if (smk === 'Failed' && st !== 'Cancelled') {
+                failedSmokes++;
+              }
+
+              // Lead time
+              let lt = parseFloat(d.leadTimeDays);
+              if (!isNaN(lt) && lt > 0) {
+                totalLeadDays += lt;
+                countWithLead++;
+                const mod = d.module || 'General';
+                if (!moduleLeadTimes[mod]) moduleLeadTimes[mod] = { sum: 0, count: 0 };
+                moduleLeadTimes[mod].sum += lt;
+                moduleLeadTimes[mod].count++;
+              }
+
+              // Schedule variance (Target vs Actual)
+              if (d.targetDeliveryDate && d.actualDeliveryDate) {
+                const diff = (new Date(d.actualDeliveryDate) - new Date(d.targetDeliveryDate)) / (1000 * 60 * 60 * 24);
+                if (diff <= 0) onTimeCount++;
+                else delayedCount++;
+              } else if (d.targetDeliveryDate && st === 'Deployed') {
+                onTimeCount++;
+              }
+            });
+
+            const avgLead = countWithLead ? (totalLeadDays / countWithLead).toFixed(1) : '—';
+            const deployedPct = totalDels ? Math.round((deployedCount / totalDels) * 100) : 0;
+            const approvedSignOffs = signOffCounts['Approved'] || 0;
+            const signOffRate = totalDels ? Math.round((approvedSignOffs / totalDels) * 100) : 0;
+            const passedSmokes = smokeCounts['Passed'] || 0;
+            const smokePassRate = totalDels ? Math.round((passedSmokes / totalDels) * 100) : 0;
+
+            // ── Widget 1: Delivery Pipeline Status (Donut) ──────────────────────
+            const pipeId = 'dash-del-pipeline';
+            const pipeSpan = (P.widgetSpans && P.widgetSpans[pipeId]) || 1;
+            const pipeCard = mkCC('Delivery Pipeline', 'Deployment lifecycle status', pipeId, '', 'standard', "<b>Delivery Pipeline:</b> Tracks active release payloads across deployment lifecycle states from initial scheduling to verified production deployment.", 'View Explanation', 'send');
+            pipeCard.style.gridColumn = `span ${pipeSpan}`;
+            grid.appendChild(pipeCard);
+            const pipeCvs = mkCvs(240, 150); pipeCard.querySelector('.cb').appendChild(pipeCvs);
+            const pipeLeg = document.createElement('div'); pipeLeg.className = 'cleg'; pipeCard.appendChild(pipeLeg);
+
+            // Palette for delivery states
+            const statusColorMap = {
+              'Deployed': 'var(--green, #10b981)',
+              'Ready for Deployment': 'var(--color-primary, #6366f1)',
+              'In Progress': '#06b6d4',
+              'Scheduled': 'var(--amber, #f59e0b)',
+              'Rolled Back': '#a855f7',
+              'Failed': 'var(--red, #ef4444)',
+              'Cancelled': 'var(--color-text-faint, #64748b)'
+            };
+            const pipeEntries = Object.entries(statusCounts);
+            const pipeColors = pipeEntries.map(([st]) => statusColorMap[st] || 'var(--color-primary)');
+
+            dashDrawQueue.push(() => {
+              drawDonut(pipeCvs, pipeEntries, pipeColors, totalDels, 'Deliveries');
+              makeDonutLegend(pipeLeg, pipeEntries, pipeColors, (label) => {
+                P.delFilterStatus = label;
+                setView('deliveries');
+              });
+            });
+
+            // ── Widget 2: Environment Distribution (Tiers & KPI) ─────────────────
+            const envId = 'dash-del-env';
+            const envSpan = (P.widgetSpans && P.widgetSpans[envId]) || 1;
+            const envCard = mkCC('Environment Footprint', 'Deliveries across operational tiers', envId, '', 'standard', "<b>Environment Distribution:</b> Breaks down deliverables across infrastructure tiers to ensure balanced staging and prevent late-cycle deployment bottlenecks.", 'View Explanation', 'server');
+            envCard.style.gridColumn = `span ${envSpan}`;
+            grid.appendChild(envCard);
+
+            const envColorMap = {
+              'Production': '#ef4444',
+              'Staging': '#a855f7',
+              'UAT': '#06b6d4',
+              'QA': '#3b82f6',
+              'Dev': '#64748b'
+            };
+            const envOrder = ['Production', 'Staging', 'UAT', 'QA', 'Dev'];
+            const sortedEnvs = envOrder.filter(e => envCounts[e]).concat(Object.keys(envCounts).filter(e => !envOrder.includes(e)));
+            const prodCount = envCounts['Production'] || 0;
+            const prodPct = totalDels ? Math.round((prodCount / totalDels) * 100) : 0;
+            const stagingUatCount = (envCounts['Staging'] || 0) + (envCounts['UAT'] || 0);
+
+            let envHtml = `
+              <div style="display:flex;gap:0;border-bottom:1px solid var(--color-divider);">
+                <div style="flex:1;padding:10px 14px;border-right:1px solid var(--color-divider);">
+                  <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px">Production</div>
+                  <div style="font-size:20px;font-weight:900;color:#ef4444;line-height:1">${prodCount} <span style="font-size:11px;font-weight:600;color:var(--color-text-muted)">(${prodPct}%)</span></div>
+                </div>
+                <div style="flex:1;padding:10px 14px;">
+                  <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px">Staging / UAT</div>
+                  <div style="font-size:20px;font-weight:900;color:#a855f7;line-height:1">${stagingUatCount}</div>
+                </div>
+              </div>
+              <div style="padding:12px 14px;display:flex;flex-direction:column;gap:8px;">`;
+
+            sortedEnvs.forEach(envName => {
+              const cnt = envCounts[envName] || 0;
+              const pct = totalDels ? Math.round((cnt / totalDels) * 100) : 0;
+              const col = envColorMap[envName] || '#6366f1';
+              envHtml += `
+                <div style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0;border-radius:4px" onclick="P.delFilterEnv='${esc(envName)}';setView('deliveries')" title="Filter deliveries by ${esc(envName)}">
+                  <span style="font-size:11px;font-weight:700;color:var(--color-text);width:75px;flex-shrink:0">${esc(envName)}</span>
+                  <div style="flex:1;height:6px;background:var(--color-surface-3);border-radius:3px;overflow:hidden">
+                    <div style="width:${pct}%;height:100%;background:${col};border-radius:3px;transition:width 0.4s ease"></div>
+                  </div>
+                  <span style="font-size:11px;font-weight:800;color:${col};font-family:var(--font-mono);width:26px;text-align:right">${cnt}</span>
+                </div>`;
+            });
+            envHtml += `</div>`;
+            envCard.querySelector('.cb').innerHTML = envHtml;
+
+            // ── Widget 3: Delivery Lead Time & Turnaround (Velocity) ───────────────
+            const ltId = 'dash-del-leadtime';
+            const ltSpan = (P.widgetSpans && P.widgetSpans[ltId]) || 2;
+            const ltCard = mkCC('Delivery Lead Time & Pacing', 'Schedule variance & velocity metrics', ltId, '', 'standard', "<b>Delivery Turnaround Velocity:</b> Measures the cycle time in days from delivery creation/staging to deployment completion, comparing target schedule vs actual delivery pacing.", 'View Explanation', 'clock');
+            ltCard.style.gridColumn = `span ${ltSpan}`;
+            grid.appendChild(ltCard);
+
+            const modEntries = Object.entries(moduleLeadTimes).map(([mod, data]) => ({
+              mod,
+              avg: (data.sum / data.count).toFixed(1),
+              count: data.count
+            })).sort((a, b) => b.avg - a.avg);
+
+            let ltHtml = `
+              <div style="display:flex;gap:0;border-bottom:1px solid var(--color-divider);">
+                <div style="flex:1;padding:10px 14px;border-right:1px solid var(--color-divider);">
+                  <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px">Avg Lead Time</div>
+                  <div style="font-size:20px;font-weight:900;color:var(--color-primary);line-height:1">${avgLead} <span style="font-size:11px;font-weight:600;color:var(--color-text-muted)">days</span></div>
+                </div>
+                <div style="flex:1;padding:10px 14px;border-right:1px solid var(--color-divider);">
+                  <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px">On-Time / Early</div>
+                  <div style="font-size:20px;font-weight:900;color:var(--green);line-height:1">${onTimeCount}</div>
+                </div>
+                <div style="flex:1;padding:10px 14px;">
+                  <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px">Delayed Variance</div>
+                  <div style="font-size:20px;font-weight:900;color:${delayedCount > 0 ? 'var(--red)' : 'var(--color-text-faint)'};line-height:1">${delayedCount}</div>
+                </div>
+              </div>
+              <div style="padding:10px 16px;display:flex;flex-direction:column;gap:8px;">
+                <div style="font-size:10px;font-weight:700;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.5px">Module Turnaround Benchmarks</div>`;
+
+            if (modEntries.length) {
+              const maxAvg = Math.max(...modEntries.map(m => parseFloat(m.avg)), 1);
+              modEntries.slice(0, 4).forEach(m => {
+                const barPct = Math.round((parseFloat(m.avg) / maxAvg) * 100);
+                ltHtml += `
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="font-size:11px;font-weight:600;color:var(--color-text);width:130px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(m.mod)}">${esc(m.mod)}</div>
+                    <div style="flex:1;height:6px;background:var(--color-surface-3);border-radius:3px;overflow:hidden">
+                      <div style="width:${barPct}%;height:100%;background:var(--color-primary);border-radius:3px"></div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;width:55px;justify-content:flex-end">
+                      <span style="font-size:11px;font-weight:800;color:var(--color-text);font-family:var(--font-mono)">${m.avg}d</span>
+                      <span style="font-size:9px;color:var(--color-text-muted)">(${m.count})</span>
+                    </div>
+                  </div>`;
+              });
+            } else {
+              ltHtml += `<div style="font-size:11px;color:var(--color-text-muted);font-style:italic">Lead time values will populate as delivery durations are recorded.</div>`;
+            }
+            ltHtml += `</div>`;
+            ltCard.querySelector('.cb').innerHTML = ltHtml;
+
+            // ── Widget 4: Governance Sign-Off & Smoke Quality ────────────────────
+            const qualId = 'dash-del-quality';
+            const qualSpan = (P.widgetSpans && P.widgetSpans[qualId]) || 4;
+            const qualCard = mkCC('Sign-Off & Quality Governance', 'Release authorization and smoke verification matrix', qualId, '', 'standard', "<b>Governance & Quality Assurance:</b> Verifies formal architectural approvals and automated smoke test results before authorizing production rollouts.", 'View Explanation', 'shield-check');
+            qualCard.style.gridColumn = `span ${qualSpan}`;
+            grid.appendChild(qualCard);
+
+            // Health alert box
+            let qualAlert = '';
+            if (pendingProdSignOff > 0) {
+              qualAlert += `<div style="font-size:11px;color:var(--amber);background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.2);padding:8px 12px;border-radius:var(--radius-md);display:flex;align-items:center;gap:8px">
+                <i data-lucide="alert-circle" style="width:14px;height:14px;flex-shrink:0"></i>
+                <span><b>Governance Notice:</b> ${pendingProdSignOff} production payload${pendingProdSignOff > 1 ? 's are' : ' is'} awaiting sign-off authorization.</span>
+              </div>`;
+            }
+            if (failedSmokes > 0) {
+              qualAlert += `<div style="font-size:11px;color:var(--red);background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.2);padding:8px 12px;border-radius:var(--radius-md);display:flex;align-items:center;gap:8px">
+                <i data-lucide="alert-triangle" style="width:14px;height:14px;flex-shrink:0"></i>
+                <span><b>Quality Alert:</b> ${failedSmokes} delivery smoke verification${failedSmokes > 1 ? 's' : ''} reported failure.</span>
+              </div>`;
+            }
+            if (!pendingProdSignOff && !failedSmokes) {
+              qualAlert += `<div style="font-size:11px;color:var(--green);background:rgba(16,185,129,0.07);border:1px solid rgba(16,185,129,0.2);padding:8px 12px;border-radius:var(--radius-md);display:flex;align-items:center;gap:8px">
+                <i data-lucide="check-circle" style="width:14px;height:14px;flex-shrink:0"></i>
+                <span><b>Quality Gate Clear:</b> All active production deliverables meet sign-off authorization and smoke validation standards.</span>
+              </div>`;
+            }
+
+            // Top upcoming / active deliveries
+            const upcomingDels = [...dels].sort((a, b) => {
+              if (a.targetDeliveryDate && b.targetDeliveryDate) return new Date(a.targetDeliveryDate) - new Date(b.targetDeliveryDate);
+              return 0;
+            }).slice(0, 4);
+
+            let qualHtml = `
+              <div style="display:flex;flex-direction:column;padding:12px 14px;gap:12px">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));gap:10px">
+                  <div class="enhanced-scard" style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+                    <div>
+                      <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase">Sign-Off Rate</div>
+                      <div style="font-size:18px;font-weight:900;color:${signOffRate >= 80 ? 'var(--green)' : 'var(--amber)'}">${signOffRate}%</div>
+                    </div>
+                    <div style="font-size:11px;color:var(--color-text-muted)">${approvedSignOffs}/${totalDels} Approved</div>
+                  </div>
+                  <div class="enhanced-scard" style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+                    <div>
+                      <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase">Smoke Test Pass</div>
+                      <div style="font-size:18px;font-weight:900;color:${smokePassRate >= 80 ? 'var(--green)' : smokePassRate > 0 ? 'var(--amber)' : 'var(--color-text-muted)'}">${smokePassRate}%</div>
+                    </div>
+                    <div style="font-size:11px;color:var(--color-text-muted)">${passedSmokes}/${totalDels} Passed</div>
+                  </div>
+                  <div class="enhanced-scard" style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+                    <div>
+                      <div style="font-size:9px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase">Deployment Rate</div>
+                      <div style="font-size:18px;font-weight:900;color:var(--green)">${deployedPct}%</div>
+                    </div>
+                    <div style="font-size:11px;color:var(--color-text-muted)">${deployedCount}/${totalDels} Deployed</div>
+                  </div>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  ${qualAlert}
+                </div>
+
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+                  <span style="font-size:11px;font-weight:800;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.5px">Active Schedule Highlights</span>
+                  <button class="btn ghost" style="font-size:11px;padding:3px 8px;gap:4px" onclick="setView('deliveries')">
+                    Open Deliveries View <i data-lucide="arrow-right" style="width:12px;height:12px"></i>
+                  </button>
+                </div>
+
+                <div style="overflow-x:auto">
+                  <table style="width:100%;border-collapse:collapse;font-size:11px;text-align:left">
+                    <thead>
+                      <tr style="border-bottom:1px solid var(--color-divider);color:var(--color-text-muted)">
+                        <th style="padding:6px 8px;font-weight:700">ID</th>
+                        <th style="padding:6px 8px;font-weight:700">Scope</th>
+                        <th style="padding:6px 8px;font-weight:700">Module</th>
+                        <th style="padding:6px 8px;font-weight:700">Env</th>
+                        <th style="padding:6px 8px;font-weight:700">Target Date</th>
+                        <th style="padding:6px 8px;font-weight:700">Status</th>
+                        <th style="padding:6px 8px;font-weight:700">Sign-Off</th>
+                        <th style="padding:6px 8px;font-weight:700">Smoke</th>
+                      </tr>
+                    </thead>
+                    <tbody>`;
+
+            upcomingDels.forEach(d => {
+              const envCol = envColorMap[d.environment] || '#6366f1';
+              const stCol = statusColorMap[d.status] || 'var(--color-text)';
+              qualHtml += `
+                <tr style="border-bottom:1px solid var(--color-divider);cursor:pointer" onclick="openDeliveryFlyout('${esc(d.id)}','view')">
+                  <td style="padding:6px 8px;font-family:var(--font-mono);font-weight:800;color:var(--color-primary)">${esc(d.id || 'DEL')}</td>
+                  <td style="padding:6px 8px;font-weight:600;color:var(--color-text);max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(d.name)}">${esc(d.name)}</td>
+                  <td style="padding:6px 8px;color:var(--color-text-muted)">${esc(d.module || '—')}</td>
+                  <td style="padding:6px 8px"><span style="font-size:10px;font-weight:700;color:${envCol}">${esc(d.environment || 'Prod')}</span></td>
+                  <td style="padding:6px 8px;font-family:var(--font-mono);color:var(--color-text-muted)">${esc(d.targetDeliveryDate || '—')}</td>
+                  <td style="padding:6px 8px"><span style="font-size:10px;font-weight:700;color:${stCol}">${esc(d.status || 'Scheduled')}</span></td>
+                  <td style="padding:6px 8px"><span style="font-size:10px;font-weight:700;color:${d.signOffStatus === 'Approved' ? 'var(--green)' : d.signOffStatus === 'Rejected' ? 'var(--red)' : 'var(--amber)'}">${esc(d.signOffStatus || 'Pending')}</span></td>
+                  <td style="padding:6px 8px"><span style="font-size:10px;font-weight:700;color:${d.smokeTestStatus === 'Passed' ? 'var(--green)' : d.smokeTestStatus === 'Failed' ? 'var(--red)' : 'var(--color-text-muted)'}">${esc(d.smokeTestStatus || 'Not Run')}</span></td>
+                </tr>`;
+            });
+            qualHtml += `
+                    </tbody>
+                  </table>
+                </div>
+              </div>`;
+
+            qualCard.querySelector('.cb').innerHTML = qualHtml;
+            dashDrawQueue.push(() => lucide.createIcons(qualCard));
+
+            // ── Widget 5: Feature Delivery Shaping Heatmap Overview ──────────────
+            const shapingId = 'dash-del-shaping';
+            const shapingSpan = (P.widgetSpans && P.widgetSpans[shapingId]) || 4;
+            const shapingCard = mkCC('Feature Delivery Shaping Heatmap', 'Screen-to-release delivery correlation and maturity', shapingId, '', 'standard', "<b>Feature Delivery Shaping Heatmap:</b> Visualizes how functional capabilities take shape into production software through verified screen deployments.", 'View Explanation', 'flame');
+            shapingCard.style.gridColumn = `span ${shapingSpan}`;
+            grid.appendChild(shapingCard);
+
+            const hData = typeof computeFeatureDeliveryHeatmapData === 'function' ? computeFeatureDeliveryHeatmapData() : { features: [], stats: { overallShapingScore: 0, prodDeployedScreens: 0, totalScreens: 0, totalFeatures: 0 } };
+            const hStats = hData.stats;
+            const topFeats = (hData.features || []).slice(0, 4);
+
+            let shpHtml = `
+              <div style="display:flex;flex-direction:column;padding:14px 16px;gap:14px">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;background:var(--color-surface-2);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:10px 14px">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <span style="font-size:12px;font-weight:700;color:var(--color-text)">Global Shaping Maturity:</span>
+                    <span style="font-size:18px;font-weight:900;color:${hStats.overallShapingScore >= 75 ? 'var(--green)' : 'var(--color-primary)'};font-family:var(--font-mono)">${hStats.overallShapingScore}%</span>
+                    <div style="width:90px;height:6px;background:var(--color-surface-3);border-radius:3px;overflow:hidden">
+                      <div style="width:${hStats.overallShapingScore}%;height:100%;background:linear-gradient(90deg,#6366f1,#10b981);border-radius:3px"></div>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:12px;font-size:11px;color:var(--color-text-muted)">
+                    <span><b>${hStats.prodDeployedScreens}</b> / <b>${hStats.totalScreens}</b> Screens Deployed</span>
+                    <span><b>${hStats.totalFeatures}</b> Features Tracked</span>
+                  </div>
+                  <button class="btn primary mini" onclick="nav('deliveries'); setDeliveryViewMode('heatmap')" style="font-size:11px">
+                    <i data-lucide="flame" style="width:13px;height:13px;margin-right:4px"></i> Open Full Heatmap Workspace
+                  </button>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:10px">
+                  ${topFeats.map(f => {
+                    const prodPct = f.totalScreens ? Math.round((f.prodScreens / f.totalScreens) * 100) : 0;
+                    return `
+                      <div style="background:var(--color-surface);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:10px 12px;display:flex;flex-direction:column;gap:6px">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                          <span style="font-size:12px;font-weight:700;color:var(--color-text);text-overflow:ellipsis;overflow:hidden;white-space:nowrap" title="${esc(f.name)}">${esc(f.name)}</span>
+                          <span style="font-size:11px;font-weight:800;color:${f.shapingScore >= 80 ? 'var(--green)' : 'var(--color-primary)'};font-family:var(--font-mono)">${f.shapingScore}%</span>
+                        </div>
+                        <div style="width:100%;height:5px;background:var(--color-surface-3);border-radius:2.5px;overflow:hidden">
+                          <div style="width:${f.shapingScore}%;height:100%;background:var(--green);border-radius:2.5px"></div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--color-text-muted)">
+                          <span>${f.prodScreens}/${f.totalScreens} screens live in Prod</span>
+                          <span>${esc(f.module)}</span>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `;
+            shapingCard.querySelector('.cb').innerHTML = shpHtml;
+            dashDrawQueue.push(() => lucide.createIcons(shapingCard));
+          } else {
+            addST(inner, 'Delivery & Deployment Intelligence');
+            const grid = addGrid(inner);
+            const emptyCard = mkCC('Delivery Schedule & Pipelines', 'No deliverables logged', 'dash-del-empty', '', 'standard', "Tracks active release payloads across deployment lifecycle states from initial scheduling to verified production deployment.", 'View Explanation', 'send');
+            emptyCard.style.gridColumn = 'span 4';
+            emptyCard.querySelector('.cb').innerHTML = `
+              <div style="padding:36px 20px;text-align:center;color:var(--color-text-faint)">
+                <div style="font-size:32px;margin-bottom:10px;opacity:0.6;display:flex;justify-content:center"><i data-lucide="send" style="width:36px;height:36px;color:var(--color-primary)"></i></div>
+                <div style="font-size:14px;font-weight:700;color:var(--color-text-muted)">No Deliveries Logged Yet</div>
+                <div style="font-size:12px;margin-top:6px;max-width:320px;margin-left:auto;margin-right:auto;line-height:1.5;color:var(--color-text-faint)">
+                  Log software deliveries or import your schedule from Excel to activate deployment pipelines, velocity tracking, and governance insights.
+                </div>
+                <div style="margin-top:14px;display:flex;justify-content:center;gap:8px">
+                  <button class="btn primary" style="font-size:11px" onclick="openDeliveryFlyout()"><i data-lucide="plus" style="width:12px;height:12px;margin-right:4px"></i> Log Delivery</button>
+                  <button class="btn ghost" style="font-size:11px" onclick="triggerDeliveryExcelImport()"><i data-lucide="file-spreadsheet" style="width:12px;height:12px;margin-right:4px"></i> Import Excel</button>
+                </div>
+              </div>
+            `;
+            grid.appendChild(emptyCard);
+            dashDrawQueue.push(() => lucide.createIcons(emptyCard));
           }
         } else if (sec.id === 'release_timeline') {
           const releases = P.releases || [];
@@ -46277,6 +46677,17 @@ Earned Value Management measures project performance and progress by comparing p
     // ═══════════════════════════════════════════════
     // ══════ DELIVERIES SCHEDULE & TRACKING ══════
     // ═══════════════════════════════════════════════
+
+    window.setDeliveryViewMode = function(mode) {
+      P._delViewMode = mode;
+      renderDeliveriesView();
+    };
+
+    window.setDeliveryHeatmapPerspective = function(persp) {
+      P._delHeatmapPerspective = persp;
+      renderDeliveriesView();
+    };
+
     window.renderDeliveriesView = renderDeliveriesView;
     function renderDeliveriesView() {
       const vTitle = $id('v-title');
@@ -46292,15 +46703,76 @@ Earned Value Management measures project performance and progress by comparing p
 
       if (!P.deliveries || !Array.isArray(P.deliveries)) P.deliveries = [];
       if (!P._selectedDeliveries) P._selectedDeliveries = new Set();
+      P._delViewMode = P._delViewMode || 'table'; // 'table' | 'heatmap' | 'kanban'
+      P._delHeatmapPerspective = P._delHeatmapPerspective || 'feat_screens'; // 'feat_screens' | 'env_pipeline' | 'del_impact'
       P._delFilterStatus = P._delFilterStatus || 'All';
       P._delFilterEnv = P._delFilterEnv || 'All';
       P._delFilterModule = P._delFilterModule || 'All';
       P._delFilterSignOff = P._delFilterSignOff || 'All';
+      P._delFilterRelease = P._delFilterRelease || 'All';
+      P._delFilterMaturity = P._delFilterMaturity || 'All';
       P._delSortCol = P._delSortCol || 'targetDeliveryDate';
       P._delSortOrder = P._delSortOrder || 'asc';
 
       const deliveries = P.deliveries;
 
+      // Unique modules and releases for filters
+      const modules = Array.from(new Set([
+        ...(P.dropdowns && P.dropdowns.module ? P.dropdowns.module : []),
+        ...deliveries.map(d => d.module).filter(Boolean),
+        ...(P.features || []).map(f => f.module || f.category).filter(Boolean)
+      ])).sort();
+
+      const releases = Array.from(new Set([
+        ...(P.releases ? P.releases.map(r => r.name || r) : []),
+        ...(P.dropdowns && P.dropdowns.release ? P.dropdowns.release : []),
+        ...deliveries.map(d => d.releaseVersion).filter(Boolean),
+        ...(P.features || []).map(f => f.release).filter(Boolean)
+      ])).sort();
+
+      // View Mode Toggle Toolbar
+      const viewModeSwitcherHtml = `
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:4px">
+          <div style="display:flex; align-items:center; gap:6px; background:var(--color-surface-2); padding:4px; border-radius:var(--radius-md); border:1px solid var(--color-divider)">
+            <button class="btn ${P._delViewMode === 'table' ? 'primary' : 'ghost'} mini" onclick="setDeliveryViewMode('table')" style="font-size:12px; font-weight:700; gap:5px">
+              <i data-lucide="table" style="width:14px; height:14px"></i> Schedule Table
+            </button>
+            <button class="btn ${P._delViewMode === 'heatmap' ? 'primary' : 'ghost'} mini" onclick="setDeliveryViewMode('heatmap')" style="font-size:12px; font-weight:700; gap:5px">
+              <i data-lucide="flame" style="width:14px; height:14px"></i> Feature Delivery Heatmap
+            </button>
+            <button class="btn ${P._delViewMode === 'kanban' ? 'primary' : 'ghost'} mini" onclick="setDeliveryViewMode('kanban')" style="font-size:12px; font-weight:700; gap:5px">
+              <i data-lucide="columns-3" style="width:14px; height:14px"></i> Kanban Pipeline
+            </button>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:8px">
+            ${P._delViewMode === 'heatmap' ? `
+              <button class="btn outline mini" onclick="exportDeliveryHeatmapToCsv()" style="font-size:11px"><i data-lucide="file-spreadsheet" style="width:13px; height:13px; margin-right:4px"></i> Export Heatmap CSV</button>
+            ` : ''}
+            <button class="btn outline mini" onclick="triggerDeliveryExcelImport()" style="font-size:11px"><i data-lucide="upload-cloud" style="width:13px; height:13px; margin-right:4px"></i> Import Excel</button>
+            <button class="btn primary mini" onclick="openDeliveryFlyout()" style="font-size:11px"><i data-lucide="plus" style="width:13px; height:13px; margin-right:4px"></i> Log Delivery</button>
+          </div>
+        </div>
+      `;
+
+      if (P._delViewMode === 'heatmap') {
+        const heatmapData = computeFeatureDeliveryHeatmapData({
+          module: P._delFilterModule,
+          release: P._delFilterRelease,
+          env: P._delFilterEnv,
+          maturity: P._delFilterMaturity,
+          search: P.search
+        });
+        renderFeatureDeliveryHeatmap(panel, heatmapData, deliveries, modules, releases, viewModeSwitcherHtml);
+        return;
+      }
+
+      if (P._delViewMode === 'kanban') {
+        renderDeliveryKanban(panel, deliveries, modules, releases, viewModeSwitcherHtml);
+        return;
+      }
+
+      // ── DEFAULT MODE: Schedule Table ──
       // KPI Calculations
       const totalCount = deliveries.length;
       const deployedProdCount = deliveries.filter(d => d.status === 'Deployed' && d.environment === 'Production').length;
@@ -46337,6 +46809,7 @@ Earned Value Management measures project performance and progress by comparing p
         if (P._delFilterEnv !== 'All' && d.environment !== P._delFilterEnv) return false;
         if (P._delFilterModule !== 'All' && d.module !== P._delFilterModule) return false;
         if (P._delFilterSignOff !== 'All' && d.signOffStatus !== P._delFilterSignOff) return false;
+        if (P._delFilterRelease !== 'All' && d.releaseVersion !== P._delFilterRelease) return false;
         return true;
       });
 
@@ -46352,7 +46825,8 @@ Earned Value Management measures project performance and progress by comparing p
           (d.approver || '').toLowerCase().includes(q) ||
           (d.releaseVersion || '').toLowerCase().includes(q) ||
           (d.environment || '').toLowerCase().includes(q) ||
-          (d.notes || '').toLowerCase().includes(q)
+          (d.notes || '').toLowerCase().includes(q) ||
+          (Array.isArray(d.guiScreens) && d.guiScreens.some(s => String(s).toLowerCase().includes(q)))
         );
       }
 
@@ -46360,12 +46834,6 @@ Earned Value Management measures project performance and progress by comparing p
       if (taskInfoEl) {
         taskInfoEl.innerHTML = `<strong>${filtered.length}</strong> / ${totalCount} deliveries`;
       }
-
-      // Unique modules for filter
-      const modules = Array.from(new Set([
-        ...(P.dropdowns && P.dropdowns.module ? P.dropdowns.module : []),
-        ...deliveries.map(d => d.module).filter(Boolean)
-      ])).sort();
 
       const sortIcon = (col) => {
         if (P._delSortCol !== col) return '<i data-lucide="chevrons-up-down" style="width:12px; height:12px; margin-left:4px; opacity:0.3; vertical-align:middle"></i>';
@@ -46402,11 +46870,13 @@ Earned Value Management measures project performance and progress by comparing p
         return `<span style="font-size:11px; font-weight:700; color:var(--color-primary)">🔵 ${esc(s)}</span>`;
       };
 
-      const isAnyFilterActive = P._delFilterStatus !== 'All' || P._delFilterEnv !== 'All' || P._delFilterModule !== 'All' || P._delFilterSignOff !== 'All' || !!P.search;
+      const isAnyFilterActive = P._delFilterStatus !== 'All' || P._delFilterEnv !== 'All' || P._delFilterModule !== 'All' || P._delFilterSignOff !== 'All' || P._delFilterRelease !== 'All' || !!P.search;
       const selectedCount = P._selectedDeliveries ? P._selectedDeliveries.size : 0;
 
       let html = `
         <div style="display:flex; flex-direction:column; gap:20px">
+          ${viewModeSwitcherHtml}
+
           <!-- Top KPI Metric Cards -->
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:16px">
             <div style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); padding:16px 20px; box-shadow:var(--shadow-sm); display:flex; align-items:center; gap:16px">
@@ -46483,6 +46953,14 @@ Earned Value Management measures project performance and progress by comparing p
               </div>
 
               <div style="display:flex; align-items:center; gap:6px">
+                <span style="font-size:12px; font-weight:600; color:var(--color-text-muted)">Release:</span>
+                <select class="fsel" style="padding:4px 8px; font-size:12px; height:32px; min-width:105px" onchange="setDeliveryFilter('release', this.value)">
+                  <option value="All" ${P._delFilterRelease === 'All' ? 'selected' : ''}>All Releases</option>
+                  ${releases.map(r => `<option value="${esc(r)}" ${P._delFilterRelease === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
+                </select>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:6px">
                 <span style="font-size:12px; font-weight:600; color:var(--color-text-muted)">Sign-Off:</span>
                 <select class="fsel" style="padding:4px 8px; font-size:12px; height:32px; min-width:110px" onchange="setDeliveryFilter('signoff', this.value)">
                   <option value="All" ${P._delFilterSignOff === 'All' ? 'selected' : ''}>All Sign-Offs</option>
@@ -46502,11 +46980,6 @@ Earned Value Management measures project performance and progress by comparing p
               </div>
 
               ${isAnyFilterActive ? `<button class="btn ghost mini" onclick="clearDeliveryFilters()" style="color:var(--red)"><i data-lucide="x" style="margin-right:4px"></i> Clear Filters</button>` : ''}
-            </div>
-
-            <div style="display:flex; align-items:center; gap:8px">
-              <button class="btn outline" onclick="triggerDeliveryExcelImport()"><i data-lucide="upload-cloud" style="margin-right:6px"></i> Import Excel</button>
-              <button class="btn primary" onclick="openDeliveryFlyout()"><i data-lucide="plus" style="margin-right:6px"></i> Log Delivery</button>
             </div>
           </div>
 
@@ -46667,6 +47140,8 @@ Earned Value Management measures project performance and progress by comparing p
       else if (type === 'env') P._delFilterEnv = val;
       else if (type === 'module') P._delFilterModule = val;
       else if (type === 'signoff') P._delFilterSignOff = val;
+      else if (type === 'release') P._delFilterRelease = val;
+      else if (type === 'maturity') P._delFilterMaturity = val;
       renderDeliveriesView();
     };
 
@@ -46675,11 +47150,961 @@ Earned Value Management measures project performance and progress by comparing p
       P._delFilterEnv = 'All';
       P._delFilterModule = 'All';
       P._delFilterSignOff = 'All';
+      P._delFilterRelease = 'All';
+      P._delFilterMaturity = 'All';
       const sInp = $id('global-search');
       if (sInp) sInp.value = '';
       P.search = '';
       renderDeliveriesView();
     };
+
+    // ═════════════════════════════════════════════════════════════════
+    // ══════ FEATURE DELIVERY SHAPING HEATMAP & PIPELINE ENGINE ══════
+    // ═════════════════════════════════════════════════════════════════
+
+    function injectDeliveryHeatmapStyles() {
+      if ($id('del-heatmap-custom-styles')) return;
+      const st = document.createElement('style');
+      st.id = 'del-heatmap-custom-styles';
+      st.textContent = `
+        .del-heatmap-card {
+          background: var(--color-surface);
+          border: 1px solid var(--color-divider);
+          border-radius: var(--radius-lg);
+          padding: 18px 20px;
+          box-shadow: var(--shadow-sm);
+          transition: all 0.2s ease;
+        }
+        .del-heatmap-card:hover {
+          border-color: rgba(var(--color-primary-rgb, 99,102,241), 0.35);
+          box-shadow: var(--shadow-md);
+        }
+        .del-screen-tile {
+          border-radius: var(--radius-md);
+          padding: 10px 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+          cursor: pointer;
+          position: relative;
+          user-select: none;
+        }
+        .del-screen-tile:hover {
+          transform: translateY(-2px) scale(1.02);
+          box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+          z-index: 10;
+        }
+        .del-screen-tile.lvl-4 {
+          background: linear-gradient(135deg, rgba(16, 185, 129, 0.14) 0%, rgba(5, 150, 105, 0.22) 100%);
+          border: 1px solid rgba(16, 185, 129, 0.45);
+        }
+        .del-screen-tile.lvl-3 {
+          background: linear-gradient(135deg, rgba(6, 182, 212, 0.13) 0%, rgba(59, 130, 246, 0.2) 100%);
+          border: 1px solid rgba(6, 182, 212, 0.4);
+        }
+        .del-screen-tile.lvl-2 {
+          background: linear-gradient(135deg, rgba(139, 92, 246, 0.13) 0%, rgba(99, 102, 241, 0.18) 100%);
+          border: 1px solid rgba(139, 92, 246, 0.4);
+        }
+        .del-screen-tile.lvl-1 {
+          background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.18) 100%);
+          border: 1px solid rgba(245, 158, 11, 0.35);
+        }
+        .del-screen-tile.lvl-0 {
+          background: var(--color-surface-2);
+          border: 1px dashed var(--color-divider);
+          opacity: 0.85;
+        }
+        .del-screen-tile.lvl-0:hover {
+          opacity: 1;
+          border-color: var(--color-primary);
+        }
+        .del-tooltip-box {
+          position: absolute;
+          bottom: calc(100% + 8px);
+          left: 50%;
+          transform: translateX(-50%);
+          background: var(--color-surface-offset, #1e293b);
+          color: var(--color-text, #f8fafc);
+          padding: 10px 14px;
+          border-radius: var(--radius-md);
+          font-size: 11px;
+          width: 240px;
+          box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
+          border: 1px solid var(--color-divider);
+          pointer-events: none;
+          opacity: 0;
+          visibility: hidden;
+          transition: opacity 0.15s ease, transform 0.15s ease;
+          z-index: 999;
+          line-height: 1.4;
+        }
+        .del-screen-tile:hover .del-tooltip-box {
+          opacity: 1;
+          visibility: visible;
+          transform: translateX(-50%) translateY(-2px);
+        }
+        .del-kanban-col {
+          flex: 1;
+          min-width: 260px;
+          background: var(--color-surface-2);
+          border-radius: var(--radius-lg);
+          border: 1px solid var(--color-divider);
+          display: flex;
+          flex-direction: column;
+          max-height: calc(100vh - 280px);
+        }
+        .del-kanban-cards {
+          overflow-y: auto;
+          padding: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          flex: 1;
+        }
+        .del-kanban-card {
+          background: var(--color-surface);
+          border: 1px solid var(--color-divider);
+          border-radius: var(--radius-md);
+          padding: 12px 14px;
+          box-shadow: var(--shadow-sm);
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+        .del-kanban-card:hover {
+          border-color: var(--color-primary);
+          box-shadow: var(--shadow-md);
+          transform: translateY(-1px);
+        }
+      `;
+      document.head.appendChild(st);
+    }
+
+    // ── Multi-Dimensional Data Aggregation Engine ──
+    window.computeFeatureDeliveryHeatmapData = function(filterOpts = {}) {
+      const deliveries = P.deliveries || [];
+      const rawFeatures = P.features || [];
+      const allScreens = typeof getAllScreens === 'function' ? getAllScreens() : [];
+
+      let featureList = [];
+      if (rawFeatures.length > 0) {
+        featureList = rawFeatures.map((f, idx) => ({
+          id: f.id || `FEAT-${idx + 1}`,
+          name: f.name || `Feature ${idx + 1}`,
+          desc: f.desc || '',
+          module: f.module || f.category || 'Core',
+          release: f.release || '',
+          screens: Array.isArray(f.screens) ? f.screens : []
+        }));
+      } else {
+        // Synthesize features from tasks/modules if none explicitly defined
+        const modScreensMap = {};
+        (P.tasks || []).forEach(t => {
+          const mod = t.module || 'Core';
+          if (!modScreensMap[mod]) modScreensMap[mod] = new Set();
+          if (t.guiScreens && Array.isArray(t.guiScreens)) {
+            t.guiScreens.forEach(s => modScreensMap[mod].add(s));
+          }
+          if (t.subtasks) {
+            t.subtasks.forEach(st => {
+              if (st.type === 'screen' && st.name) modScreensMap[mod].add(st.name);
+            });
+          }
+        });
+        allScreens.forEach(s => {
+          let found = false;
+          for (const mod in modScreensMap) {
+            if (modScreensMap[mod].has(s)) { found = true; break; }
+          }
+          if (!found) {
+            if (!modScreensMap['General']) modScreensMap['General'] = new Set();
+            modScreensMap['General'].add(s);
+          }
+        });
+
+        featureList = Object.entries(modScreensMap).map(([mod, sSet], idx) => ({
+          id: `FEAT-${idx + 1}`,
+          name: `${mod} Functional Suite`,
+          desc: `Aggregated functional screens and capabilities for ${mod}`,
+          module: mod,
+          release: '',
+          screens: Array.from(sSet)
+        }));
+      }
+
+      // Pre-index deliveries by screen name
+      const deliveriesByScreen = {};
+      deliveries.forEach(del => {
+        const screens = Array.isArray(del.guiScreens) ? del.guiScreens : (del.guiScreens ? String(del.guiScreens).split(/[,;]/).map(s => s.trim()).filter(Boolean) : []);
+        screens.forEach(s => {
+          const sKey = s.toLowerCase().trim();
+          if (!deliveriesByScreen[sKey]) deliveriesByScreen[sKey] = [];
+          deliveriesByScreen[sKey].push(del);
+        });
+      });
+
+      const featureResults = [];
+      let totalScreensCount = 0;
+      let totalProdDeployedScreens = 0;
+      let totalStagingScreens = 0;
+      let totalQAScreens = 0;
+      let totalScheduledScreens = 0;
+      let totalUnscheduledScreens = 0;
+      let totalSmokePassScreens = 0;
+      let totalSignOffApprovedScreens = 0;
+
+      featureList.forEach(feat => {
+        // Apply filters
+        if (filterOpts.module && filterOpts.module !== 'All' && feat.module !== filterOpts.module) return;
+        if (filterOpts.release && filterOpts.release !== 'All' && feat.release !== filterOpts.release) return;
+
+        let fScreens = Array.isArray(feat.screens) ? [...feat.screens] : [];
+        if (!fScreens.length) {
+          // Inferred from tasks in matching module
+          const modTasks = (P.tasks || []).filter(t => t.module === feat.module);
+          const sSet = new Set();
+          modTasks.forEach(t => {
+            if (t.guiScreens && Array.isArray(t.guiScreens)) t.guiScreens.forEach(s => sSet.add(s));
+            if (t.subtasks) t.subtasks.forEach(st => { if (st.type === 'screen' && st.name) sSet.add(st.name); });
+          });
+          fScreens = Array.from(sSet);
+        }
+
+        const screenDetails = [];
+        let featProdCount = 0;
+        let featStagingCount = 0;
+        let featQACount = 0;
+        let featScheduledCount = 0;
+        let featUnscheduledCount = 0;
+        let featWeightSum = 0;
+
+        fScreens.forEach(sName => {
+          const sKey = sName.toLowerCase().trim();
+          let activeMatchingDels = deliveriesByScreen[sKey] || [];
+
+          if (!activeMatchingDels.length) {
+            activeMatchingDels = deliveries.filter(d => {
+              const dName = (d.name || '').toLowerCase();
+              const dScreens = (Array.isArray(d.guiScreens) ? d.guiScreens : []).map(x => String(x).toLowerCase());
+              return dName.includes(sKey) || dScreens.some(x => x.includes(sKey));
+            });
+          }
+
+          // Determine highest deployment tier & status
+          let highestLevel = 0;
+          let bestDelivery = null;
+
+          activeMatchingDels.forEach(d => {
+            const env = (d.environment || 'Dev').toLowerCase();
+            const st = (d.status || 'Scheduled').toLowerCase();
+
+            let lvl = 1;
+            if (st === 'deployed' && env === 'production') {
+              lvl = 4;
+            } else if ((st === 'deployed' && (env === 'staging' || env === 'uat')) || st === 'ready for deployment') {
+              lvl = 3;
+            } else if (st === 'in progress' || env === 'qa' || env === 'dev') {
+              lvl = 2;
+            } else if (st === 'scheduled') {
+              lvl = 1;
+            } else if (st === 'failed' || st === 'rolled back' || st === 'cancelled') {
+              lvl = 0.5;
+            }
+
+            if (lvl > highestLevel) {
+              highestLevel = lvl;
+              bestDelivery = d;
+            }
+          });
+
+          if (highestLevel >= 4) {
+            featProdCount++;
+            totalProdDeployedScreens++;
+            featWeightSum += 1.0;
+          } else if (highestLevel >= 3) {
+            featStagingCount++;
+            totalStagingScreens++;
+            featWeightSum += 0.75;
+          } else if (highestLevel >= 2) {
+            featQACount++;
+            totalQAScreens++;
+            featWeightSum += 0.5;
+          } else if (highestLevel >= 1) {
+            featScheduledCount++;
+            totalScheduledScreens++;
+            featWeightSum += 0.25;
+          } else {
+            featUnscheduledCount++;
+            totalUnscheduledScreens++;
+          }
+
+          if (bestDelivery && bestDelivery.smokeTestStatus === 'Passed') totalSmokePassScreens++;
+          if (bestDelivery && bestDelivery.signOffStatus === 'Approved') totalSignOffApprovedScreens++;
+
+          const envStates = {
+            Dev: activeMatchingDels.some(d => (d.environment || '').toLowerCase() === 'dev' && d.status === 'Deployed'),
+            QA: activeMatchingDels.some(d => (d.environment || '').toLowerCase() === 'qa' && d.status === 'Deployed'),
+            UAT: activeMatchingDels.some(d => (d.environment || '').toLowerCase() === 'uat' && d.status === 'Deployed'),
+            Staging: activeMatchingDels.some(d => (d.environment || '').toLowerCase() === 'staging' && d.status === 'Deployed'),
+            Production: activeMatchingDels.some(d => (d.environment || '').toLowerCase() === 'production' && d.status === 'Deployed')
+          };
+
+          screenDetails.push({
+            name: sName,
+            level: highestLevel,
+            deliveries: activeMatchingDels,
+            bestDelivery: bestDelivery,
+            envStates: envStates
+          });
+        });
+
+        const totalFeatScreens = fScreens.length;
+        const shapingScore = totalFeatScreens > 0 ? Math.round((featWeightSum / totalFeatScreens) * 100) : 0;
+        const prodDeliveredPct = totalFeatScreens > 0 ? Math.round((featProdCount / totalFeatScreens) * 100) : 0;
+
+        // Apply Maturity Filter
+        if (filterOpts.maturity === 'complete' && featProdCount !== totalFeatScreens) return;
+        if (filterOpts.maturity === 'in_progress' && (shapingScore === 0 || featProdCount === totalFeatScreens)) return;
+        if (filterOpts.maturity === 'unscheduled' && shapingScore > 0) return;
+
+        // Apply Search Filter
+        if (filterOpts.search) {
+          const q = filterOpts.search.toLowerCase();
+          const matchFeat = (feat.name || '').toLowerCase().includes(q) || (feat.desc || '').toLowerCase().includes(q) || (feat.module || '').toLowerCase().includes(q);
+          const matchScreen = screenDetails.some(s => s.name.toLowerCase().includes(q) || (s.bestDelivery && (s.bestDelivery.id.toLowerCase().includes(q) || (s.bestDelivery.name || '').toLowerCase().includes(q))));
+          if (!matchFeat && !matchScreen) return;
+        }
+
+        totalScreensCount += totalFeatScreens;
+
+        featureResults.push({
+          ...feat,
+          screens: screenDetails,
+          totalScreens: totalFeatScreens,
+          prodScreens: featProdCount,
+          stagingScreens: featStagingCount,
+          qaScreens: featQACount,
+          scheduledScreens: featScheduledCount,
+          unscheduledScreens: featUnscheduledCount,
+          shapingScore: shapingScore,
+          prodDeliveredPct: prodDeliveredPct,
+          isFullyDelivered: totalFeatScreens > 0 && featProdCount === totalFeatScreens,
+          hasFailedSmokes: screenDetails.some(s => s.bestDelivery && s.bestDelivery.smokeTestStatus === 'Failed'),
+          hasPendingSignOff: screenDetails.some(s => s.bestDelivery && s.bestDelivery.signOffStatus === 'Pending' && s.bestDelivery.environment === 'Production')
+        });
+      });
+
+      return {
+        features: featureResults,
+        stats: {
+          totalFeatures: featureResults.length,
+          totalScreens: totalScreensCount,
+          prodDeployedScreens: totalProdDeployedScreens,
+          stagingScreens: totalStagingScreens,
+          qaScreens: totalQAScreens,
+          scheduledScreens: totalScheduledScreens,
+          unscheduledScreens: totalUnscheduledScreens,
+          fullyDeliveredFeatures: featureResults.filter(f => f.isFullyDelivered).length,
+          overallShapingScore: totalScreensCount > 0 ? Math.round(((totalProdDeployedScreens * 1.0 + totalStagingScreens * 0.75 + totalQAScreens * 0.5 + totalScheduledScreens * 0.25) / totalScreensCount) * 100) : 0
+        }
+      };
+    };
+
+    // ── Render Heatmap Workspace ──
+    function renderFeatureDeliveryHeatmap(panel, heatmapData, deliveries, modules, releases, switcherHtml) {
+      injectDeliveryHeatmapStyles();
+      const stats = heatmapData.stats;
+      const features = heatmapData.features;
+      const persp = P._delHeatmapPerspective || 'feat_screens';
+
+      // Group features by Module
+      const groupedByModule = {};
+      features.forEach(f => {
+        const mod = f.module || 'General';
+        if (!groupedByModule[mod]) groupedByModule[mod] = [];
+        groupedByModule[mod].push(f);
+      });
+
+      let html = `
+        <div style="display:flex; flex-direction:column; gap:20px">
+          ${switcherHtml}
+
+          <!-- Global Feature Delivery Shaping Ribbon -->
+          <div style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); padding:20px 24px; box-shadow:var(--shadow-sm)">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:14px">
+              <div>
+                <div style="display:flex; align-items:center; gap:8px">
+                  <span style="font-size:16px; font-weight:800; color:var(--color-text)">Feature Delivery Shaping Heatmap</span>
+                  <span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px; background:rgba(99,102,241,0.12); color:var(--color-primary); border:1px solid rgba(99,102,241,0.25)">
+                    Screens-to-Release Correlation Matrix
+                  </span>
+                </div>
+                <div style="font-size:12px; color:var(--color-text-muted); margin-top:3px">
+                  Tracks how functional capabilities are taking shape into live software through verified screen deployments across tiers.
+                </div>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:12px">
+                <div style="text-align:right">
+                  <div style="font-size:10px; font-weight:700; text-transform:uppercase; color:var(--color-text-muted); letter-spacing:0.5px">Overall Feature Maturity</div>
+                  <div style="font-size:22px; font-weight:900; color:${stats.overallShapingScore >= 75 ? 'var(--green)' : stats.overallShapingScore >= 40 ? 'var(--color-primary)' : 'var(--amber)'}; font-family:var(--font-mono)">
+                    ${stats.overallShapingScore}%
+                  </div>
+                </div>
+                <div style="width:110px; height:10px; background:var(--color-surface-3); border-radius:5px; overflow:hidden">
+                  <div style="width:${stats.overallShapingScore}%; height:100%; background:linear-gradient(90deg, #6366f1, #10b981); border-radius:5px; transition:width 0.5s ease"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Metric KPI Badges -->
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-top:8px">
+              <div style="background:var(--color-surface-2); padding:10px 14px; border-radius:var(--radius-md); border:1px solid var(--color-divider)">
+                <div style="font-size:10px; font-weight:700; text-transform:uppercase; color:var(--color-text-muted)">Tracked Features</div>
+                <div style="font-size:18px; font-weight:800; color:var(--color-text); margin-top:2px">${stats.totalFeatures}</div>
+                <div style="font-size:10px; color:var(--green); margin-top:2px">${stats.fullyDeliveredFeatures} 100% in Prod</div>
+              </div>
+
+              <div style="background:var(--color-surface-2); padding:10px 14px; border-radius:var(--radius-md); border:1px solid var(--color-divider)">
+                <div style="font-size:10px; font-weight:700; text-transform:uppercase; color:var(--color-text-muted)">Total Screens</div>
+                <div style="font-size:18px; font-weight:800; color:var(--color-text); margin-top:2px">${stats.totalScreens}</div>
+                <div style="font-size:10px; color:var(--color-text-muted); margin-top:2px">Functional artifacts</div>
+              </div>
+
+              <div style="background:rgba(16,185,129,0.06); padding:10px 14px; border-radius:var(--radius-md); border:1px solid rgba(16,185,129,0.25)">
+                <div style="font-size:10px; font-weight:700; text-transform:uppercase; color:var(--green)">Prod Deployed</div>
+                <div style="font-size:18px; font-weight:800; color:var(--green); margin-top:2px">${stats.prodDeployedScreens} <span style="font-size:11px; font-weight:600">(${stats.totalScreens ? Math.round(stats.prodDeployedScreens/stats.totalScreens*100) : 0}%)</span></div>
+                <div style="font-size:10px; color:var(--color-text-muted); margin-top:2px">Level 4 Verified</div>
+              </div>
+
+              <div style="background:rgba(6,182,212,0.06); padding:10px 14px; border-radius:var(--radius-md); border:1px solid rgba(6,182,212,0.25)">
+                <div style="font-size:10px; font-weight:700; text-transform:uppercase; color:#06b6d4">Staging / UAT</div>
+                <div style="font-size:18px; font-weight:800; color:#06b6d4; margin-top:2px">${stats.stagingScreens}</div>
+                <div style="font-size:10px; color:var(--color-text-muted); margin-top:2px">Level 3 Pre-Release</div>
+              </div>
+
+              <div style="background:rgba(139,92,246,0.06); padding:10px 14px; border-radius:var(--radius-md); border:1px solid rgba(139,92,246,0.25)">
+                <div style="font-size:10px; font-weight:700; text-transform:uppercase; color:#8b5cf6">QA / In Progress</div>
+                <div style="font-size:18px; font-weight:800; color:#8b5cf6; margin-top:2px">${stats.qaScreens}</div>
+                <div style="font-size:10px; color:var(--color-text-muted); margin-top:2px">Level 2 Active</div>
+              </div>
+
+              <div style="background:rgba(245,158,11,0.06); padding:10px 14px; border-radius:var(--radius-md); border:1px solid rgba(245,158,11,0.25)">
+                <div style="font-size:10px; font-weight:700; text-transform:uppercase; color:var(--amber)">Scheduled Plan</div>
+                <div style="font-size:18px; font-weight:800; color:var(--amber); margin-top:2px">${stats.scheduledScreens}</div>
+                <div style="font-size:10px; color:var(--color-text-muted); margin-top:2px">Level 1 Planned</div>
+              </div>
+
+              <div style="background:var(--color-surface-2); padding:10px 14px; border-radius:var(--radius-md); border:1px solid var(--color-divider)">
+                <div style="font-size:10px; font-weight:700; text-transform:uppercase; color:var(--color-text-faint)">Backlog / Unset</div>
+                <div style="font-size:18px; font-weight:800; color:var(--color-text-faint); margin-top:2px">${stats.unscheduledScreens}</div>
+                <div style="font-size:10px; color:var(--color-text-muted); margin-top:2px">Level 0 Unassigned</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Heatmap Perspective Toolbar & Filters -->
+          <div style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); padding:14px 18px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between">
+            <div style="display:flex; align-items:center; gap:6px; background:var(--color-surface-2); padding:3px; border-radius:var(--radius-md); border:1px solid var(--color-divider)">
+              <button class="btn ${persp === 'feat_screens' ? 'primary' : 'ghost'} mini" onclick="setDeliveryHeatmapPerspective('feat_screens')" style="font-size:11px; font-weight:700">
+                <i data-lucide="layout-grid" style="width:13px; height:13px; margin-right:4px"></i> Feature × Screens Grid
+              </button>
+              <button class="btn ${persp === 'env_pipeline' ? 'primary' : 'ghost'} mini" onclick="setDeliveryHeatmapPerspective('env_pipeline')" style="font-size:11px; font-weight:700">
+                <i data-lucide="git-branch" style="width:13px; height:13px; margin-right:4px"></i> Environment Pipeline
+              </button>
+              <button class="btn ${persp === 'del_impact' ? 'primary' : 'ghost'} mini" onclick="setDeliveryHeatmapPerspective('del_impact')" style="font-size:11px; font-weight:700">
+                <i data-lucide="package-open" style="width:13px; height:13px; margin-right:4px"></i> Delivery Payload Impact
+              </button>
+            </div>
+
+            <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center">
+              <div style="display:flex; align-items:center; gap:6px">
+                <span style="font-size:12px; font-weight:600; color:var(--color-text-muted)">Module:</span>
+                <select class="fsel" style="padding:4px 8px; font-size:12px; height:32px; min-width:110px" onchange="setDeliveryFilter('module', this.value)">
+                  <option value="All" ${P._delFilterModule === 'All' ? 'selected' : ''}>All Modules</option>
+                  ${modules.map(m => `<option value="${esc(m)}" ${P._delFilterModule === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}
+                </select>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:6px">
+                <span style="font-size:12px; font-weight:600; color:var(--color-text-muted)">Release:</span>
+                <select class="fsel" style="padding:4px 8px; font-size:12px; height:32px; min-width:105px" onchange="setDeliveryFilter('release', this.value)">
+                  <option value="All" ${P._delFilterRelease === 'All' ? 'selected' : ''}>All Releases</option>
+                  ${releases.map(r => `<option value="${esc(r)}" ${P._delFilterRelease === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
+                </select>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:6px">
+                <span style="font-size:12px; font-weight:600; color:var(--color-text-muted)">Maturity:</span>
+                <select class="fsel" style="padding:4px 8px; font-size:12px; height:32px; min-width:120px" onchange="setDeliveryFilter('maturity', this.value)">
+                  <option value="All" ${P._delFilterMaturity === 'All' ? 'selected' : ''}>All Stages</option>
+                  <option value="complete" ${P._delFilterMaturity === 'complete' ? 'selected' : ''}>100% Deployed</option>
+                  <option value="in_progress" ${P._delFilterMaturity === 'in_progress' ? 'selected' : ''}>In Progress (>0%)</option>
+                  <option value="unscheduled" ${P._delFilterMaturity === 'unscheduled' ? 'selected' : ''}>Unscheduled (0%)</option>
+                </select>
+              </div>
+
+              <button class="btn ghost mini" onclick="clearDeliveryFilters()" style="color:var(--red)"><i data-lucide="x" style="margin-right:4px"></i> Reset</button>
+            </div>
+          </div>
+      `;
+
+      // ── PERSPECTIVE 1: Feature × Screens Grid ──
+      if (persp === 'feat_screens') {
+        if (!features.length) {
+          html += `
+            <div style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); padding:48px 20px; text-align:center; color:var(--color-text-muted)">
+              <div style="font-size:36px; margin-bottom:12px">🔍</div>
+              <div style="font-size:16px; font-weight:700; color:var(--color-text)">No Features Match Current Filters</div>
+              <div style="font-size:13px; margin-top:4px">Try selecting "All Modules" or resetting the search term.</div>
+            </div>
+          `;
+        } else {
+          html += `<div style="display:flex; flex-direction:column; gap:24px">`;
+
+          for (const [modName, modFeats] of Object.entries(groupedByModule)) {
+            const modTotalScreens = modFeats.reduce((sum, f) => sum + f.totalScreens, 0);
+            const modProdScreens = modFeats.reduce((sum, f) => sum + f.prodScreens, 0);
+            const modPct = modTotalScreens > 0 ? Math.round((modProdScreens / modTotalScreens) * 100) : 0;
+
+            html += `
+              <div style="display:flex; flex-direction:column; gap:14px">
+                <!-- Module Header -->
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid var(--color-divider); padding-bottom:8px">
+                  <div style="display:flex; align-items:center; gap:8px">
+                    <span style="font-size:14px; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; color:var(--color-primary)">
+                      ${esc(modName)} Module
+                    </span>
+                    <span style="font-size:11px; padding:1px 7px; border-radius:10px; background:var(--color-surface-3); font-weight:700; color:var(--color-text-muted)">
+                      ${modFeats.length} feature${modFeats.length > 1 ? 's' : ''} · ${modTotalScreens} screens
+                    </span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:10px">
+                    <span style="font-size:11px; font-weight:700; color:var(--color-text-muted)">Module Prod Delivery:</span>
+                    <span style="font-size:12px; font-weight:800; color:${modPct >= 80 ? 'var(--green)' : 'var(--color-primary)'}; font-family:var(--font-mono)">${modPct}%</span>
+                    <div style="width:70px; height:6px; background:var(--color-surface-3); border-radius:3px; overflow:hidden">
+                      <div style="width:${modPct}%; height:100%; background:var(--green); border-radius:3px"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Features in Module -->
+                <div style="display:grid; grid-template-columns:1fr; gap:16px">
+                  ${modFeats.map(feat => {
+                    const prodPct = feat.totalScreens ? Math.round((feat.prodScreens / feat.totalScreens) * 100) : 0;
+                    const stagPct = feat.totalScreens ? Math.round((feat.stagingScreens / feat.totalScreens) * 100) : 0;
+                    const qaPct = feat.totalScreens ? Math.round((feat.qaScreens / feat.totalScreens) * 100) : 0;
+                    const schedPct = feat.totalScreens ? Math.round((feat.scheduledScreens / feat.totalScreens) * 100) : 0;
+                    const unsetPct = feat.totalScreens ? Math.round((feat.unscheduledScreens / feat.totalScreens) * 100) : 0;
+
+                    return `
+                      <div class="del-heatmap-card">
+                        <!-- Feature Header -->
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:12px">
+                          <div>
+                            <div style="display:flex; align-items:center; gap:8px">
+                              <span style="font-size:14.5px; font-weight:800; color:var(--color-text)">${esc(feat.name)}</span>
+                              ${feat.release ? `<span style="font-size:10px; font-weight:700; padding:1px 6px; border-radius:4px; background:var(--color-surface-3); border:1px solid var(--color-divider); color:var(--color-text-muted)">${esc(feat.release)}</span>` : ''}
+                              ${feat.isFullyDelivered ? `<span style="font-size:10px; font-weight:800; padding:1px 6px; border-radius:4px; background:rgba(16,185,129,0.15); color:var(--green); border:1px solid rgba(16,185,129,0.3)">✓ 100% Prod Deployed</span>` : ''}
+                              ${feat.hasFailedSmokes ? `<span style="font-size:10px; font-weight:800; padding:1px 6px; border-radius:4px; background:rgba(239,68,68,0.15); color:var(--red); border:1px solid rgba(239,68,68,0.3)">⚠️ Smoke Test Failed</span>` : ''}
+                            </div>
+                            ${feat.desc ? `<div style="font-size:11.5px; color:var(--color-text-muted); margin-top:3px">${esc(feat.desc)}</div>` : ''}
+                          </div>
+
+                          <div style="display:flex; align-items:center; gap:12px">
+                            <div style="text-align:right">
+                              <div style="font-size:10px; font-weight:700; text-transform:uppercase; color:var(--color-text-muted)">Shaping Index</div>
+                              <div style="font-size:16px; font-weight:900; color:${feat.shapingScore >= 80 ? 'var(--green)' : feat.shapingScore >= 40 ? 'var(--color-primary)' : 'var(--amber)'}; font-family:var(--font-mono)">
+                                ${feat.shapingScore}%
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- Multi-Segmented Delivery Progress Bar -->
+                        <div style="margin-bottom:14px">
+                          <div style="display:flex; height:6px; width:100%; border-radius:3px; overflow:hidden; background:var(--color-surface-3)">
+                            <div style="width:${prodPct}%; height:100%; background:var(--green)" title="Production Deployed: ${feat.prodScreens} screens (${prodPct}%)"></div>
+                            <div style="width:${stagPct}%; height:100%; background:#06b6d4" title="Staged / UAT: ${feat.stagingScreens} screens (${stagPct}%)"></div>
+                            <div style="width:${qaPct}%; height:100%; background:#8b5cf6" title="QA / Active: ${feat.qaScreens} screens (${qaPct}%)"></div>
+                            <div style="width:${schedPct}%; height:100%; background:var(--amber)" title="Scheduled: ${feat.scheduledScreens} screens (${schedPct}%)"></div>
+                            <div style="width:${unsetPct}%; height:100%; background:var(--color-divider)" title="Backlog / Unscheduled: ${feat.unscheduledScreens} screens (${unsetPct}%)"></div>
+                          </div>
+                          <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--color-text-muted); margin-top:4px">
+                            <span><b>${feat.prodScreens}</b> of <b>${feat.totalScreens}</b> screens live in Production</span>
+                            <span>${feat.stagingScreens} in Staging · ${feat.qaScreens} in QA · ${feat.scheduledScreens} Scheduled</span>
+                          </div>
+                        </div>
+
+                        <!-- Screen Tiles Grid -->
+                        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:10px">
+                          ${feat.screens.length ? feat.screens.map(sc => {
+                            const lvl = sc.level;
+                            const d = sc.bestDelivery;
+                            const lvlClass = lvl >= 4 ? 'lvl-4' : (lvl >= 3 ? 'lvl-3' : (lvl >= 2 ? 'lvl-2' : (lvl >= 1 ? 'lvl-1' : 'lvl-0')));
+                            const statusLabel = lvl >= 4 ? 'Live in Production' : (lvl >= 3 ? 'Staged / UAT' : (lvl >= 2 ? 'In QA / Dev' : (lvl >= 1 ? 'Scheduled' : 'Unscheduled Backlog')));
+                            const statusColor = lvl >= 4 ? 'var(--green)' : (lvl >= 3 ? '#06b6d4' : (lvl >= 2 ? '#8b5cf6' : (lvl >= 1 ? 'var(--amber)' : 'var(--color-text-faint)')));
+
+                            return `
+                              <div class="del-screen-tile ${lvlClass}" onclick="${d ? `openDeliveryFlyout('${d.id}')` : `openDeliveryFlyout()`}" title="Click to view delivery details">
+                                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px">
+                                  <span style="font-size:12px; font-weight:700; color:var(--color-text); text-overflow:ellipsis; overflow:hidden; white-space:nowrap" title="${esc(sc.name)}">
+                                    ${esc(sc.name)}
+                                  </span>
+                                  <span style="font-size:9.5px; font-weight:800; color:${statusColor}; text-transform:uppercase; flex-shrink:0">
+                                    ${lvl >= 4 ? '✓ PROD' : (lvl >= 3 ? 'STAGED' : (lvl >= 2 ? 'QA' : (lvl >= 1 ? 'PLAN' : 'BACKLOG')))}
+                                  </span>
+                                </div>
+
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2px; font-size:10px">
+                                  ${d ? `
+                                    <span style="font-family:var(--mono); font-weight:700; color:var(--color-primary); background:var(--color-surface); padding:1px 5px; border-radius:3px; border:1px solid var(--color-divider)">
+                                      ${esc(d.id)}
+                                    </span>
+                                    <div style="display:flex; gap:4px; align-items:center">
+                                      <span style="font-size:9.5px; font-weight:700; color:${d.environment === 'Production' ? 'var(--red)' : '#06b6d4'}">${esc(d.environment || 'Prod')}</span>
+                                      ${d.smokeTestStatus === 'Passed' ? `<span style="color:var(--green)" title="Smoke Test Passed">🧪</span>` : (d.smokeTestStatus === 'Failed' ? `<span style="color:var(--red)" title="Smoke Test Failed">⚠️</span>` : '')}
+                                      ${d.signOffStatus === 'Approved' ? `<span style="color:var(--green)" title="Sign-Off Approved">✓</span>` : ''}
+                                    </div>
+                                  ` : `
+                                    <span style="color:var(--color-text-faint); font-style:italic">Not in any delivery</span>
+                                    <span style="font-size:9px; color:var(--color-primary); font-weight:700">+ Schedule</span>
+                                  `}
+                                </div>
+
+                                <!-- Rich Tooltip Box on Hover -->
+                                <div class="del-tooltip-box">
+                                  <div style="font-weight:800; font-size:12px; color:#fff; margin-bottom:4px">${esc(sc.name)}</div>
+                                  <div style="font-size:10px; color:#94a3b8; margin-bottom:6px">Feature: ${esc(feat.name)} (${esc(feat.module)})</div>
+                                  <div style="border-top:1px solid rgba(255,255,255,0.1); padding-top:6px; display:flex; flex-direction:column; gap:3px">
+                                    ${d ? `
+                                      <div><b>Delivery:</b> ${esc(d.id)} — ${esc(d.name || 'Untitled')}</div>
+                                      <div><b>Environment:</b> <span style="color:${d.environment === 'Production' ? '#f87171' : '#38bdf8'}">${esc(d.environment || 'Production')}</span> (${esc(d.status || 'Scheduled')})</div>
+                                      <div><b>Target Date:</b> ${esc(d.targetDeliveryDate || '—')} ${d.actualDeliveryDate ? ` · <b>Actual:</b> ${esc(d.actualDeliveryDate)}` : ''}</div>
+                                      <div><b>Sign-Off:</b> <span style="color:${d.signOffStatus === 'Approved' ? '#4ade80' : '#fbbf24'}">${esc(d.signOffStatus || 'Pending')}</span> (${esc(d.approver || 'Unassigned')})</div>
+                                      <div><b>Smoke Test:</b> <span style="color:${d.smokeTestStatus === 'Passed' ? '#4ade80' : (d.smokeTestStatus === 'Failed' ? '#f87171' : '#94a3b8')}">${esc(d.smokeTestStatus || 'Not Run')}</span></div>
+                                    ` : `
+                                      <div style="color:#cbd5e1">This screen task is not currently mapped into an active release package.</div>
+                                      <div style="margin-top:4px; color:#38bdf8; font-weight:700">Click to create and schedule a delivery payload.</div>
+                                    `}
+                                  </div>
+                                </div>
+                              </div>
+                            `;
+                          }).join('') : `
+                            <div style="grid-column:1/-1; padding:16px; text-align:center; color:var(--color-text-faint); font-size:11px">
+                              No screen tasks mapped to this feature. Add screens in Feature Hub to track delivery shaping.
+                            </div>
+                          `}
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `;
+          }
+          html += `</div>`;
+        }
+      }
+
+      // ── PERSPECTIVE 2: Environment Promotion Pipeline Matrix ──
+      else if (persp === 'env_pipeline') {
+        const envs = ['Dev', 'QA', 'UAT', 'Staging', 'Production'];
+
+        html += `
+          <div class="twrap" style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); overflow:hidden">
+            <table style="width:100%; border-collapse:collapse; text-align:left; font-size:12px">
+              <thead>
+                <tr style="background:var(--color-surface-2); border-bottom:1px solid var(--color-divider); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--color-text-muted)">
+                  <th style="padding:12px 16px; width:220px">Feature & Module</th>
+                  <th style="padding:12px 10px; width:90px">Release</th>
+                  <th style="padding:12px 10px; width:80px; text-align:center">Screens</th>
+                  ${envs.map(env => `
+                    <th style="padding:12px 12px; text-align:center; width:130px">${env}</th>
+                  `).join('')}
+                  <th style="padding:12px 16px; width:130px; text-align:right">Shaping Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${features.map(f => {
+                  return `
+                    <tr style="border-bottom:1px solid var(--color-divider)">
+                      <td style="padding:12px 16px">
+                        <div style="font-weight:700; color:var(--color-text)">${esc(f.name)}</div>
+                        <div style="font-size:10px; color:var(--color-text-muted)">${esc(f.module || 'General')}</div>
+                      </td>
+                      <td style="padding:12px 10px">
+                        <span style="font-size:10.5px; background:var(--color-surface-3); padding:2px 6px; border-radius:4px; font-weight:600">${esc(f.release || '—')}</span>
+                      </td>
+                      <td style="padding:12px 10px; text-align:center; font-family:var(--mono); font-weight:700">
+                        ${f.totalScreens}
+                      </td>
+                      ${envs.map(env => {
+                        const count = f.screens.filter(sc => sc.envStates && sc.envStates[env]).length;
+                        const pct = f.totalScreens > 0 ? Math.round((count / f.totalScreens) * 100) : 0;
+                        const isFull = f.totalScreens > 0 && count === f.totalScreens;
+                        const isZero = count === 0;
+
+                        return `
+                          <td style="padding:10px 12px; text-align:center">
+                            <div style="display:flex; flex-direction:column; align-items:center; gap:3px">
+                              <span style="font-size:11px; font-weight:800; color:${isFull ? 'var(--green)' : (isZero ? 'var(--color-text-faint)' : 'var(--color-primary)')}; font-family:var(--mono)">
+                                ${count} / ${f.totalScreens}
+                              </span>
+                              <div style="width:80px; height:4px; background:var(--color-surface-3); border-radius:2px; overflow:hidden">
+                                <div style="width:${pct}%; height:100%; background:${env === 'Production' ? 'var(--green)' : (env === 'Staging' ? '#a855f7' : '#06b6d4')}; border-radius:2px"></div>
+                              </div>
+                            </div>
+                          </td>
+                        `;
+                      }).join('')}
+                      <td style="padding:12px 16px; text-align:right">
+                        <span style="font-size:13px; font-weight:900; color:${f.shapingScore >= 80 ? 'var(--green)' : (f.shapingScore >= 40 ? 'var(--color-primary)' : 'var(--amber)')}; font-family:var(--font-mono)">
+                          ${f.shapingScore}%
+                        </span>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      // ── PERSPECTIVE 3: Delivery Payload Impact Matrix ──
+      else if (persp === 'del_impact') {
+        html += `
+          <div class="twrap" style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); overflow:hidden">
+            <table style="width:100%; border-collapse:collapse; text-align:left; font-size:12px">
+              <thead>
+                <tr style="background:var(--color-surface-2); border-bottom:1px solid var(--color-divider); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--color-text-muted)">
+                  <th style="padding:12px 16px; width:220px">Delivery ID & Scope</th>
+                  <th style="padding:12px 10px; width:90px">Release</th>
+                  <th style="padding:12px 10px; width:100px">Environment</th>
+                  <th style="padding:12px 10px; width:110px">Status</th>
+                  <th style="padding:12px 10px; width:100px">Target Date</th>
+                  <th style="padding:12px 14px">Impacted Functional Features & Screens</th>
+                  <th style="padding:12px 12px; width:140px">Governance</th>
+                  <th style="padding:12px 16px; width:80px; text-align:right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${deliveries.map(d => {
+                  const dScreens = Array.isArray(d.guiScreens) ? d.guiScreens : (d.guiScreens ? String(d.guiScreens).split(/[,;]/).map(s => s.trim()).filter(Boolean) : []);
+                  
+                  // Find which features are impacted by this delivery
+                  const impactedFeats = [];
+                  features.forEach(f => {
+                    const matchedScreens = f.screens.filter(sc => dScreens.some(ds => ds.toLowerCase() === sc.name.toLowerCase()));
+                    if (matchedScreens.length > 0) {
+                      impactedFeats.push({ feat: f, screens: matchedScreens });
+                    }
+                  });
+
+                  return `
+                    <tr style="border-bottom:1px solid var(--color-divider)">
+                      <td style="padding:12px 16px">
+                        <div style="font-family:var(--mono); font-weight:800; color:var(--color-primary)">${esc(d.id)}</div>
+                        <div style="font-weight:600; color:var(--color-text); margin-top:2px">${esc(d.name || 'Untitled')}</div>
+                      </td>
+                      <td style="padding:12px 10px">
+                        <span style="font-size:10.5px; background:var(--color-surface-3); padding:2px 6px; border-radius:4px; font-weight:600">${esc(d.releaseVersion || '—')}</span>
+                      </td>
+                      <td style="padding:12px 10px">
+                        <span style="font-size:11px; font-weight:700; color:${d.environment === 'Production' ? 'var(--red)' : '#06b6d4'}">${esc(d.environment || 'Prod')}</span>
+                      </td>
+                      <td style="padding:12px 10px">
+                        <span style="font-size:11px; font-weight:700; color:${d.status === 'Deployed' ? 'var(--green)' : 'var(--amber)'}">${esc(d.status || 'Scheduled')}</span>
+                      </td>
+                      <td style="padding:12px 10px; font-family:var(--mono); font-size:11px; color:var(--color-text-muted)">
+                        ${esc(d.targetDeliveryDate || '—')}
+                      </td>
+                      <td style="padding:12px 14px">
+                        <div style="display:flex; flex-direction:column; gap:6px">
+                          ${impactedFeats.length ? impactedFeats.map(imp => `
+                            <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap">
+                              <span style="font-size:11px; font-weight:700; color:var(--color-text); background:var(--color-surface-2); padding:1px 6px; border-radius:4px; border:1px solid var(--color-divider)">
+                                ${esc(imp.feat.name)}:
+                              </span>
+                              ${imp.screens.map(sc => `<span style="font-size:10px; background:rgba(99,102,241,0.08); color:var(--color-primary); padding:1px 5px; border-radius:3px">${esc(sc.name)}</span>`).join('')}
+                            </div>
+                          `).join('') : `
+                            <span style="color:var(--color-text-faint); font-size:11px; font-style:italic">
+                              ${dScreens.length ? dScreens.map(s => `<span style="font-size:10px; background:var(--color-surface-3); padding:1px 5px; border-radius:3px; margin-right:4px">${esc(s)}</span>`).join('') : 'No associated screens specified'}
+                            </span>
+                          `}
+                        </div>
+                      </td>
+                      <td style="padding:12px 12px">
+                        <div style="display:flex; flex-direction:column; gap:2px; font-size:10.5px">
+                          <div>Sign-Off: <span style="font-weight:700; color:${d.signOffStatus === 'Approved' ? 'var(--green)' : 'var(--amber)'}">${esc(d.signOffStatus || 'Pending')}</span></div>
+                          <div>Smoke: <span style="font-weight:700; color:${d.smokeTestStatus === 'Passed' ? 'var(--green)' : (d.smokeTestStatus === 'Failed' ? 'var(--red)' : 'var(--color-text-muted)')}">${esc(d.smokeTestStatus || 'Not Run')}</span></div>
+                        </div>
+                      </td>
+                      <td style="padding:12px 16px; text-align:right">
+                        <button class="btn ghost mini icon-btn" onclick="openDeliveryFlyout('${d.id}')" title="Edit Delivery">
+                          <i data-lucide="edit-2" style="width:14px; height:14px"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      html += `</div>`;
+      panel.innerHTML = html;
+      if (window.lucide) lucide.createIcons(panel);
+    }
+
+    // ── Delivery Kanban Pipeline Board ──
+    function renderDeliveryKanban(panel, deliveries, modules, releases, switcherHtml) {
+      injectDeliveryHeatmapStyles();
+      const cols = [
+        { key: 'Scheduled', label: 'Scheduled', color: 'var(--amber)', icon: 'calendar' },
+        { key: 'In Progress', label: 'In Progress / Staging', color: '#06b6d4', icon: 'clock' },
+        { key: 'Ready for Deployment', label: 'Ready for Deployment', color: 'var(--color-primary)', icon: 'shield-check' },
+        { key: 'Deployed', label: 'Production Deployed', color: 'var(--green)', icon: 'check-circle-2' },
+        { key: 'Rolled Back', label: 'Rolled Back / Failed', color: 'var(--red)', icon: 'alert-triangle' }
+      ];
+
+      let filtered = deliveries.filter(d => {
+        if (P._delFilterEnv !== 'All' && d.environment !== P._delFilterEnv) return false;
+        if (P._delFilterModule !== 'All' && d.module !== P._delFilterModule) return false;
+        if (P._delFilterRelease !== 'All' && d.releaseVersion !== P._delFilterRelease) return false;
+        if (P.search) {
+          const q = P.search.toLowerCase();
+          return (d.id || '').toLowerCase().includes(q) || (d.name || '').toLowerCase().includes(q) || (d.module || '').toLowerCase().includes(q);
+        }
+        return true;
+      });
+
+      let html = `
+        <div style="display:flex; flex-direction:column; gap:16px">
+          ${switcherHtml}
+
+          <!-- Kanban Board -->
+          <div style="display:flex; gap:14px; overflow-x:auto; padding-bottom:12px; min-height:500px">
+            ${cols.map(col => {
+              const colItems = filtered.filter(d => {
+                if (col.key === 'Rolled Back') return d.status === 'Rolled Back' || d.status === 'Failed' || d.status === 'Cancelled';
+                return d.status === col.key;
+              });
+
+              return `
+                <div class="del-kanban-col">
+                  <!-- Col Header -->
+                  <div style="padding:12px 16px; border-bottom:1px solid var(--color-divider); display:flex; justify-content:space-between; align-items:center">
+                    <div style="display:flex; align-items:center; gap:6px">
+                      <i data-lucide="${col.icon}" style="width:14px; height:14px; color:${col.color}"></i>
+                      <span style="font-size:12px; font-weight:800; color:var(--color-text)">${col.label}</span>
+                    </div>
+                    <span style="font-size:11px; font-weight:800; padding:1px 6px; border-radius:10px; background:var(--color-surface); border:1px solid var(--color-divider)">${colItems.length}</span>
+                  </div>
+
+                  <!-- Cards Container -->
+                  <div class="del-kanban-cards">
+                    ${colItems.map(d => {
+                      const screens = Array.isArray(d.guiScreens) ? d.guiScreens : (d.guiScreens ? String(d.guiScreens).split(/[,;]/).map(s => s.trim()).filter(Boolean) : []);
+                      return `
+                        <div class="del-kanban-card" onclick="openDeliveryFlyout('${d.id}')">
+                          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px">
+                            <span style="font-family:var(--mono); font-size:11px; font-weight:800; color:var(--color-primary)">${esc(d.id)}</span>
+                            <span style="font-size:9.5px; font-weight:700; padding:1px 5px; border-radius:3px; background:var(--color-surface-2); border:1px solid var(--color-divider); color:${d.environment === 'Production' ? 'var(--red)' : '#06b6d4'}">
+                              ${esc(d.environment || 'Prod')}
+                            </span>
+                          </div>
+
+                          <div style="font-size:12.5px; font-weight:700; color:var(--color-text); line-height:1.3; margin-bottom:6px">
+                            ${esc(d.name || 'Untitled Delivery')}
+                          </div>
+
+                          <div style="display:flex; justify-content:space-between; align-items:center; font-size:10.5px; color:var(--color-text-muted); margin-bottom:8px">
+                            <span>${esc(d.module || '—')}</span>
+                            <span style="font-family:var(--mono)">${esc(d.targetDeliveryDate || '—')}</span>
+                          </div>
+
+                          ${screens.length ? `
+                            <div style="display:flex; gap:3px; flex-wrap:wrap; margin-bottom:8px">
+                              ${screens.slice(0, 3).map(s => `<span style="font-size:9.5px; background:rgba(99,102,241,0.08); color:var(--color-primary); padding:1px 5px; border-radius:3px">${esc(s)}</span>`).join('')}
+                              ${screens.length > 3 ? `<span style="font-size:9.5px; color:var(--color-text-faint)">+${screens.length - 3}</span>` : ''}
+                            </div>
+                          ` : ''}
+
+                          <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--color-divider); padding-top:6px; font-size:10px">
+                            <span style="color:${d.signOffStatus === 'Approved' ? 'var(--green)' : 'var(--amber)'}; font-weight:700">
+                              ${d.signOffStatus === 'Approved' ? '✓ Sign-Off' : '⏳ Pending'}
+                            </span>
+                            <span style="color:var(--color-text-faint)">${esc(d.approver || 'Unassigned')}</span>
+                          </div>
+                        </div>
+                      `;
+                    }).join('')}
+                    ${!colItems.length ? `<div style="padding:24px 12px; text-align:center; color:var(--color-text-faint); font-size:11px">No deliveries in this stage</div>` : ''}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+
+      panel.innerHTML = html;
+      if (window.lucide) lucide.createIcons(panel);
+    }
+
+    // ── Export Heatmap Matrix to CSV ──
+    window.exportDeliveryHeatmapToCsv = function() {
+      const data = computeFeatureDeliveryHeatmapData({});
+      const features = data.features;
+
+      const rows = [];
+      rows.push(['Feature Name', 'Module', 'Target Release', 'Total Screens', 'Prod Deployed Screens', 'Staged Screens', 'QA Screens', 'Scheduled Screens', 'Unscheduled Screens', 'Shaping Maturity %', 'Screen Details']);
+
+      features.forEach(f => {
+        const scDetails = f.screens.map(sc => {
+          const d = sc.bestDelivery;
+          const status = sc.level >= 4 ? 'Prod Deployed' : (sc.level >= 3 ? 'Staged' : (sc.level >= 2 ? 'QA' : (sc.level >= 1 ? 'Scheduled' : 'Unscheduled')));
+          return `${sc.name} [${status}${d ? ' via ' + d.id : ''}]`;
+        }).join('; ');
+
+        rows.push([
+          f.name,
+          f.module,
+          f.release || '',
+          f.totalScreens,
+          f.prodScreens,
+          f.stagingScreens,
+          f.qaScreens,
+          f.scheduledScreens,
+          f.unscheduledScreens,
+          f.shapingScore + '%',
+          scDetails
+        ]);
+      });
+
+      let csvContent = 'data:text/csv;charset=utf-8,';
+      rows.forEach(r => {
+        const rowStr = r.map(c => `"${String(c || '').replace(/"/g, '""')}"`).join(',');
+        csvContent += rowStr + '\r\n';
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `ProjectPulse_Feature_Delivery_Heatmap_${todayStr()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      notify('Feature Delivery Heatmap exported as CSV', 'ok');
+    };
+
 
     window.setDeliverySort = function(col) {
       if (P._delSortCol === col) {
@@ -51631,7 +53056,7 @@ Earned Value Management measures project performance and progress by comparing p
         const addLay = (v, lays) => (lays || []).forEach(l => {
           const wid = l.id || l.i || '';
           const mappedWidgetId = (typeof layoutToWidgetIdMap !== 'undefined' && layoutToWidgetIdMap[wid]) || wid;
-          const default4s = ['summary', 'mgmt_insights', 'exec_reporting', 'exec_capacity', 'activities', 'achievements', 'risks', 'plans', 'team', 'util', 'burndown', 'velocity', 'cfd', 'milestone-timeline', 'module_health', 'screen_status', 'intelligence', 'activity', 'overdue_tbl', 'overdue', 'workload', 'cat_hours', 'module_status_matrix', 'release_timeline', 'defect_intel', 'feature_insights', 'high_impact_entities', 'kpi_summary', 'health', 'analytics', 'team_performance_scorecard', 'activity_timeline', 'skills_coverage'];
+          const default4s = ['summary', 'mgmt_insights', 'exec_reporting', 'exec_capacity', 'activities', 'achievements', 'risks', 'plans', 'team', 'util', 'burndown', 'velocity', 'cfd', 'milestone-timeline', 'module_health', 'screen_status', 'intelligence', 'activity', 'overdue_tbl', 'overdue', 'workload', 'cat_hours', 'module_status_matrix', 'release_timeline', 'defect_intel', 'feature_insights', 'delivery_insights', 'high_impact_entities', 'kpi_summary', 'health', 'analytics', 'team_performance_scorecard', 'activity_timeline', 'skills_coverage'];
           const isDefault4 = default4s.includes(wid) || default4s.includes(mappedWidgetId);
           const curSpan = (P.widgetSpans && (P.widgetSpans[mappedWidgetId] || P.widgetSpans[wid])) || l.span || l.w || (isDefault4 ? 4 : 2);
           const row = wsLay.addRow({ view: S(v), id: S(wid), t: S(l.t || wid), x: l.x || 0, y: l.y || 0, w: curSpan, h: l.h || 1, on: l.on ? 'true' : 'false' }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
@@ -51645,6 +53070,7 @@ Earned Value Management measures project performance and progress by comparing p
           { id: 'module_status_matrix', t: 'Strategic Module Status', on: true },
           { id: 'module_health', t: 'Module & Release Health', on: true },
           { id: 'feature_insights', t: 'Feature Intelligence', on: true },
+          { id: 'delivery_insights', t: 'Delivery & Deployment Intelligence', on: true },
           { id: 'screen_status', t: 'Screen Status Details', on: true },
           { id: 'release_timeline', t: 'Release Timeline', on: true },
           { id: 'milestone-timeline', t: 'Milestone Timeline', on: true },
@@ -51662,7 +53088,7 @@ Earned Value Management measures project performance and progress by comparing p
           { id: 'activity', t: 'Recent Activity', on: true }
         ];
         const defRptLay = [
-          { id: 'kpi_summary', t: 'Executive Metrics', on: true }, { id: 'health', t: 'Project Health', on: true }, { id: 'defect_intel', t: 'Defect Intelligence', on: true }, { id: 'summary', t: 'Executive Summary', on: true }, { id: 'activities', t: 'Key Activities', on: true }, { id: 'achievements', t: 'Achievements', on: true }, { id: 'risks', t: 'Risks & Issues', on: true }, { id: 'plans', t: 'Upcoming Plans', on: true }, { id: 'team', t: 'Team Workload', on: true }, { id: 'util', t: 'Resource Utilization', on: true }, { id: 'burndown', t: 'Burndown Chart', on: true }, { id: 'velocity', t: 'Weekly Velocity', on: true }, { id: 'cfd', t: 'Cumulative Flow', on: true }, { id: 'milestone-timeline', t: 'Milestone Timeline', on: true }, { id: 'module_health', t: 'Module & Release Health', on: true }, { id: 'screen_status', t: 'Screen Status Details', on: true }, { id: 'intelligence', t: 'Predictive Intelligence', on: true }, { id: 'activity', t: 'Latest Updates', on: true }, { id: 'overdue_tbl', t: 'Overdue Table', on: true }
+          { id: 'kpi_summary', t: 'Executive Metrics', on: true }, { id: 'health', t: 'Project Health', on: true }, { id: 'defect_intel', t: 'Defect Intelligence', on: true }, { id: 'summary', t: 'Executive Summary', on: true }, { id: 'delivery_insights', t: 'Delivery & Deployment Intelligence', on: true }, { id: 'activities', t: 'Key Activities', on: true }, { id: 'achievements', t: 'Achievements', on: true }, { id: 'risks', t: 'Risks & Issues', on: true }, { id: 'plans', t: 'Upcoming Plans', on: true }, { id: 'team', t: 'Team Workload', on: true }, { id: 'util', t: 'Resource Utilization', on: true }, { id: 'burndown', t: 'Burndown Chart', on: true }, { id: 'velocity', t: 'Weekly Velocity', on: true }, { id: 'cfd', t: 'Cumulative Flow', on: true }, { id: 'milestone-timeline', t: 'Milestone Timeline', on: true }, { id: 'module_health', t: 'Module & Release Health', on: true }, { id: 'screen_status', t: 'Screen Status Details', on: true }, { id: 'intelligence', t: 'Predictive Intelligence', on: true }, { id: 'activity', t: 'Latest Updates', on: true }, { id: 'overdue_tbl', t: 'Overdue Table', on: true }
         ];
         const defTeamLay = [
           { id: 'team_directory', t: 'Team Directory', on: true },
@@ -55703,6 +57129,7 @@ Earned Value Management measures project performance and progress by comparing p
         { id: 'module_status_matrix', t: 'Strategic Module Status', on: true },
         { id: 'module_health', t: 'Module & Release Health', on: true },
         { id: 'feature_insights', t: 'Feature Intelligence', on: true },
+        { id: 'delivery_insights', t: 'Delivery & Deployment Intelligence', on: true },
         { id: 'screen_status', t: 'Screen Status Details', on: true },
         { id: 'release_timeline', t: 'Release Timeline', on: true },
         { id: 'milestone-timeline', t: 'Milestone Timeline', on: true },
@@ -55749,6 +57176,7 @@ Earned Value Management measures project performance and progress by comparing p
         { id: 'health', t: 'Project Health', on: true },
         { id: 'defect_intel', t: 'Defect Intelligence', on: true },
         { id: 'feature_insights', t: 'Feature Intelligence', on: true },
+        { id: 'delivery_insights', t: 'Delivery & Deployment Intelligence', on: true },
         { id: 'release_timeline', t: 'Release Timeline', on: true },
         { id: 'activities', t: 'Key Activities', on: true },
         { id: 'achievements', t: 'Achievements', on: true },
