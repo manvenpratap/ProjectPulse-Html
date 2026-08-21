@@ -32417,6 +32417,210 @@
           <div style="margin-bottom:8px"><i data-lucide="mouse-pointer-2"></i> <b>Quick Actions:</b> Right-click any row to 'Duplicate', 'Add Sub-task', or 'Delete'.</div>
         `;
 
+        // ── DELIVERIES: Specialized deliveries sidebar with summary cards & filters ──
+      } else if (v === 'deliveries') {
+        const dels = P.deliveries || [];
+        const total = dels.length;
+        const prodLive = dels.filter(d => d.status === 'Deployed' && d.environment === 'Production').length;
+        const pendingSign = dels.filter(d => d.signOffStatus === 'Pending').length;
+        const leadArr = dels.map(d => Number(d.leadTimeDays)).filter(n => !isNaN(n) && n > 0);
+        const avgLt = leadArr.length > 0 ? (leadArr.reduce((a, b) => a + b, 0) / leadArr.length).toFixed(1) : '—';
+        const inProgCount = dels.filter(d => d.status === 'In Progress' || d.status === 'Ready for Deployment').length;
+        const scheduledCount = dels.filter(d => d.status === 'Scheduled').length;
+        const deployedTotal = dels.filter(d => d.status === 'Deployed').length;
+        const rolledBackCount = dels.filter(d => d.status === 'Rolled Back').length;
+
+        // Top micro stat grid in sidebar header
+        sbStats.style.display = 'grid';
+        sbStats.innerHTML = `
+          <div class="sb-stat" title="Total Deliveries Logged"><span>Total</span><span class="val">${total}</span></div>
+          <div class="sb-stat" title="Production Deployed Packages"><span>Prod Live</span><span class="val" style="color:var(--green)">${prodLive}</span></div>
+          <div class="sb-stat" title="Pending Governance Sign-Offs"><span>Pending</span><span class="val" style="color:var(--amber)">${pendingSign}</span></div>
+          <div class="sb-stat" title="Average Lead Time (Days)"><span>Avg Lead</span><span class="val" style="color:#06b6d4">${avgLt}${avgLt !== '—' ? 'd' : ''}</span></div>
+        `;
+
+        // ── Card 1: Pipeline Lifecycle Status ──
+        const isCollapsedStatus = !!P.sidebarCollapsed['sb-del-status'];
+        const activeStatusFilter = P._delFilterStatus || 'All';
+        const secStatus = document.createElement('div');
+        secStatus.className = 'sb-sec';
+        secStatus.innerHTML = `
+          <div class="sb-collapse-header ${isCollapsedStatus ? 'collapsed' : ''}" data-sb-section="sb-del-status" onclick="toggleSbSection('sb-del-status')" title="Filter by delivery lifecycle state">
+            <div class="sb-collapse-title"><i data-lucide="git-pull-request" style="width:13px; height:13px; margin-right:4px"></i> Lifecycle State${activeStatusFilter !== 'All' ? ' <span class="sb-collapse-badge">1</span>' : ''}</div>
+            ${chevronSVG}
+          </div>
+          <div class="sb-collapse-body ${isCollapsedStatus ? 'collapsed' : ''}" data-sb-body="sb-del-status">
+            <div style="padding:6px 0">
+              <!-- Mini Pipeline Progress Bar -->
+              <div style="margin-bottom:8px">
+                <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:700; color:var(--color-text-muted); margin-bottom:3px">
+                  <span>Pipeline Progress</span>
+                  <span>${total > 0 ? Math.round((deployedTotal / total) * 100) : 0}% Live</span>
+                </div>
+                <div style="height:6px; background:var(--color-surface-3); border-radius:3px; overflow:hidden; display:flex">
+                  <div style="width:${total ? (deployedTotal/total)*100 : 0}%; background:var(--green); transition:width 0.3s" title="Deployed (${deployedTotal})"></div>
+                  <div style="width:${total ? (inProgCount/total)*100 : 0}%; background:var(--color-primary); transition:width 0.3s" title="In Progress/Ready (${inProgCount})"></div>
+                  <div style="width:${total ? (scheduledCount/total)*100 : 0}%; background:var(--amber); transition:width 0.3s" title="Scheduled (${scheduledCount})"></div>
+                  <div style="width:${total ? (rolledBackCount/total)*100 : 0}%; background:var(--red); transition:width 0.3s" title="Rolled Back (${rolledBackCount})"></div>
+                </div>
+              </div>
+
+              <!-- Status Interactive Chips -->
+              <div class="sb-chips" style="padding:2px 0">
+                <span class="fchip ${activeStatusFilter === 'All' ? 'on' : ''}" onclick="setDeliveryFilter('status', 'All')">All (${total})</span>
+                <span class="fchip ${activeStatusFilter === 'Deployed' ? 'on' : ''}" onclick="setDeliveryFilter('status', 'Deployed')">Deployed (${deployedTotal})</span>
+                <span class="fchip ${activeStatusFilter === 'Ready for Deployment' ? 'on' : ''}" onclick="setDeliveryFilter('status', 'Ready for Deployment')">Ready (${dels.filter(d => d.status === 'Ready for Deployment').length})</span>
+                <span class="fchip ${activeStatusFilter === 'In Progress' ? 'on' : ''}" onclick="setDeliveryFilter('status', 'In Progress')">In Progress (${dels.filter(d => d.status === 'In Progress').length})</span>
+                <span class="fchip ${activeStatusFilter === 'Scheduled' ? 'on' : ''}" onclick="setDeliveryFilter('status', 'Scheduled')">Scheduled (${scheduledCount})</span>
+                ${rolledBackCount > 0 ? `<span class="fchip ${activeStatusFilter === 'Rolled Back' ? 'on' : ''}" onclick="setDeliveryFilter('status', 'Rolled Back')">Rolled Back (${rolledBackCount})</span>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+        sbInner.appendChild(secStatus);
+
+        // ── Card 2: Environment Distribution Footprint ──
+        const isCollapsedEnv = !!P.sidebarCollapsed['sb-del-env'];
+        const activeEnvFilter = P._delFilterEnv || 'All';
+        const envs = ['Production', 'Staging', 'UAT', 'QA', 'Dev'];
+        const secEnv = document.createElement('div');
+        secEnv.className = 'sb-sec';
+        secEnv.innerHTML = `
+          <div class="sb-collapse-header ${isCollapsedEnv ? 'collapsed' : ''}" data-sb-section="sb-del-env" onclick="toggleSbSection('sb-del-env')" title="Filter deliverables by target deployment environment">
+            <div class="sb-collapse-title"><i data-lucide="server" style="width:13px; height:13px; margin-right:4px"></i> Environment${activeEnvFilter !== 'All' ? ' <span class="sb-collapse-badge">1</span>' : ''}</div>
+            ${chevronSVG}
+          </div>
+          <div class="sb-collapse-body ${isCollapsedEnv ? 'collapsed' : ''}" data-sb-body="sb-del-env">
+            <div style="padding:6px 0">
+              <div class="sb-chips" style="padding:2px 0">
+                <span class="fchip ${activeEnvFilter === 'All' ? 'on' : ''}" onclick="setDeliveryFilter('env', 'All')">All Environments</span>
+                ${envs.map(env => {
+                  const cnt = dels.filter(d => d.environment === env).length;
+                  if (cnt === 0 && activeEnvFilter !== env) return '';
+                  return `<span class="fchip ${activeEnvFilter === env ? 'on' : ''}" onclick="setDeliveryFilter('env', '${env}')">${env} (${cnt})</span>`;
+                }).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+        sbInner.appendChild(secEnv);
+
+        // ── Card 3: Governance, Sign-Off & Smoke Assurance ──
+        const isCollapsedGov = !!P.sidebarCollapsed['sb-del-gov'];
+        const approvedCount = dels.filter(d => d.signOffStatus === 'Approved').length;
+        const signOffPct = total > 0 ? Math.round((approvedCount / total) * 100) : 0;
+        const smokePassedCount = dels.filter(d => d.smokeTestStatus === 'Passed').length;
+        const smokeTestedTotal = dels.filter(d => d.smokeTestStatus && d.smokeTestStatus !== 'Not Run').length;
+        const smokePassPct = smokeTestedTotal > 0 ? Math.round((smokePassedCount / smokeTestedTotal) * 100) : 100;
+        const activeSignOffFilter = P._delFilterSignOff || 'All';
+
+        const secGov = document.createElement('div');
+        secGov.className = 'sb-sec';
+        secGov.innerHTML = `
+          <div class="sb-collapse-header ${isCollapsedGov ? 'collapsed' : ''}" data-sb-section="sb-del-gov" onclick="toggleSbSection('sb-del-gov')" title="Governance sign-off and automated test assurance">
+            <div class="sb-collapse-title"><i data-lucide="shield-check" style="width:13px; height:13px; margin-right:4px"></i> Governance & Quality${activeSignOffFilter !== 'All' ? ' <span class="sb-collapse-badge">1</span>' : ''}</div>
+            ${chevronSVG}
+          </div>
+          <div class="sb-collapse-body ${isCollapsedGov ? 'collapsed' : ''}" data-sb-body="sb-del-gov">
+            <div style="padding:6px 0; display:flex; flex-direction:column; gap:8px">
+              <div style="background:var(--color-surface-2); border:1px solid var(--color-divider); border-radius:var(--radius-md); padding:8px 10px; display:flex; flex-direction:column; gap:4px">
+                <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:700; color:var(--color-text)">
+                  <span>Sign-Off Rate:</span>
+                  <span style="color:${signOffPct >= 75 ? 'var(--green)' : 'var(--amber)'}; font-family:var(--font-mono)">${signOffPct}%</span>
+                </div>
+                <div style="height:4px; background:var(--color-surface-3); border-radius:2px; overflow:hidden">
+                  <div style="width:${signOffPct}%; height:100%; background:var(--green); border-radius:2px"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:700; color:var(--color-text); margin-top:4px">
+                  <span>Smoke Pass Rate:</span>
+                  <span style="color:${smokePassPct >= 80 ? 'var(--green)' : 'var(--red)'}; font-family:var(--font-mono)">${smokePassPct}%</span>
+                </div>
+                <div style="height:4px; background:var(--color-surface-3); border-radius:2px; overflow:hidden">
+                  <div style="width:${smokePassPct}%; height:100%; background:var(--green); border-radius:2px"></div>
+                </div>
+              </div>
+
+              <div class="sb-chips" style="padding:2px 0">
+                <span class="fchip ${activeSignOffFilter === 'All' ? 'on' : ''}" onclick="setDeliveryFilter('signoff', 'All')">All Sign-Offs</span>
+                <span class="fchip ${activeSignOffFilter === 'Approved' ? 'on' : ''}" onclick="setDeliveryFilter('signoff', 'Approved')">Approved (${approvedCount})</span>
+                <span class="fchip ${activeSignOffFilter === 'Pending' ? 'on' : ''}" onclick="setDeliveryFilter('signoff', 'Pending')">Pending (${pendingSign})</span>
+                ${dels.some(d => d.signOffStatus === 'Rejected') ? `<span class="fchip ${activeSignOffFilter === 'Rejected' ? 'on' : ''}" onclick="setDeliveryFilter('signoff', 'Rejected')">Rejected (${dels.filter(d => d.signOffStatus === 'Rejected').length})</span>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+        sbInner.appendChild(secGov);
+
+        // ── Card 4: Target Release Filter ──
+        const isCollapsedRel = !!P.sidebarCollapsed['sb-del-release'];
+        const activeReleaseFilter = P._delFilterRelease || 'All';
+        const allRels = Array.from(new Set([
+          ...(P.releases ? P.releases.map(r => r.name || r) : []),
+          ...(P.dropdowns && P.dropdowns.release ? P.dropdowns.release : []),
+          ...dels.map(d => d.releaseVersion).filter(Boolean)
+        ])).sort();
+
+        if (allRels.length > 0) {
+          const secRel = document.createElement('div');
+          secRel.className = 'sb-sec';
+          secRel.innerHTML = `
+            <div class="sb-collapse-header ${isCollapsedRel ? 'collapsed' : ''}" data-sb-section="sb-del-release" onclick="toggleSbSection('sb-del-release')" title="Filter deliverables by target release version">
+              <div class="sb-collapse-title"><i data-lucide="tag" style="width:13px; height:13px; margin-right:4px"></i> Target Release${activeReleaseFilter !== 'All' ? ' <span class="sb-collapse-badge">1</span>' : ''}</div>
+              ${chevronSVG}
+            </div>
+            <div class="sb-collapse-body ${isCollapsedRel ? 'collapsed' : ''}" data-sb-body="sb-del-release">
+              <div style="padding:6px 0">
+                <div class="sb-chips" style="padding:2px 0">
+                  <span class="fchip ${activeReleaseFilter === 'All' ? 'on' : ''}" onclick="setDeliveryFilter('release', 'All')">All Releases</span>
+                  ${allRels.map(rel => {
+                    const cnt = dels.filter(d => d.releaseVersion === rel).length;
+                    return `<span class="fchip ${activeReleaseFilter === rel ? 'on' : ''}" onclick="setDeliveryFilter('release', '${esc(rel)}')">${esc(rel)} (${cnt})</span>`;
+                  }).join('')}
+                </div>
+              </div>
+            </div>
+          `;
+          sbInner.appendChild(secRel);
+        }
+
+        // ── Card 5: Module Filter ──
+        const isCollapsedMod = !!P.sidebarCollapsed['sb-del-module'];
+        const activeModFilter = P._delFilterModule || 'All';
+        const allMods = Array.from(new Set([
+          ...(P.dropdowns && P.dropdowns.module ? P.dropdowns.module : []),
+          ...dels.map(d => d.module).filter(Boolean)
+        ])).sort();
+
+        if (allMods.length > 0) {
+          const secMod = document.createElement('div');
+          secMod.className = 'sb-sec';
+          secMod.innerHTML = `
+            <div class="sb-collapse-header ${isCollapsedMod ? 'collapsed' : ''}" data-sb-section="sb-del-module" onclick="toggleSbSection('sb-del-module')" title="Filter deliverables by functional module">
+              <div class="sb-collapse-title"><i data-lucide="layers" style="width:13px; height:13px; margin-right:4px"></i> Module${activeModFilter !== 'All' ? ' <span class="sb-collapse-badge">1</span>' : ''}</div>
+              ${chevronSVG}
+            </div>
+            <div class="sb-collapse-body ${isCollapsedMod ? 'collapsed' : ''}" data-sb-body="sb-del-module">
+              <div style="padding:6px 0">
+                <div class="sb-chips" style="padding:2px 0">
+                  <span class="fchip ${activeModFilter === 'All' ? 'on' : ''}" onclick="setDeliveryFilter('module', 'All')">All Modules</span>
+                  ${allMods.map(m => {
+                    const cnt = dels.filter(d => d.module === m).length;
+                    return `<span class="fchip ${activeModFilter === m ? 'on' : ''}" onclick="setDeliveryFilter('module', '${esc(m)}')">${esc(m)} (${cnt})</span>`;
+                  }).join('')}
+                </div>
+              </div>
+            </div>
+          `;
+          sbInner.appendChild(secMod);
+        }
+
+        qhContent = `
+          <div style="margin-bottom:8px"><i data-lucide="table"></i> <b>Schedule Table:</b> High-density delivery schedule with inline state editing, batch operations, and Excel sync.</div>
+          <div style="margin-bottom:8px"><i data-lucide="flame"></i> <b>Feature Shaping Heatmap:</b> Multi-perspective visual correlation of screen deployments shaping features into production software.</div>
+          <div style="margin-bottom:8px"><i data-lucide="columns-3"></i> <b>Kanban Pipeline:</b> Drag-and-drop workflow swimlanes tracking deployment packages across environments.</div>
+          <div style="margin-bottom:8px"><i data-lucide="shield-alert"></i> <b>Governance Gates:</b> Track sign-offs, automated smoke tests, and verified rollback contingency plans.</div>
+        `;
+
         // ── RISKS: Specialized RAID & Decisions sidebar ──
       } else if (v === 'risks') {
         const totalR = (P.raids || []).length;
@@ -46882,6 +47086,10 @@ Earned Value Management measures project performance and progress by comparing p
       const panel = $id('vw-deliveries');
       if (!panel) return;
 
+      if (typeof renderSidebar === 'function' && P.view === 'deliveries') {
+        renderSidebar();
+      }
+
       if (!P.deliveries || !Array.isArray(P.deliveries)) P.deliveries = [];
       if (!P._selectedDeliveries) P._selectedDeliveries = new Set();
       P._delViewMode = P._delViewMode || 'table'; // 'table' | 'heatmap' | 'kanban'
@@ -47056,55 +47264,8 @@ Earned Value Management measures project performance and progress by comparing p
       const selectedCount = P._selectedDeliveries ? P._selectedDeliveries.size : 0;
 
       let html = `
-        <div style="display:flex; flex-direction:column; gap:20px">
+        <div style="display:flex; flex-direction:column; gap:16px">
           ${viewModeSwitcherHtml}
-
-          <!-- Top KPI Metric Cards -->
-          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:16px">
-            <div style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); padding:16px 20px; box-shadow:var(--shadow-sm); display:flex; align-items:center; gap:16px">
-              <div style="width:44px; height:44px; border-radius:var(--radius-md); background:rgba(99,102,241,0.12); color:var(--color-primary); display:flex; align-items:center; justify-content:center">
-                <i data-lucide="package" style="width:24px; height:24px"></i>
-              </div>
-              <div>
-                <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--color-text-muted); letter-spacing:0.5px">Total Deliveries</div>
-                <div style="font-size:24px; font-weight:800; color:var(--color-text); margin-top:2px">${totalCount}</div>
-                <div style="font-size:11px; color:var(--color-text-faint); margin-top:2px">${deliveries.filter(d => d.status !== 'Deployed' && d.status !== 'Cancelled').length} active in pipeline</div>
-              </div>
-            </div>
-
-            <div style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); padding:16px 20px; box-shadow:var(--shadow-sm); display:flex; align-items:center; gap:16px">
-              <div style="width:44px; height:44px; border-radius:var(--radius-md); background:rgba(34,197,94,0.12); color:var(--green); display:flex; align-items:center; justify-content:center">
-                <i data-lucide="check-circle" style="width:24px; height:24px"></i>
-              </div>
-              <div>
-                <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--color-text-muted); letter-spacing:0.5px">Prod Deployed</div>
-                <div style="font-size:24px; font-weight:800; color:var(--color-text); margin-top:2px">${deployedProdCount} <span style="font-size:13px; font-weight:600; color:var(--green)">(${deployedProdPct}%)</span></div>
-                <div style="font-size:11px; color:var(--color-text-faint); margin-top:2px">Production release milestone</div>
-              </div>
-            </div>
-
-            <div style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); padding:16px 20px; box-shadow:var(--shadow-sm); display:flex; align-items:center; gap:16px">
-              <div style="width:44px; height:44px; border-radius:var(--radius-md); background:rgba(245,158,11,0.12); color:var(--amber); display:flex; align-items:center; justify-content:center">
-                <i data-lucide="file-check-2" style="width:24px; height:24px"></i>
-              </div>
-              <div>
-                <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--color-text-muted); letter-spacing:0.5px">Pending Sign-Off</div>
-                <div style="font-size:24px; font-weight:800; color:${pendingSignOffCount > 0 ? 'var(--amber)' : 'var(--color-text)'}; margin-top:2px">${pendingSignOffCount}</div>
-                <div style="font-size:11px; color:var(--color-text-faint); margin-top:2px">Awaiting lead verification</div>
-              </div>
-            </div>
-
-            <div style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); padding:16px 20px; box-shadow:var(--shadow-sm); display:flex; align-items:center; gap:16px">
-              <div style="width:44px; height:44px; border-radius:var(--radius-md); background:rgba(6,182,212,0.12); color:#06b6d4; display:flex; align-items:center; justify-content:center">
-                <i data-lucide="clock" style="width:24px; height:24px"></i>
-              </div>
-              <div>
-                <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--color-text-muted); letter-spacing:0.5px">Avg Lead Time</div>
-                <div style="font-size:24px; font-weight:800; color:var(--color-text); margin-top:2px">${avgLeadTime} <span style="font-size:13px; font-weight:600; color:var(--color-text-muted)">days</span></div>
-                <div style="font-size:11px; color:var(--color-text-faint); margin-top:2px">Commit to rollout cycle</div>
-              </div>
-            </div>
-          </div>
 
           <!-- Filter & Action Bar -->
           <div style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); padding:14px 18px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between">
@@ -47326,6 +47487,7 @@ Earned Value Management measures project performance and progress by comparing p
       else if (type === 'release') P._delFilterRelease = val;
       else if (type === 'maturity') P._delFilterMaturity = val;
       renderDeliveriesView();
+      if (typeof renderSidebar === 'function') renderSidebar();
     };
 
     window.clearDeliveryFilters = function() {
@@ -47339,6 +47501,7 @@ Earned Value Management measures project performance and progress by comparing p
       if (sInp) sInp.value = '';
       P.search = '';
       renderDeliveriesView();
+      if (typeof renderSidebar === 'function') renderSidebar();
     };
 
     // ═════════════════════════════════════════════════════════════════
