@@ -12362,6 +12362,10 @@
           <div class="view-panel scrollable" id="vw-dash">
             <div class="dash-inner" id="dash-inner"></div>
           </div>
+          <!-- DELIVERIES VIEW -->
+          <div class="view-panel scrollable" id="vw-deliveries">
+            <div id="deliveries-inner" style="padding:24px;max-width:1400px;margin:0 auto;width:100%"></div>
+          </div>
           <!-- DEFECTS VIEW -->
           <div class="view-panel" id="vw-defects">
             <div id="defects-inner" class="twrap">
@@ -13059,6 +13063,234 @@
         <button class="btn ghost outline" onclick="closeRaidFlyout()" style="height:44px">Cancel</button>
       </div>
     </div>
+
+    <!-- DELIVERIES FLYOUT -->
+    <div id="delivery-flyout" class="view-flyout" style="width:840px; max-width:96vw; right:-880px; z-index:11000">
+      <div class="fly-header">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div
+            style="width:32px;height:32px;background:var(--color-primary);color:white;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center">
+            <span style="font-size:20px">📦</span>
+          </div>
+          <div>
+            <div style="font-size:18px;font-weight:700" id="delivery-modal-title">Log Delivery</div>
+            <div id="delivery-flyout-subtitle"
+              style="font-size:11px;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.5px">Delivery ID: —</div>
+          </div>
+        </div>
+        <div class="fly-close" onclick="closeDeliveryFlyout()">×</div>
+      </div>
+      <div class="fly-body custom-scroll" style="display:flex; flex-direction:column; gap:16px; padding:24px 0">
+        <div class="fg">
+          <label class="flbl">Delivery Scope / Name <span style="color:var(--red)">*</span></label>
+          <input class="finp" id="del_name" placeholder="e.g. Core Auth & SSO Gateway Release">
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
+          <div class="fg"><label class="flbl">ALM ID</label><input class="finp" id="del_almid" placeholder="e.g. ALM-10492"></div>
+          <div class="fg"><label class="flbl">PDN (Product Delivery Notice)</label><input class="finp" id="del_pdn" placeholder="e.g. PDN-2026-08"></div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
+          <div class="fg"><label class="flbl">Module</label><select class="fsel" id="del_module"></select></div>
+          <div class="fg"><label class="flbl">Module Type</label>
+            <select class="fsel" id="del_module_type">
+              <option value="Server">Server</option>
+              <option value="GUI">GUI</option>
+              <option value="Hybrid">Hybrid</option>
+              <option value="Database">Database</option>
+              <option value="General">General</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
+          <div class="fg"><label class="flbl">Target Release</label><select class="fsel" id="del_release"></select></div>
+          <div class="fg"><label class="flbl">Environment</label>
+            <select class="fsel" id="del_environment">
+              <option value="Production">Production</option>
+              <option value="Staging">Staging</option>
+              <option value="UAT">UAT</option>
+              <option value="QA">QA</option>
+              <option value="Dev">Dev</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
+          <div class="fg"><label class="flbl">Status</label>
+            <select class="fsel" id="del_status">
+              <option value="Scheduled">Scheduled</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Ready for Deployment">Ready for Deployment</option>
+              <option value="Deployed">Deployed</option>
+              <option value="Cancelled">Cancelled</option>
+              <option value="Rolled Back">Rolled Back</option>
+            </select>
+          </div>
+          <div class="fg"><label class="flbl">Sign-Off Status</label>
+            <select class="fsel" id="del_signoff">
+              <option value="Pending">Pending</option>
+              <option value="Approved">Approved</option>
+              <option value="Rejected">Rejected</option>
+              <option value="Not Required">Not Required</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
+          <div class="fg"><label class="flbl">Approver / Sign-Off Lead</label><select class="fsel" id="del_approver"></select></div>
+          <div class="fg"><label class="flbl">Smoke Test Status</label>
+            <select class="fsel" id="del_smoke_test">
+              <option value="Not Run">Not Run</option>
+              <option value="Running">Running</option>
+              <option value="Passed">Passed</option>
+              <option value="Failed">Failed</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px">
+          <div class="fg"><label class="flbl">Target Date</label><input type="date" class="finp" id="del_target_date" max="9999-12-31" onchange="autoComputeLeadTime()"></div>
+          <div class="fg"><label class="flbl">Actual Date</label><input type="date" class="finp" id="del_actual_date" max="9999-12-31" onchange="autoComputeLeadTime()"></div>
+          <div class="fg"><label class="flbl">Lead Time (Days)</label><input type="number" class="finp" id="del_lead_time" placeholder="0" min="0"></div>
+        </div>
+        <div class="fg"><label class="flbl">Associated GUI Screens / Components</label><input class="finp" id="del_gui_screens" placeholder="e.g. LoginView, UserAdminScreen, DashboardView"></div>
+        <div id="del_custom_fields_container"></div>
+        <div class="fg"><label class="flbl">Rollback Contingency Plan</label><textarea class="finp" id="del_rollback_plan" rows="2" placeholder="e.g. Revert deployment image to previous release commit and run DB downgrade migration"></textarea></div>
+        <div class="fg"><label class="flbl">Notes / Release Artifacts</label><textarea class="finp" id="del_notes" rows="2" placeholder="Artifact URLs, build tags, dependencies, or notes..."></textarea></div>
+      </div>
+      <div class="fly-footer"
+        style="padding:20px 0 0 0; border-top:1px solid var(--color-divider); display:flex; gap:12px; background:transparent">
+        <button class="btn primary" onclick="saveDeliveryItem()" style="flex:1; height:44px; font-weight:700"><i
+            data-lucide="save" style="margin-right:6px"></i> Save Delivery</button>
+        <button class="btn ghost danger" id="del_del_btn" onclick="deleteDeliveryItem()"
+          style="height:44px; display:inline-flex; align-items:center; justify-content:center"><i
+            data-lucide="trash-2"></i></button>
+        <button class="btn ghost outline" onclick="closeDeliveryFlyout()" style="height:44px">Cancel</button>
+      </div>
+    </div>
+
+    <!-- HIDDEN FILE INPUT FOR DELIVERIES EXCEL IMPORT -->
+    <input type="file" id="del-excel-file-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleDeliveryExcelFileSelect(event)">
+
+    <!-- DELIVERIES EXCEL FIELD MAPPING & IMPORT MODAL -->
+    <div id="delivery-import-mapping-modal" class="mbg" style="z-index:25000">
+      <div class="mcard glass" style="max-width:1040px; width:95vw; max-height:92vh; display:flex; flex-direction:column; border-radius:var(--radius-xl); overflow:hidden; border:1px solid var(--color-divider); box-shadow:var(--shadow-lg); background:var(--color-surface)">
+        
+        <!-- Modal Header -->
+        <div style="padding:18px 24px; border-bottom:1px solid var(--color-divider); display:flex; align-items:center; justify-content:space-between; background:var(--color-surface-2)">
+          <div style="display:flex; align-items:center; gap:12px">
+            <div style="width:38px; height:38px; border-radius:10px; background:rgba(var(--color-primary-rgb),0.12); color:var(--color-primary); display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow-sm)">
+              <i data-lucide="file-spreadsheet" style="width:20px; height:20px"></i>
+            </div>
+            <div>
+              <div style="font-size:16px; font-weight:800; color:var(--color-text); display:flex; align-items:center; gap:8px">
+                <span>Deliveries Excel Data Mapper</span>
+                <span id="del-map-file-tag" style="font-size:10px; font-weight:700; padding:2px 8px; border-radius:6px; background:rgba(var(--color-primary-rgb),0.1); color:var(--color-primary); font-family:var(--mono)">file.xlsx</span>
+              </div>
+              <div style="font-size:12px; color:var(--color-text-muted); margin-top:2px">
+                Comprehensively map spreadsheet columns to ProjectPulse Delivery fields before importing.
+              </div>
+            </div>
+          </div>
+          <button class="btn ghost mini icon-btn" onclick="closeDeliveryImportModal()" style="border-radius:8px; width:32px; height:32px">
+            <i data-lucide="x" style="width:16px; height:16px"></i>
+          </button>
+        </div>
+
+        <!-- Modal Toolbar -->
+        <div style="padding:12px 24px; border-bottom:1px solid var(--color-divider); background:var(--color-surface); display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:14px">
+          <div style="display:flex; flex-wrap:wrap; align-items:center; gap:16px">
+            <!-- Sheet Selector -->
+            <div style="display:flex; align-items:center; gap:6px">
+              <span style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--color-text-faint); letter-spacing:0.5px">Worksheet:</span>
+              <select id="del-import-sheet-select" class="fsel" style="height:32px; font-size:12px; font-weight:600; padding:0 10px; min-width:140px" onchange="changeDeliveryImportSheet(this.value)"></select>
+            </div>
+
+            <!-- Import Mode Selector -->
+            <div style="display:flex; align-items:center; gap:6px">
+              <span style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--color-text-faint); letter-spacing:0.5px">Import Strategy:</span>
+              <select id="del-import-mode" class="fsel" style="height:32px; font-size:12px; font-weight:600; padding:0 10px" onchange="updateDeliveryImportStrategy(this.value)">
+                <option value="append_merge" selected>Append & Merge (Update existing matches by ID/ALM/Name)</option>
+                <option value="append_only">Append Only (Create all as new deliveries)</option>
+                <option value="replace_all">Replace All (Wipe existing deliveries & replace)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Quick Action Buttons -->
+          <div style="display:flex; align-items:center; gap:8px">
+            <button class="btn ghost mini" onclick="autoMapAllDeliveryFields()" style="height:30px; font-size:11px; font-weight:700; display:inline-flex; align-items:center; gap:4px">
+              <i data-lucide="sparkles" style="width:13px; height:13px; color:var(--color-primary)"></i> Auto-Map All
+            </button>
+            <button class="btn ghost mini" onclick="clearAllDeliveryMappings()" style="height:30px; font-size:11px; font-weight:700; color:var(--color-text-muted); display:inline-flex; align-items:center; gap:4px">
+              <i data-lucide="rotate-ccw" style="width:13px; height:13px"></i> Reset Mappings
+            </button>
+          </div>
+        </div>
+
+        <!-- Modal Body / Content -->
+        <div class="custom-scroll" style="padding:20px 24px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:18px">
+          
+          <!-- Mapping Stats Banner -->
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px">
+            <div style="padding:10px 14px; border-radius:10px; background:var(--color-surface-2); border:1px solid var(--color-divider); display:flex; align-items:center; justify-content:space-between">
+              <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Total Excel Columns</div>
+              <div id="del-map-stat-total-cols" style="font-size:15px; font-weight:800; color:var(--color-text)">0</div>
+            </div>
+            <div style="padding:10px 14px; border-radius:10px; background:var(--color-surface-2); border:1px solid var(--color-divider); display:flex; align-items:center; justify-content:space-between">
+              <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Mapped Fields</div>
+              <div id="del-map-stat-mapped-cols" style="font-size:15px; font-weight:800; color:var(--color-primary)">0</div>
+            </div>
+            <div style="padding:10px 14px; border-radius:10px; background:var(--color-surface-2); border:1px solid var(--color-divider); display:flex; align-items:center; justify-content:space-between">
+              <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Detected Rows</div>
+              <div id="del-map-stat-rows" style="font-size:15px; font-weight:800; color:var(--green)">0</div>
+            </div>
+            <div style="padding:10px 14px; border-radius:10px; background:var(--color-surface-2); border:1px solid var(--color-divider); display:flex; align-items:center; justify-content:space-between">
+              <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Required Name Field</div>
+              <div id="del-map-stat-required" style="font-size:12px; font-weight:800; color:var(--amber)">Checking…</div>
+            </div>
+          </div>
+
+          <!-- Mapping Grid Container -->
+          <div style="border:1px solid var(--color-divider); border-radius:12px; overflow:hidden; background:var(--color-surface)">
+            <div style="display:grid; grid-template-columns:260px 1fr 40px 280px; gap:12px; padding:10px 16px; background:var(--color-surface-2); border-bottom:1px solid var(--color-divider); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-text-faint)">
+              <div>Spreadsheet Column</div>
+              <div>Sample Values (First 3 Rows)</div>
+              <div style="text-align:center"></div>
+              <div>System Target Field</div>
+            </div>
+            <div id="del-mapping-rows-container" style="max-height:340px; overflow-y:auto" class="custom-scroll">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+          <!-- Live Transformed Data Preview Section -->
+          <div style="border:1px solid var(--color-divider); border-radius:12px; overflow:hidden; background:var(--color-surface)">
+            <div style="padding:10px 16px; background:var(--color-surface-2); border-bottom:1px solid var(--color-divider); display:flex; align-items:center; justify-content:space-between">
+              <div style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; color:var(--color-text); display:flex; align-items:center; gap:6px">
+                <i data-lucide="eye" style="width:13px; height:13px; color:var(--color-primary)"></i> Live Import Preview (Sample Records)
+              </div>
+              <span style="font-size:11px; color:var(--color-text-muted)">Previewing formatted delivery rows based on current mapping</span>
+            </div>
+            <div id="del-import-live-preview" style="max-height:180px; overflow-x:auto; overflow-y:auto; padding:4px" class="custom-scroll">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Modal Footer -->
+        <div style="padding:14px 24px; border-top:1px solid var(--color-divider); background:var(--color-surface-2); display:flex; align-items:center; justify-content:space-between">
+          <div id="del-map-footer-msg" style="font-size:12px; color:var(--color-text-muted); display:flex; align-items:center; gap:6px">
+            <span>Ready to process file</span>
+          </div>
+          <div style="display:flex; gap:10px">
+            <button class="btn ghost outline" onclick="closeDeliveryImportModal()" style="height:36px; padding:0 16px; font-size:12px">Cancel</button>
+            <button id="del-import-confirm-btn" class="btn primary" onclick="executeDeliveryImport()" style="height:36px; padding:0 22px; font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:6px">
+              <i data-lucide="check" style="width:14px; height:14px"></i> Confirm & Import Deliveries
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
     <div id="confirm-modal" class="mbg">
       <div class="mcard"
         style="max-width:400px;text-align:center;padding:32px;border-radius:var(--radius-lg);box-shadow:0 32px 64px rgba(0,0,0,0.4)">
@@ -14004,10 +14236,11 @@
       ALL_VIEWS: [
         { id: 'overview', icon: 'presentation', label: 'Overview', title: 'Executive Overview Dashboard' },
         { id: 'dash', icon: 'trending-up', label: 'Insights', title: 'Live Project Insights & Dashboard' },
+        { id: 'deliveries', icon: 'package-check', label: 'Deliveries', title: 'Delivery Schedule & Delivery Notes' },
         { id: 'reports', icon: 'file-bar-chart', label: 'Reports', title: 'Board Pack & Stakeholder Reports' },
         { id: 'scheduler', icon: 'calendar', label: 'Scheduler', title: 'Intelligent Weekly Scheduler & Conflict Resolver' },
         { id: 'risks', icon: 'shield-alert', label: 'Risks', title: 'Unified RAID Register' },
-        { id: 'tasks', icon: 'list-todo', label: 'Delivery', title: 'Hierarchical Delivery Matrix' },
+        { id: 'tasks', icon: 'list-todo', label: 'Tasks', title: 'Hierarchical Task Matrix' },
         { id: 'team', icon: 'users', label: 'Team', title: 'Resource Hub & Workload' },
         { id: 'defects', icon: 'bug', label: 'Defects', title: 'Defects Tracker' },
         { id: 'log', icon: 'history', label: 'Activity', title: 'Audit & Activity Log' }
@@ -14035,7 +14268,10 @@
           approver: 'Approver', proposedBy: 'Proposed By', rationale: 'Rationale', alternatives: 'Alternatives Considered',
           baselineStartDate: 'Baseline Start Date', baselineDueDate: 'Baseline Due Date',
           actStartDate: 'Actual Start Date', actDueDate: 'Actual Due Date', varianceDays: 'Variance Days',
-          slippageReason: 'Slippage Reason', snapshotDate: 'Snapshot Date'
+          slippageReason: 'Slippage Reason', snapshotDate: 'Snapshot Date',
+          deliveryId: 'Delivery ID', almId: 'ALM ID', pdn: 'PDN', deliveryDate: 'Delivery Date',
+          actualDeliveryDate: 'Actual Delivery Date', deliveredBy: 'Delivered By', approvedBy: 'Approved By',
+          signOffStatus: 'Sign Off Status', environment: 'Environment', artifacts: 'Artifacts'
         },
         getRevMap() {
           const m = {};
@@ -14049,7 +14285,8 @@
         { sheet: 'Data_TaskGUIScreens', parent: 'Tasks', pKey: 'taskId', target: 'guiScreens', valueKey: 'screen' },
         { sheet: 'Data_SubTaskWorkflows', parent: 'Subtasks', pKey: 'subtaskId', target: 'workflow' },
         { sheet: 'Data_MemberLeaves', parent: 'Team', pKey: 'memberId', target: 'plannedLeaves' },
-        { sheet: 'Data_FeatureScreens', parent: 'Features', pKey: 'feature', target: 'screens', valueKey: 'screen' }
+        { sheet: 'Data_FeatureScreens', parent: 'Features', pKey: 'feature', target: 'screens', valueKey: 'screen' },
+        { sheet: 'Data_TaskDeliveries', parent: 'Tasks', pKey: 'taskId', target: 'deliveries' }
       ]
     };
 
@@ -15736,6 +15973,22 @@
 
     // ══════ VIEW HELP SYSTEM ══════
     const VIEW_HELP = {
+      deliveries: {
+        t: 'Delivery Schedule & Delivery Notes Guide',
+        d: 'Central command for managing task delivery schedules mapped to multiple ALM IDs and PDNs, linked directly to features, GUI screens, and formal Delivery Notes.',
+        f: [
+          ['Multi-ALM & PDN Linking', 'Each task can be delivered under multiple ALM IDs, each carrying one or more PDN packages.'],
+          ['Delivery Note Generator', 'Produces professional, printable delivery notes with letterhead, scope breakdown, resolved bugs, and formal sign-off blocks.'],
+          ['ALM/PDN Tree Hierarchy', 'Visualizes nested relationships: Release → Feature → Task → ALM ID → PDN with progress rollups.'],
+          ['Excel Import & Export', 'Seamless roundtrip Excel synchronization for delivery schedules and one-click Delivery Note Excel exports.'],
+          ['GUI Screen Impact', 'Automatically traces linked GUI screens and highlights newly delivered screens with NEW badges.']
+        ],
+        a: [
+          '<b>Generate Delivery Note:</b> Click "Generate Delivery Note" to create, preview, print, or copy a formal release delivery note.',
+          '<b>Auto-Link from Tasks:</b> Click "Auto-Link from Tasks" to automatically create delivery schedule draft items from existing tasks.',
+          '<b>Excel Roundtrip:</b> Export or Import the Delivery Schedule directly via XLSX at any time.'
+        ]
+      },
       overview: {
         t: 'Executive Overview Guide',
         d: 'A strategic steering dashboard providing aggregate health metrics, early warning anomalies, milestone tracking, and high-priority RAID items.',
@@ -16132,8 +16385,8 @@
         name: '', desc: '',
         tasks: [], defects: [], log: [], members: [], reports: [],
         raids: [], decisions: [], baselines: [], healthHistory: [], reportSnapshots: [],
-        customFields: [], defCustomFields: [], stepTemplates: JSON.parse(JSON.stringify(STEP_TEMPLATES)),
-        hiddenCols: [], defHiddenCols: [],
+        customFields: [], defCustomFields: [], delCustomFields: [], stepTemplates: JSON.parse(JSON.stringify(STEP_TEMPLATES)),
+        hiddenCols: [], defHiddenCols: [], delHiddenCols: [],
         releases: [],
         _fieldsActiveTab: 'tasks',
         dropdowns: {
@@ -16175,7 +16428,10 @@
           raidProbability: ['High', 'Medium', 'Low'],
           raidSeverity: ['S1 - Critical', 'S2 - Major', 'S3 - Moderate', 'S4 - Minor'],
           raidStatus: ['Identified', 'Active', 'Mitigated', 'Closed', 'Realized'],
-          decisionStatus: ['Pending Sign-off', 'Approved', 'Rejected', 'Appealed']
+          decisionStatus: ['Pending Sign-off', 'Approved', 'Rejected', 'Appealed'],
+          deliveryStatus: ['Scheduled', 'In Preparation', 'Ready for Delivery', 'Delivered', 'Accepted', 'Rejected', 'Postponed'],
+          deliveryEnv: ['SIT', 'UAT', 'Staging', 'Production', 'DR'],
+          deliverySignOff: ['Pending', 'Under Review', 'Approved', 'Rejected']
         },
         cols: [
           { key: 'id', label: 'ID', w: 60, type: 'text', edit: false },
@@ -16215,6 +16471,26 @@
           { key: 'reporter', label: 'Reporter', w: 110, type: 'select', edit: true },
           { key: 'createdAt', label: 'Created', w: 90, type: 'date', edit: false },
           { key: 'updatedAt', label: 'Updated', w: 90, type: 'date', edit: false },
+        ],
+        delCols: [
+          { key: 'id', label: 'Delivery ID', w: 85, type: 'text', edit: false },
+          { key: 'almId', label: 'ALM ID', w: 100, type: 'text', edit: true },
+          { key: 'pdn', label: 'PDN', w: 110, type: 'text', edit: true },
+          { key: 'name', label: 'Delivery Scope / Name', w: 220, type: 'text', edit: true, required: true },
+          { key: 'module', label: 'Module', w: 130, type: 'select', edit: true },
+          { key: 'moduleType', label: 'Module Type', w: 110, type: 'select', opts: ['Server', 'GUI', 'Hybrid', 'Database', 'General'], edit: true },
+          { key: 'releaseVersion', label: 'Release', w: 100, type: 'select', edit: true },
+          { key: 'environment', label: 'Environment', w: 110, type: 'select', opts: ['Production', 'Staging', 'UAT', 'QA', 'Dev'], edit: true },
+          { key: 'status', label: 'Status', w: 130, type: 'select', opts: ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'], edit: true },
+          { key: 'signOffStatus', label: 'Sign-Off Status', w: 120, type: 'select', opts: ['Pending', 'Approved', 'Rejected', 'Not Required'], edit: true },
+          { key: 'approver', label: 'Approver', w: 120, type: 'select', edit: true },
+          { key: 'smokeTestStatus', label: 'Smoke Test', w: 110, type: 'select', opts: ['Not Run', 'Running', 'Passed', 'Failed'], edit: true },
+          { key: 'targetDeliveryDate', label: 'Target Date', w: 105, type: 'date', edit: true },
+          { key: 'actualDeliveryDate', label: 'Actual Date', w: 105, type: 'date', edit: true },
+          { key: 'leadTimeDays', label: 'Lead Time (Days)', w: 90, type: 'number', edit: true },
+          { key: 'guiScreens', label: 'GUI Screens', w: 140, type: 'text', edit: true },
+          { key: 'rollbackPlan', label: 'Rollback Plan', w: 160, type: 'text', edit: true },
+          { key: 'notes', label: 'Notes', w: 160, type: 'text', edit: true },
         ],
         features: [
           {
@@ -16668,18 +16944,20 @@
                     "desc": "Isolated sandbox environment for third-party developer integration testing."
           }
 ],
+        deliveries: [],
         nextTaskId: 1, nextMemberId: 1, nextReportId: 1, nextSubId: 1, nextDefectId: 1,
-        nextRaidId: 1, nextDecisionId: 1,
+        nextRaidId: 1, nextDecisionId: 1, nextDeliveryId: 1,
         search: '', filters: { status: new Set(), priority: new Set(), assignee: new Set(), contributors: new Set(), module: new Set(), feature: new Set(), category: new Set() },
         collapsedNodes: new Set(),
         sort: { col: 'id', dir: 'asc' }, view: 'tasks', sbOpen: true,
+        _deliveryViewMode: 'matrix', _deliverySearch: '', _deliveryFilter: {},
         theme: localStorage.getItem('pp-theme') || 'paper',
         colorMode: localStorage.getItem('pp-color-mode') || 'default',
         expanded: new Set(), fsHandle: null, fsDirHandle: null, fsDirName: '', fsDirPath: '',
         lastSynced: null, lastBackup: null, ganttZoom: 'week', lastImportedFile: null,
         _pendingComment: null, _editingTaskId: null, _editingMemberId: null, _editingReportId: null,
         _editingCfIdx: null, _editingDashWidgetIdx: null, _editingRptWidgetIdx: null,
-        _editingFeatureId: null,
+        _editingFeatureId: null, _editingDeliveryId: null,
         dismissedAlerts: new Set(),
         showExplanations: false,
         settings: {
@@ -16747,6 +17025,16 @@
         const dLType = stateP.defCols.find(c => c.key === 'linkedType'); if (dLType) dLType.opts = ['Task', 'Subtask', 'Screen'];
         const dAsg = stateP.defCols.find(c => c.key === 'assignee'); if (dAsg) dAsg.opts = stateP.members.map(m => m.name);
         const dRep = stateP.defCols.find(c => c.key === 'reporter'); if (dRep) dRep.opts = stateP.members.map(m => m.name);
+
+        // Delivery Column Sync
+        if (!stateP.delCols) stateP.delCols = [];
+        if (!stateP.delCustomFields) stateP.delCustomFields = [];
+        const delMod = stateP.delCols.find(c => c.key === 'module'); if (delMod) delMod.opts = stateP.dropdowns.module;
+        const delRel = stateP.delCols.find(c => c.key === 'releaseVersion'); if (delRel) delRel.opts = stateP.dropdowns.release || (stateP.releases ? stateP.releases.map(r => r.name || r) : []);
+        const delEnv = stateP.delCols.find(c => c.key === 'environment'); if (delEnv) delEnv.opts = stateP.dropdowns.deliveryEnv || ['Production', 'Staging', 'UAT', 'QA', 'Dev'];
+        const delStat = stateP.delCols.find(c => c.key === 'status'); if (delStat) delStat.opts = stateP.dropdowns.deliveryStatus || ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'];
+        const delSign = stateP.delCols.find(c => c.key === 'signOffStatus'); if (delSign) delSign.opts = stateP.dropdowns.deliverySignOff || ['Pending', 'Approved', 'Rejected', 'Not Required'];
+        const delApp = stateP.delCols.find(c => c.key === 'approver'); if (delApp) delApp.opts = stateP.members.map(m => m.name);
       },
       addLog(action, taskId, taskName, field, oldVal, newVal, comment, subtaskId, actCompletionDate) {
         const stateP = PulseState.P;
@@ -17462,7 +17750,7 @@
       if (!d || typeof d !== 'object') {
         throw new Error('Project data is not a valid object');
       }
-      const arrays = ['tasks', 'defects', 'log', 'members', 'reports', 'raids', 'decisions', 'baselines', 'healthHistory', 'reportSnapshots', 'customFields', 'defCustomFields', 'stepTemplates', 'releases'];
+      const arrays = ['tasks', 'defects', 'log', 'members', 'reports', 'raids', 'decisions', 'baselines', 'healthHistory', 'reportSnapshots', 'customFields', 'defCustomFields', 'delCustomFields', 'stepTemplates', 'releases', 'deliveries'];
       arrays.forEach(k => {
         if (!d[k] || !Array.isArray(d[k])) {
           PP.warn(`[ProjectPulse] Missing or invalid array field "${k}", resetting to empty list.`);
@@ -17490,7 +17778,10 @@
         raidProbability: ['High', 'Medium', 'Low'],
         raidSeverity: ['S1 - Critical', 'S2 - Major', 'S3 - Moderate', 'S4 - Minor'],
         raidStatus: ['Identified', 'Active', 'Mitigated', 'Closed', 'Realized'],
-        decisionStatus: ['Pending Sign-off', 'Approved', 'Rejected', 'Appealed']
+        decisionStatus: ['Pending Sign-off', 'Approved', 'Rejected', 'Appealed'],
+        deliveryStatus: ['Scheduled', 'In Preparation', 'Ready for Delivery', 'Delivered', 'Accepted', 'Rejected', 'Postponed'],
+        deliveryEnv: ['SIT', 'UAT', 'Staging', 'Production', 'DR'],
+        deliverySignOff: ['Pending', 'Under Review', 'Approved', 'Rejected']
       };
       for (let k in defaultDropdowns) {
         if (!d.dropdowns[k] || !Array.isArray(d.dropdowns[k])) {
@@ -17525,15 +17816,25 @@
         if (!m.status) m.status = 'Active';
         if (!m.plannedLeaves || !Array.isArray(m.plannedLeaves)) m.plannedLeaves = [];
       });
+      d.deliveries = (d.deliveries || []).filter(del => del && typeof del === 'object');
+      d.deliveries.forEach(del => {
+        if (!del.id) del.id = 'DEL-' + String(P.nextDeliveryId++).padStart(3, '0');
+        if (!del.almId) del.almId = 'ALM-10001';
+        if (!del.pdn) del.pdn = 'PDN-001';
+        if (!del.status) del.status = 'Scheduled';
+        if (!del.environment) del.environment = 'Production';
+        if (!del.signOffStatus) del.signOffStatus = 'Pending';
+        if (!del.guiScreens || !Array.isArray(del.guiScreens)) del.guiScreens = [];
+      });
       return d;
     }
 
     const PulsePersistence = {
       clearProjectState() {
         P.name = ''; P.desc = ''; P.tasks = []; P.log = []; P.members = []; P.reports = [];
-        P.defects = []; P.features = []; P.releases = [];
+        P.defects = []; P.features = []; P.releases = []; P.deliveries = []; P.nextDeliveryId = 1;
         P.raids = []; P.decisions = []; P.baselines = []; P.healthHistory = []; P.reportSnapshots = [];
-        P.customFields = []; P.defCustomFields = []; P.stepTemplates = JSON.parse(JSON.stringify(STEP_TEMPLATES));
+        P.customFields = []; P.defCustomFields = []; P.delCustomFields = []; P.stepTemplates = JSON.parse(JSON.stringify(STEP_TEMPLATES));
         P.dropdownDefaults = {};
         P.dropdowns = {
           status: ['Not Started', 'In Progress', 'On Hold', 'Under Review', 'Completed', 'Cancelled'],
@@ -20651,6 +20952,131 @@
         ];
         P.nextDecisionId = 4;
 
+        // Add Sample Deliveries
+        P.deliveries = [
+          {
+            id: 'DEL-001',
+            almId: 'ALM-10201',
+            pdn: 'PDN-2026-08-01',
+            name: 'Core Auth & SSO Gateway Production Release',
+            module: 'Authentication',
+            moduleType: 'Server',
+            releaseVersion: 'v1.0.0',
+            environment: 'Production',
+            status: 'Deployed',
+            targetDeliveryDate: '2026-08-15',
+            actualDeliveryDate: '2026-08-14',
+            leadTimeDays: 14,
+            signOffStatus: 'Approved',
+            approver: 'Sarah Chen',
+            smokeTestStatus: 'Passed',
+            rollbackPlan: 'Automated blue-green switchback to v0.9.8 AMI with zero downtime.',
+            guiScreens: ['Login Form', 'Signup Portal', 'MFA Verification'],
+            notes: 'Successfully deployed. All security scans and pen-testing passed.'
+          },
+          {
+            id: 'DEL-002',
+            almId: 'ALM-10202',
+            pdn: 'PDN-2026-08-02',
+            name: 'Real-Time Market Data Stream Engine v1.1',
+            module: 'Market Data',
+            moduleType: 'Server',
+            releaseVersion: 'v1.1.0',
+            environment: 'Production',
+            status: 'Deployed',
+            targetDeliveryDate: '2026-08-20',
+            actualDeliveryDate: '2026-08-19',
+            leadTimeDays: 12,
+            signOffStatus: 'Approved',
+            approver: 'Alex Rivera',
+            smokeTestStatus: 'Passed',
+            rollbackPlan: 'Drain WebSocket cluster connections and revert load balancer target group to previous release.',
+            guiScreens: ['Market Data Feed', 'Portfolio Valuations'],
+            notes: 'P99 streaming latency under 8ms observed across 50,000 concurrent sockets.'
+          },
+          {
+            id: 'DEL-003',
+            almId: 'ALM-10203',
+            pdn: 'PDN-2026-08-03',
+            name: 'Portfolio Analytics Sunburst & Reporting GUI',
+            module: 'Analytics Service',
+            moduleType: 'GUI',
+            releaseVersion: 'v1.1.0',
+            environment: 'Staging',
+            status: 'Ready for Deployment',
+            targetDeliveryDate: '2026-08-28',
+            actualDeliveryDate: '',
+            leadTimeDays: 10,
+            signOffStatus: 'Pending',
+            approver: 'Elena Vance',
+            smokeTestStatus: 'Passed',
+            rollbackPlan: 'CloudFront CDN invalidation and revert S3 web asset bucket to previous version commit.',
+            guiScreens: ['Portfolio Overview', 'Sunburst Chart', 'Legend Details'],
+            notes: 'Awaiting final product sign-off from Elena Vance.'
+          },
+          {
+            id: 'DEL-004',
+            almId: 'ALM-10204',
+            pdn: 'PDN-2026-08-04',
+            name: 'Order Routing & Matching Engine Performance Patch',
+            module: 'Core Engine',
+            moduleType: 'Server',
+            releaseVersion: 'v1.0.0',
+            environment: 'Production',
+            status: 'Deployed',
+            targetDeliveryDate: '2026-08-10',
+            actualDeliveryDate: '2026-08-10',
+            leadTimeDays: 7,
+            signOffStatus: 'Approved',
+            approver: 'Sarah Chen',
+            smokeTestStatus: 'Passed',
+            rollbackPlan: 'Standby hot-backup instance takeover via Consul health check trigger.',
+            guiScreens: ['Order Entry', 'Matching Engine', 'Trade Confirmation'],
+            notes: 'Resolved deadlock bug DEF-004 under high transaction burst.'
+          },
+          {
+            id: 'DEL-005',
+            almId: 'ALM-10205',
+            pdn: 'PDN-2026-08-05',
+            name: 'KYC Verification & Document Vault API Integration',
+            module: 'Compliance',
+            moduleType: 'Server',
+            releaseVersion: 'v1.2.0',
+            environment: 'QA',
+            status: 'In Progress',
+            targetDeliveryDate: '2026-09-10',
+            actualDeliveryDate: '',
+            leadTimeDays: 16,
+            signOffStatus: 'Pending',
+            approver: 'Marcus Wong',
+            smokeTestStatus: 'Running',
+            rollbackPlan: 'Disable KYC third-party integration feature flag and fallback to manual review queue.',
+            guiScreens: ['Document Vault', 'KYC Verification'],
+            notes: 'Mock provider integration completed; testing end-to-end sandbox verification.'
+          },
+          {
+            id: 'DEL-006',
+            almId: 'ALM-10206',
+            pdn: 'PDN-2026-08-06',
+            name: 'Telemetry Ingestion & OpenTelemetry Collector Pipeline',
+            module: 'Infrastructure',
+            moduleType: 'Server',
+            releaseVersion: 'v2.0.0-Beta',
+            environment: 'Dev',
+            status: 'Scheduled',
+            targetDeliveryDate: '2026-09-25',
+            actualDeliveryDate: '',
+            leadTimeDays: 21,
+            signOffStatus: 'Pending',
+            approver: 'Tasha K',
+            smokeTestStatus: 'Not Run',
+            rollbackPlan: 'Tear down Terraform daemonset module and fallback to cloudwatch agent.',
+            guiScreens: ['System Health Monitor', 'Telemetry Ingestion'],
+            notes: 'Planned for Kubernetes cluster upgrade cycle.'
+          }
+        ];
+        P.nextDeliveryId = 7;
+
         // Add Sample Health History
         P.healthHistory = [
           { week: 'Wk -11', score: 82 }, { week: 'Wk -10', score: 85 }, { week: 'Wk -9', score: 88 },
@@ -20711,14 +21137,17 @@
               name: P.name, desc: P.desc, tasks: P.tasks, defects: P.defects, log: P.log,
               members: P.members, reports: P.reports, features: P.features, releases: P.releases, dropdowns: P.dropdowns,
               dropdownDefaults: P.dropdownDefaults,
+              deliveries: P.deliveries || [],
               raids: P.raids, decisions: P.decisions, baselines: P.baselines, healthHistory: P.healthHistory, reportSnapshots: P.reportSnapshots,
               complexityFactors: P.complexityFactors,
-              customFields: P.customFields, defCustomFields: P.defCustomFields,
+              customFields: P.customFields, defCustomFields: P.defCustomFields, delCustomFields: P.delCustomFields || [],
               stepTemplates: P.stepTemplates,
               nextTaskId: P.nextTaskId, nextMemberId: P.nextMemberId, nextReportId: P.nextReportId,
               nextSubId: P.nextSubId, nextDefectId: P.nextDefectId, nextRaidId: P.nextRaidId, nextDecisionId: P.nextDecisionId,
+              nextDeliveryId: P.nextDeliveryId || 1, _deliveryViewMode: P._deliveryViewMode || 'matrix',
               colWidths: P.colWidths, colOrder: P.colOrder, colFilters: P.colFilters,
               defColWidths: P.defColWidths, defColOrder: P.defColOrder, defHiddenCols: P.defHiddenCols, defColFilters: P.defColFilters,
+              delCols: P.delCols, delColWidths: P.delColWidths, delColOrder: P.delColOrder, delHiddenCols: P.delHiddenCols, delColFilters: P.delColFilters,
               showInlineFilters: P.showInlineFilters, hiddenCols: P.hiddenCols, settings: P.settings,
               lastSynced: P.lastSynced, lastBackup: P.lastBackup,
               fsDirName: P.fsDirName, fsDirPath: P.fsDirPath,
@@ -20788,6 +21217,9 @@
               PP.error('[ProjectPulse] Data validation failed', err);
             }
             Object.assign(P, d);
+            if (!P.deliveries || !Array.isArray(P.deliveries)) P.deliveries = [];
+            if (!P.nextDeliveryId) P.nextDeliveryId = (P.deliveries.length ? Math.max(...P.deliveries.map(x => parseInt((x.id || '').replace(/\D/g, '')) || 0)) + 1 : 1);
+            if (d._deliveryViewMode) P._deliveryViewMode = d._deliveryViewMode;
             const pv = localStorage.getItem('pp-view');
             if (pv) P.view = pv;
             if (d.showInlineFilters !== undefined) P.showInlineFilters = d.showInlineFilters;
@@ -20993,6 +21425,32 @@
             // Update effort column labels based on current unit setting
             syncEffortColumnLabels();
 
+            // Ensure delivery properties exist for legacy data
+            if (!P.deliveries || !Array.isArray(P.deliveries)) P.deliveries = d.deliveries || [];
+            if (!P.delCustomFields || !Array.isArray(P.delCustomFields)) P.delCustomFields = d.delCustomFields || [];
+            if (!P.delCols || !Array.isArray(P.delCols) || P.delCols.length === 0) {
+              P.delCols = [
+                { key: 'id', label: 'Delivery ID', w: 85, type: 'text', edit: false },
+                { key: 'almId', label: 'ALM ID', w: 100, type: 'text', edit: true },
+                { key: 'pdn', label: 'PDN', w: 110, type: 'text', edit: true },
+                { key: 'name', label: 'Delivery Scope / Name', w: 220, type: 'text', edit: true, required: true },
+                { key: 'module', label: 'Module', w: 130, type: 'select', edit: true },
+                { key: 'moduleType', label: 'Module Type', w: 110, type: 'select', opts: ['Server', 'GUI', 'Hybrid', 'Database', 'General'], edit: true },
+                { key: 'releaseVersion', label: 'Release', w: 100, type: 'select', edit: true },
+                { key: 'environment', label: 'Environment', w: 110, type: 'select', opts: ['Production', 'Staging', 'UAT', 'QA', 'Dev'], edit: true },
+                { key: 'status', label: 'Status', w: 130, type: 'select', opts: ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'], edit: true },
+                { key: 'signOffStatus', label: 'Sign-Off Status', w: 120, type: 'select', opts: ['Pending', 'Approved', 'Rejected', 'Not Required'], edit: true },
+                { key: 'approver', label: 'Approver', w: 120, type: 'select', edit: true },
+                { key: 'smokeTestStatus', label: 'Smoke Test', w: 110, type: 'select', opts: ['Not Run', 'Running', 'Passed', 'Failed'], edit: true },
+                { key: 'targetDeliveryDate', label: 'Target Date', w: 105, type: 'date', edit: true },
+                { key: 'actualDeliveryDate', label: 'Actual Date', w: 105, type: 'date', edit: true },
+                { key: 'leadTimeDays', label: 'Lead Time (Days)', w: 90, type: 'number', edit: true },
+                { key: 'guiScreens', label: 'GUI Screens', w: 140, type: 'text', edit: true },
+                { key: 'rollbackPlan', label: 'Rollback Plan', w: 160, type: 'text', edit: true },
+                { key: 'notes', label: 'Notes', w: 160, type: 'text', edit: true }
+              ];
+            }
+
             return true;
           }
         } catch (e) { PP.warn('ProjectPulse: load() failed, falling back to sample data', e); }
@@ -21068,11 +21526,14 @@
             projectName: P.name,
             ts: new Date().toISOString(),
             data: {
-              name: P.name, desc: P.desc, tasks: P.tasks, log: P.log,
-              members: P.members, reports: P.reports, customFields: P.customFields,
+              name: P.name, desc: P.desc, tasks: P.tasks, defects: P.defects, log: P.log,
+              members: P.members, reports: P.reports, deliveries: P.deliveries || [],
+              features: P.features, releases: P.releases, customFields: P.customFields,
+              defCustomFields: P.defCustomFields, delCustomFields: P.delCustomFields || [],
               stepTemplates: P.stepTemplates, dropdowns: P.dropdowns,
               nextTaskId: P.nextTaskId, nextMemberId: P.nextMemberId,
-              nextReportId: P.nextReportId, nextSubId: P.nextSubId
+              nextReportId: P.nextReportId, nextSubId: P.nextSubId,
+              nextDefectId: P.nextDefectId, nextDeliveryId: P.nextDeliveryId
             }
           };
 
@@ -21893,11 +22354,13 @@
     let cmdIndex = -1;
     const COMMANDS = [
       { n: 'Jump to Tasks', d: 'View all project tasks', a: () => setView('tasks'), i: 'clipboard-list', k: 'G T' },
+      { n: 'Jump to Deliveries', d: 'View software delivery schedule & release notes', a: () => setView('deliveries'), i: 'package-check', k: 'G L' },
       { n: 'Jump to Timeline', d: 'View Gantt chart', a: () => { setView('tasks'); setTaskViewMode('timeline'); }, i: 'timer', k: 'G G' },
       { n: 'Jump to Insights', d: 'View executive metrics and reports', a: () => setView('dash'), i: 'trending-up', k: 'G I' },
       { n: 'Jump to Team', d: 'View team directory and capacity', a: () => setView('team'), i: 'users', k: 'G R' },
       { n: 'Jump to Defects', d: 'View defects list and tracker', a: () => setView('defects'), i: 'bug', k: 'G D' },
       { n: 'New Task', d: 'Create a new project task', a: () => openAddTask(), i: 'plus-circle', k: 'N' },
+      { n: 'Action: Log Delivery', d: 'Create and log a new delivery schedule item', a: () => openDeliveryModal(), i: 'package-plus', k: 'A L' },
       { n: 'Export Excel', d: 'Download project as XLSX', a: () => exportProjectExcel(), i: 'file-spreadsheet' },
       { n: 'Theme: Nexus', d: 'Switch to warm, refined theme', a: () => setTheme('nexus'), i: 'layout-grid' },
       { n: 'Theme: Obsidian', d: 'Switch to hacker terminal theme', a: () => setTheme('obsidian'), i: 'code' },
@@ -32235,9 +32698,9 @@
             <div style="margin-bottom:8px"><i data-lucide="list-checks"></i> <b>Option Libraries:</b> Define standardized selection lists for project attributes.</div>
             <div style="margin-bottom:8px">🔄 <b>Global Sync:</b> Values configured here are instantly available to Custom Fields.</div>
           `;
-        } else if (tab === 'fields') {
-          const stdCount = P._fieldsActiveTab === 'defects' ? (P.defCols || []).length : (P.cols || []).length;
-          const customCount = P._fieldsActiveTab === 'defects' ? (P.defCustomFields || []).length : (P.customFields || []).length;
+          const activeFieldTab = P._fieldsActiveTab || 'tasks';
+          const stdCount = activeFieldTab === 'tasks' ? (P.cols || []).length : (activeFieldTab === 'defects' ? (P.defCols || []).length : (P.delCols || []).length);
+          const customCount = activeFieldTab === 'tasks' ? (P.customFields || []).length : (activeFieldTab === 'defects' ? (P.defCustomFields || []).length : (P.delCustomFields || []).length);
           const total = stdCount + customCount;
           sbStats.innerHTML = `
             <div class="sb-stat"><span>Attributes</span><span class="val">${total}</span></div>
@@ -42096,11 +42559,30 @@ Earned Value Management measures project performance and progress by comparing p
       }
     }
 
+    function syncViewOrder() {
+      if (!P.settings) P.settings = {};
+      if (!P.settings.viewOrder || !Array.isArray(P.settings.viewOrder) || P.settings.viewOrder.length === 0) {
+        P.settings.viewOrder = ALL_VIEWS.map(v => v.id);
+        return;
+      }
+      ALL_VIEWS.forEach(v => {
+        if (!P.settings.viewOrder.includes(v.id)) {
+          const defaultIdx = ALL_VIEWS.findIndex(av => av.id === v.id);
+          if (defaultIdx >= 0 && defaultIdx <= P.settings.viewOrder.length) {
+            P.settings.viewOrder.splice(defaultIdx, 0, v.id);
+          } else {
+            P.settings.viewOrder.push(v.id);
+          }
+        }
+      });
+      P.settings.viewOrder = P.settings.viewOrder.filter(vid => ALL_VIEWS.some(v => v.id === vid));
+    }
+
     // Function to render the view order configuration UI
     function renderViewOrderAdmin() {
       const container = $id('view-order-list');
       if (!container) return;
-      if (!P.settings.viewOrder || P.settings.viewOrder.length === 0) P.settings.viewOrder = ALL_VIEWS.map(v => v.id);
+      syncViewOrder();
 
       let html = '';
       P.settings.viewOrder.forEach((vid, index) => {
@@ -42134,11 +42616,7 @@ Earned Value Management measures project performance and progress by comparing p
     };
 
     function renderViewToggle() {
-      if (!P.settings) P.settings = {};
-      if (!P.settings.viewOrder || !Array.isArray(P.settings.viewOrder) || P.settings.viewOrder.length === 0 ||
-        P.settings.viewOrder[2] === 'tasks' || P.settings.viewOrder[5] === 'reports') {
-        P.settings.viewOrder = ALL_VIEWS.map(v => v.id);
-      }
+      syncViewOrder();
 
       const vsw = document.querySelector('.vsw');
       const mobileNav = $id('mobile-nav');
@@ -42164,6 +42642,9 @@ Earned Value Management measures project performance and progress by comparing p
           btn.title = viewDef.title;
           if (vid === 'log') {
             btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label} <span id="log-badge" class="badge" style="display:none;margin-left:6px;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">0</span>`;
+          } else if (vid === 'deliveries') {
+            const pendingDel = (P.deliveries || []).filter(d => d.status !== 'Deployed' && d.status !== 'Cancelled').length;
+            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label}${pendingDel > 0 ? ` <span class="badge" style="margin-left:6px;background:var(--color-primary);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">${pendingDel}</span>` : ''}`;
           } else {
             btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i> ${P.hideLabels ? '' : viewDef.label}`;
           }
@@ -42183,13 +42664,14 @@ Earned Value Management measures project performance and progress by comparing p
           btn.title = viewDef.title;
           if (vid === 'log') {
             btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span class="sb-nav-label">${viewDef.label}</span><span id="sb-log-badge" class="badge" style="display:none;margin-left:auto;background:var(--red);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">0</span>`;
+          } else if (vid === 'deliveries') {
+            const pendingDel = (P.deliveries || []).filter(d => d.status !== 'Deployed' && d.status !== 'Cancelled').length;
+            btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span class="sb-nav-label">${viewDef.label}</span>${pendingDel > 0 ? `<span class="badge" style="margin-left:auto;background:var(--color-primary);color:white;font-size:10px;padding:1px 6px;border-radius:10px;line-height:1">${pendingDel}</span>` : ''}`;
           } else {
             btn.innerHTML = `<i data-lucide="${viewDef.icon}"></i><span class="sb-nav-label">${viewDef.label}</span>`;
           }
           sbNav.appendChild(btn);
         }
-
-
 
         // Mobile #mobile-nav
         if (mobileNav) {
@@ -42278,6 +42760,7 @@ Earned Value Management measures project performance and progress by comparing p
       const VIEW_TEMPLATES = {
         'overview': '<div id="overview-inner" style="padding:24px;max-width:1400px;margin:0 auto;width:100%"></div>',
         'dash': '<div class="dash-inner" id="dash-inner"></div>',
+        'deliveries': '<div id="deliveries-inner" style="padding:24px;max-width:1400px;margin:0 auto;width:100%"></div>',
         'tasks': '<div class="twrap" id="twrap"><table id="tbl"><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>',
         'risks': '<div id="risks-inner" style="padding:24px;max-width:1400px;margin:0 auto;width:100%"></div>',
         'team': '<div class="team-inner" id="team-inner"></div>',
@@ -42302,22 +42785,23 @@ Earned Value Management measures project performance and progress by comparing p
         const vbar = $id('vbar');
         if (vbar) vbar.style.display = 'flex';
         const searchWrap = $id('search-wrap');
-        if (searchWrap) searchWrap.style.display = (isTasks || isDefects || v === 'log' || v === 'risks') ? 'block' : 'none';
+        if (searchWrap) searchWrap.style.display = (isTasks || isDefects || v === 'log' || v === 'risks' || v === 'deliveries') ? 'block' : 'none';
         const searchInp2 = $id('global-search');
         if (searchInp2) {
-          searchInp2.placeholder = isDefects ? 'Search defects, IDs, severity...' : (v === 'risks' ? 'Search risks, owners, impact...' : (v === 'log' ? 'Search activity, tasks, IDs...' : 'Search tasks, IDs, notes...'));
+          searchInp2.placeholder = isDefects ? 'Search defects, IDs, severity...' : (v === 'risks' ? 'Search risks, owners, impact...' : (v === 'deliveries' ? 'Search deliveries, ALM ID, PDN, approver...' : (v === 'log' ? 'Search activity, tasks, IDs...' : 'Search tasks, IDs, notes...')));
           if (preserveSearch) {
             searchInp2.value = P.search || '';
           }
         }
         const taskInfo = $id('task-info');
-        if (taskInfo) taskInfo.style.display = (isTasks || isDefects || v === 'log' || v === 'risks') ? 'block' : 'none';
+        if (taskInfo) taskInfo.style.display = (isTasks || isDefects || v === 'log' || v === 'risks' || v === 'deliveries') ? 'block' : 'none';
         const taskViewControls = $id('task-view-controls');
         if (taskViewControls) taskViewControls.style.display = (isTasks || isDefects) ? 'flex' : 'none';
         const hierarchyWrap = $id('hierarchy-wrap');
         if (hierarchyWrap) hierarchyWrap.style.display = 'none'; // Level toggle moved to sidebar
 
         if (v === 'overview') renderOverviewView();
+        else if (v === 'deliveries') renderDeliveriesView();
         else if (v === 'risks') renderRisksView();
         else if (v === 'admin') renderAdminView();
         else if (v === 'tasks') renderTasksView();
@@ -42339,7 +42823,7 @@ Earned Value Management measures project performance and progress by comparing p
         localStorage.setItem('pp-view', v);
       };
 
-      const skeletonViews = ['overview', 'dash', 'tasks', 'timeline', 'risks', 'team', 'reports', 'defects'];
+      const skeletonViews = ['overview', 'dash', 'deliveries', 'tasks', 'timeline', 'risks', 'team', 'reports', 'defects'];
       if (skeletonViews.includes(v)) {
         newPanel.classList.add('on');
         // For dash: inject VIEW_TEMPLATE first so the dash-inner shell exists,
@@ -45789,6 +46273,1793 @@ Earned Value Management measures project performance and progress by comparing p
         notify('RAID item deleted', 'ok');
       }
     };
+
+    // ═══════════════════════════════════════════════
+    // ══════ DELIVERIES SCHEDULE & TRACKING ══════
+    // ═══════════════════════════════════════════════
+    window.renderDeliveriesView = renderDeliveriesView;
+    function renderDeliveriesView() {
+      const vTitle = $id('v-title');
+      if (vTitle) vTitle.innerHTML = `<i data-lucide="package-check" style="margin-right:10px"></i> Deliveries Schedule`;
+      const vAct = $id('view-actions');
+      if (vAct) vAct.innerHTML = `
+        <button class="btn secondary" onclick="exportDeliveriesToExcel()"><i data-lucide="download" style="margin-right:6px"></i> Export Excel</button>
+        <button class="btn secondary" onclick="triggerDeliveryExcelImport()"><i data-lucide="upload-cloud" style="margin-right:6px"></i> Import Excel</button>
+        <button class="btn primary" onclick="openDeliveryFlyout()"><i data-lucide="plus" style="margin-right:6px"></i> Log New Delivery</button>
+      `;
+      const panel = $id('vw-deliveries');
+      if (!panel) return;
+
+      if (!P.deliveries || !Array.isArray(P.deliveries)) P.deliveries = [];
+      if (!P._selectedDeliveries) P._selectedDeliveries = new Set();
+      P._delFilterStatus = P._delFilterStatus || 'All';
+      P._delFilterEnv = P._delFilterEnv || 'All';
+      P._delFilterModule = P._delFilterModule || 'All';
+      P._delFilterSignOff = P._delFilterSignOff || 'All';
+      P._delSortCol = P._delSortCol || 'targetDeliveryDate';
+      P._delSortOrder = P._delSortOrder || 'asc';
+
+      const deliveries = P.deliveries;
+
+      // KPI Calculations
+      const totalCount = deliveries.length;
+      const deployedProdCount = deliveries.filter(d => d.status === 'Deployed' && d.environment === 'Production').length;
+      const deployedProdPct = totalCount > 0 ? Math.round((deployedProdCount / totalCount) * 100) : 0;
+      const pendingSignOffCount = deliveries.filter(d => d.signOffStatus === 'Pending').length;
+      
+      const leadTimes = deliveries.map(d => Number(d.leadTimeDays)).filter(n => !isNaN(n) && n > 0);
+      const avgLeadTime = leadTimes.length > 0 ? (leadTimes.reduce((a, b) => a + b, 0) / leadTimes.length).toFixed(1) : '—';
+
+      // Sort
+      const sorted = [...deliveries].sort((a, b) => {
+        let valA = a[P._delSortCol] ?? '';
+        let valB = b[P._delSortCol] ?? '';
+        if (P._delSortCol === 'id') {
+          const numA = parseInt(String(valA).replace(/\D/g, '')) || 0;
+          const numB = parseInt(String(valB).replace(/\D/g, '')) || 0;
+          return P._delSortOrder === 'asc' ? numA - numB : numB - numA;
+        }
+        if (P._delSortCol === 'leadTimeDays') {
+          const numA = Number(valA) || 0;
+          const numB = Number(valB) || 0;
+          return P._delSortOrder === 'asc' ? numA - numB : numB - numA;
+        }
+        valA = String(valA).toLowerCase();
+        valB = String(valB).toLowerCase();
+        if (valA < valB) return P._delSortOrder === 'asc' ? -1 : 1;
+        if (valA > valB) return P._delSortOrder === 'asc' ? 1 : -1;
+        return 0;
+      });
+
+      // Filter
+      let filtered = sorted.filter(d => {
+        if (P._delFilterStatus !== 'All' && d.status !== P._delFilterStatus) return false;
+        if (P._delFilterEnv !== 'All' && d.environment !== P._delFilterEnv) return false;
+        if (P._delFilterModule !== 'All' && d.module !== P._delFilterModule) return false;
+        if (P._delFilterSignOff !== 'All' && d.signOffStatus !== P._delFilterSignOff) return false;
+        return true;
+      });
+
+      // Search Query
+      if (P.search) {
+        const q = P.search.toLowerCase();
+        filtered = filtered.filter(d =>
+          (d.id || '').toLowerCase().includes(q) ||
+          (d.name || '').toLowerCase().includes(q) ||
+          (d.almId || '').toLowerCase().includes(q) ||
+          (d.pdn || '').toLowerCase().includes(q) ||
+          (d.module || '').toLowerCase().includes(q) ||
+          (d.approver || '').toLowerCase().includes(q) ||
+          (d.releaseVersion || '').toLowerCase().includes(q) ||
+          (d.environment || '').toLowerCase().includes(q) ||
+          (d.notes || '').toLowerCase().includes(q)
+        );
+      }
+
+      const taskInfoEl = $id('task-info');
+      if (taskInfoEl) {
+        taskInfoEl.innerHTML = `<strong>${filtered.length}</strong> / ${totalCount} deliveries`;
+      }
+
+      // Unique modules for filter
+      const modules = Array.from(new Set([
+        ...(P.dropdowns && P.dropdowns.module ? P.dropdowns.module : []),
+        ...deliveries.map(d => d.module).filter(Boolean)
+      ])).sort();
+
+      const sortIcon = (col) => {
+        if (P._delSortCol !== col) return '<i data-lucide="chevrons-up-down" style="width:12px; height:12px; margin-left:4px; opacity:0.3; vertical-align:middle"></i>';
+        return P._delSortOrder === 'asc' ? '<i data-lucide="chevron-up" style="width:12px; height:12px; margin-left:4px; color:var(--color-primary); vertical-align:middle"></i>' : '<i data-lucide="chevron-down" style="width:12px; height:12px; margin-left:4px; color:var(--color-primary); vertical-align:middle"></i>';
+      };
+
+      const envBadge = (env) => {
+        const colors = {
+          'Production': { bg: 'rgba(239, 68, 68, 0.12)', fg: 'var(--red)', bd: 'rgba(239, 68, 68, 0.3)' },
+          'Staging': { bg: 'rgba(168, 85, 247, 0.12)', fg: '#a855f7', bd: 'rgba(168, 85, 247, 0.3)' },
+          'UAT': { bg: 'rgba(6, 182, 212, 0.12)', fg: '#06b6d4', bd: 'rgba(6, 182, 212, 0.3)' },
+          'QA': { bg: 'rgba(99, 102, 241, 0.12)', fg: 'var(--color-primary)', bd: 'rgba(99, 102, 241, 0.3)' },
+          'Dev': { bg: 'rgba(100, 116, 139, 0.12)', fg: 'var(--color-text-muted)', bd: 'rgba(100, 116, 139, 0.3)' }
+        };
+        const c = colors[env] || colors['Dev'];
+        return `<span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; background:${c.bg}; color:${c.fg}; border:1px solid ${c.bd}">${esc(env || 'Dev')}</span>`;
+      };
+
+      const signOffBadge = (s) => {
+        const colors = {
+          'Approved': { bg: 'rgba(34, 197, 94, 0.12)', fg: 'var(--green)', bd: 'rgba(34, 197, 94, 0.3)' },
+          'Pending': { bg: 'rgba(245, 158, 11, 0.12)', fg: 'var(--amber)', bd: 'rgba(245, 158, 11, 0.3)' },
+          'Rejected': { bg: 'rgba(239, 68, 68, 0.12)', fg: 'var(--red)', bd: 'rgba(239, 68, 68, 0.3)' },
+          'Not Required': { bg: 'rgba(100, 116, 139, 0.12)', fg: 'var(--color-text-muted)', bd: 'rgba(100, 116, 139, 0.3)' }
+        };
+        const c = colors[s] || colors['Pending'];
+        return `<span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; background:${c.bg}; color:${c.fg}; border:1px solid ${c.bd}">${esc(s || 'Pending')}</span>`;
+      };
+
+      const smokeBadge = (s) => {
+        if (!s || s === 'Not Run') return `<span style="font-size:11px; opacity:0.6; color:var(--color-text-muted)">⚪ Not Run</span>`;
+        if (s === 'Passed') return `<span style="font-size:11px; font-weight:700; color:var(--green)">🟢 Passed</span>`;
+        if (s === 'Failed') return `<span style="font-size:11px; font-weight:700; color:var(--red)">🔴 Failed</span>`;
+        return `<span style="font-size:11px; font-weight:700; color:var(--color-primary)">🔵 ${esc(s)}</span>`;
+      };
+
+      const isAnyFilterActive = P._delFilterStatus !== 'All' || P._delFilterEnv !== 'All' || P._delFilterModule !== 'All' || P._delFilterSignOff !== 'All' || !!P.search;
+      const selectedCount = P._selectedDeliveries ? P._selectedDeliveries.size : 0;
+
+      let html = `
+        <div style="display:flex; flex-direction:column; gap:20px">
+          <!-- Top KPI Metric Cards -->
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:16px">
+            <div style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); padding:16px 20px; box-shadow:var(--shadow-sm); display:flex; align-items:center; gap:16px">
+              <div style="width:44px; height:44px; border-radius:var(--radius-md); background:rgba(99,102,241,0.12); color:var(--color-primary); display:flex; align-items:center; justify-content:center">
+                <i data-lucide="package" style="width:24px; height:24px"></i>
+              </div>
+              <div>
+                <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--color-text-muted); letter-spacing:0.5px">Total Deliveries</div>
+                <div style="font-size:24px; font-weight:800; color:var(--color-text); margin-top:2px">${totalCount}</div>
+                <div style="font-size:11px; color:var(--color-text-faint); margin-top:2px">${deliveries.filter(d => d.status !== 'Deployed' && d.status !== 'Cancelled').length} active in pipeline</div>
+              </div>
+            </div>
+
+            <div style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); padding:16px 20px; box-shadow:var(--shadow-sm); display:flex; align-items:center; gap:16px">
+              <div style="width:44px; height:44px; border-radius:var(--radius-md); background:rgba(34,197,94,0.12); color:var(--green); display:flex; align-items:center; justify-content:center">
+                <i data-lucide="check-circle" style="width:24px; height:24px"></i>
+              </div>
+              <div>
+                <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--color-text-muted); letter-spacing:0.5px">Prod Deployed</div>
+                <div style="font-size:24px; font-weight:800; color:var(--color-text); margin-top:2px">${deployedProdCount} <span style="font-size:13px; font-weight:600; color:var(--green)">(${deployedProdPct}%)</span></div>
+                <div style="font-size:11px; color:var(--color-text-faint); margin-top:2px">Production release milestone</div>
+              </div>
+            </div>
+
+            <div style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); padding:16px 20px; box-shadow:var(--shadow-sm); display:flex; align-items:center; gap:16px">
+              <div style="width:44px; height:44px; border-radius:var(--radius-md); background:rgba(245,158,11,0.12); color:var(--amber); display:flex; align-items:center; justify-content:center">
+                <i data-lucide="file-check-2" style="width:24px; height:24px"></i>
+              </div>
+              <div>
+                <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--color-text-muted); letter-spacing:0.5px">Pending Sign-Off</div>
+                <div style="font-size:24px; font-weight:800; color:${pendingSignOffCount > 0 ? 'var(--amber)' : 'var(--color-text)'}; margin-top:2px">${pendingSignOffCount}</div>
+                <div style="font-size:11px; color:var(--color-text-faint); margin-top:2px">Awaiting lead verification</div>
+              </div>
+            </div>
+
+            <div style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); padding:16px 20px; box-shadow:var(--shadow-sm); display:flex; align-items:center; gap:16px">
+              <div style="width:44px; height:44px; border-radius:var(--radius-md); background:rgba(6,182,212,0.12); color:#06b6d4; display:flex; align-items:center; justify-content:center">
+                <i data-lucide="clock" style="width:24px; height:24px"></i>
+              </div>
+              <div>
+                <div style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--color-text-muted); letter-spacing:0.5px">Avg Lead Time</div>
+                <div style="font-size:24px; font-weight:800; color:var(--color-text); margin-top:2px">${avgLeadTime} <span style="font-size:13px; font-weight:600; color:var(--color-text-muted)">days</span></div>
+                <div style="font-size:11px; color:var(--color-text-faint); margin-top:2px">Commit to rollout cycle</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filter & Action Bar -->
+          <div style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); padding:14px 18px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between">
+            <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center">
+              <div style="display:flex; align-items:center; gap:6px">
+                <span style="font-size:12px; font-weight:600; color:var(--color-text-muted)">Status:</span>
+                <select class="fsel" style="padding:4px 8px; font-size:12px; height:32px; min-width:110px" onchange="setDeliveryFilter('status', this.value)">
+                  <option value="All" ${P._delFilterStatus === 'All' ? 'selected' : ''}>All Statuses</option>
+                  <option value="Scheduled" ${P._delFilterStatus === 'Scheduled' ? 'selected' : ''}>Scheduled</option>
+                  <option value="In Progress" ${P._delFilterStatus === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                  <option value="Ready for Deployment" ${P._delFilterStatus === 'Ready for Deployment' ? 'selected' : ''}>Ready for Deployment</option>
+                  <option value="Deployed" ${P._delFilterStatus === 'Deployed' ? 'selected' : ''}>Deployed</option>
+                  <option value="Cancelled" ${P._delFilterStatus === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
+                  <option value="Rolled Back" ${P._delFilterStatus === 'Rolled Back' ? 'selected' : ''}>Rolled Back</option>
+                </select>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:6px">
+                <span style="font-size:12px; font-weight:600; color:var(--color-text-muted)">Environment:</span>
+                <select class="fsel" style="padding:4px 8px; font-size:12px; height:32px; min-width:100px" onchange="setDeliveryFilter('env', this.value)">
+                  <option value="All" ${P._delFilterEnv === 'All' ? 'selected' : ''}>All Envs</option>
+                  <option value="Production" ${P._delFilterEnv === 'Production' ? 'selected' : ''}>Production</option>
+                  <option value="Staging" ${P._delFilterEnv === 'Staging' ? 'selected' : ''}>Staging</option>
+                  <option value="UAT" ${P._delFilterEnv === 'UAT' ? 'selected' : ''}>UAT</option>
+                  <option value="QA" ${P._delFilterEnv === 'QA' ? 'selected' : ''}>QA</option>
+                  <option value="Dev" ${P._delFilterEnv === 'Dev' ? 'selected' : ''}>Dev</option>
+                </select>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:6px">
+                <span style="font-size:12px; font-weight:600; color:var(--color-text-muted)">Sign-Off:</span>
+                <select class="fsel" style="padding:4px 8px; font-size:12px; height:32px; min-width:110px" onchange="setDeliveryFilter('signoff', this.value)">
+                  <option value="All" ${P._delFilterSignOff === 'All' ? 'selected' : ''}>All Sign-Offs</option>
+                  <option value="Pending" ${P._delFilterSignOff === 'Pending' ? 'selected' : ''}>Pending</option>
+                  <option value="Approved" ${P._delFilterSignOff === 'Approved' ? 'selected' : ''}>Approved</option>
+                  <option value="Rejected" ${P._delFilterSignOff === 'Rejected' ? 'selected' : ''}>Rejected</option>
+                  <option value="Not Required" ${P._delFilterSignOff === 'Not Required' ? 'selected' : ''}>Not Required</option>
+                </select>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:6px">
+                <span style="font-size:12px; font-weight:600; color:var(--color-text-muted)">Module:</span>
+                <select class="fsel" style="padding:4px 8px; font-size:12px; height:32px; min-width:110px" onchange="setDeliveryFilter('module', this.value)">
+                  <option value="All" ${P._delFilterModule === 'All' ? 'selected' : ''}>All Modules</option>
+                  ${modules.map(m => `<option value="${esc(m)}" ${P._delFilterModule === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}
+                </select>
+              </div>
+
+              ${isAnyFilterActive ? `<button class="btn ghost mini" onclick="clearDeliveryFilters()" style="color:var(--red)"><i data-lucide="x" style="margin-right:4px"></i> Clear Filters</button>` : ''}
+            </div>
+
+            <div style="display:flex; align-items:center; gap:8px">
+              <button class="btn outline" onclick="triggerDeliveryExcelImport()"><i data-lucide="upload-cloud" style="margin-right:6px"></i> Import Excel</button>
+              <button class="btn primary" onclick="openDeliveryFlyout()"><i data-lucide="plus" style="margin-right:6px"></i> Log Delivery</button>
+            </div>
+          </div>
+
+          <!-- Batch Action Toolbar if items selected -->
+          ${selectedCount > 0 ? `
+            <div style="background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.3); border-radius:var(--radius-md); padding:10px 16px; display:flex; align-items:center; justify-content:space-between; animation:fadeIn 0.2s ease">
+              <div style="display:flex; align-items:center; gap:12px">
+                <span style="font-size:13px; font-weight:700; color:var(--color-primary)">${selectedCount} deliveries selected</span>
+                <div style="height:16px; width:1px; background:rgba(99,102,241,0.3)"></div>
+                <div style="display:flex; align-items:center; gap:6px">
+                  <span style="font-size:12px; color:var(--color-text-muted)">Status:</span>
+                  <select class="fsel" style="padding:2px 8px; font-size:12px; height:28px" onchange="batchUpdateDeliveryStatus(this.value)">
+                    <option value="" selected disabled>Set Status...</option>
+                    <option value="Scheduled">Scheduled</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Ready for Deployment">Ready for Deployment</option>
+                    <option value="Deployed">Deployed</option>
+                    <option value="Cancelled">Cancelled</option>
+                  </select>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px">
+                  <span style="font-size:12px; color:var(--color-text-muted)">Sign-Off:</span>
+                  <select class="fsel" style="padding:2px 8px; font-size:12px; height:28px" onchange="batchUpdateDeliverySignOff(this.value)">
+                    <option value="" selected disabled>Set Sign-Off...</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Rejected">Rejected</option>
+                    <option value="Not Required">Not Required</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px">
+                <button class="btn ghost mini danger" onclick="batchDeleteSelectedDeliveries()"><i data-lucide="trash-2" style="margin-right:4px"></i> Delete Selected</button>
+                <button class="btn ghost mini" onclick="P._selectedDeliveries.clear(); renderDeliveriesView();">Deselect All</button>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Deliveries Table Container -->
+          <div class="twrap" style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); overflow:hidden">
+            <table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px">
+              <thead>
+                <tr style="background:var(--color-surface-2); border-bottom:1px solid var(--color-divider); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--color-text-muted)">
+                  <th style="width:40px; padding:12px 14px; text-align:center">
+                    <input type="checkbox" onchange="toggleSelectAllDeliveries(this.checked)" ${deliveries.length > 0 && selectedCount === deliveries.length ? 'checked' : ''}>
+                  </th>
+                  <th style="width:48px; padding:12px 6px; text-align:center">#</th>
+                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('id')">ID & ALM / PDN ${sortIcon('id')}</th>
+                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('name')">Delivery Scope / Name ${sortIcon('name')}</th>
+                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('module')">Module & Type ${sortIcon('module')}</th>
+                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('releaseVersion')">Release ${sortIcon('releaseVersion')}</th>
+                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('environment')">Env ${sortIcon('environment')}</th>
+                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('status')">Status ${sortIcon('status')}</th>
+                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('targetDeliveryDate')">Target Date ${sortIcon('targetDeliveryDate')}</th>
+                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('actualDeliveryDate')">Actual Date ${sortIcon('actualDeliveryDate')}</th>
+                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('leadTimeDays')">Lead Time ${sortIcon('leadTimeDays')}</th>
+                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('signOffStatus')">Sign-Off ${sortIcon('signOffStatus')}</th>
+                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('approver')">Approver ${sortIcon('approver')}</th>
+                  <th style="padding:12px 14px">Smoke Test</th>
+                  <th style="padding:12px 14px">GUI Screens</th>
+                  <th style="width:100px; padding:12px 14px; text-align:right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filtered.length > 0 ? filtered.map((d, idx) => {
+                  const isChecked = P._selectedDeliveries.has(d.id);
+                  const screens = Array.isArray(d.guiScreens) ? d.guiScreens : (d.guiScreens ? String(d.guiScreens).split(',').map(s => s.trim()).filter(Boolean) : []);
+                  return `
+                    <tr style="border-bottom:1px solid var(--color-divider); ${isChecked ? 'background:rgba(99,102,241,0.04);' : ''} transition:background 0.15s ease" onmouseover="this.style.background='var(--color-surface-2)'" onmouseout="this.style.background='${isChecked ? 'rgba(99,102,241,0.04)' : 'transparent'}'" ondblclick="openDeliveryFlyout('${d.id}')">
+                      <td style="padding:10px 14px; text-align:center">
+                        <input type="checkbox" onchange="toggleDeliverySelect('${d.id}')" ${isChecked ? 'checked' : ''}>
+                      </td>
+                      <td style="padding:10px 6px; text-align:center; font-family:var(--mono); color:var(--color-text-faint); font-size:11px">${idx + 1}</td>
+                      <td style="padding:10px 14px; font-family:var(--mono); font-size:12px">
+                        <div style="font-weight:700; color:var(--color-primary)">${esc(d.id)}</div>
+                        <div style="display:flex; gap:4px; margin-top:2px; flex-wrap:wrap">
+                          ${d.almId ? `<span style="font-size:10px; background:var(--color-surface-3); border:1px solid var(--color-divider); padding:1px 4px; border-radius:3px; color:var(--color-text-muted)">${esc(d.almId)}</span>` : ''}
+                          ${d.pdn ? `<span style="font-size:10px; background:rgba(6,182,212,0.08); border:1px solid rgba(6,182,212,0.25); padding:1px 4px; border-radius:3px; color:#06b6d4">${esc(d.pdn)}</span>` : ''}
+                        </div>
+                      </td>
+                      <td style="padding:10px 14px; font-weight:600; color:var(--color-text)">
+                        <div>${esc(d.name || 'Untitled Delivery')}</div>
+                        ${d.notes ? `<div style="font-size:11px; font-weight:400; color:var(--color-text-muted); margin-top:2px; max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="${esc(d.notes)}">${esc(d.notes)}</div>` : ''}
+                      </td>
+                      <td style="padding:10px 14px">
+                        <div style="font-weight:600; color:var(--color-text)">${esc(d.module || '—')}</div>
+                        <div style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase">${esc(d.moduleType || 'General')}</div>
+                      </td>
+                      <td style="padding:10px 14px">
+                        <span style="font-size:11px; background:var(--color-surface-3); border:1px solid var(--color-divider); padding:2px 6px; border-radius:4px; font-weight:600">${esc(d.releaseVersion || '—')}</span>
+                      </td>
+                      <td style="padding:10px 14px">${envBadge(d.environment)}</td>
+                      <td style="padding:10px 14px">
+                        <select class="fsel" style="padding:2px 6px; font-size:12px; height:28px; font-weight:600" onchange="quickUpdateDeliveryStatus('${d.id}', this.value)">
+                          <option value="Scheduled" ${d.status === 'Scheduled' ? 'selected' : ''}>Scheduled</option>
+                          <option value="In Progress" ${d.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                          <option value="Ready for Deployment" ${d.status === 'Ready for Deployment' ? 'selected' : ''}>Ready for Deployment</option>
+                          <option value="Deployed" ${d.status === 'Deployed' ? 'selected' : ''}>Deployed</option>
+                          <option value="Cancelled" ${d.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
+                          <option value="Rolled Back" ${d.status === 'Rolled Back' ? 'selected' : ''}>Rolled Back</option>
+                        </select>
+                      </td>
+                      <td style="padding:10px 14px; font-family:var(--mono); font-size:12px; color:var(--color-text-muted)">${esc(d.targetDeliveryDate || '—')}</td>
+                      <td style="padding:10px 14px; font-family:var(--mono); font-size:12px; color:var(--color-text-muted)">${esc(d.actualDeliveryDate || '—')}</td>
+                      <td style="padding:10px 14px">
+                        ${d.leadTimeDays != null && d.leadTimeDays !== '' ? `<span style="font-size:11px; font-weight:700; background:rgba(99,102,241,0.08); color:var(--color-primary); padding:2px 6px; border-radius:4px">${d.leadTimeDays} d</span>` : '<span style="color:var(--color-text-faint)">—</span>'}
+                      </td>
+                      <td style="padding:10px 14px">
+                        <select class="fsel" style="padding:2px 6px; font-size:11px; height:28px; font-weight:600" onchange="quickUpdateDeliverySignOff('${d.id}', this.value)">
+                          <option value="Pending" ${d.signOffStatus === 'Pending' ? 'selected' : ''}>Pending</option>
+                          <option value="Approved" ${d.signOffStatus === 'Approved' ? 'selected' : ''}>Approved</option>
+                          <option value="Rejected" ${d.signOffStatus === 'Rejected' ? 'selected' : ''}>Rejected</option>
+                          <option value="Not Required" ${d.signOffStatus === 'Not Required' ? 'selected' : ''}>Not Required</option>
+                        </select>
+                      </td>
+                      <td style="padding:10px 14px; font-size:12px; color:var(--color-text)">${esc(d.approver || '—')}</td>
+                      <td style="padding:10px 14px">${smokeBadge(d.smokeTestStatus)}</td>
+                      <td style="padding:10px 14px">
+                        <div style="display:flex; gap:4px; flex-wrap:wrap; max-width:180px">
+                          ${screens.length > 0 ? screens.map(s => `<span style="font-size:10px; background:var(--color-surface-3); border:1px solid var(--color-divider); padding:1px 5px; border-radius:3px; color:var(--color-text-muted)">${esc(s)}</span>`).join('') : '<span style="color:var(--color-text-faint); font-size:11px">—</span>'}
+                        </div>
+                      </td>
+                      <td style="padding:10px 14px; text-align:right">
+                        <div style="display:inline-flex; gap:4px; align-items:center">
+                          <button class="btn ghost icon-btn" onclick="openDeliveryFlyout('${d.id}')" title="Edit Delivery" style="width:28px; height:28px; padding:0"><i data-lucide="edit-2" style="width:14px; height:14px"></i></button>
+                          <button class="btn ghost icon-btn" onclick="duplicateDelivery('${d.id}')" title="Duplicate Delivery" style="width:28px; height:28px; padding:0"><i data-lucide="copy" style="width:14px; height:14px"></i></button>
+                          <button class="btn ghost danger icon-btn" onclick="if(confirm('Delete delivery ${d.id}?')) deleteDeliveryById('${d.id}')" title="Delete" style="width:28px; height:28px; padding:0"><i data-lucide="trash-2" style="width:14px; height:14px"></i></button>
+                        </div>
+                      </td>
+                    </tr>
+                  `;
+                }).join('') : `
+                  <tr>
+                    <td colspan="16" style="text-align:center; padding:56px 20px; color:var(--color-text-muted)">
+                      <div style="font-size:36px; margin-bottom:12px">📦</div>
+                      <div style="font-size:16px; font-weight:700; color:var(--color-text)">No Deliveries Found</div>
+                      <div style="font-size:13px; color:var(--color-text-muted); margin-top:4px">No delivery schedule items match the current filter or search criteria.</div>
+                      <div style="display:flex; gap:10px; justify-content:center; margin-top:16px">
+                        <button class="btn outline" onclick="triggerDeliveryExcelImport()"><i data-lucide="upload-cloud" style="margin-right:6px"></i> Import from Excel</button>
+                        <button class="btn primary" onclick="openDeliveryFlyout()"><i data-lucide="plus" style="margin-right:6px"></i> Log First Delivery</button>
+                      </div>
+                    </td>
+                  </tr>
+                `}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      panel.innerHTML = html;
+      if (window.lucide) lucide.createIcons(panel);
+    }
+
+    // Filter and Sort helpers
+    window.setDeliveryFilter = function(type, val) {
+      if (type === 'status') P._delFilterStatus = val;
+      else if (type === 'env') P._delFilterEnv = val;
+      else if (type === 'module') P._delFilterModule = val;
+      else if (type === 'signoff') P._delFilterSignOff = val;
+      renderDeliveriesView();
+    };
+
+    window.clearDeliveryFilters = function() {
+      P._delFilterStatus = 'All';
+      P._delFilterEnv = 'All';
+      P._delFilterModule = 'All';
+      P._delFilterSignOff = 'All';
+      const sInp = $id('global-search');
+      if (sInp) sInp.value = '';
+      P.search = '';
+      renderDeliveriesView();
+    };
+
+    window.setDeliverySort = function(col) {
+      if (P._delSortCol === col) {
+        P._delSortOrder = P._delSortOrder === 'asc' ? 'desc' : 'asc';
+      } else {
+        P._delSortCol = col;
+        P._delSortOrder = 'asc';
+      }
+      renderDeliveriesView();
+    };
+
+    window.toggleDeliverySelect = function(id) {
+      if (!P._selectedDeliveries) P._selectedDeliveries = new Set();
+      if (P._selectedDeliveries.has(id)) P._selectedDeliveries.delete(id);
+      else P._selectedDeliveries.add(id);
+      renderDeliveriesView();
+    };
+
+    window.toggleSelectAllDeliveries = function(checked) {
+      if (!P._selectedDeliveries) P._selectedDeliveries = new Set();
+      if (checked) {
+        (P.deliveries || []).forEach(d => P._selectedDeliveries.add(d.id));
+      } else {
+        P._selectedDeliveries.clear();
+      }
+      renderDeliveriesView();
+    };
+
+    window.quickUpdateDeliveryStatus = function(id, newStatus) {
+      const d = (P.deliveries || []).find(x => x.id === id);
+      if (d) {
+        d.status = newStatus;
+        d.updatedAt = nowISO();
+        if (newStatus === 'Deployed' && !d.actualDeliveryDate) {
+          d.actualDeliveryDate = todayStr();
+          if (d.targetDeliveryDate) {
+            const diff = Math.round((new Date(d.actualDeliveryDate) - new Date(d.targetDeliveryDate)) / (864e5));
+            d.leadTimeDays = Math.max(0, diff);
+          }
+        }
+        save();
+        renderDeliveriesView();
+        renderViewToggle();
+        notify(`Delivery ${id} status updated to ${newStatus}`, 'ok');
+      }
+    };
+
+    window.quickUpdateDeliverySignOff = function(id, newSignOff) {
+      const d = (P.deliveries || []).find(x => x.id === id);
+      if (d) {
+        d.signOffStatus = newSignOff;
+        d.updatedAt = nowISO();
+        save();
+        renderDeliveriesView();
+        notify(`Delivery ${id} sign-off updated to ${newSignOff}`, 'ok');
+      }
+    };
+
+    window.batchUpdateDeliveryStatus = function(newStatus) {
+      if (!newStatus || !P._selectedDeliveries || P._selectedDeliveries.size === 0) return;
+      let cnt = 0;
+      P.deliveries.forEach(d => {
+        if (P._selectedDeliveries.has(d.id)) {
+          d.status = newStatus;
+          d.updatedAt = nowISO();
+          cnt++;
+        }
+      });
+      save();
+      renderDeliveriesView();
+      renderViewToggle();
+      notify(`Updated status for ${cnt} deliveries to ${newStatus}`, 'ok');
+    };
+
+    window.batchUpdateDeliverySignOff = function(newSignOff) {
+      if (!newSignOff || !P._selectedDeliveries || P._selectedDeliveries.size === 0) return;
+      let cnt = 0;
+      P.deliveries.forEach(d => {
+        if (P._selectedDeliveries.has(d.id)) {
+          d.signOffStatus = newSignOff;
+          d.updatedAt = nowISO();
+          cnt++;
+        }
+      });
+      save();
+      renderDeliveriesView();
+      notify(`Updated sign-off for ${cnt} deliveries to ${newSignOff}`, 'ok');
+    };
+
+    window.batchDeleteSelectedDeliveries = function() {
+      if (!P._selectedDeliveries || P._selectedDeliveries.size === 0) return;
+      if (confirm(`Permanently delete ${P._selectedDeliveries.size} selected deliveries?`)) {
+        P.deliveries = (P.deliveries || []).filter(d => !P._selectedDeliveries.has(d.id));
+        P._selectedDeliveries.clear();
+        save();
+        renderDeliveriesView();
+        renderViewToggle();
+        notify('Selected deliveries deleted', 'ok');
+      }
+    };
+
+    window.duplicateDelivery = function(id) {
+      const src = (P.deliveries || []).find(x => x.id === id);
+      if (!src) return;
+      if (!P.nextDeliveryId) P.nextDeliveryId = (P.deliveries.length ? Math.max(...P.deliveries.map(x => parseInt((x.id || '').replace(/\D/g, '')) || 0)) + 1 : 1);
+      const copy = JSON.parse(JSON.stringify(src));
+      copy.id = 'DEL-' + String(P.nextDeliveryId++).padStart(3, '0');
+      copy.name = copy.name + ' (Copy)';
+      copy.status = 'Scheduled';
+      copy.signOffStatus = 'Pending';
+      copy.actualDeliveryDate = '';
+      copy.createdAt = nowISO();
+      copy.updatedAt = nowISO();
+      P.deliveries.push(copy);
+      save();
+      renderDeliveriesView();
+      renderViewToggle();
+      notify(`Delivery duplicated as ${copy.id}`, 'ok');
+    };
+
+    window.autoComputeLeadTime = function() {
+      const tDate = $id('del_target_date').value;
+      const aDate = $id('del_actual_date').value;
+      const ltInp = $id('del_lead_time');
+      if (tDate && aDate && ltInp) {
+        const diff = Math.round((new Date(aDate) - new Date(tDate)) / (864e5));
+        ltInp.value = Math.max(0, diff);
+      }
+    };
+
+    // ── Delivery Flyout Handlers ──
+    window.openDeliveryFlyout = openDeliveryFlyout;
+    window.openDeliveryModal = openDeliveryFlyout;
+    function openDeliveryFlyout(id) {
+      P._editingDeliveryId = id || null;
+      const d = id ? (P.deliveries || []).find(x => x.id === id) : null;
+
+      const titleEl = $id('delivery-modal-title');
+      if (titleEl) titleEl.textContent = d ? 'Edit Delivery' : 'Log Delivery';
+      const subt = $id('delivery-flyout-subtitle');
+      if (subt) subt.textContent = d ? 'Delivery ID: ' + d.id : 'Delivery ID: —';
+
+      $id('del_name').value = d ? (d.name || '') : '';
+      $id('del_almid').value = d ? (d.almId || '') : '';
+      $id('del_pdn').value = d ? (d.pdn || '') : '';
+      
+      // Module options
+      const modSel = $id('del_module');
+      const modules = Array.from(new Set([
+        ...(P.dropdowns && P.dropdowns.module ? P.dropdowns.module : []),
+        ...(P.deliveries || []).map(x => x.module).filter(Boolean)
+      ])).sort();
+      modSel.innerHTML = modules.map(m => `<option value="${esc(m)}" ${d && d.module === m ? 'selected' : ''}>${esc(m)}</option>`).join('') +
+        (modules.length === 0 ? '<option value="General">General</option>' : '');
+
+      $id('del_module_type').value = d ? (d.moduleType || 'Server') : 'Server';
+
+      // Release options
+      const relSel = $id('del_release');
+      const releases = Array.from(new Set([
+        ...(P.releases ? P.releases.map(r => r.name || r) : []),
+        ...(P.dropdowns && P.dropdowns.release ? P.dropdowns.release : []),
+        ...(P.deliveries || []).map(x => x.releaseVersion).filter(Boolean)
+      ])).sort();
+      relSel.innerHTML = releases.map(r => `<option value="${esc(r)}" ${d && d.releaseVersion === r ? 'selected' : ''}>${esc(r)}</option>`).join('') +
+        (releases.length === 0 ? '<option value="v1.0.0">v1.0.0</option>' : '');
+
+      $id('del_environment').value = d ? (d.environment || 'Production') : 'Production';
+      $id('del_status').value = d ? (d.status || 'Scheduled') : 'Scheduled';
+      $id('del_signoff').value = d ? (d.signOffStatus || 'Pending') : 'Pending';
+
+      // Approvers
+      const appSel = $id('del_approver');
+      appSel.innerHTML = (P.members || []).map(m => `<option value="${esc(m.name)}" ${d && d.approver === m.name ? 'selected' : ''}>${esc(m.name)}</option>`).join('') +
+        ((!P.members || P.members.length === 0) ? '<option value="Lead Engineer">Lead Engineer</option>' : '');
+
+      $id('del_smoke_test').value = d ? (d.smokeTestStatus || 'Not Run') : 'Not Run';
+      $id('del_target_date').value = d ? (d.targetDeliveryDate || '') : todayStr();
+      $id('del_actual_date').value = d ? (d.actualDeliveryDate || '') : '';
+      $id('del_lead_time').value = d && d.leadTimeDays != null ? d.leadTimeDays : '';
+      $id('del_gui_screens').value = d ? (Array.isArray(d.guiScreens) ? d.guiScreens.join(', ') : (d.guiScreens || '')) : '';
+      $id('del_rollback_plan').value = d ? (d.rollbackPlan || '') : '';
+      $id('del_notes').value = d ? (d.notes || '') : '';
+
+      // Render delivery custom fields
+      const cfCont = $id('del_custom_fields_container');
+      if (cfCont) {
+        if (P.delCustomFields && P.delCustomFields.length) {
+          cfCont.innerHTML = `
+            <div style="margin-top:4px; padding:16px; background:rgba(var(--color-primary-rgb),0.03); border:1px solid var(--color-divider); border-radius:12px">
+              <div style="font-size:11px; font-weight:800; text-transform:uppercase; color:var(--color-primary); margin-bottom:12px; display:flex; align-items:center; gap:6px">
+                <i data-lucide="layers" style="width:14px; height:14px"></i> Custom Attributes
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
+                ${P.delCustomFields.map(cf => {
+                  const val = d ? (d[cf.name] !== undefined ? d[cf.name] : (d.custom && d.custom[cf.name] !== undefined ? d.custom[cf.name] : '')) : '';
+                  if (cf.type === 'dropdown' || cf.type === 'select') {
+                    const opts = cf.source === 'global' && P.dropdowns && P.dropdowns[cf.globalKey] ? P.dropdowns[cf.globalKey] : (cf.options || []);
+                    return `
+                      <div class="fg">
+                        <label class="flbl">${esc(cf.name)} ${cf.required ? '<span style="color:var(--red)">*</span>' : ''}</label>
+                        <select class="fsel del-cf-input" data-cf-name="${esc(cf.name)}">
+                          <option value="">-- Select --</option>
+                          ${opts.map(o => `<option value="${esc(o)}" ${String(val) === String(o) ? 'selected' : ''}>${esc(o)}</option>`).join('')}
+                        </select>
+                      </div>
+                    `;
+                  } else if (cf.type === 'number') {
+                    return `
+                      <div class="fg">
+                        <label class="flbl">${esc(cf.name)} ${cf.required ? '<span style="color:var(--red)">*</span>' : ''}</label>
+                        <input type="number" class="finp del-cf-input" data-cf-name="${esc(cf.name)}" value="${esc(val)}" placeholder="0">
+                      </div>
+                    `;
+                  } else if (cf.type === 'date') {
+                    return `
+                      <div class="fg">
+                        <label class="flbl">${esc(cf.name)} ${cf.required ? '<span style="color:var(--red)">*</span>' : ''}</label>
+                        <input type="date" class="finp del-cf-input" data-cf-name="${esc(cf.name)}" value="${esc(val)}" max="9999-12-31">
+                      </div>
+                    `;
+                  } else if (cf.type === 'checkbox' || cf.type === 'boolean') {
+                    return `
+                      <div class="fg" style="display:flex; align-items:center; gap:8px; margin-top:24px">
+                        <input type="checkbox" class="del-cf-input" data-cf-name="${esc(cf.name)}" ${val ? 'checked' : ''} style="width:16px; height:16px; accent-color:var(--color-primary)">
+                        <label class="flbl" style="margin-bottom:0; cursor:pointer">${esc(cf.name)}</label>
+                      </div>
+                    `;
+                  } else {
+                    return `
+                      <div class="fg">
+                        <label class="flbl">${esc(cf.name)} ${cf.required ? '<span style="color:var(--red)">*</span>' : ''}</label>
+                        <input type="text" class="finp del-cf-input" data-cf-name="${esc(cf.name)}" value="${esc(val)}" placeholder="Value…">
+                      </div>
+                    `;
+                  }
+                }).join('')}
+              </div>
+            </div>
+          `;
+          if (window.lucide) lucide.createIcons(cfCont);
+        } else {
+          cfCont.innerHTML = '';
+        }
+      }
+
+      const delBtn = $id('del_del_btn');
+      if (delBtn) delBtn.style.display = d ? 'inline-flex' : 'none';
+
+      closeAllFlyouts();
+      const flyout = $id('delivery-flyout');
+      if (flyout) flyout.classList.add('open');
+      const overlay = $id('flyout-overlay');
+      if (overlay) overlay.classList.add('on');
+    }
+
+    window.closeDeliveryFlyout = closeDeliveryFlyout;
+    function closeDeliveryFlyout() {
+      const flyout = $id('delivery-flyout');
+      if (flyout) flyout.classList.remove('open');
+      const overlay = $id('flyout-overlay');
+      if (overlay) overlay.classList.remove('on');
+    }
+
+    window.saveDeliveryItem = saveDeliveryItem;
+    function saveDeliveryItem() {
+      const name = $id('del_name').value.trim();
+      if (!name) { notify('Delivery Name/Scope is required', 'err'); return; }
+
+      const rawScreens = $id('del_gui_screens').value.trim();
+      const screensArr = rawScreens ? rawScreens.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+      const data = {
+        name: name,
+        almId: $id('del_almid').value.trim(),
+        pdn: $id('del_pdn').value.trim(),
+        module: $id('del_module').value,
+        moduleType: $id('del_module_type').value,
+        releaseVersion: $id('del_release').value,
+        environment: $id('del_environment').value,
+        status: $id('del_status').value,
+        signOffStatus: $id('del_signoff').value,
+        approver: $id('del_approver').value,
+        smokeTestStatus: $id('del_smoke_test').value,
+        targetDeliveryDate: $id('del_target_date').value,
+        actualDeliveryDate: $id('del_actual_date').value,
+        leadTimeDays: $id('del_lead_time').value !== '' ? Number($id('del_lead_time').value) : null,
+        guiScreens: screensArr,
+        rollbackPlan: $id('del_rollback_plan').value.trim(),
+        notes: $id('del_notes').value.trim(),
+        updatedAt: nowISO()
+      };
+
+      // Save custom fields from flyout
+      const cfInputs = document.querySelectorAll('.del-cf-input');
+      cfInputs.forEach(inp => {
+        const cfName = inp.getAttribute('data-cf-name');
+        if (cfName) {
+          const val = inp.type === 'checkbox' ? inp.checked : inp.value;
+          data[cfName] = val;
+          if (!data.custom) data.custom = {};
+          data.custom[cfName] = val;
+        }
+      });
+
+      if (P._editingDeliveryId) {
+        const d = (P.deliveries || []).find(x => x.id === P._editingDeliveryId);
+        if (d) Object.assign(d, data);
+      } else {
+        if (!P.deliveries) P.deliveries = [];
+        if (!P.nextDeliveryId) P.nextDeliveryId = (P.deliveries.length ? Math.max(...P.deliveries.map(x => parseInt((x.id || '').replace(/\D/g, '')) || 0)) + 1 : 1);
+        data.id = 'DEL-' + String(P.nextDeliveryId++).padStart(3, '0');
+        data.createdAt = nowISO();
+        P.deliveries.push(data);
+      }
+
+      closeDeliveryFlyout();
+      save();
+      renderDeliveriesView();
+      renderViewToggle();
+      if (typeof renderSidebar === 'function') renderSidebar();
+      notify('Delivery saved successfully', 'ok');
+    }
+
+    window.deleteDeliveryItem = deleteDeliveryItem;
+    function deleteDeliveryItem() {
+      if (!P._editingDeliveryId) return;
+      if (confirm('Permanently delete this delivery?')) {
+        deleteDeliveryById(P._editingDeliveryId);
+        closeDeliveryFlyout();
+      }
+    }
+
+    window.deleteDeliveryById = deleteDeliveryById;
+    function deleteDeliveryById(id) {
+      if (!P.deliveries) return;
+      const idx = P.deliveries.findIndex(x => x.id === id);
+      if (idx > -1) {
+        P.deliveries.splice(idx, 1);
+        if (P._selectedDeliveries) P._selectedDeliveries.delete(id);
+        save();
+        renderDeliveriesView();
+        renderViewToggle();
+        if (typeof renderSidebar === 'function') renderSidebar();
+        notify('Delivery deleted', 'ok');
+      }
+    }
+
+    // ═════════════════════════════════════════════════════════════
+    // ══════ DELIVERIES EXCEL IMPORT & FIELD MAPPING ENGINE ══════
+    // ═════════════════════════════════════════════════════════════
+
+    const DELIVERY_SYSTEM_FIELDS = [
+      {
+        key: 'name',
+        label: 'Delivery Scope / Name',
+        required: true,
+        icon: 'package',
+        type: 'text',
+        desc: 'Primary deliverable title or scope description',
+        aliases: ['name', 'scope', 'deliveryscope', 'deliveryscopename', 'title', 'packagename', 'releasename', 'item', 'deliverable', 'description', 'deliverablescope', 'summary', 'deliverabletitle', 'deliverablename']
+      },
+      {
+        key: 'id',
+        label: 'Delivery ID',
+        required: false,
+        icon: 'hash',
+        type: 'text',
+        desc: 'Unique delivery identifier (DEL-xxx)',
+        aliases: ['id', 'deliveryid', 'delid', 'code', 'del_id', 'delno', 'deliverynumber', 'deliveriesid', 'key', 'ref']
+      },
+      {
+        key: 'almId',
+        label: 'ALM / Change ID',
+        required: false,
+        icon: 'ticket',
+        type: 'text',
+        desc: 'Enterprise ALM / Jira / Change Ticket reference',
+        aliases: ['almid', 'alm', 'ticket', 'changeid', 'changeticket', 'jirakey', 'jira', 'cr', 'crid', 'changerequest', 'trackingid', 'ticketid', 'workitemid', 'alm_id']
+      },
+      {
+        key: 'pdn',
+        label: 'PDN (Deployment Notice)',
+        required: false,
+        icon: 'file-text',
+        type: 'text',
+        desc: 'Product Delivery Notice reference',
+        aliases: ['pdn', 'pdnnumber', 'pdnid', 'notice', 'deliverynotice', 'deploymentnotice', 'pdn_no', 'crnotice', 'noticenumber']
+      },
+      {
+        key: 'module',
+        label: 'System Module',
+        required: false,
+        icon: 'box',
+        type: 'select',
+        desc: 'Architecture subsystem or functional domain',
+        aliases: ['module', 'modulename', 'component', 'subsystem', 'service', 'domain', 'appmodule', 'featuremodule', 'systemmodule']
+      },
+      {
+        key: 'moduleType',
+        label: 'Module Type',
+        required: false,
+        icon: 'cpu',
+        type: 'select',
+        desc: 'Classification (Server, GUI, Interface, Mobile, etc.)',
+        aliases: ['moduletype', 'type', 'archtype', 'systemtype', 'classification', 'layer', 'architecturetype', 'techstack']
+      },
+      {
+        key: 'releaseVersion',
+        label: 'Target Release Version',
+        required: false,
+        icon: 'milestone',
+        type: 'select',
+        desc: 'Target release version (v1.0.0, etc.)',
+        aliases: ['releaseversion', 'release', 'version', 'targetrelease', 'targetversion', 'rel', 'versiontag', 'releaseid', 'fixversion']
+      },
+      {
+        key: 'environment',
+        label: 'Target Environment',
+        required: false,
+        icon: 'server',
+        type: 'select',
+        desc: 'Deployment tier (Production, Staging, QA, Dev, UAT)',
+        aliases: ['environment', 'env', 'targetenv', 'targetenvironment', 'tier', 'stage', 'deploymentenv', 'envname', 'targetenvironment']
+      },
+      {
+        key: 'status',
+        label: 'Delivery Status',
+        required: false,
+        icon: 'activity',
+        type: 'select',
+        desc: 'Lifecycle state (Scheduled, In Progress, Deployed, etc.)',
+        aliases: ['status', 'deliverystatus', 'state', 'stage', 'phase', 'progressstatus', 'currentstatus', 'deploystatus', 'executionstatus']
+      },
+      {
+        key: 'targetDeliveryDate',
+        label: 'Target Delivery Date',
+        required: false,
+        icon: 'calendar',
+        type: 'date',
+        desc: 'Planned deployment schedule date',
+        aliases: ['targetdeliverydate', 'targetdate', 'scheduleddate', 'planneddate', 'duedate', 'target', 'deliverydate', 'eta', 'targetdelivery', 'planneddeliverydate', 'scheduleddelivery', 'targetrelease']
+      },
+      {
+        key: 'actualDeliveryDate',
+        label: 'Actual Delivery Date',
+        required: false,
+        icon: 'calendar-check',
+        type: 'date',
+        desc: 'Actual execution / deployment timestamp',
+        aliases: ['actualdeliverydate', 'actualdate', 'deployeddate', 'completeddate', 'completiondate', 'actual', 'deployedon', 'actualdelivery', 'releasedate', 'proddeployeddate', 'donedate']
+      },
+      {
+        key: 'leadTimeDays',
+        label: 'Lead Time (Days)',
+        required: false,
+        icon: 'clock',
+        type: 'number',
+        desc: 'Turnaround duration in days (auto-computed if blank)',
+        aliases: ['leadtimedays', 'leadtime', 'leadtimes', 'days', 'duration', 'cycletime', 'turnaround', 'turnarounddays', 'cycletimedays']
+      },
+      {
+        key: 'signOffStatus',
+        label: 'Sign-Off Status',
+        required: false,
+        icon: 'check-circle-2',
+        type: 'select',
+        desc: 'Governance approval (Pending, Approved, Rejected, Not Required)',
+        aliases: ['signoffstatus', 'signoff', 'approvalstatus', 'approval', 'signoffstate', 'leadapproval', 'signoff_status', 'approvalstate', 'signoff']
+      },
+      {
+        key: 'approver',
+        label: 'Approver / Sign-Off Lead',
+        required: false,
+        icon: 'user-check',
+        type: 'select',
+        desc: 'Designated sign-off engineer or release manager',
+        aliases: ['approver', 'signofflead', 'lead', 'owner', 'approvedby', 'architect', 'signoffapprover', 'reviewer', 'signoffby', 'signer', 'leadapprover']
+      },
+      {
+        key: 'smokeTestStatus',
+        label: 'Smoke Test Status',
+        required: false,
+        icon: 'test-tube-2',
+        type: 'select',
+        desc: 'Sanity testing state (Not Run, Running, Passed, Failed, Skipped)',
+        aliases: ['smoketeststatus', 'smoketest', 'smokestatus', 'teststatus', 'sanitytest', 'qaverification', 'smoketesting', 'postdeploytest', 'testresult']
+      },
+      {
+        key: 'guiScreens',
+        label: 'Screens / Artifacts',
+        required: false,
+        icon: 'layout',
+        type: 'array',
+        desc: 'Packaged UI screens or assets (comma-separated)',
+        aliases: ['guiscreens', 'screens', 'screen', 'artifacts', 'assets', 'interfaces', 'guimodules', 'screensartifacts', 'packagelist', 'associatedscreens']
+      },
+      {
+        key: 'rollbackPlan',
+        label: 'Rollback Contingency Plan',
+        required: false,
+        icon: 'rotate-ccw',
+        type: 'text',
+        desc: 'Contingency protocol and backout strategy',
+        aliases: ['rollbackplan', 'rollback', 'contingency', 'fallback', 'backoutplan', 'mitigationplan', 'rollbackstrategy', 'backoutstrategy', 'rollbackprocedure']
+      },
+      {
+        key: 'notes',
+        label: 'Notes / Commentary',
+        required: false,
+        icon: 'message-square',
+        type: 'text',
+        desc: 'Operational details and commentary',
+        aliases: ['notes', 'comments', 'comment', 'description', 'remarks', 'operationalnotes', 'details', 'memo', 'note', 'changelog']
+      }
+    ];
+
+    window.triggerDeliveryExcelImport = function() {
+      const inp = $id('del-excel-file-input');
+      if (inp) {
+        inp.value = '';
+        inp.click();
+      }
+    };
+
+    window.closeDeliveryImportModal = function() {
+      closeModal('delivery-import-mapping-modal');
+      P._delImportSession = null;
+    };
+
+    window.updateDeliveryImportStrategy = function(mode) {
+      if (P._delImportSession) {
+        P._delImportSession.importMode = mode;
+      }
+    };
+
+    // Main file selection handler
+    window.handleDeliveryExcelFileSelect = async function(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const fileName = file.name;
+      const ext = fileName.split('.').pop().toLowerCase();
+
+      try {
+        showAppLock('Inspecting Spreadsheet...', 'Parsing worksheet headers, discovering columns, and analyzing data formats...', 'import');
+        await new Promise(r => setTimeout(r, 60));
+
+        if (ext === 'csv') {
+          const text = await file.text();
+          await parseDeliveryCsvContent(text, fileName);
+        } else {
+          if (typeof ExcelJS === 'undefined') {
+            hideAppLock();
+            notify('ExcelJS library is not available.', 'err');
+            return;
+          }
+          const buffer = await file.arrayBuffer();
+          const wb = new ExcelJS.Workbook();
+          await wb.xlsx.load(buffer);
+          await initDeliveryExcelWorkbookSession(wb, fileName);
+        }
+
+        hideAppLock();
+        openModal('delivery-import-mapping-modal');
+        renderDeliveryMappingModal();
+      } catch(err) {
+        hideAppLock();
+        PP.error(err);
+        notify('Failed to parse spreadsheet: ' + err.message, 'err');
+      }
+    };
+
+    // Helper: Parse CSV text into virtual sheet
+    async function parseDeliveryCsvContent(csvText, fileName) {
+      const rows = parseCsvTextRows(csvText);
+      if (!rows.length) throw new Error('CSV file contains no rows.');
+
+      const headers = rows[0].map(h => String(h || '').trim()).filter(Boolean);
+      const dataRows = rows.slice(1).filter(r => r.some(cell => cell != null && String(cell).trim() !== ''));
+
+      // Convert array of arrays to array of objects
+      const objectRows = dataRows.map(rowArr => {
+        const obj = {};
+        headers.forEach((h, idx) => {
+          obj[h] = rowArr[idx] !== undefined ? rowArr[idx] : '';
+        });
+        return obj;
+      });
+
+      P._delImportSession = {
+        isCsv: true,
+        fileName: fileName,
+        sheetNames: ['CSV_Data'],
+        currentSheet: 'CSV_Data',
+        headers: headers,
+        allRows: objectRows,
+        sampleRows: objectRows.slice(0, 5),
+        totalRows: objectRows.length,
+        mappings: {},
+        importMode: 'append_merge'
+      };
+
+      autoMapAllDeliveryFields();
+    }
+
+    function parseCsvTextRows(text) {
+      const p = [[]];
+      let row = p[0], inQuotes = false, token = '';
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        const next = text[i + 1];
+        if (c === '"') {
+          if (inQuotes && next === '"') { token += '"'; i++; }
+          else { inQuotes = !inQuotes; }
+        } else if (c === ',' && !inQuotes) {
+          row.push(token.trim());
+          token = '';
+        } else if ((c === '\r' || c === '\n') && !inQuotes) {
+          if (c === '\r' && next === '\n') i++;
+          row.push(token.trim());
+          token = '';
+          if (i < text.length - 1) {
+            row = [];
+            p.push(row);
+          }
+        } else {
+          token += c;
+        }
+      }
+      if (token || row.length) row.push(token.trim());
+      return p.filter(r => r.length > 1 || (r.length === 1 && r[0] !== ''));
+    }
+
+    // Helper: Initialize session from ExcelJS workbook
+    async function initDeliveryExcelWorkbookSession(wb, fileName) {
+      const sheetNames = [];
+      wb.eachSheet(ws => {
+        if (ws.rowCount > 0) sheetNames.push(ws.name);
+      });
+
+      if (!sheetNames.length) throw new Error('Excel workbook has no readable worksheets.');
+
+      // Choose optimal sheet: Deliveries, or first sheet with rows
+      let defaultSheet = sheetNames.find(s => s.toLowerCase().includes('deliver') || s.toLowerCase().includes('deploy') || s.toLowerCase().includes('schedule')) || sheetNames[0];
+
+      P._delImportSession = {
+        isCsv: false,
+        wb: wb,
+        fileName: fileName,
+        sheetNames: sheetNames,
+        currentSheet: defaultSheet,
+        headers: [],
+        allRows: [],
+        sampleRows: [],
+        totalRows: 0,
+        mappings: {},
+        importMode: 'append_merge'
+      };
+
+      loadDeliverySheetData(defaultSheet);
+      autoMapAllDeliveryFields();
+    }
+
+    // Load data from a specific sheet in workbook
+    function loadDeliverySheetData(sheetName) {
+      if (!P._delImportSession || P._delImportSession.isCsv) return;
+      const ws = P._delImportSession.wb.getWorksheet(sheetName);
+      if (!ws) return;
+
+      P._delImportSession.currentSheet = sheetName;
+
+      // Detect header row (scan rows 1 to 10 for best header candidate)
+      let headerRowIdx = 1;
+      let maxColsFound = 0;
+
+      for (let r = 1; r <= Math.min(ws.rowCount, 10); r++) {
+        const row = ws.getRow(r);
+        let validCellCount = 0;
+        row.eachCell({ includeEmpty: false }, c => {
+          const val = getCleanCellValue(c.value);
+          if (val && typeof val === 'string' && val.trim().length > 0) validCellCount++;
+        });
+        if (validCellCount > maxColsFound) {
+          maxColsFound = validCellCount;
+          headerRowIdx = r;
+        }
+      }
+
+      // Extract headers
+      const headers = [];
+      const headerRow = ws.getRow(headerRowIdx);
+      const colMap = []; // index to header name
+
+      headerRow.eachCell({ includeEmpty: false }, (c, colNumber) => {
+        const hVal = String(getCleanCellValue(c.value) || '').trim();
+        if (hVal) {
+          headers.push(hVal);
+          colMap.push({ colNumber, header: hVal });
+        }
+      });
+
+      // Extract all data rows
+      const allRows = [];
+      for (let r = headerRowIdx + 1; r <= ws.rowCount; r++) {
+        const row = ws.getRow(r);
+        const rowObj = {};
+        let hasAnyData = false;
+
+        colMap.forEach(cm => {
+          const cell = row.getCell(cm.colNumber);
+          const val = getCleanCellValue(cell.value);
+          rowObj[cm.header] = val;
+          if (val != null && String(val).trim() !== '') hasAnyData = true;
+        });
+
+        if (hasAnyData) {
+          allRows.push(rowObj);
+        }
+      }
+
+      P._delImportSession.headers = headers;
+      P._delImportSession.allRows = allRows;
+      P._delImportSession.sampleRows = allRows.slice(0, 5);
+      P._delImportSession.totalRows = allRows.length;
+    }
+
+    function getCleanCellValue(v) {
+      if (v == null) return '';
+      if (typeof v === 'object') {
+        if (v instanceof Date) return v;
+        if (v.richText && Array.isArray(v.richText)) return v.richText.map(rt => rt.text).join('');
+        if (v.text !== undefined) return v.text;
+        if (v.result !== undefined) return v.result;
+      }
+      return v;
+    }
+
+    window.changeDeliveryImportSheet = function(sheetName) {
+      if (!P._delImportSession) return;
+      loadDeliverySheetData(sheetName);
+      autoMapAllDeliveryFields();
+      renderDeliveryMappingModal();
+    };
+
+    window.autoMapAllDeliveryFields = function() {
+      if (!P._delImportSession) return;
+      const headers = P._delImportSession.headers || [];
+      const mappings = {};
+      const usedSystemFields = new Set();
+
+      // Full pool of target fields including custom fields
+      const targetFields = getDeliveryTargetFieldPool();
+
+      headers.forEach(h => {
+        const hClean = h.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+        let bestMatch = null;
+        let bestScore = 0;
+
+        for (const f of targetFields) {
+          if (usedSystemFields.has(f.key) && !f.isCustom) continue;
+
+          // 1. Check exact key or exact alias match
+          if (f.key.toLowerCase() === hClean || (f.aliases && f.aliases.includes(hClean))) {
+            bestMatch = f;
+            bestScore = 1.0;
+            break;
+          }
+
+          // 2. Check label exact match
+          const lClean = f.label.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (lClean === hClean) {
+            bestMatch = f;
+            bestScore = 0.95;
+            break;
+          }
+
+          // 3. Substring match
+          if (hClean.length >= 3 && (lClean.includes(hClean) || hClean.includes(lClean))) {
+            if (0.8 > bestScore) {
+              bestMatch = f;
+              bestScore = 0.8;
+            }
+          }
+
+          // 4. Custom field check
+          if (f.isCustom && f.customName) {
+            const cfClean = f.customName.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (cfClean === hClean) {
+              bestMatch = f;
+              bestScore = 0.95;
+              break;
+            }
+          }
+        }
+
+        if (bestMatch && bestScore >= 0.75) {
+          mappings[h] = bestMatch.key;
+          usedSystemFields.add(bestMatch.key);
+        } else {
+          mappings[h] = ''; // unmapped
+        }
+      });
+
+      P._delImportSession.mappings = mappings;
+      renderDeliveryMappingModal();
+    };
+
+    window.clearAllDeliveryMappings = function() {
+      if (!P._delImportSession) return;
+      const mappings = {};
+      (P._delImportSession.headers || []).forEach(h => { mappings[h] = ''; });
+      P._delImportSession.mappings = mappings;
+      renderDeliveryMappingModal();
+    };
+
+    function getDeliveryTargetFieldPool() {
+      const list = JSON.parse(JSON.stringify(DELIVERY_SYSTEM_FIELDS));
+      (P.delCustomFields || []).forEach(cf => {
+        list.push({
+          key: 'cf__' + cf.name,
+          label: `${cf.name} (Custom Attribute)`,
+          isCustom: true,
+          customName: cf.name,
+          required: !!cf.required,
+          icon: 'layers',
+          type: cf.type || 'text',
+          aliases: [cf.name.toLowerCase().replace(/[^a-z0-9]/g, '')]
+        });
+      });
+      return list;
+    }
+
+    window.onDeliveryMappingChanged = function(excelHeader, targetKey) {
+      if (!P._delImportSession) return;
+      
+      if (targetKey === '__CREATE_NEW_CUSTOM__') {
+        const customFieldName = prompt('Enter name for the new custom delivery attribute:', excelHeader);
+        if (!customFieldName || !customFieldName.trim()) {
+          renderDeliveryMappingModal();
+          return;
+        }
+        const cleanName = customFieldName.trim();
+        if (!P.delCustomFields) P.delCustomFields = [];
+        if (!P.delCols) P.delCols = [];
+
+        if (!P.delCustomFields.some(f => f.name.toLowerCase() === cleanName.toLowerCase())) {
+          P.delCustomFields.push({ name: cleanName, type: 'text', required: false });
+          P.delCols.push({ key: cleanName, label: cleanName, w: 130, type: 'text', edit: true });
+          save();
+        }
+
+        P._delImportSession.mappings[excelHeader] = 'cf__' + cleanName;
+        notify(`Created custom attribute "${cleanName}"`, 'ok');
+      } else {
+        P._delImportSession.mappings[excelHeader] = targetKey || '';
+      }
+
+      updateDeliveryMappingStats();
+      renderDeliveryImportLivePreview();
+    };
+
+    // Render the complete mapping modal
+    function renderDeliveryMappingModal() {
+      const s = P._delImportSession;
+      if (!s) return;
+
+      // File tag & Sheet select
+      const fileTag = $id('del-map-file-tag');
+      if (fileTag) fileTag.textContent = s.fileName;
+
+      const sheetSel = $id('del-import-sheet-select');
+      if (sheetSel) {
+        sheetSel.innerHTML = (s.sheetNames || []).map(name => `<option value="${esc(name)}" ${name === s.currentSheet ? 'selected' : ''}>${esc(name)}</option>`).join('');
+        sheetSel.disabled = (s.sheetNames || []).length <= 1;
+      }
+
+      const modeSel = $id('del-import-mode');
+      if (modeSel) modeSel.value = s.importMode || 'append_merge';
+
+      renderDeliveryMappingRows();
+      updateDeliveryMappingStats();
+      renderDeliveryImportLivePreview();
+
+      const modalEl = $id('delivery-import-mapping-modal');
+      if (window.lucide && modalEl) lucide.createIcons(modalEl);
+    }
+
+    function renderDeliveryMappingRows() {
+      const cont = $id('del-mapping-rows-container');
+      if (!cont || !P._delImportSession) return;
+
+      const s = P._delImportSession;
+      const headers = s.headers || [];
+      const targetPool = getDeliveryTargetFieldPool();
+      const mappings = s.mappings || {};
+
+      if (!headers.length) {
+        cont.innerHTML = `
+          <div style="padding:40px; text-align:center; color:var(--color-text-muted)">
+            <i data-lucide="alert-circle" style="width:32px; height:32px; margin-bottom:8px; opacity:0.4"></i>
+            <div>No data columns found in worksheet "${esc(s.currentSheet)}".</div>
+          </div>
+        `;
+        return;
+      }
+
+      let html = headers.map((h, i) => {
+        const currentTargetKey = mappings[h] || '';
+
+        // Get sample values for this column from sample rows
+        const sampleVals = (s.sampleRows || [])
+          .map(r => {
+            const v = r[h];
+            if (v == null || v === '') return '';
+            if (v instanceof Date) return v.toISOString().slice(0, 10);
+            return String(v);
+          })
+          .filter(Boolean)
+          .slice(0, 3);
+
+        const samplePreviewStr = sampleVals.length ? sampleVals.map(v => `<span style="display:inline-block; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:2px 6px; border-radius:4px; background:var(--color-surface-3); font-family:var(--mono); font-size:11px; color:var(--color-text); margin-right:4px; border:1px solid var(--color-divider)">${esc(v)}</span>`).join('') : '<span style="color:var(--color-text-faint); font-size:11px; font-style:italic">empty / null</span>';
+
+        const isMapped = !!currentTargetKey;
+
+        return `
+          <div style="display:grid; grid-template-columns:260px 1fr 40px 280px; gap:12px; padding:10px 16px; border-bottom:1px solid var(--color-divider); align-items:center; background:${isMapped ? 'rgba(var(--color-primary-rgb),0.02)' : 'transparent'}; transition:background 0.15s">
+            
+            <!-- Left: Excel Column Name -->
+            <div style="display:flex; align-items:center; gap:8px">
+              <div style="width:26px; height:26px; border-radius:6px; background:${isMapped ? 'rgba(var(--color-primary-rgb),0.12)' : 'var(--color-surface-3)'}; color:${isMapped ? 'var(--color-primary)' : 'var(--color-text-muted)'}; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0">
+                ${i + 1}
+              </div>
+              <div style="min-width:0; flex:1">
+                <div style="font-weight:700; font-size:13px; color:var(--color-text); text-overflow:ellipsis; overflow:hidden; white-space:nowrap" title="${esc(h)}">${esc(h)}</div>
+                <div style="font-size:10px; color:var(--color-text-faint); font-family:var(--mono)">Excel Column</div>
+              </div>
+            </div>
+
+            <!-- Middle: Sample Values -->
+            <div style="overflow:hidden; display:flex; align-items:center; flex-wrap:wrap; gap:4px">
+              ${samplePreviewStr}
+            </div>
+
+            <!-- Arrow Indicator -->
+            <div style="text-align:center; color:${isMapped ? 'var(--color-primary)' : 'var(--color-text-faint)'}; font-weight:800; font-size:14px">
+              →
+            </div>
+
+            <!-- Right: Target Field Selector -->
+            <div>
+              <select class="fsel" style="width:100%; height:34px; font-size:12px; font-weight:${isMapped ? '700' : '400'}; color:${isMapped ? 'var(--color-primary)' : 'var(--color-text-muted)'}; border-color:${isMapped ? 'rgba(var(--color-primary-rgb),0.4)' : 'var(--color-divider)'}" onchange="onDeliveryMappingChanged('${esc(h)}', this.value)">
+                <option value="" style="color:var(--color-text-muted)">-- Ignore Column (Do Not Import) --</option>
+                
+                <optgroup label="Core Delivery Attributes">
+                  ${DELIVERY_SYSTEM_FIELDS.map(f => `
+                    <option value="${f.key}" ${currentTargetKey === f.key ? 'selected' : ''}>
+                      ${f.label} ${f.required ? '★ (Required)' : ''}
+                    </option>
+                  `).join('')}
+                </optgroup>
+
+                ${(P.delCustomFields && P.delCustomFields.length) ? `
+                  <optgroup label="Custom Attributes">
+                    ${P.delCustomFields.map(cf => `
+                      <option value="cf__${esc(cf.name)}" ${currentTargetKey === 'cf__' + cf.name ? 'selected' : ''}>
+                        ${esc(cf.name)} (Custom Field)
+                      </option>
+                    `).join('')}
+                  </optgroup>
+                ` : ''}
+
+                <optgroup label="Actions">
+                  <option value="__CREATE_NEW_CUSTOM__" style="color:var(--color-primary); font-weight:700">✨ + Create as New Custom Field...</option>
+                </optgroup>
+              </select>
+            </div>
+
+          </div>
+        `;
+      }).join('');
+
+      cont.innerHTML = html;
+      if (window.lucide) lucide.createIcons(cont);
+    }
+
+    function updateDeliveryMappingStats() {
+      const s = P._delImportSession;
+      if (!s) return;
+
+      const totalCols = (s.headers || []).length;
+      const mappedValues = Object.values(s.mappings || {}).filter(Boolean);
+      const mappedCount = mappedValues.length;
+
+      const hasNameField = mappedValues.includes('name');
+
+      $id('del-map-stat-total-cols').textContent = totalCols;
+      $id('del-map-stat-mapped-cols').textContent = `${mappedCount} / ${totalCols}`;
+      $id('del-map-stat-rows').textContent = s.totalRows;
+
+      const reqBadge = $id('del-map-stat-required');
+      if (reqBadge) {
+        if (hasNameField) {
+          reqBadge.innerHTML = '<span style="color:var(--green)">✓ "Delivery Scope" Mapped</span>';
+        } else {
+          reqBadge.innerHTML = '<span style="color:var(--red)">⚠️ "Delivery Scope" Missing</span>';
+        }
+      }
+
+      const footerMsg = $id('del-map-footer-msg');
+      if (footerMsg) {
+        if (!hasNameField) {
+          footerMsg.innerHTML = '<span style="color:var(--red); font-weight:700">⚠️ Please map a spreadsheet column to "Delivery Scope / Name" to continue.</span>';
+        } else {
+          footerMsg.innerHTML = `<span style="color:var(--green); font-weight:600">✓ Ready to import ${s.totalRows} delivery records with ${mappedCount} mapped attributes.</span>`;
+        }
+      }
+
+      const confirmBtn = $id('del-import-confirm-btn');
+      if (confirmBtn) {
+        confirmBtn.disabled = !hasNameField || s.totalRows === 0;
+        confirmBtn.style.opacity = (!hasNameField || s.totalRows === 0) ? '0.5' : '1';
+      }
+    }
+
+    function renderDeliveryImportLivePreview() {
+      const cont = $id('del-import-live-preview');
+      if (!cont || !P._delImportSession) return;
+
+      const s = P._delImportSession;
+      const mappings = s.mappings || {};
+      const sampleRows = s.sampleRows || [];
+
+      if (!sampleRows.length) {
+        cont.innerHTML = '<div style="padding:16px; text-align:center; color:var(--color-text-faint)">No data rows to preview</div>';
+        return;
+      }
+
+      // Convert sample rows using current mapping
+      const mappedRecords = sampleRows.map((r, idx) => transformDeliveryRow(r, mappings, idx));
+
+      cont.innerHTML = `
+        <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left">
+          <thead>
+            <tr style="border-bottom:1px solid var(--color-divider); color:var(--color-text-muted); font-size:10px; text-transform:uppercase; background:var(--color-surface-2)">
+              <th style="padding:6px 10px">#</th>
+              <th style="padding:6px 10px">ID</th>
+              <th style="padding:6px 10px">Scope / Name</th>
+              <th style="padding:6px 10px">ALM ID</th>
+              <th style="padding:6px 10px">PDN</th>
+              <th style="padding:6px 10px">Module</th>
+              <th style="padding:6px 10px">Release</th>
+              <th style="padding:6px 10px">Env</th>
+              <th style="padding:6px 10px">Status</th>
+              <th style="padding:6px 10px">Target Date</th>
+              <th style="padding:6px 10px">Actual Date</th>
+              <th style="padding:6px 10px">Lead Time</th>
+              <th style="padding:6px 10px">Sign-Off</th>
+              <th style="padding:6px 10px">Approver</th>
+              <th style="padding:6px 10px">Smoke Test</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${mappedRecords.map((m, idx) => `
+              <tr style="border-bottom:1px solid var(--color-divider)">
+                <td style="padding:6px 10px; color:var(--color-text-faint); font-family:var(--mono)">${idx + 1}</td>
+                <td style="padding:6px 10px; font-weight:700; color:var(--color-primary); font-family:var(--mono)">${esc(m.id || `DEL-AUTO`)}</td>
+                <td style="padding:6px 10px; font-weight:600; color:var(--color-text)">${esc(m.name || '—')}</td>
+                <td style="padding:6px 10px; font-family:var(--mono)">${esc(m.almId || '—')}</td>
+                <td style="padding:6px 10px; font-family:var(--mono)">${esc(m.pdn || '—')}</td>
+                <td style="padding:6px 10px">${esc(m.module || '—')}</td>
+                <td style="padding:6px 10px">${esc(m.releaseVersion || '—')}</td>
+                <td style="padding:6px 10px"><span style="padding:1px 6px; border-radius:3px; font-weight:700; font-size:10px; background:var(--color-surface-3); border:1px solid var(--color-divider)">${esc(m.environment || 'Production')}</span></td>
+                <td style="padding:6px 10px">${esc(m.status || 'Scheduled')}</td>
+                <td style="padding:6px 10px; font-family:var(--mono)">${esc(m.targetDeliveryDate || '—')}</td>
+                <td style="padding:6px 10px; font-family:var(--mono)">${esc(m.actualDeliveryDate || '—')}</td>
+                <td style="padding:6px 10px">${m.leadTimeDays != null ? m.leadTimeDays + ' d' : '—'}</td>
+                <td style="padding:6px 10px">${esc(m.signOffStatus || 'Pending')}</td>
+                <td style="padding:6px 10px">${esc(m.approver || '—')}</td>
+                <td style="padding:6px 10px">${esc(m.smokeTestStatus || 'Not Run')}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // Transform a raw row according to active mapping
+    function transformDeliveryRow(rawRow, mappings, rowIndex) {
+      const item = {
+        name: '',
+        almId: '',
+        pdn: '',
+        module: '',
+        moduleType: 'Server',
+        releaseVersion: '',
+        environment: 'Production',
+        status: 'Scheduled',
+        signOffStatus: 'Pending',
+        approver: '',
+        smokeTestStatus: 'Not Run',
+        targetDeliveryDate: '',
+        actualDeliveryDate: '',
+        leadTimeDays: null,
+        guiScreens: [],
+        rollbackPlan: '',
+        notes: '',
+        custom: {}
+      };
+
+      for (const [header, targetKey] of Object.entries(mappings)) {
+        if (!targetKey) continue;
+        const val = rawRow[header];
+        if (val == null || val === '') continue;
+
+        if (targetKey.startsWith('cf__')) {
+          const cfName = targetKey.replace('cf__', '');
+          const cleanVal = String(val).trim();
+          item[cfName] = cleanVal;
+          if (!item.custom) item.custom = {};
+          item.custom[cfName] = cleanVal;
+        } else if (targetKey === 'targetDeliveryDate' || targetKey === 'actualDeliveryDate') {
+          item[targetKey] = parseCleanDateValue(val);
+        } else if (targetKey === 'leadTimeDays') {
+          const num = parseInt(String(val).replace(/\D/g, ''));
+          item[targetKey] = !isNaN(num) ? num : null;
+        } else if (targetKey === 'guiScreens') {
+          if (Array.isArray(val)) item.guiScreens = val.map(s => String(s).trim()).filter(Boolean);
+          else item.guiScreens = String(val).split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
+        } else {
+          item[targetKey] = String(val).trim();
+        }
+      }
+
+      // Auto-compute lead time if dates exist and leadTime is empty
+      if (item.leadTimeDays == null && item.targetDeliveryDate && item.actualDeliveryDate) {
+        try {
+          const d1 = new Date(item.targetDeliveryDate);
+          const d2 = new Date(item.actualDeliveryDate);
+          if (!isNaN(d1) && !isNaN(d2)) {
+            const diff = Math.round((d2 - d1) / (864e5));
+            item.leadTimeDays = Math.max(0, diff);
+          }
+        } catch(e) {}
+      }
+
+      return item;
+    }
+
+    function parseCleanDateValue(v) {
+      if (v == null || v === '') return '';
+      if (v instanceof Date) {
+        return !isNaN(v.getTime()) ? v.toISOString().slice(0, 10) : '';
+      }
+      if (typeof v === 'number') {
+        // Excel serial date format
+        try {
+          const jsDate = new Date(Math.round((v - 25569) * 86400 * 1000));
+          return !isNaN(jsDate.getTime()) ? jsDate.toISOString().slice(0, 10) : '';
+        } catch(e) { return ''; }
+      }
+      const str = String(v).trim();
+      // Test YYYY-MM-DD
+      if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+      // Test DD/MM/YYYY or DD-MM-YYYY
+      const dmy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (dmy) {
+        const d = dmy[1].padStart(2, '0');
+        const m = dmy[2].padStart(2, '0');
+        const y = dmy[3];
+        return `${y}-${m}-${d}`;
+      }
+
+      // Test Month names like 15-Aug-2026
+      const months = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
+      const mMatch = str.match(/^(\d{1,2})[\s\-_]([A-Za-z]{3})[\s\-_](\d{4})$/);
+      if (mMatch) {
+        const d = mMatch[1].padStart(2, '0');
+        const m = months[mMatch[2].toLowerCase()];
+        const y = mMatch[3];
+        if (m) return `${y}-${m}-${d}`;
+      }
+
+      try {
+        const parsed = new Date(str);
+        return !isNaN(parsed.getTime()) ? parsed.toISOString().slice(0, 10) : '';
+      } catch(e) {
+        return '';
+      }
+    }
+
+    // Execute Import with mapped attributes
+    window.executeDeliveryImport = async function() {
+      const s = P._delImportSession;
+      if (!s) return;
+
+      const mappings = s.mappings || {};
+      const mappedValues = Object.values(mappings).filter(Boolean);
+
+      if (!mappedValues.includes('name')) {
+        notify('Please map the "Delivery Scope / Name" required field.', 'err');
+        return;
+      }
+
+      const allRows = s.allRows || [];
+      if (!allRows.length) {
+        notify('No data rows found to import.', 'err');
+        return;
+      }
+
+      showAppLock('Importing Deliveries...', `Processing ${allRows.length} delivery records with custom field mappings...`, 'import');
+      await new Promise(r => setTimeout(r, 80));
+
+      try {
+        if (!P.deliveries) P.deliveries = [];
+        if (!P.nextDeliveryId) {
+          P.nextDeliveryId = (P.deliveries.length ? Math.max(...P.deliveries.map(x => parseInt((x.id || '').replace(/\D/g, '')) || 0)) + 1 : 1);
+        }
+
+        const importMode = s.importMode || 'append_merge';
+        let addedCount = 0;
+        let updatedCount = 0;
+
+        if (importMode === 'replace_all') {
+          P.deliveries = [];
+          P.nextDeliveryId = 1;
+        }
+
+        allRows.forEach((row, idx) => {
+          const item = transformDeliveryRow(row, mappings, idx);
+          if (!item.name) return; // Skip empty names
+
+          if (importMode === 'append_merge') {
+            // Find existing delivery matching ID or ALM ID or PDN or (Name + Release)
+            let existing = null;
+            if (item.id) {
+              existing = P.deliveries.find(d => d.id.toLowerCase() === item.id.toLowerCase());
+            }
+            if (!existing && item.almId) {
+              existing = P.deliveries.find(d => d.almId && d.almId.toLowerCase() === item.almId.toLowerCase());
+            }
+            if (!existing && item.pdn) {
+              existing = P.deliveries.find(d => d.pdn && d.pdn.toLowerCase() === item.pdn.toLowerCase());
+            }
+            if (!existing && item.name && item.releaseVersion) {
+              existing = P.deliveries.find(d => d.name.toLowerCase() === item.name.toLowerCase() && (d.releaseVersion || '') === item.releaseVersion);
+            }
+
+            if (existing) {
+              // Update existing record
+              for (const [k, v] of Object.entries(item)) {
+                if (v != null && v !== '') {
+                  existing[k] = v;
+                }
+              }
+              existing.updatedAt = nowISO();
+              updatedCount++;
+            } else {
+              // Append new record
+              if (!item.id) {
+                item.id = 'DEL-' + String(P.nextDeliveryId++).padStart(3, '0');
+              } else {
+                const num = parseInt(String(item.id).replace(/\D/g, ''));
+                if (!isNaN(num) && num >= P.nextDeliveryId) P.nextDeliveryId = num + 1;
+              }
+              item.createdAt = nowISO();
+              item.updatedAt = nowISO();
+              P.deliveries.push(item);
+              addedCount++;
+            }
+          } else {
+            // Append Only / Replace All
+            if (!item.id || importMode === 'append_only') {
+              item.id = 'DEL-' + String(P.nextDeliveryId++).padStart(3, '0');
+            } else {
+              const num = parseInt(String(item.id).replace(/\D/g, ''));
+              if (!isNaN(num) && num >= P.nextDeliveryId) P.nextDeliveryId = num + 1;
+            }
+            item.createdAt = nowISO();
+            item.updatedAt = nowISO();
+            P.deliveries.push(item);
+            addedCount++;
+          }
+        });
+
+        // Add to audit log
+        if (typeof addLog === 'function') {
+          addLog({
+            ts: nowISO(),
+            action: 'IMPORT_DELIVERIES',
+            taskId: '',
+            taskName: `Excel Deliveries Import (${s.fileName})`,
+            field: 'deliveries',
+            oldVal: '',
+            newVal: `${addedCount} added, ${updatedCount} updated`,
+            comment: `Imported from sheet "${s.currentSheet}" with strategy "${importMode}"`
+          });
+        }
+
+        save();
+        closeDeliveryImportModal();
+        hideAppLock();
+        renderDeliveriesView();
+        renderViewToggle();
+        if (typeof renderSidebar === 'function') renderSidebar();
+
+        const msg = importMode === 'replace_all'
+          ? `Successfully replaced delivery schedule with ${addedCount} records!`
+          : `Import complete: ${addedCount} new deliveries added, ${updatedCount} existing updated.`;
+        notify(msg, 'ok');
+      } catch(err) {
+        hideAppLock();
+        PP.error(err);
+        notify('Import failed: ' + err.message, 'err');
+      }
+    };
+
+    // ── Export Deliveries Standalone ─────────────────────────────
+    window.exportDeliveriesToExcel = async function() {
+      if (typeof ExcelJS === 'undefined') {
+        notify('Excel library not loaded.', 'err');
+        return;
+      }
+      try {
+        const wb = new ExcelJS.Workbook();
+        wb.creator = 'ProjectPulse';
+        wb.lastModifiedBy = 'ProjectPulse';
+        wb.created = new Date();
+        wb.modified = new Date();
+
+        const COLORS = {
+          primary: '4F46E5',
+          headerBg: 'F8FAFC',
+          border: 'E2E8F0',
+          zebra: 'F8FAFC'
+        };
+        const hdrStyle = {
+          font: { bold: true, color: { argb: 'FFFFFF' }, size: 10, name: 'Segoe UI' },
+          fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.primary } },
+          alignment: { vertical: 'middle', horizontal: 'center', wrapText: true },
+          border: { top: { style: 'thin', color: { argb: COLORS.border } }, bottom: { style: 'medium', color: { argb: '3730A3' } } }
+        };
+        const S = (v) => (v == null ? '' : String(v));
+        const cleanFmtDate = (d) => (d ? String(d).split('T')[0] : '');
+
+        PulseExcel.buildDeliveriesSheet(wb, false, COLORS, hdrStyle, S, cleanFmtDate);
+
+        const buf = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${(P.name || 'Project').replace(/\s+/g, '_')}_Deliveries_${todayStr()}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+        notify('Deliveries exported to Excel', 'ok');
+      } catch(err) {
+        PP.error(err);
+        notify('Export failed: ' + err.message, 'err');
+      }
+    };
+
+    window.exportDeliveriesToCSV = function() {
+      const cols = ['id', 'almId', 'pdn', 'name', 'module', 'moduleType', 'releaseVersion', 'environment', 'status', 'targetDeliveryDate', 'actualDeliveryDate', 'leadTimeDays', 'signOffStatus', 'approver', 'smokeTestStatus', 'guiScreens', 'rollbackPlan', 'notes'];
+      const headers = ['Delivery ID', 'ALM ID', 'PDN', 'Delivery Scope / Name', 'Module', 'Module Type', 'Target Release', 'Environment', 'Status', 'Target Date', 'Actual Date', 'Lead Time (Days)', 'Sign-Off Status', 'Approver / Lead', 'Smoke Test Status', 'GUI Screens / Artifacts', 'Rollback Plan', 'Notes'];
+
+      const rows = (P.deliveries || []).map(d => {
+        return cols.map(c => {
+          let v = d[c];
+          if (Array.isArray(v)) v = v.join(', ');
+          return v == null ? '' : String(v);
+        });
+      });
+
+      PulseExcel.downloadCSV(`${(P.name || 'Project').replace(/\s+/g, '_')}_Deliveries_${todayStr()}.csv`, headers, rows);
+      notify('Deliveries exported to CSV', 'ok');
+    };
+
     window.renderAdminView = renderAdminView;
     function renderAdminView() {
       const vTitle = $id('v-title'); if (vTitle) vTitle.innerHTML = `<i data-lucide="settings-2" style="margin-right:10px"></i> Administration & Advanced Builders`;
@@ -46378,6 +48649,56 @@ Earned Value Management measures project performance and progress by comparing p
           notify('CSV Exported Successfully', 'ok');
         } catch (e) {
           notify('CSV Export failed: ' + e.message, 'err');
+        }
+      },
+
+      exportProjectJSON() {
+        try {
+          const snapshot = {
+            projectName: P.name,
+            version: '2.0',
+            exportedAt: new Date().toISOString(),
+            data: {
+              name: P.name,
+              desc: P.desc,
+              tasks: P.tasks,
+              defects: P.defects,
+              deliveries: P.deliveries || [],
+              raids: P.raids || [],
+              decisions: P.decisions || [],
+              baselines: P.baselines || [],
+              features: P.features || [],
+              releases: P.releases || [],
+              members: P.members || [],
+              reports: P.reports || [],
+              log: P.log || [],
+              alertHistory: P.alertHistory || [],
+              healthHistory: P.healthHistory || [],
+              customFields: P.customFields || [],
+              defCustomFields: P.defCustomFields || [],
+              delCustomFields: P.delCustomFields || [],
+              stepTemplates: P.stepTemplates || [],
+              dropdowns: P.dropdowns || {},
+              settings: P.settings || {},
+              nextTaskId: P.nextTaskId,
+              nextMemberId: P.nextMemberId,
+              nextReportId: P.nextReportId,
+              nextSubId: P.nextSubId,
+              nextDefectId: P.nextDefectId,
+              nextDeliveryId: P.nextDeliveryId
+            }
+          };
+          const jsonStr = JSON.stringify(snapshot, null, 2);
+          const blob = new Blob([jsonStr], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${(P.name || 'Project').replace(/[\\\/*?:"<>|\s]/g, '_')}_backup.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+          notify('Project JSON backup exported', 'ok');
+        } catch (e) {
+          notify('JSON Export failed: ' + e.message, 'err');
         }
       },
 
@@ -49092,6 +51413,54 @@ Earned Value Management measures project performance and progress by comparing p
         });
       },
 
+      buildDeliveriesSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
+        const ws = wb.addWorksheet('Deliveries', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 2 }] });
+        ws.properties.tabColor = { argb: COLORS.emerald };
+        const cols = [
+          { header: 'Delivery ID', key: 'id', width: 16 },
+          { header: 'ALM ID', key: 'almId', width: 16 },
+          { header: 'PDN', key: 'pdn', width: 14 },
+          { header: 'Delivery Scope / Name', key: 'name', width: 35 },
+          { header: 'Module', key: 'module', width: 25 },
+          { header: 'Module Type', key: 'moduleType', width: 16 },
+          { header: 'Release Version', key: 'releaseVersion', width: 18 },
+          { header: 'Environment', key: 'environment', width: 16 },
+          { header: 'Status', key: 'status', width: 18 },
+          { header: 'Target Delivery Date', key: 'targetDeliveryDate', width: 20 },
+          { header: 'Actual Delivery Date', key: 'actualDeliveryDate', width: 20 },
+          { header: 'Lead Time (Days)', key: 'leadTimeDays', width: 16 },
+          { header: 'Sign-off Status', key: 'signOffStatus', width: 18 },
+          { header: 'Approver / Lead', key: 'approver', width: 22 },
+          { header: 'Smoke Test Status', key: 'smokeTestStatus', width: 18 },
+          { header: 'Rollback Plan', key: 'rollbackPlan', width: 35 },
+          { header: 'Screens / Artifacts', key: 'guiScreens', width: 35 },
+          { header: 'Notes', key: 'notes', width: 40 }
+        ];
+        (P.delCustomFields || []).forEach(f => { cols.push({ header: f.name, key: f.name, width: 22 }); });
+        ws.columns = cols; ws.getRow(1).height = 30; ws.getRow(1).eachCell(c => c.style = hdrStyle);
+
+        (P.deliveries || []).forEach((d, i) => {
+          const rowValues = {
+            id: S(d.id), almId: S(d.almId), pdn: S(d.pdn), name: S(d.name),
+            module: S(d.module), moduleType: S(d.moduleType), releaseVersion: S(d.releaseVersion),
+            environment: S(d.environment), status: S(d.status),
+            targetDeliveryDate: cleanFmtDate(d.targetDeliveryDate),
+            actualDeliveryDate: cleanFmtDate(d.actualDeliveryDate),
+            leadTimeDays: d.leadTimeDays != null ? d.leadTimeDays : '',
+            signOffStatus: S(d.signOffStatus), approver: S(d.approver),
+            smokeTestStatus: S(d.smokeTestStatus), rollbackPlan: S(d.rollbackPlan),
+            guiScreens: Array.isArray(d.guiScreens) ? d.guiScreens.join(', ') : S(d.guiScreens),
+            notes: S(d.notes)
+          };
+          (P.delCustomFields || []).forEach(f => {
+            const v = d[f.name] !== undefined ? d[f.name] : (d.custom && d.custom[f.name] !== undefined ? d.custom[f.name] : '');
+            rowValues[f.name] = S(v);
+          });
+          const row = ws.addRow(rowValues); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
+          COLORS.styleRow(row, i);
+        });
+      },
+
       buildDropdownsSheet(wb, safeMode, COLORS, hdrStyle, S) {
         const ws = wb.addWorksheet('Config_Dropdowns', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
         ws.properties.tabColor = { argb: COLORS.slate };
@@ -49127,7 +51496,7 @@ Earned Value Management measures project performance and progress by comparing p
           const row = wsCF.addRow({ cat, name: S(f.name), type: S(f.type), src: S(f.source || 'local'), gk: S(f.globalKey || '') }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
           COLORS.styleRow(row, idx2++);
         });
-        addCF('Task', P.customFields); addCF('Defect', P.defCustomFields);
+        addCF('Task', P.customFields); addCF('Defect', P.defCustomFields); addCF('Delivery', P.delCustomFields);
 
         const wsCFO = wb.addWorksheet('Config_CustomFieldOptions', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
         wsCFO.properties.tabColor = { argb: COLORS.slate };
@@ -49138,7 +51507,7 @@ Earned Value Management measures project performance and progress by comparing p
           const row = wsCFO.addRow({ cat, field: S(f.name), opt: S(o) }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
           COLORS.styleRow(row, idx3++);
         }));
-        addCFO('Task', P.customFields); addCFO('Defect', P.defCustomFields);
+        addCFO('Task', P.customFields); addCFO('Defect', P.defCustomFields); addCFO('Delivery', P.delCustomFields);
       },
 
       buildRelationSheets(wb, safeMode, COLORS, hdrStyle, S) {
@@ -52406,6 +54775,7 @@ Earned Value Management measures project performance and progress by comparing p
           buildDecisionLogSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
           buildBaselineHistorySheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
           buildFeaturesSheet(wb, safeMode, COLORS, hdrStyle, S);
+          buildDeliveriesSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
 
           // Group C/D: Application Configurations, Mappings & Settings
           buildDropdownsSheet(wb, safeMode, COLORS, hdrStyle, S);
@@ -52456,6 +54826,7 @@ Earned Value Management measures project performance and progress by comparing p
             buildDecisionLogSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
             buildBaselineHistorySheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
             buildFeaturesSheet(wb, safeMode, COLORS, hdrStyle, S);
+            buildDeliveriesSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
 
             // Group C/D: Application Configurations, Mappings & Settings
             buildDropdownsSheet(wb, safeMode, COLORS, hdrStyle, S);
@@ -52866,6 +55237,10 @@ Earned Value Management measures project performance and progress by comparing p
             const fn = r.name || r.field || r.fieldname || '';
             return { name: fn, type: r.type || 'text', source: r.src || r.source || 'local', globalKey: r.gk || r.globalKey || r.globalkey || '', options: cfOptRaw.filter(o => (o.cat || o.category) === 'Defect' && ((o.field || o.fieldname) === fn)).map(o => o.opt || o.option || o.optval || '') };
           });
+          P.delCustomFields = cfRaw.filter(r => (r.cat || r.category) === 'Delivery').map(r => {
+            const fn = r.name || r.field || r.fieldname || '';
+            return { name: fn, type: r.type || 'text', source: r.src || r.source || 'local', globalKey: r.gk || r.globalKey || r.globalkey || '', options: cfOptRaw.filter(o => (o.cat || o.category) === 'Delivery' && ((o.field || o.fieldname) === fn)).map(o => o.opt || o.option || o.optval || '') };
+          });
         }
 
         const crRaw = rawData.getTable('Config_Releases');
@@ -52877,7 +55252,7 @@ Earned Value Management measures project performance and progress by comparing p
       parseCanonicalSheets(wb, rawData) {
         const rawMem = rawData.getTable('Team'); const rawDef = rawData.getTable('Defects'); const rawLog = rawData.getTable('Activity Log'); const rawRep = rawData.getTable('Reports'); const rawFeat = rawData.getTable('Features'); const rawAlerts = rawData.getTable('Alert History');
         const rawRaids = rawData.getTable('RAID_Register'); const rawDecisions = rawData.getTable('Decision_Log'); const rawBaselines = rawData.getTable('Baseline_History');
-        const rawHealthHist = rawData.getTable('Health History'); const rawRepSnap = rawData.getTable('Report Snapshots');
+        const rawHealthHist = rawData.getTable('Health History'); const rawRepSnap = rawData.getTable('Report Snapshots'); const rawDeliveries = rawData.getTable('Deliveries');
         const fmtD = (v) => {
           if (!v || v === '-' || v === '—') return null;
           if (v instanceof Date) return isNaN(v) ? null : v.toISOString().split('T')[0];
@@ -52900,7 +55275,7 @@ Earned Value Management measures project performance and progress by comparing p
         };
         rawData.fmtD = fmtD; rawData.rawMem = rawMem; rawData.rawDef = rawDef; rawData.rawLog = rawLog; rawData.rawRep = rawRep; rawData.rawFeat = rawFeat; rawData.rawAlerts = rawAlerts;
         rawData.rawRaids = rawRaids; rawData.rawDecisions = rawDecisions; rawData.rawBaselines = rawBaselines;
-        rawData.rawHealthHist = rawHealthHist; rawData.rawRepSnap = rawRepSnap;
+        rawData.rawHealthHist = rawHealthHist; rawData.rawRepSnap = rawRepSnap; rawData.rawDeliveries = rawDeliveries;
       },
 
       parseRelationSheets(wb, rawData) {
@@ -52924,6 +55299,31 @@ Earned Value Management measures project performance and progress by comparing p
         P.baselines = (rawData.rawBaselines || []).map(b => ({ ...b, baselineStartDate: fmtD(b.baselineStartDate), baselineDueDate: fmtD(b.baselineDueDate), actStartDate: fmtD(b.actStartDate), actDueDate: fmtD(b.actDueDate), snapshotDate: fmtD(b.snapshotDate) }));
         P.healthHistory = rawData.rawHealthHist || [];
         P.reportSnapshots = rawData.rawRepSnap || [];
+        P.deliveries = (rawData.rawDeliveries || []).map((del, idx) => {
+          const item = {
+            ...del,
+            id: del.id || del['Delivery ID'] || ('DEL-' + String(idx + 1).padStart(3, '0')),
+            almId: del.almId || del['ALM ID'] || 'ALM-10001',
+            pdn: del.pdn || del['PDN'] || 'PDN-001',
+            name: del.name || del['Delivery Scope / Name'] || del['Name'] || 'Unnamed Delivery',
+            module: del.module || del['Module'] || '',
+            moduleType: del.moduleType || del['Module Type'] || 'Server',
+            releaseVersion: del.releaseVersion || del['Release Version'] || '',
+            environment: del.environment || del['Environment'] || 'Production',
+            status: del.status || del['Status'] || 'Scheduled',
+            targetDeliveryDate: fmtD(del.targetDeliveryDate || del['Target Delivery Date']),
+            actualDeliveryDate: fmtD(del.actualDeliveryDate || del['Actual Delivery Date']),
+            leadTimeDays: del.leadTimeDays != null ? parseInt(del.leadTimeDays) : (del['Lead Time (Days)'] != null ? parseInt(del['Lead Time (Days)']) : null),
+            signOffStatus: del.signOffStatus || del['Sign-off Status'] || 'Pending',
+            approver: del.approver || del['Approver / Lead'] || '',
+            smokeTestStatus: del.smokeTestStatus || del['Smoke Test Status'] || '',
+            rollbackPlan: del.rollbackPlan || del['Rollback Plan'] || '',
+            guiScreens: typeof (del.guiScreens || del['Screens / Artifacts']) === 'string' ? (del.guiScreens || del['Screens / Artifacts']).split(',').map(s => s.trim()).filter(Boolean) : (Array.isArray(del.guiScreens) ? del.guiScreens : []),
+            notes: del.notes || del['Notes'] || ''
+          };
+          if (del.custom) item.custom = { ...del.custom };
+          return item;
+        });
         P.features = rawData.rawFeat.map((f, idx) => {
           const featName = f.name || f['Feature Name'] || f['featurename'] || f.feature || f.title || `Unnamed Feature ${idx + 1}`;
           return {
@@ -53123,6 +55523,7 @@ Earned Value Management measures project performance and progress by comparing p
     function exportFeatureMatrixExcel(...args) { return PulseExcel.exportFeatureMatrixExcel(...args); }
     function generateFeatureMatrixWorkbook(...args) { return PulseExcel.generateFeatureMatrixWorkbook(...args); }
     function exportProjectCSV(...args) { return PulseExcel.exportProjectCSV(...args); }
+    function exportProjectJSON(...args) { return PulseExcel.exportProjectJSON(...args); }
     function buildReadmeSheet(...args) { return PulseExcel.buildReadmeSheet(...args); }
     function buildDataDictionarySheet(...args) { return PulseExcel.buildDataDictionarySheet(...args); }
     function buildValidationListsSheet(...args) { return PulseExcel.buildValidationListsSheet(...args); }
@@ -53141,6 +55542,7 @@ Earned Value Management measures project performance and progress by comparing p
     function buildDecisionLogSheet(...args) { return PulseExcel.buildDecisionLogSheet(...args); }
     function buildBaselineHistorySheet(...args) { return PulseExcel.buildBaselineHistorySheet(...args); }
     function buildFeaturesSheet(...args) { return PulseExcel.buildFeaturesSheet(...args); }
+    function buildDeliveriesSheet(...args) { return PulseExcel.buildDeliveriesSheet(...args); }
     function buildDropdownsSheet(...args) { return PulseExcel.buildDropdownsSheet(...args); }
     function buildTemplateSheets(...args) { return PulseExcel.buildTemplateSheets(...args); }
     function buildRelationSheets(...args) { return PulseExcel.buildRelationSheets(...args); }
@@ -54321,8 +56723,8 @@ Earned Value Management measures project performance and progress by comparing p
       const tab = P._fieldsActiveTab || 'tasks';
       $id('v-title').innerHTML = `<i data-lucide="layout" style="margin-right:10px"></i> Field Architect`;
 
-      const stdCount = tab === 'tasks' ? P.cols.length : P.defCols.length;
-      const customCount = tab === 'tasks' ? P.customFields.length : (P.defCustomFields ? P.defCustomFields.length : 0);
+      const stdCount = tab === 'tasks' ? P.cols.length : (tab === 'defects' ? P.defCols.length : (P.delCols || []).length);
+      const customCount = tab === 'tasks' ? P.customFields.length : (tab === 'defects' ? (P.defCustomFields ? P.defCustomFields.length : 0) : (P.delCustomFields ? P.delCustomFields.length : 0));
       const total = stdCount + customCount;
 
       $id('view-actions').innerHTML = `
@@ -54371,6 +56773,9 @@ Earned Value Management measures project performance and progress by comparing p
               </button>
               <button onclick="P._fieldsActiveTab='defects'; renderFieldsView()" style="padding:5px 16px; border-radius:6px; font-weight:700; font-size:11px; letter-spacing:0.04em; cursor:pointer; border:none; background:${tab === 'defects' ? 'var(--color-primary)' : 'transparent'}; color:${tab === 'defects' ? 'white' : 'var(--color-text-muted)'}; transition:all 0.18s; display:flex; align-items:center; gap:5px">
                 <i data-lucide="bug" style="width:13px; height:13px"></i> DEFECTS
+              </button>
+              <button onclick="P._fieldsActiveTab='deliveries'; renderFieldsView()" style="padding:5px 16px; border-radius:6px; font-weight:700; font-size:11px; letter-spacing:0.04em; cursor:pointer; border:none; background:${tab === 'deliveries' ? 'var(--color-primary)' : 'transparent'}; color:${tab === 'deliveries' ? 'white' : 'var(--color-text-muted)'}; transition:all 0.18s; display:flex; align-items:center; gap:5px">
+                <i data-lucide="truck" style="width:13px; height:13px"></i> DELIVERIES
               </button>
             </div>
 
@@ -54460,7 +56865,7 @@ Earned Value Management measures project performance and progress by comparing p
       const btn = $id('cf-add-btn-v');
 
       if (editIdx !== null) {
-        const fields = tab === 'tasks' ? P.customFields : P.defCustomFields;
+        const fields = tab === 'tasks' ? P.customFields : (tab === 'defects' ? P.defCustomFields : (P.delCustomFields || []));
         const cf = fields[editIdx];
         title.textContent = 'Edit Custom Field';
         desc.textContent = `Modify the configuration for the "${cf.name}" field.`;
@@ -54476,7 +56881,7 @@ Earned Value Management measures project performance and progress by comparing p
         $id('cf-new-req-v').checked = !!cf.required;
       } else {
         title.textContent = 'Add Custom Field';
-        desc.textContent = `Extend your ${tab === 'tasks' ? 'task' : 'defect'} data model with a new attribute.`;
+        desc.textContent = `Extend your ${tab === 'tasks' ? 'task' : (tab === 'defects' ? 'defect' : 'delivery')} data model with a new attribute.`;
         btn.textContent = 'Create Field';
 
         $id('cf-new-name-v').value = '';
@@ -54495,8 +56900,8 @@ Earned Value Management measures project performance and progress by comparing p
     function renderStdFieldListV() {
       const list = $id('std-field-list-v'); if (!list) return;
       const tab = P._fieldsActiveTab || 'tasks';
-      const cols = tab === 'tasks' ? P.cols : P.defCols;
-      const context = tab === 'tasks' ? 'std' : 'def-std';
+      const cols = tab === 'tasks' ? P.cols : (tab === 'defects' ? P.defCols : (P.delCols || []));
+      const context = tab === 'tasks' ? 'std' : (tab === 'defects' ? 'def-std' : 'del-std');
 
       list.innerHTML = `
         <div style="display:grid; grid-template-columns:40px 110px 150px 1fr 110px; gap:12px; padding:12px 20px; font-size:10px; text-transform:uppercase; color:var(--color-text-faint); font-weight:900; border-bottom:1px solid var(--color-divider); letter-spacing:0.08em; background:var(--color-surface-2); border-radius:12px 12px 0 0">
@@ -54508,7 +56913,7 @@ Earned Value Management measures project performance and progress by comparing p
         </div>
         <div style="border:1px solid var(--color-divider); border-top:none; border-radius:0 0 12px 12px; overflow:hidden">
         ${cols.map((c, i) => {
-        let typeLabel = c.type.toUpperCase();
+        let typeLabel = (c.type || 'text').toUpperCase();
         let typeIcon = '<i data-lucide="file-text" style="width:14px; height:14px"></i>';
         if (c.type === 'date') typeIcon = '<i data-lucide="calendar" style="width:14px; height:14px"></i>';
         if (c.type === 'number') typeIcon = '<i data-lucide="trending-up" style="width:14px; height:14px"></i>';
@@ -54520,13 +56925,19 @@ Earned Value Management measures project performance and progress by comparing p
             if (['status', 'priority', 'category', 'module', 'moduleType'].includes(c.key)) mapKey = c.key;
             else if (c.key === 'release') mapKey = 'version';
             else if (c.key === 'assignee') mapKey = 'member';
-          } else {
+          } else if (tab === 'defects') {
             if (c.key === 'type') mapKey = 'defectType';
             else if (c.key === 'severity') mapKey = 'defectSeverity';
             else if (c.key === 'priority') mapKey = 'defectPriority';
             else if (c.key === 'status') mapKey = 'defectStatus';
             else if (['assignee', 'reporter'].includes(c.key)) mapKey = 'member';
             else if (c.key === 'linkedType') mapKey = 'static';
+          } else {
+            if (c.key === 'module') mapKey = 'module';
+            else if (c.key === 'moduleType') mapKey = 'moduleType';
+            else if (c.key === 'releaseVersion') mapKey = 'version';
+            else if (c.key === 'approver') mapKey = 'member';
+            else mapKey = 'static';
           }
           if (mapKey) typeLabel += ` • ${mapKey.toUpperCase()}`;
         }
@@ -54534,6 +56945,8 @@ Earned Value Management measures project performance and progress by comparing p
           typeIcon = '<i data-lucide="bar-chart-2" style="width:14px; height:14px"></i>';
           typeLabel = 'PERCENTAGE';
         }
+
+        const colArrayName = tab === 'tasks' ? 'P.cols' : (tab === 'defects' ? 'P.defCols' : 'P.delCols');
 
         return `
             <div class="admin-list-item std-row" draggable="true" 
@@ -54547,9 +56960,9 @@ Earned Value Management measures project performance and progress by comparing p
               <div style="font-size:10px; font-weight:800; color:var(--color-primary); background:rgba(var(--color-primary-rgb), 0.08); padding:6px 10px; border-radius:8px; display:flex; align-items:center; gap:6px; width:fit-content; border:1px solid rgba(var(--color-primary-rgb), 0.1)">
                 ${typeIcon} <span>${typeLabel}</span>
               </div>
-              <input class="finp" style="font-size:13px; height:36px; padding:0 14px; border-radius:10px; background:rgba(var(--color-text-rgb), 0.02); border:1px solid transparent; font-weight:600; width:100%; color:var(--color-text)" value="${esc(c.label)}" onchange="${tab === 'tasks' ? 'P.cols' : 'P.defCols'}[${i}].label=this.value; save();" onfocus="this.style.borderColor='var(--color-primary)'; this.style.background='var(--color-surface)'" onblur="this.style.borderColor='transparent'; this.style.background='rgba(var(--color-text-rgb), 0.02)'">
+              <input class="finp" style="font-size:13px; height:36px; padding:0 14px; border-radius:10px; background:rgba(var(--color-text-rgb), 0.02); border:1px solid transparent; font-weight:600; width:100%; color:var(--color-text)" value="${esc(c.label)}" onchange="${colArrayName}[${i}].label=this.value; save();" onfocus="this.style.borderColor='var(--color-primary)'; this.style.background='var(--color-surface)'" onblur="this.style.borderColor='transparent'; this.style.background='rgba(var(--color-text-rgb), 0.02)'">
               <div style="display:flex; align-items:center; gap:6px; justify-content:flex-end">
-                <input type="number" class="finp" style="font-size:13px; height:36px; padding:0 8px; border-radius:10px; width:60px; text-align:center; background:rgba(var(--color-text-rgb), 0.02); border:1px solid transparent; color:var(--color-text); font-weight:600" value="${c.w}" onchange="${tab === 'tasks' ? 'P.cols' : 'P.defCols'}[${i}].w=parseInt(this.value); save();" onfocus="this.style.borderColor='var(--color-primary)'; this.style.background='var(--color-surface)'" onblur="this.style.borderColor='transparent'; this.style.background='rgba(var(--color-text-rgb), 0.02)'">
+                <input type="number" class="finp" style="font-size:13px; height:36px; padding:0 8px; border-radius:10px; width:60px; text-align:center; background:rgba(var(--color-text-rgb), 0.02); border:1px solid transparent; color:var(--color-text); font-weight:600" value="${c.w || 100}" onchange="${colArrayName}[${i}].w=parseInt(this.value); save();" onfocus="this.style.borderColor='var(--color-primary)'; this.style.background='var(--color-surface)'" onblur="this.style.borderColor='transparent'; this.style.background='rgba(var(--color-text-rgb), 0.02)'">
                 <span style="font-size:10px; color:var(--color-text-faint); font-weight:800">PX</span>
               </div>
             </div>
@@ -54563,7 +56976,7 @@ Earned Value Management measures project performance and progress by comparing p
     function renderCFListV() {
       const list = $id('cf-list-v'); if (!list) return;
       const tab = P._fieldsActiveTab || 'tasks';
-      const fields = tab === 'tasks' ? P.customFields : (P.defCustomFields || []);
+      const fields = tab === 'tasks' ? P.customFields : (tab === 'defects' ? (P.defCustomFields || []) : (P.delCustomFields || []));
 
       if (!fields.length) {
         list.innerHTML = `
@@ -54582,7 +56995,7 @@ Earned Value Management measures project performance and progress by comparing p
       list.innerHTML = `
         <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:20px">
           ${fields.map((cf, i) => {
-        let meta = cf.type.toUpperCase();
+        let meta = (cf.type || 'text').toUpperCase();
         let icon = '<i data-lucide="file-text" style="width:20px; height:20px"></i>';
         if (cf.type === 'dropdown') {
           icon = '<i data-lucide="list-filter" style="width:20px; height:20px"></i>';
@@ -54627,8 +57040,11 @@ Earned Value Management measures project performance and progress by comparing p
     function removeCustomFieldV(idx) {
       confirmAction('Are you sure you want to delete this custom field? This will remove the field from all existing items.', () => {
         const tab = P._fieldsActiveTab || 'tasks';
-        const fields = tab === 'tasks' ? P.customFields : P.defCustomFields;
-        fields.splice(idx, 1);
+        const fields = tab === 'tasks' ? P.customFields : (tab === 'defects' ? (P.defCustomFields || []) : (P.delCustomFields || []));
+        const removed = fields.splice(idx, 1)[0];
+        if (tab === 'deliveries' && removed && P.delCols) {
+          P.delCols = P.delCols.filter(c => c.key !== removed.name);
+        }
         renderFieldsView();
         save();
         notify('Field removed from architecture');
@@ -54659,13 +57075,28 @@ Earned Value Management measures project performance and progress by comparing p
 
       const cf = { name, type, source, globalKey, options: opts, required };
       const tab = P._fieldsActiveTab || 'tasks';
-      const fields = tab === 'tasks' ? P.customFields : P.defCustomFields;
+      if (tab === 'deliveries' && !P.delCustomFields) P.delCustomFields = [];
+      const fields = tab === 'tasks' ? P.customFields : (tab === 'defects' ? P.defCustomFields : P.delCustomFields);
 
       if (P._editingCfIdx !== null && P._editingCfIdx !== undefined) {
         fields[P._editingCfIdx] = cf;
         P._editingCfIdx = null;
       } else {
         fields.push(cf);
+      }
+
+      if (tab === 'deliveries') {
+        if (!P.delCols) P.delCols = [];
+        if (!P.delCols.some(c => c.key === cf.name)) {
+          P.delCols.push({
+            key: cf.name,
+            label: cf.name,
+            w: 130,
+            type: cf.type === 'dropdown' ? 'select' : cf.type,
+            opts: cf.options || [],
+            edit: true
+          });
+        }
       }
 
       closeAllFlyouts();
@@ -58998,6 +61429,68 @@ Earned Value Management measures project performance and progress by comparing p
           ],
           decisions: [
             { id: 'DEC-001', title: 'Adopt GraphQL for Market Intelligence Feed', owner: 'Alice', date: '2026-08-11', rationale: 'Reduces over-fetching and allows dynamic client queries.', status: 'Approved', affectedScope: 'Market Intelligence Module' }
+          ],
+          deliveries: [
+            {
+              id: 'DEL-001',
+              almId: 'ALM-101',
+              pdn: 'PDN-2026-W1',
+              name: 'Authentication & Core API Gateway Release',
+              module: 'Authentication',
+              moduleType: 'Server',
+              releaseVersion: 'v1.0.0',
+              environment: 'Production',
+              status: 'Deployed',
+              targetDeliveryDate: '2026-08-28',
+              actualDeliveryDate: '2026-08-27',
+              leadTimeDays: 14,
+              signOffStatus: 'Approved',
+              approver: 'Alice',
+              smokeTestStatus: 'Passed',
+              rollbackPlan: 'Blue-green router fallback to release v0.9.4.',
+              guiScreens: ['Login Form', 'Signup Portal', 'MFA Verification'],
+              notes: 'Passed SOC2 audit verification.'
+            },
+            {
+              id: 'DEL-002',
+              almId: 'ALM-102',
+              pdn: 'PDN-2026-W2',
+              name: 'Dashboard & Intelligence Suite Beta',
+              module: 'Analytics Service',
+              moduleType: 'GUI',
+              releaseVersion: 'v1.1.0',
+              environment: 'Staging',
+              status: 'Ready for Deployment',
+              targetDeliveryDate: '2026-11-15',
+              actualDeliveryDate: '',
+              leadTimeDays: 18,
+              signOffStatus: 'Pending',
+              approver: 'Eve',
+              smokeTestStatus: 'Passed',
+              rollbackPlan: 'Revert CDN distribution tag to commit HEAD~1.',
+              guiScreens: ['BI Viewer', 'Export Utility'],
+              notes: 'Awaiting staging acceptance testing.'
+            },
+            {
+              id: 'DEL-003',
+              almId: 'ALM-103',
+              pdn: 'PDN-2026-W3',
+              name: 'Database Migration Service v2.0',
+              module: 'Database Migration',
+              moduleType: 'Server',
+              releaseVersion: 'v2.0.0-Beta',
+              environment: 'Dev',
+              status: 'Scheduled',
+              targetDeliveryDate: '2026-12-15',
+              actualDeliveryDate: '',
+              leadTimeDays: 20,
+              signOffStatus: 'Pending',
+              approver: 'Bob',
+              smokeTestStatus: 'Not Run',
+              rollbackPlan: 'Restore RDS snapshot taken prior to schema upgrade.',
+              guiScreens: ['Data Engine'],
+              notes: 'Schema validation scripts queued.'
+            }
           ]
         },
         mobile: {
@@ -59037,6 +61530,48 @@ Earned Value Management measures project performance and progress by comparing p
             { name: 'Settings Module', module: 'User Interface', moduleType: 'GUI', category: 'GUI Module', assignee: 'Meera', status: 'In Progress', priority: 'Medium', startDate: '2026-10-01', dueDate: '2026-12-15', progress: 30, dependsOn: ['TASK-004'], guiScreens: ['Profile Settings', 'Notification Config'], complexity: 'Easy', baselineEffort: 4, estEffort: 4 },
             { name: '💎 Milestone: App Store Beta Submission', module: 'User Interface', moduleType: 'GUI', category: 'Feature', assignee: 'Meera', status: 'Not Started', priority: 'High', startDate: '2026-12-15', dueDate: '2027-01-15', progress: 0, complexity: 'Medium', confidence: 'Low', baselineDueDate: '2027-01-15', forecastDueDate: '2027-01-15' },
             { name: 'Memory Diagnostics', module: 'Core Engine', moduleType: 'Server', category: 'Testing', assignee: 'Vikram', status: 'Not Started', priority: 'Critical', startDate: '2027-01-01', dueDate: '2027-02-15', progress: 0, dependsOn: ['TASK-002'], baselineEffort: 2, estEffort: 8, complexity: 'Complex' }
+          ],
+          deliveries: [
+            {
+              id: 'DEL-001',
+              almId: 'ALM-M01',
+              pdn: 'PDN-2026-M1',
+              name: 'Mobile Core Engine & Offline Sync v1.0',
+              module: 'Core Engine',
+              moduleType: 'Mobile',
+              releaseVersion: 'v1.0',
+              environment: 'Production',
+              status: 'Deployed',
+              targetDeliveryDate: '2026-08-30',
+              actualDeliveryDate: '2026-08-29',
+              leadTimeDays: 15,
+              signOffStatus: 'Approved',
+              approver: 'Vikram',
+              smokeTestStatus: 'Passed',
+              rollbackPlan: 'App Store expedited release rollback to build 104.',
+              guiScreens: ['Splash Screen', 'Login', 'Tutorial'],
+              notes: 'App Store and Google Play phased rollout 100% complete.'
+            },
+            {
+              id: 'DEL-002',
+              almId: 'ALM-M02',
+              pdn: 'PDN-2026-M2',
+              name: 'Push Notification & Background Worker Engine',
+              module: 'Infrastructure',
+              moduleType: 'Interface',
+              releaseVersion: 'v2.0',
+              environment: 'Staging',
+              status: 'In Progress',
+              targetDeliveryDate: '2026-10-15',
+              actualDeliveryDate: '',
+              leadTimeDays: 12,
+              signOffStatus: 'Pending',
+              approver: 'Meera',
+              smokeTestStatus: 'Running',
+              rollbackPlan: 'FCM / APNs topic subscription fallback toggle.',
+              guiScreens: ['Notification Config'],
+              notes: 'APNs certificate rotation configured.'
+            }
           ]
         },
         hierarchical: {
@@ -61972,6 +64507,128 @@ Earned Value Management measures project performance and progress by comparing p
             { id: 'DEC-001', title: 'Adopt GraphQL for Market Intelligence Feed', owner: 'Sarah Chen', date: '2026-05-11', rationale: 'Reduces over-fetching and allows dynamic client queries for complex financial dashboards. Approved by Architecture Board.', status: 'Approved', affectedScope: 'Market Intelligence Module' },
             { id: 'DEC-002', title: 'Deprecate Legacy SOAP Payment Gateway', owner: 'Alex Rivera', date: '2026-05-16', rationale: 'Maintenance overhead exceeds transaction volume. Migrating all clients to REST API to simplify codebase.', status: 'Approved', affectedScope: 'Payment Module' },
             { id: 'DEC-003', title: 'Delay User Profile Customization to v2.1.0', owner: 'Elena Vance', date: '2026-05-20', rationale: 'Prioritizing core banking stability and security compliance for v2.0 release. UI resources reallocated to Cash Accounts GUI.', status: 'Pending Sign-off', affectedScope: 'User Interface' }
+          ],
+          deliveries: [
+            {
+              id: 'DEL-001',
+              almId: 'ALM-10201',
+              pdn: 'PDN-2026-08-01',
+              name: 'Core Auth & SSO Gateway Production Release',
+              module: 'Authentication',
+              moduleType: 'Server',
+              releaseVersion: 'v1.0.0',
+              environment: 'Production',
+              status: 'Deployed',
+              targetDeliveryDate: '2026-08-15',
+              actualDeliveryDate: '2026-08-14',
+              leadTimeDays: 14,
+              signOffStatus: 'Approved',
+              approver: 'Sarah Chen',
+              smokeTestStatus: 'Passed',
+              rollbackPlan: 'Automated blue-green switchback to v0.9.8 AMI with zero downtime.',
+              guiScreens: ['Login Form', 'Signup Portal', 'MFA Verification'],
+              notes: 'Successfully deployed. All security scans and pen-testing passed.'
+            },
+            {
+              id: 'DEL-002',
+              almId: 'ALM-10202',
+              pdn: 'PDN-2026-08-02',
+              name: 'Real-Time Market Data Stream Engine v1.1',
+              module: 'Market Data',
+              moduleType: 'Server',
+              releaseVersion: 'v1.1.0',
+              environment: 'Production',
+              status: 'Deployed',
+              targetDeliveryDate: '2026-08-20',
+              actualDeliveryDate: '2026-08-19',
+              leadTimeDays: 12,
+              signOffStatus: 'Approved',
+              approver: 'Alex Rivera',
+              smokeTestStatus: 'Passed',
+              rollbackPlan: 'Drain WebSocket cluster connections and revert load balancer target group to previous release.',
+              guiScreens: ['Market Data Feed', 'Portfolio Valuations'],
+              notes: 'P99 streaming latency under 8ms observed across 50,000 concurrent sockets.'
+            },
+            {
+              id: 'DEL-003',
+              almId: 'ALM-10203',
+              pdn: 'PDN-2026-08-03',
+              name: 'Portfolio Analytics Sunburst & Reporting GUI',
+              module: 'Analytics Service',
+              moduleType: 'GUI',
+              releaseVersion: 'v1.1.0',
+              environment: 'Staging',
+              status: 'Ready for Deployment',
+              targetDeliveryDate: '2026-08-28',
+              actualDeliveryDate: '',
+              leadTimeDays: 10,
+              signOffStatus: 'Pending',
+              approver: 'Elena Vance',
+              smokeTestStatus: 'Passed',
+              rollbackPlan: 'CloudFront CDN invalidation and revert S3 web asset bucket to previous version commit.',
+              guiScreens: ['Portfolio Overview', 'Sunburst Chart', 'Legend Details'],
+              notes: 'Awaiting final product sign-off from Elena Vance.'
+            },
+            {
+              id: 'DEL-004',
+              almId: 'ALM-10204',
+              pdn: 'PDN-2026-08-04',
+              name: 'Order Routing & Matching Engine Performance Patch',
+              module: 'Core Engine',
+              moduleType: 'Server',
+              releaseVersion: 'v1.0.0',
+              environment: 'Production',
+              status: 'Deployed',
+              targetDeliveryDate: '2026-08-10',
+              actualDeliveryDate: '2026-08-10',
+              leadTimeDays: 7,
+              signOffStatus: 'Approved',
+              approver: 'Sarah Chen',
+              smokeTestStatus: 'Passed',
+              rollbackPlan: 'Standby hot-backup instance takeover via Consul health check trigger.',
+              guiScreens: ['Order Entry', 'Matching Engine', 'Trade Confirmation'],
+              notes: 'Resolved deadlock bug DEF-004 under high transaction burst.'
+            },
+            {
+              id: 'DEL-005',
+              almId: 'ALM-10205',
+              pdn: 'PDN-2026-08-05',
+              name: 'KYC Verification & Document Vault API Integration',
+              module: 'Compliance',
+              moduleType: 'Server',
+              releaseVersion: 'v1.2.0',
+              environment: 'QA',
+              status: 'In Progress',
+              targetDeliveryDate: '2026-09-10',
+              actualDeliveryDate: '',
+              leadTimeDays: 16,
+              signOffStatus: 'Pending',
+              approver: 'Marcus Wong',
+              smokeTestStatus: 'Running',
+              rollbackPlan: 'Disable KYC third-party integration feature flag and fallback to manual review queue.',
+              guiScreens: ['Document Vault', 'KYC Verification'],
+              notes: 'Mock provider integration completed; testing end-to-end sandbox verification.'
+            },
+            {
+              id: 'DEL-006',
+              almId: 'ALM-10206',
+              pdn: 'PDN-2026-08-06',
+              name: 'Telemetry Ingestion & OpenTelemetry Collector Pipeline',
+              module: 'Infrastructure',
+              moduleType: 'Server',
+              releaseVersion: 'v2.0.0-Beta',
+              environment: 'Dev',
+              status: 'Scheduled',
+              targetDeliveryDate: '2026-09-25',
+              actualDeliveryDate: '',
+              leadTimeDays: 21,
+              signOffStatus: 'Pending',
+              approver: 'Tasha K',
+              smokeTestStatus: 'Not Run',
+              rollbackPlan: 'Tear down Terraform daemonset module and fallback to cloudwatch agent.',
+              guiScreens: ['System Health Monitor', 'Telemetry Ingestion'],
+              notes: 'Planned for Kubernetes cluster upgrade cycle.'
+            }
           ]
         }
       };
@@ -62114,7 +64771,10 @@ Earned Value Management measures project performance and progress by comparing p
       P.nextDecisionId = (P.decisions.length ? Math.max(...P.decisions.map(d => parseInt(d.id.split('-')[1]))) + 1 : 1);
       P.features = s.features || [];
       P.releases = s.releases ? JSON.parse(JSON.stringify(s.releases)) : [];
+      P.deliveries = s.deliveries ? JSON.parse(JSON.stringify(s.deliveries)) : [];
+      P.nextDeliveryId = (P.deliveries.length ? Math.max(...P.deliveries.map(d => parseInt((d.id || '').replace(/\D/g, '')) || 0)) + 1 : 1);
       P.customFields = s.customFields || [];
+      P.delCustomFields = s.delCustomFields || [];
       P.nextTaskId = 1; P.nextMemberId = 1; P.nextSubId = 100;
       s.team.forEach(t => {
         P.members.push({
@@ -64995,6 +67655,15 @@ Earned Value Management measures project performance and progress by comparing p
             const item = P.defCols.splice(fromIdx, 1)[0];
             P.defCols.splice(toIdx, 0, item);
             save(); renderStdFieldListV(); renderDefectsTable();
+          }
+        } else if (type === 'del-std') {
+          if (!P.delCols) P.delCols = [];
+          const fromIdx = P.delCols.findIndex(c => c.key === dragKey);
+          const toIdx = P.delCols.findIndex(c => c.key === targetKey);
+          if (fromIdx > -1 && toIdx > -1) {
+            const item = P.delCols.splice(fromIdx, 1)[0];
+            P.delCols.splice(toIdx, 0, item);
+            save(); renderStdFieldListV(); if (window.PulseDelivery && PulseDelivery.render) PulseDelivery.render();
           }
         }
       }
