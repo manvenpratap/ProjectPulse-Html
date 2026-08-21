@@ -23711,7 +23711,19 @@
       thead.innerHTML = '';
       const hr = document.createElement('tr');
 
-      // Index column
+      // Bulk Checkbox column (Tasks and Deliveries)
+      if (prefix === 'del') {
+        const bulkTh = document.createElement('th');
+        bulkTh.style.width = '32px';
+        bulkTh.style.textAlign = 'center';
+        const selectedCount = P._selectedDeliveries ? P._selectedDeliveries.size : 0;
+        const totalCount = (P.deliveries || []).length;
+        const isAllSelected = totalCount > 0 && selectedCount === totalCount;
+        bulkTh.innerHTML = `<input type="checkbox" onchange="toggleAllBulkDeliveries(this.checked)" class="bulk-cb-all" ${isAllSelected ? 'checked' : ''}>`;
+        hr.appendChild(bulkTh);
+      }
+
+      // Index and Actions column
       const acth = document.createElement('th'); acth.style.width = '28px'; acth.className = 'rn'; hr.appendChild(acth);
       const rnth = document.createElement('th'); rnth.style.width = '34px'; rnth.innerHTML = '<div class="thin" style="justify-content:center;cursor:default">#</div>'; hr.appendChild(rnth);
 
@@ -23734,21 +23746,38 @@
           const cVal = (P[filtersKey] || {})[c.key] || '';
           const cStyle = 'width:100%;box-sizing:border-box;font-size:10px;padding:3px 4px;border:1px solid var(--color-border);border-radius:2px;background:var(--color-surface);color:var(--text);font-family:var(--font);outline:none;';
 
-          if (c.type === 'select' || c.type === 'dropdown' || ['status', 'priority', 'assignee', 'severity', 'type', 'linkedType', 'reporter', 'category', 'releaseVersion'].includes(c.key)) {
+          if (c.type === 'select' || c.type === 'dropdown' || ['status', 'priority', 'assignee', 'severity', 'type', 'linkedType', 'reporter', 'category', 'releaseVersion', 'environment', 'signOffStatus', 'smokeTestStatus', 'moduleType', 'module', 'approver'].includes(c.key)) {
             let opts = c.opts || [];
-            if (prefix === '' && c.key === 'status') opts = STATUSES;
-            else if (prefix === '' && c.key === 'priority') opts = PRIORITIES;
-            else if (c.key === 'assignee' || c.key === 'reporter') opts = getTeamNames();
-            else if (c.key === 'category') opts = CATEGORIES;
-            else if (c.key === 'releaseVersion' || c.key === 'version') opts = VERSIONS;
+            if (prefix === 'del') {
+              if (c.key === 'status') opts = (P.dropdowns && P.dropdowns.deliveryStatus) || ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'];
+              else if (c.key === 'environment') opts = (P.dropdowns && P.dropdowns.deliveryEnv) || ['Production', 'Staging', 'UAT', 'QA', 'Dev'];
+              else if (c.key === 'signOffStatus') opts = (P.dropdowns && P.dropdowns.deliverySignOff) || ['Pending', 'Approved', 'Rejected', 'Not Required'];
+              else if (c.key === 'smokeTestStatus') opts = ['Not Run', 'Running', 'Passed', 'Failed'];
+              else if (c.key === 'moduleType') opts = ['Server', 'GUI', 'Hybrid', 'Database', 'General'];
+              else if (c.key === 'module') opts = Array.from(new Set([...(P.dropdowns && P.dropdowns.module ? P.dropdowns.module : []), ...(P.deliveries || []).map(d => d.module).filter(Boolean)])).sort();
+              else if (c.key === 'releaseVersion') opts = Array.from(new Set([...(P.releases ? P.releases.map(r => r.name || r) : []), ...(P.dropdowns && P.dropdowns.release ? P.dropdowns.release : []), ...(P.deliveries || []).map(d => d.releaseVersion).filter(Boolean)])).sort();
+              else if (c.key === 'approver') opts = (P.members || []).map(m => m.name);
+            } else if (prefix === 'def') {
+              if (c.key === 'status') opts = (P.dropdowns && P.dropdowns.defectStatus) || ['New', 'Assigned', 'In Progress', 'Resolved', 'Closed', 'Reopened'];
+              else if (c.key === 'priority') opts = (P.dropdowns && P.dropdowns.defectPriority) || ['Low', 'Medium', 'High', 'Critical'];
+              else if (c.key === 'severity') opts = (P.dropdowns && P.dropdowns.defectSeverity) || ['S1 - Blocker', 'S2 - High', 'S3 - Medium', 'S4 - Low'];
+              else if (c.key === 'type') opts = (P.dropdowns && P.dropdowns.defectType) || ['Functional Bug', 'UI/UX Issue', 'Performance', 'Security', 'Suggestion'];
+              else if (c.key === 'assignee' || c.key === 'reporter') opts = getTeamNames();
+            } else {
+              if (c.key === 'status') opts = STATUSES;
+              else if (c.key === 'priority') opts = PRIORITIES;
+              else if (c.key === 'assignee' || c.key === 'reporter') opts = getTeamNames();
+              else if (c.key === 'category') opts = CATEGORIES;
+              else if (c.key === 'releaseVersion' || c.key === 'version') opts = VERSIONS;
+            }
 
             let optsHtml = '<option value="">All</option>';
             opts.forEach(o => { optsHtml += `<option value="${esc(o)}" ${cVal === o ? 'selected' : ''}>${esc(o)}</option>`; });
             fInp = `<select data-col="${c.key}" onchange="updateGridColFilter('${prefix}','${c.key}',this.value)" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" style="${cStyle}">${optsHtml}</select>`;
-          } else if (c.type === 'date') {
+          } else if (c.type === 'date' || c.key === 'targetDeliveryDate' || c.key === 'actualDeliveryDate') {
             const f = typeof cVal === 'object' ? cVal : {};
             fInp = `<div style="display:flex;gap:2px" onclick="event.stopPropagation()"><input type="date" placeholder="Min" value="${esc(f.min)}" max="9999-12-31" onchange="updateGridColRangeFilter('${prefix}','${c.key}','min',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"><input type="date" placeholder="Max" value="${esc(f.max)}" max="9999-12-31" onchange="updateGridColRangeFilter('${prefix}','${c.key}','max',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"></div>`;
-          } else if (c.type === 'number' || c.key === 'progress' || c.type === 'progress') {
+          } else if (c.type === 'number' || c.key === 'progress' || c.type === 'progress' || c.key === 'leadTimeDays') {
             const f = typeof cVal === 'object' ? cVal : {};
             fInp = `<div style="display:flex;gap:2px" onclick="event.stopPropagation()"><input type="number" placeholder="Min" value="${esc(f.min)}" oninput="updateGridColRangeFilter('${prefix}','${c.key}','min',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"><input type="number" placeholder="Max" value="${esc(f.max)}" oninput="updateGridColRangeFilter('${prefix}','${c.key}','max',this.value)" onmousedown="event.stopPropagation()" style="${cStyle};width:50%"></div>`;
           } else {
@@ -23780,8 +23809,8 @@
               P[orderKey].splice(fromIdx, 1);
               P[orderKey].splice(toIdx, 0, dragCol);
               save();
-              if (prefix === 'def') renderDefectsTable(); else renderTable();
-              if ($id('col-selector-wrap').classList.contains('open')) renderColList();
+              if (prefix === 'del') renderDeliveriesTable(); else if (prefix === 'def') renderDefectsTable(); else renderTable();
+              if ($id('col-selector-wrap') && $id('col-selector-wrap').classList.contains('open')) renderColList();
             }
           }
         });
@@ -23794,7 +23823,7 @@
       const fKey = getGridPK(prefix, 'colFilters');
       if (!P[fKey]) P[fKey] = {};
       P[fKey][col] = val;
-      if (prefix === 'def') renderDefectsTable(); else renderTable();
+      if (prefix === 'del') renderDeliveriesTable(); else if (prefix === 'def') renderDefectsTable(); else renderTable();
     }
 
     function updateGridColRangeFilter(prefix, col, part, val) {
@@ -23802,15 +23831,16 @@
       if (!P[fKey] || typeof P[fKey] !== 'object') P[fKey] = {};
       if (!P[fKey][col] || typeof P[fKey][col] !== 'object') P[fKey][col] = {};
       P[fKey][col][part] = val;
-      if (prefix === 'def') renderDefectsTable(); else renderTable();
+      if (prefix === 'del') renderDeliveriesTable(); else if (prefix === 'def') renderDefectsTable(); else renderTable();
     }
 
     function doGridSort(prefix, col) {
       const sKey = getGridPK(prefix, 'sort');
+      if (!P[sKey]) P[sKey] = { col: col, dir: 'asc' };
       const s = P[sKey];
       if (s.col === col) s.dir = s.dir === 'asc' ? 'desc' : 'asc';
       else { s.col = col; s.dir = 'asc'; }
-      if (prefix === 'def') renderDefectsTable(); else renderTable();
+      if (prefix === 'del') renderDeliveriesTable(); else if (prefix === 'def') renderDefectsTable(); else renderTable();
     }
 
     function startGridColResize(e, prefix, col, th) {
@@ -23834,9 +23864,24 @@
       const filtersKey = getGridPK(prefix, 'colFilters');
       const filters = P[filtersKey];
 
-      if (P.search && prefix === 'def') {
+      if (P.search) {
         const q = P.search.toLowerCase();
-        t = t.filter(d => d.title.toLowerCase().includes(q) || d.id.toLowerCase().includes(q) || (d.desc || '').toLowerCase().includes(q) || (d.assignee || '').toLowerCase().includes(q));
+        if (prefix === 'del') {
+          t = t.filter(d =>
+            (d.name || '').toLowerCase().includes(q) ||
+            (d.id || '').toLowerCase().includes(q) ||
+            (d.almId || '').toLowerCase().includes(q) ||
+            (d.pdn || '').toLowerCase().includes(q) ||
+            (d.module || '').toLowerCase().includes(q) ||
+            (d.releaseVersion || '').toLowerCase().includes(q) ||
+            (d.environment || '').toLowerCase().includes(q) ||
+            (d.approver || '').toLowerCase().includes(q) ||
+            (d.notes || '').toLowerCase().includes(q) ||
+            (Array.isArray(d.guiScreens) && d.guiScreens.some(s => String(s).toLowerCase().includes(q)))
+          );
+        } else if (prefix === 'def') {
+          t = t.filter(d => d.title.toLowerCase().includes(q) || d.id.toLowerCase().includes(q) || (d.desc || '').toLowerCase().includes(q) || (d.assignee || '').toLowerCase().includes(q));
+        }
       }
 
       if (filters) {
@@ -23847,20 +23892,27 @@
             if (v.min) t = t.filter(x => {
               const val = x[k];
               if (val === undefined || val === null || val === '') return false;
-              if (type === 'date') return new Date(val) >= new Date(v.min);
+              if (type === 'date' || k.includes('Date')) return new Date(val) >= new Date(v.min);
               return parseFloat(val) >= parseFloat(v.min);
             });
             if (v.max) t = t.filter(x => {
               const val = x[k];
               if (val === undefined || val === null || val === '') return false;
-              if (type === 'date') return new Date(val) <= new Date(v.max);
+              if (type === 'date' || k.includes('Date')) return new Date(val) <= new Date(v.max);
               return parseFloat(val) <= parseFloat(v.max);
             });
           } else if (typeof v === 'string' && v.trim() !== '') {
             const q = v.trim().toLowerCase();
             const c = baseCols.find(col => col.key === k);
-            const isExact = c && (c.type === 'select' || c.type === 'dropdown' || ['status', 'priority', 'assignee', 'severity', 'type', 'linkedType', 'reporter'].includes(c.key));
-            t = t.filter(x => { let val = x[k]; if (isExact) return String(val || '').toLowerCase() === q; return String(val || '').toLowerCase().includes(q); });
+            const isExact = c && (c.type === 'select' || c.type === 'dropdown' || ['status', 'priority', 'assignee', 'severity', 'type', 'linkedType', 'reporter', 'environment', 'signOffStatus', 'smokeTestStatus', 'moduleType', 'module', 'releaseVersion', 'approver'].includes(c.key));
+            t = t.filter(x => {
+              let val = x[k];
+              if (Array.isArray(val)) {
+                return val.some(item => String(item || '').toLowerCase().includes(q));
+              }
+              if (isExact) return String(val || '').toLowerCase() === q;
+              return String(val || '').toLowerCase().includes(q);
+            });
           }
         });
       }
@@ -23869,11 +23921,25 @@
 
     function getGridSorted(prefix, data) {
       const sKey = getGridPK(prefix, 'sort');
+      if (!P[sKey]) return [...data];
       const { col, dir } = P[sKey];
+      if (!col) return [...data];
+
       return [...data].sort((a, b) => {
         let va = a[col], vb = b[col];
         const type = getFieldType(col);
-        if (type === 'number' || col === 'progress') { va = parseFloat(va) || 0; vb = parseFloat(vb) || 0; }
+        if (col === 'id' && prefix === 'del') {
+          const numA = parseInt(String(va || '').replace(/\D/g, '')) || 0;
+          const numB = parseInt(String(vb || '').replace(/\D/g, '')) || 0;
+          return (numA < numB ? -1 : numA > numB ? 1 : 0) * (dir === 'asc' ? 1 : -1);
+        }
+        if (type === 'number' || col === 'progress' || col === 'leadTimeDays') {
+          va = parseFloat(va) || 0; vb = parseFloat(vb) || 0;
+        }
+        else if (col === 'targetDeliveryDate' || col === 'actualDeliveryDate' || type === 'date') {
+          va = va ? new Date(va).getTime() : 0;
+          vb = vb ? new Date(vb).getTime() : 0;
+        }
         else if (col === 'severity') {
           const sevOrder = P.dropdowns.defectSeverity;
           va = sevOrder.indexOf(va); vb = sevOrder.indexOf(vb);
@@ -23883,6 +23949,18 @@
         }
         else if (col === 'status' && prefix === 'def') {
           va = P.dropdowns.defectStatus.indexOf(va); vb = P.dropdowns.defectStatus.indexOf(vb);
+        }
+        else if (col === 'status' && prefix === 'del') {
+          const stOrder = (P.dropdowns && P.dropdowns.deliveryStatus) || ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'];
+          va = stOrder.indexOf(va); vb = stOrder.indexOf(vb);
+        }
+        else if (col === 'signOffStatus' && prefix === 'del') {
+          const soOrder = (P.dropdowns && P.dropdowns.deliverySignOff) || ['Approved', 'Pending', 'Rejected', 'Not Required'];
+          va = soOrder.indexOf(va); vb = soOrder.indexOf(vb);
+        }
+        else if (col === 'environment' && prefix === 'del') {
+          const envOrder = (P.dropdowns && P.dropdowns.deliveryEnv) || ['Production', 'Staging', 'UAT', 'QA', 'Dev'];
+          va = envOrder.indexOf(va); vb = envOrder.indexOf(vb);
         }
         else if (col === 'priority') { va = PRIORITIES.indexOf(va); vb = PRIORITIES.indexOf(vb); }
         else if (col === 'status') { va = STATUSES.indexOf(va); vb = STATUSES.indexOf(vb); }
@@ -25114,7 +25192,9 @@
 
       let calculatedWidth = minW;
 
-      const baseCols = prefix === 'def'
+      const baseCols = prefix === 'del'
+        ? [...(P.delCols || []), ...(P.delCustomFields || []).map(cf => ({ key: cf.name, label: cf.name, type: cf.type }))]
+        : prefix === 'def'
         ? [...P.defCols, ...(P.defCustomFields || []).map(cf => ({ key: cf.name, label: cf.name, type: cf.type }))]
         : [...P.cols, ...P.customFields.map(cf => ({ key: cf.name, label: cf.name, type: cf.type }))];
 
@@ -25127,16 +25207,23 @@
 
       if (checkContent) {
         const moduleMilestones = typeof getModuleMilestones === 'function' ? getModuleMilestones() : new Set();
-        const rows = prefix === 'def' ? getGridFiltered('def', P.defects, baseCols) : getFiltered();
+        const rows = prefix === 'del'
+          ? getGridFiltered('del', P.deliveries || [], baseCols)
+          : (prefix === 'def' ? getGridFiltered('def', P.defects, baseCols) : getFiltered());
         rows.forEach(item => {
-          // --- 1. Measure main item (Task or Defect) ---
+          // --- 1. Measure main item (Task, Delivery, or Defect) ---
           let val = item[col];
           if (val === undefined || val === null) val = '';
 
           let widthAdjustment = 0;
           let measureText = String(val);
 
-          if (prefix !== 'def') {
+          if (prefix === 'del') {
+            if (col === 'leadTimeDays' && val !== '' && val != null) measureText = val + ' d';
+            else if (col === 'guiScreens' && Array.isArray(val)) measureText = val.join(', ');
+          } else if (prefix === 'def') {
+            if (col === 'progress') measureText = measureText + '%';
+          } else {
             // Task-specific rendering decorators
             if (col === 'name') {
               // Main task name formatting
@@ -25172,9 +25259,6 @@
             } else if (col === 'progress') {
               measureText = measureText + '%';
             }
-          } else {
-            // Defect-specific formatting
-            if (col === 'progress') measureText = measureText + '%';
           }
 
           if (col === 'subtasks' || col === 'screens') {
@@ -25182,16 +25266,16 @@
             measureText = arr.length + ' item' + (arr.length !== 1 ? 's' : '');
           }
           if (col === 'owner' || col === 'assignee') {
-            const u = P.users.find(x => x.username === val);
+            const u = P.users ? P.users.find(x => x.username === val) : null;
             measureText = u ? (u.fullName || u.username) : val;
           }
 
-          span.style.fontWeight = (col === 'name' && prefix !== 'def') ? '600' : '500'; // main task titles are styled bolder
+          span.style.fontWeight = (col === 'name' && !prefix) ? '600' : '500';
           span.textContent = String(measureText);
           calculatedWidth = Math.max(calculatedWidth, span.offsetWidth + contentPadding + widthAdjustment);
 
           // --- 2. For Tasks, also measure subtasks & workflow steps ---
-          if (prefix !== 'def' && item.subtasks && item.subtasks.length > 0) {
+          if (!prefix && item.subtasks && item.subtasks.length > 0) {
             item.subtasks.forEach(st => {
               let stVal = st[col];
               if (stVal === undefined || stVal === null) stVal = '';
@@ -25205,20 +25289,17 @@
                 const sPrefix = isScreen ? '📺 ' : '↳ ';
                 stMeasureText = sPrefix + st.name;
 
-                // Indentation: padding-left (16px)
                 stWidthAdj += 16;
 
-                // Chevron: 12px + 4px margin = 16px (if screen and has workflow)
                 if (isScreen && st.workflow && st.workflow.length) {
                   stWidthAdj += 16;
                 }
 
-                // New badge: ~30px (if screen and isNewWindow)
                 if (isScreen && st.isNewWindow) {
                   stWidthAdj += 30;
                 }
 
-                if (isScreen) stFontWeight = '700'; // screen row titles are bold
+                if (isScreen) stFontWeight = '700';
               } else if (col === 'estEffort') {
                 stMeasureText = (st.effort || '—') + 'd';
               } else if (col === 'actEffort') {
@@ -25226,7 +25307,6 @@
               } else if (col === 'startDate' || col === 'dueDate' || col === 'actCompletionDate') {
                 stMeasureText = stVal ? fmtDate(stVal) : '—';
               } else if (col === 'windowName') {
-                // Functional screen name + technical name sub-line
                 const funcName = st.windowName || '—';
                 const techName = st.technicalWindowName || '';
 
@@ -25243,7 +25323,6 @@
                   techW = span.offsetWidth;
                 }
 
-                // Reset span styles
                 span.style.fontSize = '12px';
                 span.style.fontFamily = 'Inter, -apple-system, sans-serif';
 
@@ -25267,7 +25346,6 @@
 
                   if (col === 'name') {
                     stepMeasureText = '┈ ' + step.name;
-                    // Indentation: padding-left (32px)
                     stepWidthAdj += 32;
                   } else if (col === 'estEffort') {
                     stepMeasureText = String(step.effort || 1);
@@ -25276,7 +25354,6 @@
                   } else if (col === 'status') {
                     stepMeasureText = step.status || (step.done ? 'Completed' : 'Not Started');
                   } else if (col === 'progress') {
-                    // Checkbox has fixed width
                     stepMeasureText = '';
                     stepWidthAdj += 16;
                   }
@@ -25296,11 +25373,13 @@
 
       P[widthsKey][col] = calculatedWidth;
       save();
-      if (prefix === 'def') renderDefectsTable(); else renderTable();
+      if (prefix === 'del') renderDeliveriesTable(); else if (prefix === 'def') renderDefectsTable(); else renderTable();
     }
 
     function autoFitAllCols(prefix, strategy = 'all') {
-      const baseCols = prefix === 'def'
+      const baseCols = prefix === 'del'
+        ? getGridCols('del', [...(P.delCols || []), ...(P.delCustomFields || []).map(cf => ({ key: cf.name, label: cf.name, w: 120, type: cf.type === 'dropdown' ? 'select' : cf.type, opts: cf.options || [], edit: true }))])
+        : prefix === 'def'
         ? getGridCols('def', [...P.defCols, ...(P.defCustomFields || []).map(cf => ({ key: cf.name, label: cf.name, w: 120, type: cf.type === 'dropdown' ? 'select' : cf.type, opts: cf.options || [], edit: true }))])
         : [...P.cols, ...P.customFields.map(cf => ({ key: cf.name, label: cf.name, w: 100, type: cf.type === 'dropdown' ? 'select' : 'text', opts: cf.options || [], edit: true }))];
 
@@ -25324,7 +25403,9 @@
     function toggleInlineFilters() {
       P.showInlineFilters = P.showInlineFilters === false;
       save();
-      if (P.view === 'defects') renderDefectsTable(); else renderTable();
+      if (P.view === 'deliveries') renderDeliveriesTable();
+      else if (P.view === 'defects') renderDefectsTable();
+      else renderTable();
     }
     function startCellEdit(td, task, col) {
       const val = task[col.key] || '';
@@ -43544,7 +43625,7 @@ Earned Value Management measures project performance and progress by comparing p
       const VIEW_TEMPLATES = {
         'overview': '<div id="overview-inner" style="padding:24px;max-width:1400px;margin:0 auto;width:100%"></div>',
         'dash': '<div class="dash-inner" id="dash-inner"></div>',
-        'deliveries': '<div id="deliveries-inner" style="padding:24px;max-width:1400px;margin:0 auto;width:100%"></div>',
+        'deliveries': '<div id="deliveries-inner" style="width:100%;height:100%;display:flex;flex-direction:column"></div>',
         'tasks': '<div class="twrap" id="twrap"><table id="tbl"><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>',
         'risks': '<div id="risks-inner" style="padding:24px;max-width:1400px;margin:0 auto;width:100%"></div>',
         'team': '<div class="team-inner" id="team-inner"></div>',
@@ -43580,7 +43661,7 @@ Earned Value Management measures project performance and progress by comparing p
         const taskInfo = $id('task-info');
         if (taskInfo) taskInfo.style.display = (isTasks || isDefects || v === 'log' || v === 'risks' || v === 'deliveries') ? 'block' : 'none';
         const taskViewControls = $id('task-view-controls');
-        if (taskViewControls) taskViewControls.style.display = (isTasks || isDefects) ? 'flex' : 'none';
+        if (taskViewControls) taskViewControls.style.display = (isTasks || isDefects || (v === 'deliveries' && P._delViewMode === 'table')) ? 'flex' : 'none';
         const hierarchyWrap = $id('hierarchy-wrap');
         if (hierarchyWrap) hierarchyWrap.style.display = 'none'; // Level toggle moved to sidebar
 
@@ -47125,26 +47206,21 @@ Earned Value Management measures project performance and progress by comparing p
       const panel = $id('vw-deliveries');
       if (!panel) return;
 
-      if (typeof renderSidebar === 'function' && P.view === 'deliveries') {
-        renderSidebar();
-      }
-
       if (!P.deliveries || !Array.isArray(P.deliveries)) P.deliveries = [];
       if (!P._selectedDeliveries) P._selectedDeliveries = new Set();
-      P._delViewMode = P._delViewMode || 'table'; // 'table' | 'heatmap' | 'kanban'
-      P._delHeatmapPerspective = P._delHeatmapPerspective || 'feat_screens'; // 'feat_screens' | 'env_pipeline' | 'del_impact'
-      P._delFilterStatus = P._delFilterStatus || 'All';
-      P._delFilterEnv = P._delFilterEnv || 'All';
-      P._delFilterModule = P._delFilterModule || 'All';
-      P._delFilterSignOff = P._delFilterSignOff || 'All';
-      P._delFilterRelease = P._delFilterRelease || 'All';
-      P._delFilterMaturity = P._delFilterMaturity || 'All';
-      P._delSortCol = P._delSortCol || 'targetDeliveryDate';
-      P._delSortOrder = P._delSortOrder || 'asc';
+      P._delViewMode = P._delViewMode || 'table';
+      P._delHeatmapPerspective = P._delHeatmapPerspective || 'feat_screens';
+
+      // Toggle top bar sizing & columns controls
+      const isTableMode = P._delViewMode === 'table';
+      const afWrap = $id('autofit-cols-wrap');
+      if (afWrap) afWrap.style.display = isTableMode ? 'inline-flex' : 'none';
+      const colToggleBtn = $id('col-toggle-btn');
+      if (colToggleBtn) colToggleBtn.style.display = isTableMode ? 'inline-flex' : 'none';
+      const taskViewControls = $id('task-view-controls');
+      if (taskViewControls) taskViewControls.style.display = isTableMode ? 'flex' : 'none';
 
       const deliveries = P.deliveries;
-
-      // Unique modules and releases for filters
       const modules = Array.from(new Set([
         ...(P.dropdowns && P.dropdowns.module ? P.dropdowns.module : []),
         ...deliveries.map(d => d.module).filter(Boolean),
@@ -47159,6 +47235,7 @@ Earned Value Management measures project performance and progress by comparing p
       ])).sort();
 
       if (P._delViewMode === 'heatmap') {
+        panel.classList.add('scrollable');
         const heatmapData = computeFeatureDeliveryHeatmapData({
           module: P._delFilterModule,
           release: P._delFilterRelease,
@@ -47167,342 +47244,430 @@ Earned Value Management measures project performance and progress by comparing p
           search: P.search
         });
         renderFeatureDeliveryHeatmap(panel, heatmapData, deliveries, modules, releases);
+        if (typeof renderSidebar === 'function' && P.view === 'deliveries') renderSidebar();
         return;
       }
 
       if (P._delViewMode === 'kanban') {
+        panel.classList.add('scrollable');
         renderDeliveryKanban(panel, deliveries, modules, releases);
+        if (typeof renderSidebar === 'function' && P.view === 'deliveries') renderSidebar();
         return;
       }
 
-      // ── DEFAULT MODE: Schedule Table ──
-      // KPI Calculations
-      const totalCount = deliveries.length;
-      const deployedProdCount = deliveries.filter(d => d.status === 'Deployed' && d.environment === 'Production').length;
-      const deployedProdPct = totalCount > 0 ? Math.round((deployedProdCount / totalCount) * 100) : 0;
-      const pendingSignOffCount = deliveries.filter(d => d.signOffStatus === 'Pending').length;
-      
-      const leadTimes = deliveries.map(d => Number(d.leadTimeDays)).filter(n => !isNaN(n) && n > 0);
-      const avgLeadTime = leadTimes.length > 0 ? (leadTimes.reduce((a, b) => a + b, 0) / leadTimes.length).toFixed(1) : '—';
-
-      // Sort
-      const sorted = [...deliveries].sort((a, b) => {
-        let valA = a[P._delSortCol] ?? '';
-        let valB = b[P._delSortCol] ?? '';
-        if (P._delSortCol === 'id') {
-          const numA = parseInt(String(valA).replace(/\D/g, '')) || 0;
-          const numB = parseInt(String(valB).replace(/\D/g, '')) || 0;
-          return P._delSortOrder === 'asc' ? numA - numB : numB - numA;
-        }
-        if (P._delSortCol === 'leadTimeDays') {
-          const numA = Number(valA) || 0;
-          const numB = Number(valB) || 0;
-          return P._delSortOrder === 'asc' ? numA - numB : numB - numA;
-        }
-        valA = String(valA).toLowerCase();
-        valB = String(valB).toLowerCase();
-        if (valA < valB) return P._delSortOrder === 'asc' ? -1 : 1;
-        if (valA > valB) return P._delSortOrder === 'asc' ? 1 : -1;
-        return 0;
-      });
-
-      // Filter
-      let filtered = sorted.filter(d => {
-        if (P._delFilterStatus !== 'All' && d.status !== P._delFilterStatus) return false;
-        if (P._delFilterEnv !== 'All' && d.environment !== P._delFilterEnv) return false;
-        if (P._delFilterModule !== 'All' && d.module !== P._delFilterModule) return false;
-        if (P._delFilterSignOff !== 'All' && d.signOffStatus !== P._delFilterSignOff) return false;
-        if (P._delFilterRelease !== 'All' && d.releaseVersion !== P._delFilterRelease) return false;
-        return true;
-      });
-
-      // Search Query
-      if (P.search) {
-        const q = P.search.toLowerCase();
-        filtered = filtered.filter(d =>
-          (d.id || '').toLowerCase().includes(q) ||
-          (d.name || '').toLowerCase().includes(q) ||
-          (d.almId || '').toLowerCase().includes(q) ||
-          (d.pdn || '').toLowerCase().includes(q) ||
-          (d.module || '').toLowerCase().includes(q) ||
-          (d.approver || '').toLowerCase().includes(q) ||
-          (d.releaseVersion || '').toLowerCase().includes(q) ||
-          (d.environment || '').toLowerCase().includes(q) ||
-          (d.notes || '').toLowerCase().includes(q) ||
-          (Array.isArray(d.guiScreens) && d.guiScreens.some(s => String(s).toLowerCase().includes(q)))
-        );
-      }
-
-      const taskInfoEl = $id('task-info');
-      if (taskInfoEl) {
-        taskInfoEl.innerHTML = `<strong>${filtered.length}</strong> / ${totalCount} deliveries`;
-      }
-
-      const sortIcon = (col) => {
-        if (P._delSortCol !== col) return '<i data-lucide="chevrons-up-down" style="width:12px; height:12px; margin-left:4px; opacity:0.3; vertical-align:middle"></i>';
-        return P._delSortOrder === 'asc' ? '<i data-lucide="chevron-up" style="width:12px; height:12px; margin-left:4px; color:var(--color-primary); vertical-align:middle"></i>' : '<i data-lucide="chevron-down" style="width:12px; height:12px; margin-left:4px; color:var(--color-primary); vertical-align:middle"></i>';
-      };
-
-      const envBadge = (env) => {
-        const colors = {
-          'Production': { bg: 'rgba(239, 68, 68, 0.12)', fg: 'var(--red)', bd: 'rgba(239, 68, 68, 0.3)' },
-          'Staging': { bg: 'rgba(168, 85, 247, 0.12)', fg: '#a855f7', bd: 'rgba(168, 85, 247, 0.3)' },
-          'UAT': { bg: 'rgba(6, 182, 212, 0.12)', fg: '#06b6d4', bd: 'rgba(6, 182, 212, 0.3)' },
-          'QA': { bg: 'rgba(99, 102, 241, 0.12)', fg: 'var(--color-primary)', bd: 'rgba(99, 102, 241, 0.3)' },
-          'Dev': { bg: 'rgba(100, 116, 139, 0.12)', fg: 'var(--color-text-muted)', bd: 'rgba(100, 116, 139, 0.3)' }
-        };
-        const c = colors[env] || colors['Dev'];
-        return `<span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; background:${c.bg}; color:${c.fg}; border:1px solid ${c.bd}">${esc(env || 'Dev')}</span>`;
-      };
-
-      const signOffBadge = (s) => {
-        const colors = {
-          'Approved': { bg: 'rgba(34, 197, 94, 0.12)', fg: 'var(--green)', bd: 'rgba(34, 197, 94, 0.3)' },
-          'Pending': { bg: 'rgba(245, 158, 11, 0.12)', fg: 'var(--amber)', bd: 'rgba(245, 158, 11, 0.3)' },
-          'Rejected': { bg: 'rgba(239, 68, 68, 0.12)', fg: 'var(--red)', bd: 'rgba(239, 68, 68, 0.3)' },
-          'Not Required': { bg: 'rgba(100, 116, 139, 0.12)', fg: 'var(--color-text-muted)', bd: 'rgba(100, 116, 139, 0.3)' }
-        };
-        const c = colors[s] || colors['Pending'];
-        return `<span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:4px; background:${c.bg}; color:${c.fg}; border:1px solid ${c.bd}">${esc(s || 'Pending')}</span>`;
-      };
-
-      const smokeBadge = (s) => {
-        if (!s || s === 'Not Run') return `<span style="font-size:11px; opacity:0.6; color:var(--color-text-muted)">⚪ Not Run</span>`;
-        if (s === 'Passed') return `<span style="font-size:11px; font-weight:700; color:var(--green)">🟢 Passed</span>`;
-        if (s === 'Failed') return `<span style="font-size:11px; font-weight:700; color:var(--red)">🔴 Failed</span>`;
-        return `<span style="font-size:11px; font-weight:700; color:var(--color-primary)">🔵 ${esc(s)}</span>`;
-      };
-
-      const isAnyFilterActive = P._delFilterStatus !== 'All' || P._delFilterEnv !== 'All' || P._delFilterModule !== 'All' || P._delFilterSignOff !== 'All' || P._delFilterRelease !== 'All' || !!P.search;
-      const selectedCount = P._selectedDeliveries ? P._selectedDeliveries.size : 0;
-
-      let html = `
-        <div style="display:flex; flex-direction:column; gap:16px">
-          ${viewModeSwitcherHtml}
-
-          <!-- Filter & Action Bar -->
-          <div style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); padding:14px 18px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between">
-            <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center">
-              <div style="display:flex; align-items:center; gap:6px">
-                <span style="font-size:12px; font-weight:600; color:var(--color-text-muted)">Status:</span>
-                <select class="fsel" style="padding:4px 8px; font-size:12px; height:32px; min-width:110px" onchange="setDeliveryFilter('status', this.value)">
-                  <option value="All" ${P._delFilterStatus === 'All' ? 'selected' : ''}>All Statuses</option>
-                  <option value="Scheduled" ${P._delFilterStatus === 'Scheduled' ? 'selected' : ''}>Scheduled</option>
-                  <option value="In Progress" ${P._delFilterStatus === 'In Progress' ? 'selected' : ''}>In Progress</option>
-                  <option value="Ready for Deployment" ${P._delFilterStatus === 'Ready for Deployment' ? 'selected' : ''}>Ready for Deployment</option>
-                  <option value="Deployed" ${P._delFilterStatus === 'Deployed' ? 'selected' : ''}>Deployed</option>
-                  <option value="Cancelled" ${P._delFilterStatus === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
-                  <option value="Rolled Back" ${P._delFilterStatus === 'Rolled Back' ? 'selected' : ''}>Rolled Back</option>
-                </select>
-              </div>
-
-              <div style="display:flex; align-items:center; gap:6px">
-                <span style="font-size:12px; font-weight:600; color:var(--color-text-muted)">Environment:</span>
-                <select class="fsel" style="padding:4px 8px; font-size:12px; height:32px; min-width:100px" onchange="setDeliveryFilter('env', this.value)">
-                  <option value="All" ${P._delFilterEnv === 'All' ? 'selected' : ''}>All Envs</option>
-                  <option value="Production" ${P._delFilterEnv === 'Production' ? 'selected' : ''}>Production</option>
-                  <option value="Staging" ${P._delFilterEnv === 'Staging' ? 'selected' : ''}>Staging</option>
-                  <option value="UAT" ${P._delFilterEnv === 'UAT' ? 'selected' : ''}>UAT</option>
-                  <option value="QA" ${P._delFilterEnv === 'QA' ? 'selected' : ''}>QA</option>
-                  <option value="Dev" ${P._delFilterEnv === 'Dev' ? 'selected' : ''}>Dev</option>
-                </select>
-              </div>
-
-              <div style="display:flex; align-items:center; gap:6px">
-                <span style="font-size:12px; font-weight:600; color:var(--color-text-muted)">Release:</span>
-                <select class="fsel" style="padding:4px 8px; font-size:12px; height:32px; min-width:105px" onchange="setDeliveryFilter('release', this.value)">
-                  <option value="All" ${P._delFilterRelease === 'All' ? 'selected' : ''}>All Releases</option>
-                  ${releases.map(r => `<option value="${esc(r)}" ${P._delFilterRelease === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
-                </select>
-              </div>
-
-              <div style="display:flex; align-items:center; gap:6px">
-                <span style="font-size:12px; font-weight:600; color:var(--color-text-muted)">Sign-Off:</span>
-                <select class="fsel" style="padding:4px 8px; font-size:12px; height:32px; min-width:110px" onchange="setDeliveryFilter('signoff', this.value)">
-                  <option value="All" ${P._delFilterSignOff === 'All' ? 'selected' : ''}>All Sign-Offs</option>
-                  <option value="Pending" ${P._delFilterSignOff === 'Pending' ? 'selected' : ''}>Pending</option>
-                  <option value="Approved" ${P._delFilterSignOff === 'Approved' ? 'selected' : ''}>Approved</option>
-                  <option value="Rejected" ${P._delFilterSignOff === 'Rejected' ? 'selected' : ''}>Rejected</option>
-                  <option value="Not Required" ${P._delFilterSignOff === 'Not Required' ? 'selected' : ''}>Not Required</option>
-                </select>
-              </div>
-
-              <div style="display:flex; align-items:center; gap:6px">
-                <span style="font-size:12px; font-weight:600; color:var(--color-text-muted)">Module:</span>
-                <select class="fsel" style="padding:4px 8px; font-size:12px; height:32px; min-width:110px" onchange="setDeliveryFilter('module', this.value)">
-                  <option value="All" ${P._delFilterModule === 'All' ? 'selected' : ''}>All Modules</option>
-                  ${modules.map(m => `<option value="${esc(m)}" ${P._delFilterModule === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}
-                </select>
-              </div>
-
-              ${isAnyFilterActive ? `<button class="btn ghost mini" onclick="clearDeliveryFilters()" style="color:var(--red)"><i data-lucide="x" style="margin-right:4px"></i> Clear Filters</button>` : ''}
-            </div>
-          </div>
-
-          <!-- Batch Action Toolbar if items selected -->
-          ${selectedCount > 0 ? `
-            <div style="background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.3); border-radius:var(--radius-md); padding:10px 16px; display:flex; align-items:center; justify-content:space-between; animation:fadeIn 0.2s ease">
-              <div style="display:flex; align-items:center; gap:12px">
-                <span style="font-size:13px; font-weight:700; color:var(--color-primary)">${selectedCount} deliveries selected</span>
-                <div style="height:16px; width:1px; background:rgba(99,102,241,0.3)"></div>
-                <div style="display:flex; align-items:center; gap:6px">
-                  <span style="font-size:12px; color:var(--color-text-muted)">Status:</span>
-                  <select class="fsel" style="padding:2px 8px; font-size:12px; height:28px" onchange="batchUpdateDeliveryStatus(this.value)">
-                    <option value="" selected disabled>Set Status...</option>
-                    <option value="Scheduled">Scheduled</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Ready for Deployment">Ready for Deployment</option>
-                    <option value="Deployed">Deployed</option>
-                    <option value="Cancelled">Cancelled</option>
-                  </select>
-                </div>
-                <div style="display:flex; align-items:center; gap:6px">
-                  <span style="font-size:12px; color:var(--color-text-muted)">Sign-Off:</span>
-                  <select class="fsel" style="padding:2px 8px; font-size:12px; height:28px" onchange="batchUpdateDeliverySignOff(this.value)">
-                    <option value="" selected disabled>Set Sign-Off...</option>
-                    <option value="Approved">Approved</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Rejected">Rejected</option>
-                    <option value="Not Required">Not Required</option>
-                  </select>
-                </div>
-              </div>
-              <div style="display:flex; align-items:center; gap:8px">
-                <button class="btn ghost mini danger" onclick="batchDeleteSelectedDeliveries()"><i data-lucide="trash-2" style="margin-right:4px"></i> Delete Selected</button>
-                <button class="btn ghost mini" onclick="P._selectedDeliveries.clear(); renderDeliveriesView();">Deselect All</button>
-              </div>
-            </div>
-          ` : ''}
-
-          <!-- Deliveries Table Container -->
-          <div class="twrap" style="background:var(--color-surface); border:1px solid var(--color-divider); border-radius:var(--radius-lg); overflow:hidden">
-            <table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px">
-              <thead>
-                <tr style="background:var(--color-surface-2); border-bottom:1px solid var(--color-divider); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--color-text-muted)">
-                  <th style="width:40px; padding:12px 14px; text-align:center">
-                    <input type="checkbox" onchange="toggleSelectAllDeliveries(this.checked)" ${deliveries.length > 0 && selectedCount === deliveries.length ? 'checked' : ''}>
-                  </th>
-                  <th style="width:48px; padding:12px 6px; text-align:center">#</th>
-                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('id')">ID & ALM / PDN ${sortIcon('id')}</th>
-                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('name')">Delivery Scope / Name ${sortIcon('name')}</th>
-                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('module')">Module & Type ${sortIcon('module')}</th>
-                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('releaseVersion')">Release ${sortIcon('releaseVersion')}</th>
-                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('environment')">Env ${sortIcon('environment')}</th>
-                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('status')">Status ${sortIcon('status')}</th>
-                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('targetDeliveryDate')">Target Date ${sortIcon('targetDeliveryDate')}</th>
-                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('actualDeliveryDate')">Actual Date ${sortIcon('actualDeliveryDate')}</th>
-                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('leadTimeDays')">Lead Time ${sortIcon('leadTimeDays')}</th>
-                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('signOffStatus')">Sign-Off ${sortIcon('signOffStatus')}</th>
-                  <th style="padding:12px 14px; cursor:pointer" onclick="setDeliverySort('approver')">Approver ${sortIcon('approver')}</th>
-                  <th style="padding:12px 14px">Smoke Test</th>
-                  <th style="padding:12px 14px">GUI Screens</th>
-                  <th style="width:100px; padding:12px 14px; text-align:right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${filtered.length > 0 ? filtered.map((d, idx) => {
-                  const isChecked = P._selectedDeliveries.has(d.id);
-                  const screens = Array.isArray(d.guiScreens) ? d.guiScreens : (d.guiScreens ? String(d.guiScreens).split(',').map(s => s.trim()).filter(Boolean) : []);
-                  return `
-                    <tr style="border-bottom:1px solid var(--color-divider); ${isChecked ? 'background:rgba(99,102,241,0.04);' : ''} transition:background 0.15s ease" onmouseover="this.style.background='var(--color-surface-2)'" onmouseout="this.style.background='${isChecked ? 'rgba(99,102,241,0.04)' : 'transparent'}'" ondblclick="openDeliveryFlyout('${d.id}')">
-                      <td style="padding:10px 14px; text-align:center">
-                        <input type="checkbox" onchange="toggleDeliverySelect('${d.id}')" ${isChecked ? 'checked' : ''}>
-                      </td>
-                      <td style="padding:10px 6px; text-align:center; font-family:var(--mono); color:var(--color-text-faint); font-size:11px">${idx + 1}</td>
-                      <td style="padding:10px 14px; font-family:var(--mono); font-size:12px">
-                        <div style="font-weight:700; color:var(--color-primary)">${esc(d.id)}</div>
-                        <div style="display:flex; gap:4px; margin-top:2px; flex-wrap:wrap">
-                          ${d.almId ? `<span style="font-size:10px; background:var(--color-surface-3); border:1px solid var(--color-divider); padding:1px 4px; border-radius:3px; color:var(--color-text-muted)">${esc(d.almId)}</span>` : ''}
-                          ${d.pdn ? `<span style="font-size:10px; background:rgba(6,182,212,0.08); border:1px solid rgba(6,182,212,0.25); padding:1px 4px; border-radius:3px; color:#06b6d4">${esc(d.pdn)}</span>` : ''}
-                        </div>
-                      </td>
-                      <td style="padding:10px 14px; font-weight:600; color:var(--color-text)">
-                        <div>${esc(d.name || 'Untitled Delivery')}</div>
-                        ${d.notes ? `<div style="font-size:11px; font-weight:400; color:var(--color-text-muted); margin-top:2px; max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="${esc(d.notes)}">${esc(d.notes)}</div>` : ''}
-                      </td>
-                      <td style="padding:10px 14px">
-                        <div style="font-weight:600; color:var(--color-text)">${esc(d.module || '—')}</div>
-                        <div style="font-size:10px; color:var(--color-text-muted); text-transform:uppercase">${esc(d.moduleType || 'General')}</div>
-                      </td>
-                      <td style="padding:10px 14px">
-                        <span style="font-size:11px; background:var(--color-surface-3); border:1px solid var(--color-divider); padding:2px 6px; border-radius:4px; font-weight:600">${esc(d.releaseVersion || '—')}</span>
-                      </td>
-                      <td style="padding:10px 14px">${envBadge(d.environment)}</td>
-                      <td style="padding:10px 14px">
-                        <select class="fsel" style="padding:2px 6px; font-size:12px; height:28px; font-weight:600" onchange="quickUpdateDeliveryStatus('${d.id}', this.value)">
-                          <option value="Scheduled" ${d.status === 'Scheduled' ? 'selected' : ''}>Scheduled</option>
-                          <option value="In Progress" ${d.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
-                          <option value="Ready for Deployment" ${d.status === 'Ready for Deployment' ? 'selected' : ''}>Ready for Deployment</option>
-                          <option value="Deployed" ${d.status === 'Deployed' ? 'selected' : ''}>Deployed</option>
-                          <option value="Cancelled" ${d.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
-                          <option value="Rolled Back" ${d.status === 'Rolled Back' ? 'selected' : ''}>Rolled Back</option>
-                        </select>
-                      </td>
-                      <td style="padding:10px 14px; font-family:var(--mono); font-size:12px; color:var(--color-text-muted)">${esc(d.targetDeliveryDate || '—')}</td>
-                      <td style="padding:10px 14px; font-family:var(--mono); font-size:12px; color:var(--color-text-muted)">${esc(d.actualDeliveryDate || '—')}</td>
-                      <td style="padding:10px 14px">
-                        ${d.leadTimeDays != null && d.leadTimeDays !== '' ? `<span style="font-size:11px; font-weight:700; background:rgba(99,102,241,0.08); color:var(--color-primary); padding:2px 6px; border-radius:4px">${d.leadTimeDays} d</span>` : '<span style="color:var(--color-text-faint)">—</span>'}
-                      </td>
-                      <td style="padding:10px 14px">
-                        <select class="fsel" style="padding:2px 6px; font-size:11px; height:28px; font-weight:600" onchange="quickUpdateDeliverySignOff('${d.id}', this.value)">
-                          <option value="Pending" ${d.signOffStatus === 'Pending' ? 'selected' : ''}>Pending</option>
-                          <option value="Approved" ${d.signOffStatus === 'Approved' ? 'selected' : ''}>Approved</option>
-                          <option value="Rejected" ${d.signOffStatus === 'Rejected' ? 'selected' : ''}>Rejected</option>
-                          <option value="Not Required" ${d.signOffStatus === 'Not Required' ? 'selected' : ''}>Not Required</option>
-                        </select>
-                      </td>
-                      <td style="padding:10px 14px; font-size:12px; color:var(--color-text)">${esc(d.approver || '—')}</td>
-                      <td style="padding:10px 14px">${smokeBadge(d.smokeTestStatus)}</td>
-                      <td style="padding:10px 14px">
-                        <div style="display:flex; gap:4px; flex-wrap:wrap; max-width:180px">
-                          ${screens.length > 0 ? screens.map(s => `<span style="font-size:10px; background:var(--color-surface-3); border:1px solid var(--color-divider); padding:1px 5px; border-radius:3px; color:var(--color-text-muted)">${esc(s)}</span>`).join('') : '<span style="color:var(--color-text-faint); font-size:11px">—</span>'}
-                        </div>
-                      </td>
-                      <td style="padding:10px 14px; text-align:right">
-                        <div style="display:inline-flex; gap:4px; align-items:center">
-                          <button class="btn ghost icon-btn" onclick="openDeliveryFlyout('${d.id}')" title="Edit Delivery" style="width:28px; height:28px; padding:0"><i data-lucide="edit-2" style="width:14px; height:14px"></i></button>
-                          <button class="btn ghost icon-btn" onclick="duplicateDelivery('${d.id}')" title="Duplicate Delivery" style="width:28px; height:28px; padding:0"><i data-lucide="copy" style="width:14px; height:14px"></i></button>
-                          <button class="btn ghost danger icon-btn" onclick="if(confirm('Delete delivery ${d.id}?')) deleteDeliveryById('${d.id}')" title="Delete" style="width:28px; height:28px; padding:0"><i data-lucide="trash-2" style="width:14px; height:14px"></i></button>
-                        </div>
-                      </td>
-                    </tr>
-                  `;
-                }).join('') : `
-                  <tr>
-                    <td colspan="16" style="text-align:center; padding:56px 20px; color:var(--color-text-muted)">
-                      <div style="font-size:36px; margin-bottom:12px">📦</div>
-                      <div style="font-size:16px; font-weight:700; color:var(--color-text)">No Deliveries Found</div>
-                      <div style="font-size:13px; color:var(--color-text-muted); margin-top:4px">No delivery schedule items match the current filter or search criteria.</div>
-                      <div style="display:flex; gap:10px; justify-content:center; margin-top:16px; flex-wrap:wrap">
-                        <button class="btn secondary mini" onclick="triggerDeliveryExcelImport()"><i data-lucide="upload-cloud" style="margin-right:6px"></i> Import from Excel</button>
-                        <button class="btn primary mini" onclick="openDeliveryFlyout()"><i data-lucide="plus" style="margin-right:6px"></i> Log First Delivery</button>
-                      </div>
-                    </td>
-                  </tr>
-                `}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      `;
-
-      panel.innerHTML = html;
-      if (window.lucide) lucide.createIcons(panel);
+      // Table View
+      panel.classList.remove('scrollable');
+      renderDeliveriesTable();
+      if (typeof renderSidebar === 'function' && P.view === 'deliveries') renderSidebar();
     }
 
-    // Filter and Sort helpers
+    // ── DELIVERIES GRID TABLE ENGINE (PARITY WITH TASKS / DEFECTS) ──
+    window.renderDeliveriesTable = renderDeliveriesTable;
+    function renderDeliveriesTable() {
+      withScroll(() => {
+        const panel = $id('vw-deliveries');
+        if (!panel) return;
+
+        // Initialize deliveries columns if missing
+        if (!P.delCols || !Array.isArray(P.delCols) || P.delCols.length === 0) {
+          P.delCols = [
+            { key: 'id', label: 'Delivery ID', w: 85, type: 'text', edit: false },
+            { key: 'almId', label: 'ALM ID', w: 95, type: 'text', edit: true },
+            { key: 'pdn', label: 'PDN', w: 105, type: 'text', edit: true },
+            { key: 'name', label: 'Delivery Scope / Name', w: 220, type: 'text', edit: true, required: true },
+            { key: 'module', label: 'Module', w: 130, type: 'select', edit: true },
+            { key: 'moduleType', label: 'Module Type', w: 110, type: 'select', opts: ['Server', 'GUI', 'Hybrid', 'Database', 'General'], edit: true },
+            { key: 'releaseVersion', label: 'Release', w: 100, type: 'select', edit: true },
+            { key: 'environment', label: 'Environment', w: 110, type: 'select', opts: ['Production', 'Staging', 'UAT', 'QA', 'Dev'], edit: true },
+            { key: 'status', label: 'Status', w: 135, type: 'select', opts: ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'], edit: true },
+            { key: 'targetDeliveryDate', label: 'Target Date', w: 105, type: 'date', edit: true },
+            { key: 'actualDeliveryDate', label: 'Actual Date', w: 105, type: 'date', edit: true },
+            { key: 'leadTimeDays', label: 'Lead Time', w: 90, type: 'number', edit: true },
+            { key: 'signOffStatus', label: 'Sign-Off', w: 120, type: 'select', opts: ['Pending', 'Approved', 'Rejected', 'Not Required'], edit: true },
+            { key: 'approver', label: 'Approver', w: 120, type: 'select', edit: true },
+            { key: 'smokeTestStatus', label: 'Smoke Test', w: 110, type: 'select', opts: ['Not Run', 'Running', 'Passed', 'Failed'], edit: true },
+            { key: 'guiScreens', label: 'GUI Screens', w: 150, type: 'text', edit: true },
+            { key: 'rollbackPlan', label: 'Rollback Plan', w: 160, type: 'text', edit: true },
+            { key: 'notes', label: 'Notes', w: 160, type: 'text', edit: true }
+          ];
+        }
+
+        if (!P._selectedDeliveries) P._selectedDeliveries = new Set();
+        const selectedCount = P._selectedDeliveries.size;
+
+        const baseCols = [...P.delCols, ...(P.delCustomFields || []).map(cf => ({ key: cf.name, label: cf.name, w: 120, type: cf.type === 'dropdown' ? 'select' : cf.type, opts: cf.options || [], edit: true }))];
+        const allCols = getGridCols('del', baseCols);
+
+        const filtered = getGridFiltered('del', P.deliveries || [], allCols);
+        const sorted = getGridSorted('del', filtered);
+
+        const taskInfoEl = $id('task-info');
+        if (taskInfoEl) taskInfoEl.innerHTML = `<strong>${sorted.length}</strong> / ${(P.deliveries || []).length} deliverables`;
+
+        // Check if layout needs structural setup
+        let twrap = $id('del-twrap');
+        let bulkBar = $id('del-bulk-bar');
+        const needsBulkBar = selectedCount > 0;
+        const hasBulkBar = !!bulkBar;
+
+        if (!twrap || (needsBulkBar !== hasBulkBar)) {
+          panel.innerHTML = `
+            <div id="deliveries-table-container" style="display:flex; flex-direction:column; width:100%; height:100%; box-sizing:border-box">
+              ${selectedCount > 0 ? `
+                <div id="del-bulk-bar" style="margin:12px 18px 6px 18px; background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.3); border-radius:var(--radius-md); padding:8px 14px; display:flex; align-items:center; justify-content:space-between; animation:fadeIn 0.2s ease">
+                  <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap">
+                    <span style="font-size:12px; font-weight:700; color:var(--color-primary)">${selectedCount} deliverables selected</span>
+                    <div style="height:14px; width:1px; background:rgba(99,102,241,0.3)"></div>
+                    <div style="display:flex; align-items:center; gap:6px">
+                      <span style="font-size:11px; color:var(--color-text-muted)">Status:</span>
+                      <select class="fsel" style="padding:2px 6px; font-size:11px; height:26px" onchange="batchUpdateDeliveryStatus(this.value)">
+                        <option value="" selected disabled>Set Status...</option>
+                        <option value="Scheduled">Scheduled</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Ready for Deployment">Ready for Deployment</option>
+                        <option value="Deployed">Deployed</option>
+                        <option value="Cancelled">Cancelled</option>
+                        <option value="Rolled Back">Rolled Back</option>
+                      </select>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px">
+                      <span style="font-size:11px; color:var(--color-text-muted)">Sign-Off:</span>
+                      <select class="fsel" style="padding:2px 6px; font-size:11px; height:26px" onchange="batchUpdateDeliverySignOff(this.value)">
+                        <option value="" selected disabled>Set Sign-Off...</option>
+                        <option value="Approved">Approved</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Rejected">Rejected</option>
+                        <option value="Not Required">Not Required</option>
+                      </select>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px">
+                      <span style="font-size:11px; color:var(--color-text-muted)">Env:</span>
+                      <select class="fsel" style="padding:2px 6px; font-size:11px; height:26px" onchange="batchUpdateDeliveryEnv(this.value)">
+                        <option value="" selected disabled>Set Env...</option>
+                        <option value="Production">Production</option>
+                        <option value="Staging">Staging</option>
+                        <option value="UAT">UAT</option>
+                        <option value="QA">QA</option>
+                        <option value="Dev">Dev</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:6px">
+                    <button class="btn ghost mini danger" onclick="batchDeleteSelectedDeliveries()"><i data-lucide="trash-2" style="width:12px;height:12px;margin-right:4px"></i> Delete Selected</button>
+                    <button class="btn ghost mini" onclick="P._selectedDeliveries.clear(); renderDeliveriesTable();">Deselect All</button>
+                  </div>
+                </div>
+              ` : ''}
+              <div class="twrap" id="del-twrap" style="flex:1; overflow:auto">
+                <table id="del-table">
+                  <thead id="del-thead"></thead>
+                  <tbody id="del-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          `;
+        }
+
+        const thead = $id('del-thead');
+        const tbody = $id('del-tbody');
+        if (!thead || !tbody) return;
+
+        renderGridHeader('del', thead, allCols);
+
+        tbody.innerHTML = '';
+        if (!sorted.length) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="${allCols.length + 3}" style="text-align:center; padding:48px 20px; color:var(--color-text-muted)">
+                <div style="font-size:32px; margin-bottom:10px">📦</div>
+                <div style="font-size:14px; font-weight:700; color:var(--color-text)">No Deliverables Found</div>
+                <div style="font-size:12px; color:var(--color-text-muted); margin-top:4px">No release deliverables match the active column filters or search term.</div>
+                <div style="display:flex; gap:8px; justify-content:center; margin-top:14px">
+                  <button class="btn ghost mini" onclick="clearDeliveryFilters()"><i data-lucide="x" style="width:12px;height:12px;margin-right:4px"></i> Reset Filters</button>
+                  <button class="btn primary mini" onclick="openDeliveryFlyout()"><i data-lucide="plus" style="width:12px;height:12px;margin-right:4px"></i> Log Delivery</button>
+                </div>
+              </td>
+            </tr>
+          `;
+          if (window.lucide) lucide.createIcons(tbody);
+          return;
+        }
+
+        sorted.forEach((d, i) => {
+          const tr = document.createElement('tr');
+          tr.style.animationDelay = Math.min(i * .012, .15) + 's';
+          tr.setAttribute('data-id', d.id);
+          const isChecked = P._selectedDeliveries.has(d.id);
+          if (isChecked) tr.style.background = 'rgba(99,102,241,0.04)';
+
+          tr.addEventListener('contextmenu', e => { e.preventDefault(); if (!P.readonly) showDeliveryCtx(e, d.id); });
+          tr.addEventListener('dblclick', () => openDeliveryFlyout(d.id));
+
+          // 1. Bulk Select Checkbox Cell
+          let bTd = document.createElement('td');
+          bTd.style.textAlign = 'center';
+          bTd.innerHTML = `<input type="checkbox" class="bulk-cb" ${isChecked ? 'checked' : ''} onchange="toggleBulkDelivery('${d.id}')" onclick="event.stopPropagation()">`;
+          tr.appendChild(bTd);
+
+          // 2. Row Actions Cell
+          let aTd = document.createElement('td');
+          aTd.style.textAlign = 'center';
+          aTd.innerHTML = `<button class="btn ghost" style="width:20px;height:20px;padding:0;color:var(--color-text-muted)" title="Actions" onclick="event.stopPropagation();showDeliveryCtx(event,'${d.id}')"><span style="font-size:14px;font-weight:bold">⋮</span></button>`;
+          tr.appendChild(aTd);
+
+          // 3. Row Index Number Cell
+          let rTd = document.createElement('td');
+          rTd.className = 'rn';
+          rTd.innerHTML = `<div class="td-inner">${i + 1}</div>`;
+          tr.appendChild(rTd);
+
+          // 4. Data Columns
+          allCols.forEach(col => {
+            const td = document.createElement('td');
+            td.setAttribute('data-label', col.label);
+            const val = d[col.key];
+
+            if (col.key === 'id') {
+              td.innerHTML = `
+                <div class="td-inner" style="flex-direction:column;align-items:flex-start;gap:2px">
+                  <span style="font-family:var(--mono);font-weight:700;color:var(--color-primary);font-size:12px">${esc(val || '')}</span>
+                  ${d.almId || d.pdn ? `
+                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                      ${d.almId ? `<span style="font-size:9.5px;background:var(--color-surface-3);border:1px solid var(--color-divider);padding:0px 4px;border-radius:3px;color:var(--color-text-muted);font-family:var(--mono)">${esc(d.almId)}</span>` : ''}
+                      ${d.pdn ? `<span style="font-size:9.5px;background:rgba(6,182,212,0.08);border:1px solid rgba(6,182,212,0.25);padding:0px 4px;border-radius:3px;color:#06b6d4;font-family:var(--mono)">${esc(d.pdn)}</span>` : ''}
+                    </div>
+                  ` : ''}
+                </div>
+              `;
+            } else if (col.key === 'name') {
+              td.innerHTML = `
+                <div class="td-inner" style="flex-direction:column;align-items:flex-start;gap:2px">
+                  <span style="font-weight:600;color:var(--color-text);font-size:12.5px">${esc(val || 'Untitled Delivery')}</span>
+                  ${d.notes ? `<span style="font-size:10.5px;color:var(--color-text-muted);max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(d.notes)}">${esc(d.notes)}</span>` : ''}
+                </div>
+              `;
+            } else if (col.key === 'module') {
+              td.innerHTML = `
+                <div class="td-inner" style="flex-direction:column;align-items:flex-start;gap:2px">
+                  <span style="font-weight:600;font-size:12px">${esc(val || '—')}</span>
+                  ${d.moduleType ? `<span style="font-size:9.5px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.5px">${esc(d.moduleType)}</span>` : ''}
+                </div>
+              `;
+            } else if (col.key === 'releaseVersion') {
+              td.innerHTML = `<div class="td-inner">${val ? `<span style="font-size:11px;background:var(--color-surface-3);border:1px solid var(--color-divider);padding:2px 6px;border-radius:4px;font-weight:600;font-family:var(--mono)">${esc(val)}</span>` : '<span style="color:var(--color-text-faint)">—</span>'}</div>`;
+            } else if (col.key === 'environment') {
+              const envCls = { 'Production': 'var(--red)', 'Staging': '#a855f7', 'UAT': '#06b6d4', 'QA': 'var(--color-primary)', 'Dev': 'var(--color-text-muted)' };
+              const color = envCls[val] || 'var(--color-text-muted)';
+              td.innerHTML = `<div class="td-inner"><span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(99,102,241,0.08);color:${color};border:1px solid rgba(99,102,241,0.2)">${esc(val || 'Dev')}</span></div>`;
+            } else if (col.key === 'status') {
+              const stClsMap = { 'Scheduled': 'pending', 'In Progress': 'in-progress', 'Ready for Deployment': 'testing', 'Deployed': 'completed', 'Cancelled': 'cancelled', 'Rolled Back': 'blocked' };
+              const cls = stClsMap[val] || 'not-started';
+              const inner = document.createElement('div'); inner.className = 'td-inner';
+              const badge = document.createElement('span'); badge.className = `st-badge st-${cls}`; badge.style.cursor = 'pointer';
+              badge.innerHTML = `<span class="dot"></span>${esc(val || 'Scheduled')}`;
+              badge.onclick = (e) => { e.stopPropagation(); startDeliveryCellEdit(inner.parentElement, d, col); };
+              inner.appendChild(badge); td.appendChild(inner);
+            } else if (col.key === 'signOffStatus') {
+              const soClsMap = { 'Approved': 'var(--green)', 'Pending': 'var(--amber)', 'Rejected': 'var(--red)', 'Not Required': 'var(--color-text-muted)' };
+              const color = soClsMap[val] || 'var(--amber)';
+              const inner = document.createElement('div'); inner.className = 'td-inner';
+              const badge = document.createElement('span');
+              badge.style.cssText = `font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(99,102,241,0.06);color:${color};border:1px solid rgba(99,102,241,0.2);cursor:pointer`;
+              badge.textContent = val || 'Pending';
+              badge.onclick = (e) => { e.stopPropagation(); startDeliveryCellEdit(inner.parentElement, d, col); };
+              inner.appendChild(badge); td.appendChild(inner);
+            } else if (col.key === 'smokeTestStatus') {
+              let badgeHtml = '<span style="font-size:11px;color:var(--color-text-muted)">⚪ Not Run</span>';
+              if (val === 'Passed') badgeHtml = '<span style="font-size:11px;font-weight:700;color:var(--green)">🟢 Passed</span>';
+              else if (val === 'Failed') badgeHtml = '<span style="font-size:11px;font-weight:700;color:var(--red)">🔴 Failed</span>';
+              else if (val === 'Running') badgeHtml = '<span style="font-size:11px;font-weight:700;color:var(--color-primary)">🔵 Running</span>';
+              td.innerHTML = `<div class="td-inner">${badgeHtml}</div>`;
+            } else if (col.key === 'leadTimeDays') {
+              td.innerHTML = `<div class="td-inner">${val != null && val !== '' ? `<span style="font-size:11px;font-weight:700;background:rgba(99,102,241,0.08);color:var(--color-primary);padding:2px 6px;border-radius:4px">${val} d</span>` : '<span style="color:var(--color-text-faint)">—</span>'}</div>`;
+            } else if (col.key === 'targetDeliveryDate' || col.key === 'actualDeliveryDate' || col.type === 'date') {
+              td.innerHTML = `<div class="td-inner" style="font-family:var(--mono);font-size:11.5px;color:var(--color-text-muted)">${val ? fmtDate(val) : '—'}</div>`;
+            } else if (col.key === 'guiScreens') {
+              const screens = Array.isArray(val) ? val : (val ? String(val).split(',').map(s => s.trim()).filter(Boolean) : []);
+              td.innerHTML = `
+                <div class="td-inner" style="gap:4px;flex-wrap:wrap;max-width:180px">
+                  ${screens.length ? screens.map(s => `<span style="font-size:10px;background:var(--color-surface-3);border:1px solid var(--color-divider);padding:1px 5px;border-radius:3px;color:var(--color-text-muted)">${esc(s)}</span>`).join('') : '<span style="color:var(--color-text-faint);font-size:11px">—</span>'}
+                </div>
+              `;
+            } else {
+              td.innerHTML = `<div class="td-inner">${esc(val || '—')}</div>`;
+            }
+
+            tr.appendChild(td);
+          });
+
+          tbody.appendChild(tr);
+        });
+
+        if (window.lucide) lucide.createIcons(tbody);
+      });
+    }
+
+    function startDeliveryCellEdit(td, delivery, col) {
+      if (P.readonly) return;
+      const val = delivery[col.key] || '';
+      td.innerHTML = '';
+      const cStyle = 'width:100%;height:100%;border:none;background:var(--color-surface-2);color:var(--color-text);font-family:inherit;font-size:inherit;padding:4px 8px;outline:2px solid var(--color-primary);border-radius:2px;';
+
+      let finished = false;
+      let input;
+      if (col.type === 'select' || ['status', 'environment', 'signOffStatus', 'smokeTestStatus', 'moduleType', 'module', 'releaseVersion', 'approver'].includes(col.key)) {
+        input = document.createElement('select');
+        input.style.cssText = cStyle;
+        let opts = col.opts || [];
+        if (col.key === 'status') opts = (P.dropdowns && P.dropdowns.deliveryStatus) || ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'];
+        else if (col.key === 'environment') opts = (P.dropdowns && P.dropdowns.deliveryEnv) || ['Production', 'Staging', 'UAT', 'QA', 'Dev'];
+        else if (col.key === 'signOffStatus') opts = (P.dropdowns && P.dropdowns.deliverySignOff) || ['Pending', 'Approved', 'Rejected', 'Not Required'];
+        else if (col.key === 'smokeTestStatus') opts = ['Not Run', 'Running', 'Passed', 'Failed'];
+        else if (col.key === 'moduleType') opts = ['Server', 'GUI', 'Hybrid', 'Database', 'General'];
+        else if (col.key === 'module') opts = Array.from(new Set([...(P.dropdowns && P.dropdowns.module ? P.dropdowns.module : []), ...(P.deliveries || []).map(d => d.module).filter(Boolean)])).sort();
+        else if (col.key === 'releaseVersion') opts = Array.from(new Set([...(P.releases ? P.releases.map(r => r.name || r) : []), ...(P.dropdowns && P.dropdowns.release ? P.dropdowns.release : []), ...(P.deliveries || []).map(d => d.releaseVersion).filter(Boolean)])).sort();
+        else if (col.key === 'approver') opts = (P.members || []).map(m => m.name);
+
+        opts.forEach(o => {
+          const opt = document.createElement('option');
+          opt.value = o;
+          opt.textContent = o;
+          if (o === val) opt.selected = true;
+          input.appendChild(opt);
+        });
+      } else {
+        input = document.createElement('input');
+        input.type = col.type || 'text';
+        input.value = val;
+        input.style.cssText = cStyle;
+      }
+
+      const commit = () => {
+        if (finished) return;
+        finished = true;
+        delivery[col.key] = input.value;
+        save();
+        renderDeliveriesTable();
+        if (typeof renderSidebar === 'function') renderSidebar();
+      };
+
+      input.addEventListener('change', commit);
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { commit(); }
+        if (e.key === 'Escape') { finished = true; renderDeliveriesTable(); }
+      });
+
+      td.appendChild(input);
+      input.focus();
+    }
+
+    window.toggleBulkDelivery = function(id) {
+      if (!P._selectedDeliveries) P._selectedDeliveries = new Set();
+      if (P._selectedDeliveries.has(id)) P._selectedDeliveries.delete(id);
+      else P._selectedDeliveries.add(id);
+      renderDeliveriesTable();
+    };
+
+    window.toggleAllBulkDeliveries = function(checked) {
+      if (!P._selectedDeliveries) P._selectedDeliveries = new Set();
+      if (checked) {
+        (P.deliveries || []).forEach(d => P._selectedDeliveries.add(d.id));
+      } else {
+        P._selectedDeliveries.clear();
+      }
+      renderDeliveriesTable();
+    };
+
+    window.batchUpdateDeliveryStatus = function(val) {
+      if (!val || !P._selectedDeliveries || !P._selectedDeliveries.size) return;
+      P._selectedDeliveries.forEach(id => {
+        const d = (P.deliveries || []).find(x => x.id === id);
+        if (d) d.status = val;
+      });
+      save();
+      renderDeliveriesTable();
+      if (typeof renderSidebar === 'function') renderSidebar();
+      notify(`Updated status for ${P._selectedDeliveries.size} deliveries`, 'ok');
+    };
+
+    window.batchUpdateDeliverySignOff = function(val) {
+      if (!val || !P._selectedDeliveries || !P._selectedDeliveries.size) return;
+      P._selectedDeliveries.forEach(id => {
+        const d = (P.deliveries || []).find(x => x.id === id);
+        if (d) d.signOffStatus = val;
+      });
+      save();
+      renderDeliveriesTable();
+      if (typeof renderSidebar === 'function') renderSidebar();
+      notify(`Updated sign-off for ${P._selectedDeliveries.size} deliveries`, 'ok');
+    };
+
+    window.batchUpdateDeliveryEnv = function(val) {
+      if (!val || !P._selectedDeliveries || !P._selectedDeliveries.size) return;
+      P._selectedDeliveries.forEach(id => {
+        const d = (P.deliveries || []).find(x => x.id === id);
+        if (d) d.environment = val;
+      });
+      save();
+      renderDeliveriesTable();
+      if (typeof renderSidebar === 'function') renderSidebar();
+      notify(`Updated environment for ${P._selectedDeliveries.size} deliveries`, 'ok');
+    };
+
+    window.batchDeleteSelectedDeliveries = function() {
+      if (!P._selectedDeliveries || !P._selectedDeliveries.size) return;
+      if (!confirm(`Delete ${P._selectedDeliveries.size} selected deliveries?`)) return;
+      P.deliveries = (P.deliveries || []).filter(d => !P._selectedDeliveries.has(d.id));
+      P._selectedDeliveries.clear();
+      save();
+      renderDeliveriesTable();
+      if (typeof renderSidebar === 'function') renderSidebar();
+      notify('Selected deliveries deleted', 'ok');
+    };
+
+    window.showDeliveryCtx = function(e, delId) {
+      closeCtx();
+      const m = $id('ctxmenu');
+      if (!m) return;
+      m.innerHTML = `
+        <div class="ctxitem ctx-edit" onclick="openDeliveryFlyout('${delId}');closeCtx()"><span style="font-size:16px;margin-right:8px"><i data-lucide="edit-2"></i></span>Edit Delivery</div>
+        <div class="ctxitem" onclick="duplicateDelivery('${delId}');closeCtx()"><span style="font-size:16px;margin-right:8px"><i data-lucide="copy"></i></span>Duplicate Delivery</div>
+        <div class="ctx-div"></div>
+        <div class="ctxitem ctx-delete danger" onclick="if(confirm('Delete delivery ${delId}?')) { deleteDeliveryById('${delId}'); } closeCtx()"><span style="font-size:16px;margin-right:8px"><i data-lucide="trash-2"></i></span>Delete Delivery</div>
+      `;
+      positionContextMenu(m, e);
+      if (window.lucide) lucide.createIcons(m);
+      setTimeout(() => document.addEventListener('click', closeCtx, { once: true }), 10);
+    };
+
     window.setDeliveryFilter = function(type, val) {
-      if (type === 'status') P._delFilterStatus = val;
-      else if (type === 'env') P._delFilterEnv = val;
-      else if (type === 'module') P._delFilterModule = val;
-      else if (type === 'signoff') P._delFilterSignOff = val;
-      else if (type === 'release') P._delFilterRelease = val;
-      else if (type === 'maturity') P._delFilterMaturity = val;
+      if (!P.delColFilters) P.delColFilters = {};
+      if (type === 'status') {
+        P._delFilterStatus = val;
+        P.delColFilters.status = (val === 'All') ? '' : val;
+      } else if (type === 'env') {
+        P._delFilterEnv = val;
+        P.delColFilters.environment = (val === 'All') ? '' : val;
+      } else if (type === 'module') {
+        P._delFilterModule = val;
+        P.delColFilters.module = (val === 'All') ? '' : val;
+      } else if (type === 'signoff') {
+        P._delFilterSignOff = val;
+        P.delColFilters.signOffStatus = (val === 'All') ? '' : val;
+      } else if (type === 'release') {
+        P._delFilterRelease = val;
+        P.delColFilters.releaseVersion = (val === 'All') ? '' : val;
+      } else if (type === 'maturity') {
+        P._delFilterMaturity = val;
+      }
+      save();
       renderDeliveriesView();
       if (typeof renderSidebar === 'function') renderSidebar();
     };
 
     window.clearDeliveryFilters = function() {
+      if (P.delColFilters) P.delColFilters = {};
       P._delFilterStatus = 'All';
       P._delFilterEnv = 'All';
       P._delFilterModule = 'All';
@@ -47512,6 +47677,7 @@ Earned Value Management measures project performance and progress by comparing p
       const sInp = $id('global-search');
       if (sInp) sInp.value = '';
       P.search = '';
+      save();
       renderDeliveriesView();
       if (typeof renderSidebar === 'function') renderSidebar();
     };
@@ -69835,7 +70001,7 @@ Earned Value Management measures project performance and progress by comparing p
     function executeAutofit(strategy, event) {
       if (event) { event.stopPropagation(); event.preventDefault(); }
       P.autofitStrategy = strategy;
-      const prefix = P.view === 'defects' ? 'def' : '';
+      const prefix = P.view === 'deliveries' ? 'del' : (P.view === 'defects' ? 'def' : '');
       autoFitAllCols(prefix, strategy);
       closeDD();
       save();
@@ -69846,10 +70012,12 @@ Earned Value Management measures project performance and progress by comparing p
       return prefix + key.charAt(0).toUpperCase() + key.slice(1);
     }
     function renderColList() {
-      const prefix = P.view === 'defects' ? 'def' : '';
+      const prefix = P.view === 'deliveries' ? 'del' : (P.view === 'defects' ? 'def' : '');
       const orderKey = getGridPK(prefix, 'colOrder');
       const hiddenKey = getGridPK(prefix, 'hiddenCols');
-      const baseCols = prefix === 'def' ? P.defCols : [...P.cols, ...P.customFields.map(cf => ({ key: cf.name, label: cf.name }))];
+      const baseCols = prefix === 'del'
+        ? [...(P.delCols || []), ...(P.delCustomFields || []).map(cf => ({ key: cf.name, label: cf.name }))]
+        : (prefix === 'def' ? P.defCols : [...P.cols, ...P.customFields.map(cf => ({ key: cf.name, label: cf.name }))]);
 
       if (!P[orderKey]) P[orderKey] = baseCols.map(c => c.key);
       baseCols.forEach(c => { if (!P[orderKey].includes(c.key)) P[orderKey].push(c.key); });
@@ -69861,7 +70029,7 @@ Earned Value Management measures project performance and progress by comparing p
 
       displayCols.forEach((c, i) => {
         const isHidden = (P[hiddenKey] || []).includes(c.key);
-        const isCritical = c.key === 'name' || (prefix === 'def' && c.key === 'title');
+        const isCritical = c.key === 'name' || (prefix === 'def' && c.key === 'title') || (prefix === 'del' && c.key === 'id');
         html += `
           <div class="dd-item" draggable="true" 
                ondragstart="onColDragStart(event, '${c.key}', 'selector')"
@@ -69913,7 +70081,7 @@ Earned Value Management measures project performance and progress by comparing p
       const dragKey = e.dataTransfer.getData('text/plain') || _dragSourceKey;
       if (dragKey && dragKey !== targetKey && _dragSourceType === type) {
         if (type === 'selector') {
-          const prefix = P.view === 'defects' ? 'def' : '';
+          const prefix = P.view === 'deliveries' ? 'del' : (P.view === 'defects' ? 'def' : '');
           const orderKey = getGridPK(prefix, 'colOrder');
           const arr = P[orderKey];
           const fromIdx = arr.indexOf(dragKey);
@@ -69955,15 +70123,19 @@ Earned Value Management measures project performance and progress by comparing p
 
     function finalizeColOrder() {
       save();
-      const prefix = P.view === 'defects' ? 'def' : '';
-      if (prefix === 'def') renderDefectsTable(); else renderTable();
+      const prefix = P.view === 'deliveries' ? 'del' : (P.view === 'defects' ? 'def' : '');
+      if (prefix === 'del') renderDeliveriesTable();
+      else if (prefix === 'def') renderDefectsTable();
+      else renderTable();
       notify('Column layout applied', 'ok');
       $id('col-selector-wrap').classList.remove('open');
     }
     function moveCol(key, dir) {
-      const prefix = P.view === 'defects' ? 'def' : '';
+      const prefix = P.view === 'deliveries' ? 'del' : (P.view === 'defects' ? 'def' : '');
       const orderKey = getGridPK(prefix, 'colOrder');
-      const baseCols = prefix === 'def' ? P.defCols : [...P.cols, ...P.customFields.map(cf => ({ key: cf.name, label: cf.name }))];
+      const baseCols = prefix === 'del'
+        ? (P.delCols || [])
+        : (prefix === 'def' ? P.defCols : [...P.cols, ...P.customFields.map(cf => ({ key: cf.name, label: cf.name }))]);
 
       if (!P[orderKey]) P[orderKey] = baseCols.map(c => c.key);
       const idx = P[orderKey].indexOf(key);
@@ -69974,19 +70146,23 @@ Earned Value Management measures project performance and progress by comparing p
       const item = P[orderKey].splice(idx, 1)[0];
       P[orderKey].splice(newIdx, 0, item);
       save();
-      if (prefix === 'def') renderDefectsTable(); else renderTable();
+      if (prefix === 'del') renderDeliveriesTable();
+      else if (prefix === 'def') renderDefectsTable();
+      else renderTable();
       renderColList();
     }
     function toggleColKey(key) {
-      const prefix = P.view === 'defects' ? 'def' : '';
-      if (key === 'name' || (prefix === 'def' && key === 'title')) return;
+      const prefix = P.view === 'deliveries' ? 'del' : (P.view === 'defects' ? 'def' : '');
+      if (key === 'name' || (prefix === 'def' && key === 'title') || (prefix === 'del' && key === 'id')) return;
       const hiddenKey = getGridPK(prefix, 'hiddenCols');
       if (!P[hiddenKey]) P[hiddenKey] = [];
       const idx = P[hiddenKey].indexOf(key);
       if (idx > -1) P[hiddenKey].splice(idx, 1);
       else P[hiddenKey].push(key);
       save();
-      if (prefix === 'def') renderDefectsTable(); else renderTable();
+      if (prefix === 'del') renderDeliveriesTable();
+      else if (prefix === 'def') renderDefectsTable();
+      else renderTable();
       renderColList();
     }
 
