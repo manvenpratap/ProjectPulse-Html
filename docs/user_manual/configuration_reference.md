@@ -268,6 +268,34 @@ Here is the current taxonomical setup utilized in the Delivery Matrix, RAID Regi
     - Rejected
     - Appealed
 
+### Delivery Status
+*   **Key**: `deliveryStatus`
+*   **Options**:
+    - Scheduled
+    - In Preparation
+    - Ready for Delivery
+    - Delivered
+    - Accepted
+    - Rejected
+    - Postponed
+
+### Delivery Env
+*   **Key**: `deliveryEnv`
+*   **Options**:
+    - SIT
+    - UAT
+    - Staging
+    - Production
+    - DR
+
+### Delivery Sign Off
+*   **Key**: `deliverySignOff`
+*   **Options**:
+    - Pending
+    - Under Review
+    - Approved
+    - Rejected
+
 ---
 
-*Last compiled on: Thu, 20 Aug 2026 18:31:05 GMT*
+*Last compiled on: Fri, 21 Aug 2026 18:30:11 GMT*

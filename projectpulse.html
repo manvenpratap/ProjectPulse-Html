@@ -50278,34 +50278,77 @@ Earned Value Management measures project performance and progress by comparing p
         wb.created = new Date();
         wb.modified = new Date();
 
-        const COLORS = {
-          primary: '4F46E5',
-          headerBg: 'F8FAFC',
-          border: 'E2E8F0',
-          zebra: 'F8FAFC'
-        };
-        const hdrStyle = {
-          font: { bold: true, color: { argb: 'FFFFFF' }, size: 10, name: 'Segoe UI' },
-          fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.primary } },
-          alignment: { vertical: 'middle', horizontal: 'center', wrapText: true },
-          border: { top: { style: 'thin', color: { argb: COLORS.border } }, bottom: { style: 'medium', color: { argb: '3730A3' } } }
-        };
-        const S = (v) => (v == null ? '' : String(v));
-        const cleanFmtDate = (d) => (d ? String(d).split('T')[0] : '');
+        const palette = (window.PulseExcel && typeof window.PulseExcel.getThemePalette === 'function')
+          ? window.PulseExcel.getThemePalette()
+          : null;
 
-        PulseExcel.buildDeliveriesSheet(wb, false, COLORS, hdrStyle, S, cleanFmtDate);
+        const COLORS = palette ? palette.COLORS : {
+          navy: 'FF0F172A',
+          indigo: 'FF4338CA',
+          slate: 'FF64748B',
+          emerald: 'FF10B981',
+          rose: 'FFF43F5E',
+          header: 'FFF8FAFC',
+          input: 'FF4338CA',
+          amber: 'FFF59E0B',
+          blue: 'FF3B82F6',
+          purple: 'FF8B5CF6',
+          bg: 'FFF8FAFC',
+          surface: 'FFFFFFFF',
+          divider: 'FFE2E8F0',
+          muted: 'FF64748B',
+          textDark: 'FF1E293B',
+          styleRow: (row, i) => {
+            const bg = (i % 2 === 1) ? 'FFF8FAFC' : 'FFFFFFFF';
+            row.eachCell(c => {
+              c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+              c.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF1E293B' } };
+              c.border = {
+                top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+              };
+            });
+          }
+        };
+
+        const hdrStyle = palette ? palette.hdrStyle : {
+          font: { bold: true, color: { argb: 'FFFFFFFF' }, size: 10, name: 'Segoe UI' },
+          fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo || 'FF4338CA' } },
+          alignment: { vertical: 'middle', horizontal: 'center', wrapText: true },
+          border: { top: { style: 'thin', color: { argb: 'FFE2E8F0' } }, bottom: { style: 'medium', color: { argb: 'FF3730A3' } } }
+        };
+        const S = (v) => (v == null ? '' : String(v).replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F]/g, ''));
+        const cleanFmtDate = (d) => {
+          if (!d || d === '-' || d === '—') return '-';
+          if (d instanceof Date) return isNaN(d) ? '-' : d.toISOString().split('T')[0];
+          if (typeof d === 'string') {
+            const clean = d.trim();
+            if (/^\d{4}-\d{2}-\d{2}/.test(clean)) return clean.substring(0, 10);
+          }
+          try {
+            const dt = new Date(d);
+            return isNaN(dt) ? '-' : dt.toISOString().split('T')[0];
+          } catch(e) { return '-'; }
+        };
+
+        if (window.PulseExcel && typeof window.PulseExcel.buildDeliveriesSheet === 'function') {
+          window.PulseExcel.buildDeliveriesSheet(wb, false, COLORS, hdrStyle, S, cleanFmtDate);
+        }
 
         const buf = await wb.xlsx.writeBuffer();
         const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${(P.name || 'Project').replace(/\s+/g, '_')}_Deliveries_${todayStr()}.xlsx`;
+        a.download = `${(P.name || 'Project').replace(/[\\\/*?:"<>|\s]/g, '_')}_Deliveries_${todayStr()}.xlsx`;
         a.click();
-        URL.revokeObjectURL(url);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
         notify('Deliveries exported to Excel', 'ok');
       } catch(err) {
-        PP.error(err);
+        if (typeof PP !== 'undefined' && PP.error) PP.error(err);
+        else console.error(err);
         notify('Export failed: ' + err.message, 'err');
       }
     };
@@ -50840,6 +50883,125 @@ Earned Value Management measures project performance and progress by comparing p
             { text: ' NEW', font: { vertAlign: 'superscript', bold: true, size: 8, color: { argb: 'FFEC4899' } } }
           ]
         };
+      },
+
+      getThemePalette() {
+        const style = window.getComputedStyle(document.documentElement);
+
+        const parseCssColorToArgb = (cssVal, defaultColor) => {
+          if (!cssVal) return defaultColor;
+          let clean = cssVal.trim();
+          if (clean.startsWith('#')) {
+            let hex = clean.substring(1);
+            if (hex.length === 3) {
+              hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+            }
+            return 'FF' + hex.toUpperCase();
+          }
+          if (clean.startsWith('rgb')) {
+            let match = clean.match(/\d+/g);
+            if (match && match.length >= 3) {
+              let r = parseInt(match[0]).toString(16).padStart(2, '0');
+              let g = parseInt(match[1]).toString(16).padStart(2, '0');
+              let b = parseInt(match[2]).toString(16).padStart(2, '0');
+              return 'FF' + (r + g + b).toUpperCase();
+            }
+          }
+          return defaultColor;
+        };
+
+        const isColorDark = (argb) => {
+          if (!argb || argb.length < 8) return false;
+          let hex = argb.substring(argb.length - 6);
+          let r = parseInt(hex.substring(0, 2), 16);
+          let g = parseInt(hex.substring(2, 4), 16);
+          let b = parseInt(hex.substring(4, 6), 16);
+          let luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b);
+          return luminance < 140;
+        };
+
+        const cssBg = style.getPropertyValue('--color-bg') || '';
+        const cssSurface = style.getPropertyValue('--color-surface') || '';
+        const cssText = style.getPropertyValue('--color-text') || '';
+        const cssPrimary = style.getPropertyValue('--color-primary') || '';
+        const cssDivider = style.getPropertyValue('--color-divider') || '';
+        const cssTextMuted = style.getPropertyValue('--color-text-muted') || '';
+
+        const resolvedBg = parseCssColorToArgb(cssBg, 'FFF8FAFC');
+        const resolvedSurface = parseCssColorToArgb(cssSurface, 'FFFFFFFF');
+        const resolvedText = parseCssColorToArgb(cssText, 'FF0F172A');
+        const resolvedPrimary = parseCssColorToArgb(cssPrimary, 'FF4338CA');
+        const resolvedDivider = parseCssColorToArgb(cssDivider, 'FFE2E8F0');
+        const resolvedMuted = parseCssColorToArgb(cssTextMuted, 'FF64748B');
+
+        const isThemeDark = isColorDark(resolvedBg);
+
+        const COLORS = {
+          navy: resolvedText,
+          indigo: resolvedPrimary,
+          slate: resolvedMuted,
+          emerald: 'FF10B981',
+          rose: 'FFF43F5E',
+          header: isThemeDark ? 'FF1E293B' : 'FFF8FAFC',
+          input: resolvedPrimary,
+          amber: 'FFF59E0B',
+          blue: 'FF3B82F6',
+          purple: 'FF8B5CF6',
+          bg: resolvedBg,
+          surface: resolvedSurface,
+          divider: resolvedDivider,
+          muted: resolvedMuted,
+          textDark: resolvedText,
+          surfaceAlt: isThemeDark ? 'FF111827' : 'FFF1F5F9',
+          isDark: isThemeDark
+        };
+
+        COLORS.getThemeTint = (argb, factor) => {
+          if (!argb || argb.length < 6) return 'FFFFFFFF';
+          let hex = argb.substring(argb.length - 6);
+          let r = parseInt(hex.substring(0, 2), 16) || 0;
+          let g = parseInt(hex.substring(2, 4), 16) || 0;
+          let b = parseInt(hex.substring(4, 6), 16) || 0;
+          r = Math.round(r * factor + 255 * (1 - factor));
+          g = Math.round(g * factor + 255 * (1 - factor));
+          b = Math.round(b * factor + 255 * (1 - factor));
+          return 'FF' + r.toString(16).padStart(2, '0').toUpperCase() + g.toString(16).padStart(2, '0').toUpperCase() + b.toString(16).padStart(2, '0').toUpperCase();
+        };
+
+        COLORS.styleRow = (row, i, maxDataCol = 100) => {
+          const bg = (i % 2 === 1)
+            ? COLORS.getThemeTint(COLORS.indigo, 0.08)
+            : COLORS.getThemeTint(COLORS.indigo, 0.02);
+          row.eachCell((c, colNum) => {
+            if (colNum <= maxDataCol) {
+              c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+              c.font = Object.assign({}, c.font, { name: 'Segoe UI', size: 10, color: { argb: 'FF1E293B' } });
+            } else {
+              c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+              c.font = Object.assign({}, c.font, { name: 'Segoe UI', size: 9, color: { argb: 'FFFFFFFF' } });
+            }
+          });
+        };
+
+        const isHeaderDark = isColorDark(COLORS.indigo);
+        const hdrStyle = {
+          fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } },
+          font: { color: { argb: isHeaderDark ? 'FFFFFFFF' : 'FF1E293B' }, bold: true, size: 10 },
+          alignment: { vertical: 'middle', horizontal: 'center' },
+          border: { bottom: { style: 'medium', color: { argb: COLORS.navy } } }
+        };
+
+        const STATUS_COLORS = {
+          'Completed': COLORS.emerald,
+          'In Progress': COLORS.indigo,
+          'Under Review': 'FF0284C7',
+          'On Hold': COLORS.amber,
+          'Blocked': COLORS.rose,
+          'Not Started': COLORS.muted,
+          'Cancelled': 'FF94A3B8'
+        };
+
+        return { COLORS, hdrStyle, STATUS_COLORS, isThemeDark, parseCssColorToArgb, isColorDark };
       },
 
       async exportProjectExcel(safeMode = false, viewLevel = false) {
@@ -53680,8 +53842,29 @@ Earned Value Management measures project performance and progress by comparing p
       },
 
       buildDeliveriesSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
+        if (!COLORS) COLORS = {};
+        if (!S) S = (v) => (v == null ? '' : String(v).replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F]/g, ''));
+        if (!cleanFmtDate) cleanFmtDate = (d) => (d ? String(d).split('T')[0] : '');
+
+        const textDark = COLORS.textDark || 'FF1E293B';
+        const styleRowFn = (typeof COLORS.styleRow === 'function')
+          ? COLORS.styleRow
+          : (row, i) => {
+              const bg = (i % 2 === 1) ? 'FFF8FAFC' : 'FFFFFFFF';
+              row.eachCell(c => {
+                c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+                c.font = { name: 'Segoe UI', size: 10, color: { argb: textDark } };
+                c.border = {
+                  top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                  left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                  bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+                  right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+                };
+              });
+            };
+
         const ws = wb.addWorksheet('Deliveries', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 2 }] });
-        ws.properties.tabColor = { argb: COLORS.emerald };
+        ws.properties.tabColor = { argb: COLORS.emerald || 'FF10B981' };
         const cols = [
           { header: 'Delivery ID', key: 'id', width: 16 },
           { header: 'ALM ID', key: 'almId', width: 16 },
@@ -53722,8 +53905,8 @@ Earned Value Management measures project performance and progress by comparing p
             const v = d[f.name] !== undefined ? d[f.name] : (d.custom && d.custom[f.name] !== undefined ? d.custom[f.name] : '');
             rowValues[f.name] = S(v);
           });
-          const row = ws.addRow(rowValues); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
-          COLORS.styleRow(row, i);
+          const row = ws.addRow(rowValues); row.font = { name: 'Segoe UI', size: 10, color: { argb: textDark } };
+          styleRowFn(row, i);
         });
       },
 
@@ -57075,6 +57258,14 @@ Earned Value Management measures project performance and progress by comparing p
             // Group A: Overview & Insights (Interactive / Readme)
             buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate);
             buildDefectsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
+
+            // Group E: Technical Reference Metadata & Setup
+            buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle);
+            registerNamedRanges(wb, safeMode);
+          } else if (P.view === 'deliveries') {
+            // Group A: Overview & Insights (Interactive / Readme)
+            buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate);
+            buildDeliveriesSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
 
             // Group E: Technical Reference Metadata & Setup
             buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle);
@@ -69962,6 +70153,12 @@ Earned Value Management measures project performance and progress by comparing p
             } else {
               notify('Feature Matrix Excel not available', 'err');
             }
+          } else if (v === 'deliveries') {
+            if (typeof exportDeliveriesToExcel === 'function') {
+              exportDeliveriesToExcel();
+            } else {
+              notify('Deliveries Excel not available', 'err');
+            }
           } else {
             if (typeof exportProjectExcel === 'function') {
               exportProjectExcel(false, true);
@@ -69987,6 +70184,8 @@ Earned Value Management measures project performance and progress by comparing p
         case 'csv':
           if (v === 'log') {
             if (typeof exportLogCSV === 'function') exportLogCSV();
+          } else if (v === 'deliveries') {
+            if (typeof exportDeliveriesToCSV === 'function') exportDeliveriesToCSV();
           } else {
             if (typeof exportProjectCSV === 'function') exportProjectCSV();
           }
