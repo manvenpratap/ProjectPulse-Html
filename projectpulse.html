@@ -12206,7 +12206,7 @@
               <i data-lucide="search"
                 style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px;opacity:0.6"></i>
               <input class="finp" id="global-search" placeholder="Search tasks, subtasks, screens, IDs..."
-                oninput="P.search=this.value; if (P.view === 'tasks') renderTable(); else if (P.view === 'defects') { if (window.renderDefectsTable) window.renderDefectsTable(); } else render();"
+                oninput="handleGlobalSearch(this.value)"
                 style="padding-left:36px;height:32px;background:var(--color-surface-2);border:1px solid var(--color-border);font-size:12px;border-radius:var(--radius-md);width:100%;outline:none;transition:border-color 0.2s">
             </div>
             <div id="task-info"
@@ -48486,6 +48486,23 @@ Earned Value Management measures project performance and progress by comparing p
     }
 
     // ── Delivery Kanban Pipeline Board ──
+    window.dropDeliveryKanbanCard = function(e, newStatus) {
+      e.preventDefault();
+      const delId = e.dataTransfer ? e.dataTransfer.getData('text/plain') : null;
+      if (!delId) return;
+      const d = (P.deliveries || []).find(item => item.id === delId);
+      if (!d) return;
+      if (d.status !== newStatus) {
+        const oldStatus = d.status || 'Scheduled';
+        d.status = newStatus;
+        PulseState.addLog('Delivery Status Changed', d.id, d.name, 'status', oldStatus, newStatus, 'Moved in Kanban Board');
+        save();
+        renderDeliveriesView();
+        if (typeof renderSidebar === 'function') renderSidebar();
+        if (typeof showToast === 'function') showToast(`Delivery ${d.id} moved to ${newStatus}`);
+      }
+    };
+
     function renderDeliveryKanban(panel, deliveries, modules, releases) {
       injectDeliveryHeatmapStyles();
       const cols = [
@@ -48496,44 +48513,79 @@ Earned Value Management measures project performance and progress by comparing p
         { key: 'Rolled Back', label: 'Rolled Back / Failed', color: 'var(--red)', icon: 'alert-triangle' }
       ];
 
-      let filtered = deliveries.filter(d => {
-        if (P._delFilterEnv !== 'All' && d.environment !== P._delFilterEnv) return false;
-        if (P._delFilterModule !== 'All' && d.module !== P._delFilterModule) return false;
-        if (P._delFilterRelease !== 'All' && d.releaseVersion !== P._delFilterRelease) return false;
+      let filtered = (deliveries || []).filter(d => {
+        if (P._delFilterEnv && P._delFilterEnv !== 'All' && d.environment !== P._delFilterEnv) return false;
+        if (P._delFilterModule && P._delFilterModule !== 'All' && d.module !== P._delFilterModule) return false;
+        if (P._delFilterRelease && P._delFilterRelease !== 'All' && d.releaseVersion !== P._delFilterRelease) return false;
+        if (P._delFilterSignOff && P._delFilterSignOff !== 'All' && d.signOffStatus !== P._delFilterSignOff) return false;
+        if (P._delFilterStatus && P._delFilterStatus !== 'All' && d.status !== P._delFilterStatus) return false;
         if (P.search) {
-          const q = P.search.toLowerCase();
-          return (d.id || '').toLowerCase().includes(q) || (d.name || '').toLowerCase().includes(q) || (d.module || '').toLowerCase().includes(q);
+          const q = P.search.toLowerCase().trim();
+          const match = (d.id || '').toLowerCase().includes(q) ||
+                        (d.almId || '').toLowerCase().includes(q) ||
+                        (d.pdn || '').toLowerCase().includes(q) ||
+                        (d.name || '').toLowerCase().includes(q) ||
+                        (d.module || '').toLowerCase().includes(q) ||
+                        (d.releaseVersion || '').toLowerCase().includes(q) ||
+                        (d.environment || '').toLowerCase().includes(q) ||
+                        (d.approver || '').toLowerCase().includes(q) ||
+                        (d.notes || '').toLowerCase().includes(q) ||
+                        (Array.isArray(d.guiScreens) && d.guiScreens.some(s => String(s).toLowerCase().includes(q)));
+          if (!match) return false;
         }
         return true;
       });
 
+      const taskInfoEl = $id('task-info');
+      if (taskInfoEl) taskInfoEl.innerHTML = `<strong>${filtered.length}</strong> / ${(deliveries || []).length} deliverables`;
+
       let html = `
-        <div style="display:flex; flex-direction:column; gap:16px">
+        <div style="display:flex; flex-direction:column; gap:14px; padding:4px 0">
+          <!-- Kanban Header Info / Filter Summary -->
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:0 4px">
+            <div style="font-size:12px; color:var(--color-text-muted)">
+              Showing <strong>${filtered.length}</strong> of ${(deliveries || []).length} deliverables across ${cols.length} lifecycle stages
+            </div>
+            ${(P._delFilterEnv && P._delFilterEnv !== 'All') || (P._delFilterModule && P._delFilterModule !== 'All') || (P._delFilterRelease && P._delFilterRelease !== 'All') || (P._delFilterSignOff && P._delFilterSignOff !== 'All') || (P._delFilterStatus && P._delFilterStatus !== 'All') || P.search ? `
+              <button class="btn ghost mini" onclick="clearDeliveryFilters()" style="display:inline-flex; align-items:center; gap:4px">
+                <i data-lucide="x" style="width:12px; height:12px"></i> Reset Filters
+              </button>
+            ` : ''}
+          </div>
+
           <!-- Kanban Board -->
-          <div style="display:flex; gap:14px; overflow-x:auto; padding-bottom:12px; min-height:500px">
+          <div style="display:flex; gap:14px; overflow-x:auto; padding-bottom:12px; min-height:540px">
             ${cols.map(col => {
               const colItems = filtered.filter(d => {
-                if (col.key === 'Rolled Back') return d.status === 'Rolled Back' || d.status === 'Failed' || d.status === 'Cancelled';
-                return d.status === col.key;
+                const st = (d.status || 'Scheduled').trim();
+                if (col.key === 'Rolled Back') return st === 'Rolled Back' || st === 'Failed' || st === 'Cancelled';
+                if (col.key === 'Scheduled') return st === 'Scheduled' || !d.status;
+                if (col.key === 'In Progress') return st === 'In Progress' || st === 'Staging';
+                if (col.key === 'Ready for Deployment') return st === 'Ready for Deployment' || st === 'Ready';
+                if (col.key === 'Deployed') return st === 'Deployed' || st === 'Production';
+                return st === col.key;
               });
 
               return `
-                <div class="del-kanban-col">
+                <div class="del-kanban-col" data-col-key="${col.key}">
                   <!-- Col Header -->
-                  <div style="padding:12px 16px; border-bottom:1px solid var(--color-divider); display:flex; justify-content:space-between; align-items:center">
+                  <div style="padding:12px 16px; border-bottom:1px solid var(--color-divider); display:flex; justify-content:space-between; align-items:center; background:var(--color-surface); border-top-left-radius:var(--radius-lg); border-top-right-radius:var(--radius-lg)">
                     <div style="display:flex; align-items:center; gap:6px">
                       <i data-lucide="${col.icon}" style="width:14px; height:14px; color:${col.color}"></i>
                       <span style="font-size:12px; font-weight:800; color:var(--color-text)">${col.label}</span>
                     </div>
-                    <span style="font-size:11px; font-weight:800; padding:1px 6px; border-radius:10px; background:var(--color-surface); border:1px solid var(--color-divider)">${colItems.length}</span>
+                    <span style="font-size:11px; font-weight:800; padding:1px 6px; border-radius:10px; background:var(--color-surface-2); border:1px solid var(--color-divider)">${colItems.length}</span>
                   </div>
 
                   <!-- Cards Container -->
-                  <div class="del-kanban-cards">
+                  <div class="del-kanban-cards"
+                    ondragover="event.preventDefault(); this.style.background='rgba(99,102,241,0.06)'"
+                    ondragleave="this.style.background=''"
+                    ondrop="event.preventDefault(); this.style.background=''; dropDeliveryKanbanCard(event, '${col.key}')">
                     ${colItems.map(d => {
                       const screens = Array.isArray(d.guiScreens) ? d.guiScreens : (d.guiScreens ? String(d.guiScreens).split(/[,;]/).map(s => s.trim()).filter(Boolean) : []);
                       return `
-                        <div class="del-kanban-card" onclick="openDeliveryFlyout('${d.id}')">
+                        <div class="del-kanban-card" data-id="${d.id}" draggable="true" ondragstart="event.dataTransfer.setData('text/plain', '${d.id}')" onclick="openDeliveryFlyout('${d.id}')">
                           <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px">
                             <span style="font-family:var(--mono); font-size:11px; font-weight:800; color:var(--color-primary)">${esc(d.id)}</span>
                             <span style="font-size:9.5px; font-weight:700; padding:1px 5px; border-radius:3px; background:var(--color-surface-2); border:1px solid var(--color-divider); color:${d.environment === 'Production' ? 'var(--red)' : '#06b6d4'}">
@@ -50754,6 +50806,31 @@ Earned Value Management measures project performance and progress by comparing p
       if (window.lucide) lucide.createIcons(cont);
     };
 
+    window.handleGlobalSearch = handleGlobalSearch;
+    function handleGlobalSearch(val) {
+      P.search = val;
+      if (P.view === 'tasks') {
+        renderTable();
+      } else if (P.view === 'defects') {
+        if (window.renderDefectsTable) window.renderDefectsTable();
+        else if (window.renderDefectsView) window.renderDefectsView();
+      } else if (P.view === 'deliveries') {
+        if (P._delViewMode === 'table' && window.renderDeliveriesTable) {
+          window.renderDeliveriesTable();
+        } else if (window.renderDeliveriesView) {
+          window.renderDeliveriesView();
+        }
+      } else if (P.view === 'risks') {
+        if (window.renderRisksView) window.renderRisksView();
+        else render();
+      } else if (P.view === 'log') {
+        if (window.renderLog) window.renderLog();
+        else render();
+      } else {
+        render();
+      }
+    }
+
     function render() {
       withScroll(() => {
         P.lastView = P.view;
@@ -50763,9 +50840,10 @@ Earned Value Management measures project performance and progress by comparing p
         if (hWrap) hWrap.style.display = 'none';
 
         const tvc = $id('task-view-controls');
-        if (tvc) tvc.style.display = (P.view === 'tasks' || P.view === 'defects') ? 'flex' : 'none';
+        if (tvc) tvc.style.display = (P.view === 'tasks' || P.view === 'defects' || (P.view === 'deliveries' && P._delViewMode === 'table')) ? 'flex' : 'none';
 
         if (P.view === 'overview') renderOverviewView();
+        else if (P.view === 'deliveries') renderDeliveriesView();
         else if (P.view === 'risks') renderRisksView();
         else if (P.view === 'admin') renderAdminView();
         else if (P.view === 'tasks') renderTasksView();
@@ -50780,6 +50858,7 @@ Earned Value Management measures project performance and progress by comparing p
         else if (P.view === 'steps') renderStepsView();
         else if (P.view === 'scaffolder') renderScaffolder();
         else if (P.view === 'share') renderShare();
+        else if (P.view === 'scheduler') renderIntelligentScheduler();
         else renderOverviewView(); // executive default fallback
 
         renderSidebar();
