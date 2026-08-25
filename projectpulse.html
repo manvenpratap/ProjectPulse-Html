@@ -4660,7 +4660,7 @@
       align-items: center;
       justify-content: flex-start;
       gap: 6px;
-      padding: 4px 10px;
+      padding: 4px 9px;
       border-radius: 6px;
       font-size: 10px;
       font-weight: 800;
@@ -4669,9 +4669,19 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
       border: 1px solid transparent;
-      width: 110px;
+      min-width: 100px;
+      width: fit-content;
+      max-width: 160px;
       box-sizing: border-box;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+
+    .st-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
     }
 
     .st-badge:hover {
@@ -4683,22 +4693,52 @@
     .st-not-started {
       background: rgba(100, 116, 139, 0.08);
       color: #475569;
-      border-color: rgba(148, 163, 184, 0.2);
+      border-color: rgba(148, 163, 184, 0.25);
     }
 
     .st-not-started .dot {
       background: #64748b;
     }
 
-    .st-in-progress {
-      background: rgba(37, 99, 235, 0.06);
-      color: #1d4ed8;
-      border-color: rgba(37, 99, 235, 0.15);
+    .st-scheduled,
+    .st-pending {
+      background: rgba(245, 158, 11, 0.1);
+      color: #d97706;
+      border-color: rgba(245, 158, 11, 0.3);
     }
 
-    .st-in-progress .dot {
+    .st-scheduled .dot,
+    .st-pending .dot {
+      background: #f59e0b;
+    }
+
+    .st-in-progress,
+    .st-in-prep {
+      background: rgba(37, 99, 235, 0.08);
+      color: #2563eb;
+      border-color: rgba(37, 99, 235, 0.25);
+    }
+
+    .st-in-progress .dot,
+    .st-in-prep .dot {
       background: #3b82f6;
       animation: pulse-blue 2s infinite;
+    }
+
+    .st-ready,
+    .st-testing,
+    .st-ready-for-deployment,
+    .st-ready-for-delivery {
+      background: rgba(99, 102, 241, 0.1);
+      color: var(--color-primary, #6366f1);
+      border-color: rgba(99, 102, 241, 0.3);
+    }
+
+    .st-ready .dot,
+    .st-testing .dot,
+    .st-ready-for-deployment .dot,
+    .st-ready-for-delivery .dot {
+      background: #6366f1;
     }
 
     .st-under-review {
@@ -4711,33 +4751,57 @@
       background: #a855f7;
     }
 
-    .st-completed {
-      background: rgba(22, 163, 74, 0.06);
-      color: #166534;
-      border-color: rgba(22, 163, 74, 0.15);
+    .st-completed,
+    .st-deployed,
+    .st-delivered,
+    .st-accepted {
+      background: rgba(22, 163, 74, 0.08);
+      color: #16a34a;
+      border-color: rgba(22, 163, 74, 0.25);
     }
 
-    .st-completed .dot {
+    .st-completed .dot,
+    .st-deployed .dot,
+    .st-delivered .dot,
+    .st-accepted .dot {
       background: #22c55e;
     }
 
-    .st-on-hold {
-      background: rgba(234, 88, 12, 0.06);
-      color: #9a3412;
-      border-color: rgba(234, 88, 12, 0.15);
+    .st-on-hold,
+    .st-postponed {
+      background: rgba(234, 88, 12, 0.08);
+      color: #ea580c;
+      border-color: rgba(234, 88, 12, 0.25);
     }
 
-    .st-on-hold .dot {
+    .st-on-hold .dot,
+    .st-postponed .dot {
       background: #f97316;
     }
 
-    .st-cancelled {
-      background: rgba(220, 38, 38, 0.06);
-      color: #991b1b;
-      border-color: rgba(220, 38, 38, 0.15);
+    .st-blocked,
+    .st-rolled-back {
+      background: rgba(168, 85, 247, 0.1);
+      color: #9333ea;
+      border-color: rgba(168, 85, 247, 0.3);
     }
 
-    .st-cancelled .dot {
+    .st-blocked .dot,
+    .st-rolled-back .dot {
+      background: #a855f7;
+    }
+
+    .st-cancelled,
+    .st-rejected,
+    .st-failed {
+      background: rgba(220, 38, 38, 0.08);
+      color: #dc2626;
+      border-color: rgba(220, 38, 38, 0.25);
+    }
+
+    .st-cancelled .dot,
+    .st-rejected .dot,
+    .st-failed .dot {
       background: #ef4444;
     }
 
@@ -8783,6 +8847,17 @@
 
     .view-flyout.open {
       right: 0;
+    }
+
+    #delivery-flyout {
+      width: 840px;
+      max-width: 96vw;
+      right: -920px;
+      z-index: 11000;
+    }
+
+    #delivery-flyout.open {
+      right: 0 !important;
     }
 
     body:has(#alerts-flyout.open) #flyout.open {
@@ -13065,94 +13140,132 @@
     </div>
 
     <!-- DELIVERIES FLYOUT -->
-    <div id="delivery-flyout" class="view-flyout" style="width:840px; max-width:96vw; right:-880px; z-index:11000">
+    <div id="delivery-flyout" class="view-flyout">
       <div class="fly-header">
         <div style="display:flex;align-items:center;gap:12px">
           <div
-            style="width:32px;height:32px;background:var(--color-primary);color:white;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center">
-            <span style="font-size:20px">📦</span>
+            style="width:34px;height:34px;background:var(--color-primary);color:white;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-sm)">
+            <i data-lucide="package" style="width:18px;height:18px"></i>
           </div>
           <div>
-            <div style="font-size:18px;font-weight:700" id="delivery-modal-title">Log Delivery</div>
+            <div style="font-size:18px;font-weight:700;letter-spacing:-0.2px" id="delivery-modal-title">Log Delivery</div>
             <div id="delivery-flyout-subtitle"
-              style="font-size:11px;color:var(--color-text-faint);text-transform:uppercase;letter-spacing:0.5px">Delivery ID: —</div>
+              style="font-size:11px;color:var(--color-text-faint);font-family:var(--font-mono);letter-spacing:0.5px">Delivery ID: —</div>
           </div>
         </div>
         <div class="fly-close" onclick="closeDeliveryFlyout()">×</div>
       </div>
-      <div class="fly-body custom-scroll" style="display:flex; flex-direction:column; gap:16px; padding:24px 0">
+      <div class="fly-body custom-scroll" style="display:flex; flex-direction:column; gap:16px; padding:20px 0">
+        
+        <!-- Top Mandatory Specification Card -->
+        <div style="padding:14px 16px; background:rgba(var(--color-primary-rgb),0.04); border:1px solid rgba(var(--color-primary-rgb),0.18); border-radius:var(--radius-lg)">
+          <div style="font-size:11px; font-weight:800; text-transform:uppercase; color:var(--color-primary); margin-bottom:12px; display:flex; align-items:center; justify-content:space-between">
+            <span style="display:inline-flex; align-items:center; gap:6px"><i data-lucide="check-square" style="width:14px; height:14px"></i> Delivery & ALM Specification</span>
+            <span style="font-size:10px; font-weight:700; background:rgba(239,68,68,0.1); color:var(--red); padding:2px 8px; border-radius:10px; border:1px solid rgba(239,68,68,0.2)">* All 12 Fields Mandatory</span>
+          </div>
+          
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px">
+            <div class="fg" style="margin-bottom:0">
+              <label class="flbl">Defect ID - ALM ID <span style="color:var(--red);font-weight:bold">*</span></label>
+              <input class="finp" id="del_almid" placeholder="e.g. ALM-10492" style="font-family:var(--font-mono);font-weight:700">
+            </div>
+            <div class="fg" style="margin-bottom:0">
+              <label class="flbl">Category <span style="color:var(--red);font-weight:bold">*</span></label>
+              <select class="fsel" id="del_category">
+                <option value="GSP++ Delivery">GSP++ Delivery</option>
+                <option value="Regression/NRT Defect">Regression/NRT Defect</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- ALM Description -->
         <div class="fg">
-          <label class="flbl">Delivery Scope / Name <span style="color:var(--red)">*</span></label>
-          <input class="finp" id="del_name" placeholder="e.g. Core Auth & SSO Gateway Release">
+          <label class="flbl">Description - ALM Description <span style="color:var(--red);font-weight:bold">*</span></label>
+          <textarea class="finp" id="del_name" rows="2" placeholder="Summary and scope description from ALM..."></textarea>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
-          <div class="fg"><label class="flbl">ALM ID</label><input class="finp" id="del_almid" placeholder="e.g. ALM-10492"></div>
-          <div class="fg"><label class="flbl">PDN (Product Delivery Notice)</label><input class="finp" id="del_pdn" placeholder="e.g. PDN-2026-08"></div>
-        </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
-          <div class="fg"><label class="flbl">Module</label><select class="fsel" id="del_module"></select></div>
-          <div class="fg"><label class="flbl">Module Type</label>
-            <select class="fsel" id="del_module_type">
-              <option value="Server">Server</option>
-              <option value="GUI">GUI</option>
-              <option value="Hybrid">Hybrid</option>
-              <option value="Database">Database</option>
-              <option value="General">General</option>
-            </select>
+
+        <!-- PDN Info & Processing Date -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px">
+          <div class="fg">
+            <label class="flbl">PDN Info (PDN Number Sent) <span style="color:var(--red);font-weight:bold">*</span></label>
+            <input class="finp" id="del_pdn" placeholder="e.g. PDN-2026-08-01" style="font-family:var(--font-mono)">
+          </div>
+          <div class="fg">
+            <label class="flbl">PDN Processing Date <span style="color:var(--red);font-weight:bold">*</span></label>
+            <input type="date" class="finp" id="del_pdn_date" max="9999-12-31" onchange="autoComputeLeadTime()">
           </div>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
-          <div class="fg"><label class="flbl">Target Release</label><select class="fsel" id="del_release"></select></div>
-          <div class="fg"><label class="flbl">Environment</label>
-            <select class="fsel" id="del_environment">
-              <option value="Production">Production</option>
-              <option value="Staging">Staging</option>
-              <option value="UAT">UAT</option>
-              <option value="QA">QA</option>
-              <option value="Dev">Dev</option>
-            </select>
+
+        <!-- Module & ALM Status -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px">
+          <div class="fg">
+            <label class="flbl">Module <span style="color:var(--red);font-weight:bold">*</span></label>
+            <select class="fsel" id="del_module"></select>
           </div>
-        </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
-          <div class="fg"><label class="flbl">Status</label>
-            <select class="fsel" id="del_status">
-              <option value="Scheduled">Scheduled</option>
+          <div class="fg">
+            <label class="flbl">ALM Status <span style="color:var(--red);font-weight:bold">*</span></label>
+            <select class="fsel" id="del_alm_status">
+              <option value="New">New</option>
+              <option value="Open">Open</option>
               <option value="In Progress">In Progress</option>
-              <option value="Ready for Deployment">Ready for Deployment</option>
-              <option value="Deployed">Deployed</option>
-              <option value="Cancelled">Cancelled</option>
-              <option value="Rolled Back">Rolled Back</option>
-            </select>
-          </div>
-          <div class="fg"><label class="flbl">Sign-Off Status</label>
-            <select class="fsel" id="del_signoff">
-              <option value="Pending">Pending</option>
-              <option value="Approved">Approved</option>
+              <option value="Fixed">Fixed</option>
+              <option value="Ready for Test">Ready for Test</option>
+              <option value="Retest">Retest</option>
+              <option value="Closed">Closed</option>
               <option value="Rejected">Rejected</option>
-              <option value="Not Required">Not Required</option>
+              <option value="Reopened">Reopened</option>
             </select>
           </div>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
-          <div class="fg"><label class="flbl">Approver / Sign-Off Lead</label><select class="fsel" id="del_approver"></select></div>
-          <div class="fg"><label class="flbl">Smoke Test Status</label>
-            <select class="fsel" id="del_smoke_test">
-              <option value="Not Run">Not Run</option>
-              <option value="Running">Running</option>
-              <option value="Passed">Passed</option>
-              <option value="Failed">Failed</option>
-            </select>
+
+        <!-- Ownership: Reported By & Defect Fixed By -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px">
+          <div class="fg">
+            <label class="flbl">Reported By <span style="color:var(--red);font-weight:bold">*</span></label>
+            <select class="fsel" id="del_reported_by"></select>
+          </div>
+          <div class="fg">
+            <label class="flbl">Defect Fixed By <span style="color:var(--red);font-weight:bold">*</span></label>
+            <select class="fsel" id="del_fixed_by"></select>
           </div>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px">
-          <div class="fg"><label class="flbl">Target Date</label><input type="date" class="finp" id="del_target_date" max="9999-12-31" onchange="autoComputeLeadTime()"></div>
-          <div class="fg"><label class="flbl">Actual Date</label><input type="date" class="finp" id="del_actual_date" max="9999-12-31" onchange="autoComputeLeadTime()"></div>
-          <div class="fg"><label class="flbl">Lead Time (Days)</label><input type="number" class="finp" id="del_lead_time" placeholder="0" min="0"></div>
+
+        <!-- Linked Type & Linked ID -->
+        <div style="padding:14px 16px; background:var(--color-surface-2); border:1px solid var(--color-divider); border-radius:var(--radius-lg)">
+          <div style="font-size:11px; font-weight:800; text-transform:uppercase; color:var(--color-text-muted); margin-bottom:10px; display:flex; align-items:center; gap:6px">
+            <i data-lucide="link-2" style="width:13px; height:13px"></i> Traceability Linking
+          </div>
+          <div style="display:grid; grid-template-columns:140px 1fr; gap:14px">
+            <div class="fg" style="margin-bottom:0">
+              <label class="flbl">Linked Type <span style="color:var(--red);font-weight:bold">*</span></label>
+              <select class="fsel" id="del_linked_type" onchange="updateDeliveryLinkedOptions()">
+                <option value="Task">Task</option>
+                <option value="Screen">Screen</option>
+                <option value="None">None</option>
+              </select>
+            </div>
+            <div class="fg" style="margin-bottom:0">
+              <label class="flbl">Linked ID (ID & Name of Task/Screen) <span style="color:var(--red);font-weight:bold">*</span></label>
+              <select class="fsel" id="del_linked_id"></select>
+            </div>
+          </div>
         </div>
-        <div class="fg"><label class="flbl">Associated GUI Screens / Components</label><input class="finp" id="del_gui_screens" placeholder="e.g. LoginView, UserAdminScreen, DashboardView"></div>
+
+        <!-- Components Delivered (Massive Field) -->
+        <div class="fg" style="margin-top:2px">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
+            <label class="flbl" style="margin-bottom:0">Components Delivered (Detailed Manifest) <span style="color:var(--red);font-weight:bold">*</span></label>
+            <div style="display:flex; gap:6px">
+              <button type="button" class="btn ghost mini" style="font-size:10.5px; padding:2px 8px; height:24px" onclick="appendDelComponentTemplate('service')">+ Service/API</button>
+              <button type="button" class="btn ghost mini" style="font-size:10.5px; padding:2px 8px; height:24px" onclick="appendDelComponentTemplate('screen')">+ Screen/UI</button>
+              <button type="button" class="btn ghost mini" style="font-size:10.5px; padding:2px 8px; height:24px" onclick="appendDelComponentTemplate('db')">+ DB Script</button>
+            </div>
+          </div>
+          <textarea class="finp" id="del_components_delivered" rows="6" style="font-family:var(--font-mono); font-size:12px; line-height:1.55; min-height:130px; padding:10px 12px; white-space:pre" placeholder="List all components, binaries, services, screens, jars, SQL migrations, configurations, scripts, or container tags delivered in this package...&#10;• /services/auth-gateway:v2.1&#10;• LoginView.tsx & UserSettingsModal.tsx&#10;• V2026.08.15__add_sso_indexes.sql"></textarea>
+        </div>
+
         <div id="del_custom_fields_container"></div>
-        <div class="fg"><label class="flbl">Rollback Contingency Plan</label><textarea class="finp" id="del_rollback_plan" rows="2" placeholder="e.g. Revert deployment image to previous release commit and run DB downgrade migration"></textarea></div>
-        <div class="fg"><label class="flbl">Notes / Release Artifacts</label><textarea class="finp" id="del_notes" rows="2" placeholder="Artifact URLs, build tags, dependencies, or notes..."></textarea></div>
       </div>
       <div class="fly-footer"
         style="padding:20px 0 0 0; border-top:1px solid var(--color-divider); display:flex; gap:12px; background:transparent">
@@ -14186,6 +14299,25 @@
         'Closed': 'completed',
         'Rejected': 'cancelled',
         'Deferred': 'on-hold'
+      },
+      DEL_ST_CLS: {
+        'Scheduled': 'scheduled',
+        'In Progress': 'in-progress',
+        'In Preparation': 'in-progress',
+        'Ready for Deployment': 'ready',
+        'Ready for Delivery': 'ready',
+        'Testing': 'ready',
+        'Under Review': 'under-review',
+        'Deployed': 'completed',
+        'Delivered': 'completed',
+        'Accepted': 'completed',
+        'Cancelled': 'cancelled',
+        'Rejected': 'cancelled',
+        'Rolled Back': 'blocked',
+        'Blocked': 'blocked',
+        'Failed': 'cancelled',
+        'On Hold': 'on-hold',
+        'Postponed': 'on-hold'
       },
       PRI_CLS: {
         'Critical': 'critical',
@@ -15869,6 +16001,7 @@
     let MEMBER_STATUSES = [];
     const ST_CLS = PulseConstants.ST_CLS;
     const DEF_ST_CLS = PulseConstants.DEF_ST_CLS;
+    const DEL_ST_CLS = PulseConstants.DEL_ST_CLS;
     const PRI_CLS = PulseConstants.PRI_CLS;
     const VALID_TRANSITIONS = PulseConstants.VALID_TRANSITIONS;
     const COMMENT_REQUIRED = PulseConstants.COMMENT_REQUIRED;
@@ -16481,21 +16614,27 @@
         ],
         delCols: [
           { key: 'id', label: 'Delivery ID', w: 85, type: 'text', edit: false },
-          { key: 'almId', label: 'ALM ID', w: 100, type: 'text', edit: true },
-          { key: 'pdn', label: 'PDN', w: 110, type: 'text', edit: true },
-          { key: 'name', label: 'Delivery Scope / Name', w: 220, type: 'text', edit: true, required: true },
-          { key: 'module', label: 'Module', w: 130, type: 'select', edit: true },
-          { key: 'moduleType', label: 'Module Type', w: 110, type: 'select', opts: ['Server', 'GUI', 'Hybrid', 'Database', 'General'], edit: true },
-          { key: 'releaseVersion', label: 'Release', w: 100, type: 'select', edit: true },
+          { key: 'almId', label: 'Defect ID - ALM ID', w: 120, type: 'text', edit: true, required: true },
+          { key: 'name', label: 'Description - ALM Description', w: 240, type: 'text', edit: true, required: true },
+          { key: 'pdn', label: 'PDN Info', w: 115, type: 'text', edit: true, required: true },
+          { key: 'pdnProcessingDate', label: 'PDN Processing Date', w: 130, type: 'date', edit: true, required: true },
+          { key: 'componentsDelivered', label: 'Components Delivered', w: 230, type: 'text', edit: true, required: true },
+          { key: 'category', label: 'Category', w: 140, type: 'select', opts: ['GSP++ Delivery', 'Regression/NRT Defect'], edit: true, required: true },
+          { key: 'module', label: 'Module', w: 130, type: 'select', edit: true, required: true },
+          { key: 'almStatus', label: 'ALM Status', w: 120, type: 'select', opts: ['New', 'Open', 'In Progress', 'Fixed', 'Ready for Test', 'Retest', 'Closed', 'Rejected', 'Reopened'], edit: true, required: true },
+          { key: 'reportedBy', label: 'Reported By', w: 125, type: 'select', edit: true, required: true },
+          { key: 'fixedBy', label: 'Defect Fixed By', w: 125, type: 'select', edit: true, required: true },
+          { key: 'linkedType', label: 'Linked Type', w: 105, type: 'select', opts: ['Task', 'Screen', 'None'], edit: true, required: true },
+          { key: 'linkedId', label: 'Linked ID', w: 180, type: 'select', edit: true, required: true },
           { key: 'environment', label: 'Environment', w: 110, type: 'select', opts: ['Production', 'Staging', 'UAT', 'QA', 'Dev'], edit: true },
-          { key: 'status', label: 'Status', w: 130, type: 'select', opts: ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'], edit: true },
+          { key: 'status', label: 'Delivery Status', w: 135, type: 'select', opts: ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'], edit: true },
+          { key: 'releaseVersion', label: 'Release', w: 100, type: 'select', edit: true },
           { key: 'signOffStatus', label: 'Sign-Off Status', w: 120, type: 'select', opts: ['Pending', 'Approved', 'Rejected', 'Not Required'], edit: true },
           { key: 'approver', label: 'Approver', w: 120, type: 'select', edit: true },
           { key: 'smokeTestStatus', label: 'Smoke Test', w: 110, type: 'select', opts: ['Not Run', 'Running', 'Passed', 'Failed'], edit: true },
           { key: 'targetDeliveryDate', label: 'Target Date', w: 105, type: 'date', edit: true },
           { key: 'actualDeliveryDate', label: 'Actual Date', w: 105, type: 'date', edit: true },
           { key: 'leadTimeDays', label: 'Lead Time (Days)', w: 90, type: 'number', edit: true },
-          { key: 'guiScreens', label: 'GUI Screens', w: 140, type: 'text', edit: true },
           { key: 'rollbackPlan', label: 'Rollback Plan', w: 160, type: 'text', edit: true },
           { key: 'notes', label: 'Notes', w: 160, type: 'text', edit: true },
         ],
@@ -17042,6 +17181,11 @@
         const delStat = stateP.delCols.find(c => c.key === 'status'); if (delStat) delStat.opts = stateP.dropdowns.deliveryStatus || ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'];
         const delSign = stateP.delCols.find(c => c.key === 'signOffStatus'); if (delSign) delSign.opts = stateP.dropdowns.deliverySignOff || ['Pending', 'Approved', 'Rejected', 'Not Required'];
         const delApp = stateP.delCols.find(c => c.key === 'approver'); if (delApp) delApp.opts = stateP.members.map(m => m.name);
+        const delCat = stateP.delCols.find(c => c.key === 'category'); if (delCat) delCat.opts = ['GSP++ Delivery', 'Regression/NRT Defect'];
+        const delAlmStat = stateP.delCols.find(c => c.key === 'almStatus'); if (delAlmStat) delAlmStat.opts = ['New', 'Open', 'In Progress', 'Fixed', 'Ready for Test', 'Retest', 'Closed', 'Rejected', 'Reopened'];
+        const delRep = stateP.delCols.find(c => c.key === 'reportedBy'); if (delRep) delRep.opts = stateP.members.map(m => m.name);
+        const delFix = stateP.delCols.find(c => c.key === 'fixedBy'); if (delFix) delFix.opts = stateP.members.map(m => m.name);
+        const delLType = stateP.delCols.find(c => c.key === 'linkedType'); if (delLType) delLType.opts = ['Task', 'Screen', 'None'];
       },
       addLog(action, taskId, taskName, field, oldVal, newVal, comment, subtaskId, actCompletionDate) {
         const stateP = PulseState.P;
@@ -21618,24 +21762,56 @@
             if (!P.delCols || !Array.isArray(P.delCols) || P.delCols.length === 0) {
               P.delCols = [
                 { key: 'id', label: 'Delivery ID', w: 85, type: 'text', edit: false },
-                { key: 'almId', label: 'ALM ID', w: 100, type: 'text', edit: true },
-                { key: 'pdn', label: 'PDN', w: 110, type: 'text', edit: true },
-                { key: 'name', label: 'Delivery Scope / Name', w: 220, type: 'text', edit: true, required: true },
-                { key: 'module', label: 'Module', w: 130, type: 'select', edit: true },
-                { key: 'moduleType', label: 'Module Type', w: 110, type: 'select', opts: ['Server', 'GUI', 'Hybrid', 'Database', 'General'], edit: true },
-                { key: 'releaseVersion', label: 'Release', w: 100, type: 'select', edit: true },
+                { key: 'almId', label: 'Defect ID - ALM ID', w: 120, type: 'text', edit: true, required: true },
+                { key: 'name', label: 'Description - ALM Description', w: 240, type: 'text', edit: true, required: true },
+                { key: 'pdn', label: 'PDN Info', w: 115, type: 'text', edit: true, required: true },
+                { key: 'pdnProcessingDate', label: 'PDN Processing Date', w: 130, type: 'date', edit: true, required: true },
+                { key: 'componentsDelivered', label: 'Components Delivered', w: 230, type: 'text', edit: true, required: true },
+                { key: 'category', label: 'Category', w: 140, type: 'select', opts: ['GSP++ Delivery', 'Regression/NRT Defect'], edit: true, required: true },
+                { key: 'module', label: 'Module', w: 130, type: 'select', edit: true, required: true },
+                { key: 'almStatus', label: 'ALM Status', w: 120, type: 'select', opts: ['New', 'Open', 'In Progress', 'Fixed', 'Ready for Test', 'Retest', 'Closed', 'Rejected', 'Reopened'], edit: true, required: true },
+                { key: 'reportedBy', label: 'Reported By', w: 125, type: 'select', edit: true, required: true },
+                { key: 'fixedBy', label: 'Defect Fixed By', w: 125, type: 'select', edit: true, required: true },
+                { key: 'linkedType', label: 'Linked Type', w: 105, type: 'select', opts: ['Task', 'Screen', 'None'], edit: true, required: true },
+                { key: 'linkedId', label: 'Linked ID', w: 180, type: 'select', edit: true, required: true },
                 { key: 'environment', label: 'Environment', w: 110, type: 'select', opts: ['Production', 'Staging', 'UAT', 'QA', 'Dev'], edit: true },
-                { key: 'status', label: 'Status', w: 130, type: 'select', opts: ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'], edit: true },
+                { key: 'status', label: 'Delivery Status', w: 135, type: 'select', opts: ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'], edit: true },
+                { key: 'releaseVersion', label: 'Release', w: 100, type: 'select', edit: true },
                 { key: 'signOffStatus', label: 'Sign-Off Status', w: 120, type: 'select', opts: ['Pending', 'Approved', 'Rejected', 'Not Required'], edit: true },
                 { key: 'approver', label: 'Approver', w: 120, type: 'select', edit: true },
                 { key: 'smokeTestStatus', label: 'Smoke Test', w: 110, type: 'select', opts: ['Not Run', 'Running', 'Passed', 'Failed'], edit: true },
                 { key: 'targetDeliveryDate', label: 'Target Date', w: 105, type: 'date', edit: true },
                 { key: 'actualDeliveryDate', label: 'Actual Date', w: 105, type: 'date', edit: true },
                 { key: 'leadTimeDays', label: 'Lead Time (Days)', w: 90, type: 'number', edit: true },
-                { key: 'guiScreens', label: 'GUI Screens', w: 140, type: 'text', edit: true },
                 { key: 'rollbackPlan', label: 'Rollback Plan', w: 160, type: 'text', edit: true },
                 { key: 'notes', label: 'Notes', w: 160, type: 'text', edit: true }
               ];
+            } else {
+              // Ensure all mandatory columns exist for legacy datasets
+              const reqCols = [
+                { key: 'almId', label: 'Defect ID - ALM ID', w: 120, type: 'text', edit: true, required: true },
+                { key: 'name', label: 'Description - ALM Description', w: 240, type: 'text', edit: true, required: true },
+                { key: 'pdn', label: 'PDN Info', w: 115, type: 'text', edit: true, required: true },
+                { key: 'pdnProcessingDate', label: 'PDN Processing Date', w: 130, type: 'date', edit: true, required: true },
+                { key: 'componentsDelivered', label: 'Components Delivered', w: 230, type: 'text', edit: true, required: true },
+                { key: 'category', label: 'Category', w: 140, type: 'select', opts: ['GSP++ Delivery', 'Regression/NRT Defect'], edit: true, required: true },
+                { key: 'module', label: 'Module', w: 130, type: 'select', edit: true, required: true },
+                { key: 'almStatus', label: 'ALM Status', w: 120, type: 'select', opts: ['New', 'Open', 'In Progress', 'Fixed', 'Ready for Test', 'Retest', 'Closed', 'Rejected', 'Reopened'], edit: true, required: true },
+                { key: 'reportedBy', label: 'Reported By', w: 125, type: 'select', edit: true, required: true },
+                { key: 'fixedBy', label: 'Defect Fixed By', w: 125, type: 'select', edit: true, required: true },
+                { key: 'linkedType', label: 'Linked Type', w: 105, type: 'select', opts: ['Task', 'Screen', 'None'], edit: true, required: true },
+                { key: 'linkedId', label: 'Linked ID', w: 180, type: 'select', edit: true, required: true }
+              ];
+              reqCols.forEach(rc => {
+                const existing = P.delCols.find(c => c.key === rc.key);
+                if (!existing) {
+                  P.delCols.push(rc);
+                } else {
+                  if (rc.label && rc.label.includes('ALM') && !existing.label.includes('ALM')) existing.label = rc.label;
+                  if (rc.required) existing.required = true;
+                  if (rc.opts && !existing.opts) existing.opts = rc.opts;
+                }
+              });
             }
 
             return true;
@@ -38628,7 +38804,7 @@
                   <td style="padding:6px 8px;color:var(--color-text-muted)">${esc(d.module || '—')}</td>
                   <td style="padding:6px 8px"><span style="font-size:10px;font-weight:700;color:${envCol}">${esc(d.environment || 'Prod')}</span></td>
                   <td style="padding:6px 8px;font-family:var(--font-mono);color:var(--color-text-muted)">${esc(d.targetDeliveryDate || '—')}</td>
-                  <td style="padding:6px 8px"><span style="font-size:10px;font-weight:700;color:${stCol}">${esc(d.status || 'Scheduled')}</span></td>
+                  <td style="padding:6px 8px"><span class="st-badge st-${DEL_ST_CLS[d.status] || 'scheduled'}" style="font-size:9.5px;padding:2px 6px;width:auto;min-width:75px"><span class="dot"></span>${esc(d.status || 'Scheduled')}</span></td>
                   <td style="padding:6px 8px"><span style="font-size:10px;font-weight:700;color:${d.signOffStatus === 'Approved' ? 'var(--green)' : d.signOffStatus === 'Rejected' ? 'var(--red)' : 'var(--amber)'}">${esc(d.signOffStatus || 'Pending')}</span></td>
                   <td style="padding:6px 8px"><span style="font-size:10px;font-weight:700;color:${d.smokeTestStatus === 'Passed' ? 'var(--green)' : d.smokeTestStatus === 'Failed' ? 'var(--red)' : 'var(--color-text-muted)'}">${esc(d.smokeTestStatus || 'Not Run')}</span></td>
                 </tr>`;
@@ -47077,8 +47253,8 @@ Earned Value Management measures project performance and progress by comparing p
     };
     window.toggleRaidProb = toggleRaidProb;
     function toggleRaidProb() {
-      const t = $id('raid_type').value;
-      const fg = $id('raid_prob_fg');
+      const t = $id('raid-type').value;
+      const fg = $id('raid-prob-fg');
       if (fg) fg.style.display = (t === 'Risk' || t === 'Assumption') ? 'block' : 'none';
     };
     window.saveRaidItem = saveRaidItem;
@@ -47268,27 +47444,22 @@ Earned Value Management measures project performance and progress by comparing p
         const panel = $id('vw-deliveries');
         if (!panel) return;
 
-        // Initialize deliveries columns if missing
-        if (!P.delCols || !Array.isArray(P.delCols) || P.delCols.length === 0) {
+        // Initialize deliveries columns to strictly the 12 delivery fields
+        const allowedDelKeys = new Set(['almId', 'name', 'pdn', 'pdnProcessingDate', 'componentsDelivered', 'category', 'module', 'almStatus', 'reportedBy', 'fixedBy', 'linkedType', 'linkedId']);
+        if (!P.delCols || !Array.isArray(P.delCols) || P.delCols.length === 0 || P.delCols.some(c => !allowedDelKeys.has(c.key))) {
           P.delCols = [
-            { key: 'id', label: 'Delivery ID', w: 85, type: 'text', edit: false },
-            { key: 'almId', label: 'ALM ID', w: 95, type: 'text', edit: true },
-            { key: 'pdn', label: 'PDN', w: 105, type: 'text', edit: true },
-            { key: 'name', label: 'Delivery Scope / Name', w: 220, type: 'text', edit: true, required: true },
-            { key: 'module', label: 'Module', w: 130, type: 'select', edit: true },
-            { key: 'moduleType', label: 'Module Type', w: 110, type: 'select', opts: ['Server', 'GUI', 'Hybrid', 'Database', 'General'], edit: true },
-            { key: 'releaseVersion', label: 'Release', w: 100, type: 'select', edit: true },
-            { key: 'environment', label: 'Environment', w: 110, type: 'select', opts: ['Production', 'Staging', 'UAT', 'QA', 'Dev'], edit: true },
-            { key: 'status', label: 'Status', w: 135, type: 'select', opts: ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'], edit: true },
-            { key: 'targetDeliveryDate', label: 'Target Date', w: 105, type: 'date', edit: true },
-            { key: 'actualDeliveryDate', label: 'Actual Date', w: 105, type: 'date', edit: true },
-            { key: 'leadTimeDays', label: 'Lead Time', w: 90, type: 'number', edit: true },
-            { key: 'signOffStatus', label: 'Sign-Off', w: 120, type: 'select', opts: ['Pending', 'Approved', 'Rejected', 'Not Required'], edit: true },
-            { key: 'approver', label: 'Approver', w: 120, type: 'select', edit: true },
-            { key: 'smokeTestStatus', label: 'Smoke Test', w: 110, type: 'select', opts: ['Not Run', 'Running', 'Passed', 'Failed'], edit: true },
-            { key: 'guiScreens', label: 'GUI Screens', w: 150, type: 'text', edit: true },
-            { key: 'rollbackPlan', label: 'Rollback Plan', w: 160, type: 'text', edit: true },
-            { key: 'notes', label: 'Notes', w: 160, type: 'text', edit: true }
+            { key: 'almId', label: 'Defect ID - ALM ID', w: 130, type: 'text', edit: true, required: true },
+            { key: 'name', label: 'Description - ALM Description', w: 270, type: 'text', edit: true, required: true },
+            { key: 'pdn', label: 'PDN Info', w: 125, type: 'text', edit: true, required: true },
+            { key: 'pdnProcessingDate', label: 'PDN Processing Date', w: 135, type: 'date', edit: true, required: true },
+            { key: 'componentsDelivered', label: 'Components Delivered', w: 250, type: 'text', edit: true, required: true },
+            { key: 'category', label: 'Category', w: 145, type: 'select', opts: ['GSP++ Delivery', 'Regression/NRT Defect'], edit: true, required: true },
+            { key: 'module', label: 'Module', w: 130, type: 'select', edit: true, required: true },
+            { key: 'almStatus', label: 'ALM Status', w: 125, type: 'select', opts: ['New', 'Open', 'In Progress', 'Fixed', 'Ready for Test', 'Retest', 'Closed', 'Rejected', 'Reopened'], edit: true, required: true },
+            { key: 'reportedBy', label: 'Reported By', w: 130, type: 'select', edit: true, required: true },
+            { key: 'fixedBy', label: 'Defect Fixed By', w: 130, type: 'select', edit: true, required: true },
+            { key: 'linkedType', label: 'Linked Type', w: 110, type: 'select', opts: ['Task', 'Screen', 'None'], edit: true, required: true },
+            { key: 'linkedId', label: 'Linked ID', w: 180, type: 'select', edit: true, required: true }
           ];
         }
 
@@ -47319,36 +47490,26 @@ Earned Value Management measures project performance and progress by comparing p
                     <span style="font-size:12px; font-weight:700; color:var(--color-primary)">${selectedCount} deliverables selected</span>
                     <div style="height:14px; width:1px; background:rgba(99,102,241,0.3)"></div>
                     <div style="display:flex; align-items:center; gap:6px">
-                      <span style="font-size:11px; color:var(--color-text-muted)">Status:</span>
-                      <select class="fsel" style="padding:2px 6px; font-size:11px; height:26px" onchange="batchUpdateDeliveryStatus(this.value)">
-                        <option value="" selected disabled>Set Status...</option>
-                        <option value="Scheduled">Scheduled</option>
+                      <span style="font-size:11px; color:var(--color-text-muted)">ALM Status:</span>
+                      <select class="fsel" style="padding:2px 6px; font-size:11px; height:26px" onchange="batchUpdateDeliveryALMStatus(this.value)">
+                        <option value="" selected disabled>Set ALM Status...</option>
+                        <option value="New">New</option>
+                        <option value="Open">Open</option>
                         <option value="In Progress">In Progress</option>
-                        <option value="Ready for Deployment">Ready for Deployment</option>
-                        <option value="Deployed">Deployed</option>
-                        <option value="Cancelled">Cancelled</option>
-                        <option value="Rolled Back">Rolled Back</option>
-                      </select>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:6px">
-                      <span style="font-size:11px; color:var(--color-text-muted)">Sign-Off:</span>
-                      <select class="fsel" style="padding:2px 6px; font-size:11px; height:26px" onchange="batchUpdateDeliverySignOff(this.value)">
-                        <option value="" selected disabled>Set Sign-Off...</option>
-                        <option value="Approved">Approved</option>
-                        <option value="Pending">Pending</option>
+                        <option value="Fixed">Fixed</option>
+                        <option value="Ready for Test">Ready for Test</option>
+                        <option value="Retest">Retest</option>
+                        <option value="Closed">Closed</option>
                         <option value="Rejected">Rejected</option>
-                        <option value="Not Required">Not Required</option>
+                        <option value="Reopened">Reopened</option>
                       </select>
                     </div>
                     <div style="display:flex; align-items:center; gap:6px">
-                      <span style="font-size:11px; color:var(--color-text-muted)">Env:</span>
-                      <select class="fsel" style="padding:2px 6px; font-size:11px; height:26px" onchange="batchUpdateDeliveryEnv(this.value)">
-                        <option value="" selected disabled>Set Env...</option>
-                        <option value="Production">Production</option>
-                        <option value="Staging">Staging</option>
-                        <option value="UAT">UAT</option>
-                        <option value="QA">QA</option>
-                        <option value="Dev">Dev</option>
+                      <span style="font-size:11px; color:var(--color-text-muted)">Category:</span>
+                      <select class="fsel" style="padding:2px 6px; font-size:11px; height:26px" onchange="batchUpdateDeliveryCategory(this.value)">
+                        <option value="" selected disabled>Set Category...</option>
+                        <option value="GSP++ Delivery">GSP++ Delivery</option>
+                        <option value="Regression/NRT Defect">Regression/NRT Defect</option>
                       </select>
                     </div>
                   </div>
@@ -47378,12 +47539,13 @@ Earned Value Management measures project performance and progress by comparing p
         if (!sorted.length) {
           tbody.innerHTML = `
             <tr>
-              <td colspan="${allCols.length + 3}" style="text-align:center; padding:48px 20px; color:var(--color-text-muted)">
-                <div style="font-size:32px; margin-bottom:10px">📦</div>
-                <div style="font-size:14px; font-weight:700; color:var(--color-text)">No Deliverables Found</div>
-                <div style="font-size:12px; color:var(--color-text-muted); margin-top:4px">No release deliverables match the active column filters or search term.</div>
-                <div style="display:flex; gap:8px; justify-content:center; margin-top:14px">
-                  <button class="btn ghost mini" onclick="clearDeliveryFilters()"><i data-lucide="x" style="width:12px;height:12px;margin-right:4px"></i> Reset Filters</button>
+              <td colspan="${allCols.length + 3}" style="text-align:center; padding:48px 16px; color:var(--color-text-muted)">
+                <div style="display:flex; flex-direction:column; align-items:center; gap:12px">
+                  <div style="width:48px; height:48px; border-radius:50%; background:var(--color-surface-2); display:flex; align-items:center; justify-content:center; color:var(--color-text-faint)">
+                    <i data-lucide="package-open" style="width:24px; height:24px"></i>
+                  </div>
+                  <div style="font-weight:700; font-size:14px">No Deliveries Found</div>
+                  <div style="font-size:12px; max-width:320px; line-height:1.4">No deliverable packages match your active filter criteria.</div>
                   <button class="btn primary mini" onclick="openDeliveryFlyout()"><i data-lucide="plus" style="width:12px;height:12px;margin-right:4px"></i> Log Delivery</button>
                 </div>
               </td>
@@ -47395,13 +47557,18 @@ Earned Value Management measures project performance and progress by comparing p
 
         sorted.forEach((d, i) => {
           const tr = document.createElement('tr');
-          tr.style.animationDelay = Math.min(i * .012, .15) + 's';
           tr.setAttribute('data-id', d.id);
+          tr.style.cursor = 'pointer';
           const isChecked = P._selectedDeliveries.has(d.id);
           if (isChecked) tr.style.background = 'rgba(99,102,241,0.04)';
 
           tr.addEventListener('contextmenu', e => { e.preventDefault(); if (!P.readonly) showDeliveryCtx(e, d.id); });
           tr.addEventListener('dblclick', () => openDeliveryFlyout(d.id));
+          tr.addEventListener('click', (e) => {
+            if (!e.target.closest('input, button, select, .st-badge, a')) {
+              openDeliveryFlyout(d.id);
+            }
+          });
 
           // 1. Bulk Select Checkbox Cell
           let bTd = document.createElement('td');
@@ -47409,10 +47576,15 @@ Earned Value Management measures project performance and progress by comparing p
           bTd.innerHTML = `<input type="checkbox" class="bulk-cb" ${isChecked ? 'checked' : ''} onchange="toggleBulkDelivery('${d.id}')" onclick="event.stopPropagation()">`;
           tr.appendChild(bTd);
 
-          // 2. Row Actions Cell
+          // 2. Row Actions Cell (Direct Edit + Context Menu)
           let aTd = document.createElement('td');
           aTd.style.textAlign = 'center';
-          aTd.innerHTML = `<button class="btn ghost" style="width:20px;height:20px;padding:0;color:var(--color-text-muted)" title="Actions" onclick="event.stopPropagation();showDeliveryCtx(event,'${d.id}')"><span style="font-size:14px;font-weight:bold">⋮</span></button>`;
+          aTd.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:center;gap:2px">
+              <button class="btn ghost" style="width:22px;height:22px;padding:0;color:var(--color-primary);border-radius:4px" title="Edit Delivery" onclick="event.stopPropagation();openDeliveryFlyout('${d.id}')"><i data-lucide="edit-2" style="width:12px;height:12px"></i></button>
+              <button class="btn ghost" style="width:22px;height:22px;padding:0;color:var(--color-text-muted);border-radius:4px" title="More Actions" onclick="event.stopPropagation();showDeliveryCtx(event,'${d.id}')"><span style="font-size:14px;font-weight:bold;line-height:1">⋮</span></button>
+            </div>
+          `;
           tr.appendChild(aTd);
 
           // 3. Row Index Number Cell
@@ -47421,78 +47593,86 @@ Earned Value Management measures project performance and progress by comparing p
           rTd.innerHTML = `<div class="td-inner">${i + 1}</div>`;
           tr.appendChild(rTd);
 
-          // 4. Data Columns
+          // 4. Data Columns (Strictly 12 fields + custom attributes)
           allCols.forEach(col => {
             const td = document.createElement('td');
             td.setAttribute('data-label', col.label);
             const val = d[col.key];
 
-            if (col.key === 'id') {
+            if (col.key === 'almId') {
               td.innerHTML = `
-                <div class="td-inner" style="flex-direction:column;align-items:flex-start;gap:2px">
-                  <span style="font-family:var(--mono);font-weight:700;color:var(--color-primary);font-size:12px">${esc(val || '')}</span>
-                  ${d.almId || d.pdn ? `
-                    <div style="display:flex;gap:4px;flex-wrap:wrap">
-                      ${d.almId ? `<span style="font-size:9.5px;background:var(--color-surface-3);border:1px solid var(--color-divider);padding:0px 4px;border-radius:3px;color:var(--color-text-muted);font-family:var(--mono)">${esc(d.almId)}</span>` : ''}
-                      ${d.pdn ? `<span style="font-size:9.5px;background:rgba(6,182,212,0.08);border:1px solid rgba(6,182,212,0.25);padding:0px 4px;border-radius:3px;color:#06b6d4;font-family:var(--mono)">${esc(d.pdn)}</span>` : ''}
-                    </div>
-                  ` : ''}
+                <div class="td-inner">
+                  <span style="font-family:var(--font-mono);font-weight:700;color:var(--color-primary);font-size:11.5px;background:rgba(var(--color-primary-rgb),0.08);padding:2px 7px;border-radius:4px;border:1px solid rgba(var(--color-primary-rgb),0.2);cursor:pointer" title="Click to edit delivery">${esc(val || d.id || '—')}</span>
                 </div>
               `;
             } else if (col.key === 'name') {
               td.innerHTML = `
                 <div class="td-inner" style="flex-direction:column;align-items:flex-start;gap:2px">
-                  <span style="font-weight:600;color:var(--color-text);font-size:12.5px">${esc(val || 'Untitled Delivery')}</span>
-                  ${d.notes ? `<span style="font-size:10.5px;color:var(--color-text-muted);max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(d.notes)}">${esc(d.notes)}</span>` : ''}
+                  <span style="font-weight:600;color:var(--color-text);font-size:12.5px">${esc(val || d.description || 'Untitled Delivery')}</span>
                 </div>
               `;
+            } else if (col.key === 'pdn') {
+              td.innerHTML = `
+                <div class="td-inner">
+                  <span style="font-family:var(--font-mono);font-size:11px;font-weight:700;background:rgba(6,182,212,0.08);border:1px solid rgba(6,182,212,0.25);padding:2px 7px;border-radius:4px;color:#06b6d4">${esc(val || '—')}</span>
+                </div>
+              `;
+            } else if (col.key === 'pdnProcessingDate') {
+              const dtVal = val || d.targetDeliveryDate;
+              td.innerHTML = `<div class="td-inner" style="font-family:var(--font-mono);font-size:11.5px;color:var(--color-text-muted)"><i data-lucide="calendar" style="width:12px;height:12px;margin-right:4px;color:var(--color-text-faint)"></i>${dtVal ? fmtDate(dtVal) : '—'}</div>`;
+            } else if (col.key === 'componentsDelivered') {
+              const rawComp = val || (Array.isArray(d.guiScreens) ? d.guiScreens.join(', ') : d.guiScreens) || '';
+              const items = rawComp ? String(rawComp).split(/[\n,]+/).map(s => s.trim()).filter(Boolean) : [];
+              td.innerHTML = `
+                <div class="td-inner" style="flex-direction:column;align-items:flex-start;gap:2px;max-width:260px" title="${esc(rawComp)}">
+                  <div style="display:flex;align-items:center;gap:5px">
+                    <span style="font-size:10px;font-weight:700;background:var(--color-surface-3);border:1px solid var(--color-divider);padding:1px 5px;border-radius:3px;color:var(--color-text-muted)">📦 ${items.length} ${items.length === 1 ? 'item' : 'items'}</span>
+                    <span style="font-size:11px;font-family:var(--font-mono);color:var(--color-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">${esc(items[0] || 'None')}</span>
+                  </div>
+                </div>
+              `;
+            } else if (col.key === 'category') {
+              const isGsp = val === 'GSP++ Delivery';
+              const catBg = isGsp ? 'rgba(99,102,241,0.09)' : 'rgba(245,158,11,0.12)';
+              const catColor = isGsp ? 'var(--color-primary)' : 'var(--amber)';
+              const catBorder = isGsp ? 'rgba(99,102,241,0.25)' : 'rgba(245,158,11,0.3)';
+              td.innerHTML = `<div class="td-inner"><span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:4px;background:${catBg};color:${catColor};border:1px solid ${catBorder}">${esc(val || 'GSP++ Delivery')}</span></div>`;
             } else if (col.key === 'module') {
               td.innerHTML = `
                 <div class="td-inner" style="flex-direction:column;align-items:flex-start;gap:2px">
                   <span style="font-weight:600;font-size:12px">${esc(val || '—')}</span>
-                  ${d.moduleType ? `<span style="font-size:9.5px;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.5px">${esc(d.moduleType)}</span>` : ''}
                 </div>
               `;
-            } else if (col.key === 'releaseVersion') {
-              td.innerHTML = `<div class="td-inner">${val ? `<span style="font-size:11px;background:var(--color-surface-3);border:1px solid var(--color-divider);padding:2px 6px;border-radius:4px;font-weight:600;font-family:var(--mono)">${esc(val)}</span>` : '<span style="color:var(--color-text-faint)">—</span>'}</div>`;
-            } else if (col.key === 'environment') {
-              const envCls = { 'Production': 'var(--red)', 'Staging': '#a855f7', 'UAT': '#06b6d4', 'QA': 'var(--color-primary)', 'Dev': 'var(--color-text-muted)' };
-              const color = envCls[val] || 'var(--color-text-muted)';
-              td.innerHTML = `<div class="td-inner"><span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(99,102,241,0.08);color:${color};border:1px solid rgba(99,102,241,0.2)">${esc(val || 'Dev')}</span></div>`;
-            } else if (col.key === 'status') {
-              const stClsMap = { 'Scheduled': 'pending', 'In Progress': 'in-progress', 'Ready for Deployment': 'testing', 'Deployed': 'completed', 'Cancelled': 'cancelled', 'Rolled Back': 'blocked' };
-              const cls = stClsMap[val] || 'not-started';
-              const inner = document.createElement('div'); inner.className = 'td-inner';
-              const badge = document.createElement('span'); badge.className = `st-badge st-${cls}`; badge.style.cursor = 'pointer';
-              badge.innerHTML = `<span class="dot"></span>${esc(val || 'Scheduled')}`;
-              badge.onclick = (e) => { e.stopPropagation(); startDeliveryCellEdit(inner.parentElement, d, col); };
-              inner.appendChild(badge); td.appendChild(inner);
-            } else if (col.key === 'signOffStatus') {
-              const soClsMap = { 'Approved': 'var(--green)', 'Pending': 'var(--amber)', 'Rejected': 'var(--red)', 'Not Required': 'var(--color-text-muted)' };
-              const color = soClsMap[val] || 'var(--amber)';
+            } else if (col.key === 'almStatus') {
+              const almStatColors = {
+                'New': 'var(--color-text-muted)', 'Open': 'var(--red)', 'In Progress': 'var(--color-primary)',
+                'Fixed': '#06b6d4', 'Ready for Test': '#a855f7', 'Retest': 'var(--amber)',
+                'Closed': 'var(--green)', 'Rejected': 'var(--color-text-faint)', 'Reopened': 'var(--red)'
+              };
+              const color = almStatColors[val] || 'var(--color-primary)';
               const inner = document.createElement('div'); inner.className = 'td-inner';
               const badge = document.createElement('span');
-              badge.style.cssText = `font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(99,102,241,0.06);color:${color};border:1px solid rgba(99,102,241,0.2);cursor:pointer`;
-              badge.textContent = val || 'Pending';
+              badge.style.cssText = `display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(99,102,241,0.06);color:${color};border:1px solid rgba(99,102,241,0.18);cursor:pointer`;
+              badge.innerHTML = `<span style="width:6px;height:6px;border-radius:50%;background:${color}"></span>${esc(val || 'Open')}`;
               badge.onclick = (e) => { e.stopPropagation(); startDeliveryCellEdit(inner.parentElement, d, col); };
               inner.appendChild(badge); td.appendChild(inner);
-            } else if (col.key === 'smokeTestStatus') {
-              let badgeHtml = '<span style="font-size:11px;color:var(--color-text-muted)">⚪ Not Run</span>';
-              if (val === 'Passed') badgeHtml = '<span style="font-size:11px;font-weight:700;color:var(--green)">🟢 Passed</span>';
-              else if (val === 'Failed') badgeHtml = '<span style="font-size:11px;font-weight:700;color:var(--red)">🔴 Failed</span>';
-              else if (val === 'Running') badgeHtml = '<span style="font-size:11px;font-weight:700;color:var(--color-primary)">🔵 Running</span>';
-              td.innerHTML = `<div class="td-inner">${badgeHtml}</div>`;
-            } else if (col.key === 'leadTimeDays') {
-              td.innerHTML = `<div class="td-inner">${val != null && val !== '' ? `<span style="font-size:11px;font-weight:700;background:rgba(99,102,241,0.08);color:var(--color-primary);padding:2px 6px;border-radius:4px">${val} d</span>` : '<span style="color:var(--color-text-faint)">—</span>'}</div>`;
-            } else if (col.key === 'targetDeliveryDate' || col.key === 'actualDeliveryDate' || col.type === 'date') {
-              td.innerHTML = `<div class="td-inner" style="font-family:var(--mono);font-size:11.5px;color:var(--color-text-muted)">${val ? fmtDate(val) : '—'}</div>`;
-            } else if (col.key === 'guiScreens') {
-              const screens = Array.isArray(val) ? val : (val ? String(val).split(',').map(s => s.trim()).filter(Boolean) : []);
+            } else if (col.key === 'reportedBy' || col.key === 'fixedBy') {
               td.innerHTML = `
-                <div class="td-inner" style="gap:4px;flex-wrap:wrap;max-width:180px">
-                  ${screens.length ? screens.map(s => `<span style="font-size:10px;background:var(--color-surface-3);border:1px solid var(--color-divider);padding:1px 5px;border-radius:3px;color:var(--color-text-muted)">${esc(s)}</span>`).join('') : '<span style="color:var(--color-text-faint);font-size:11px">—</span>'}
+                <div class="td-inner" style="gap:5px">
+                  <span style="width:18px;height:18px;border-radius:50%;background:var(--color-surface-3);display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--color-text-muted)">${esc((val || 'U').substring(0,1).toUpperCase())}</span>
+                  <span style="font-size:11.5px;font-weight:500">${esc(val || '—')}</span>
                 </div>
               `;
+            } else if (col.key === 'linkedType') {
+              td.innerHTML = `<div class="td-inner"><span style="font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:3px;background:var(--color-surface-3);border:1px solid var(--color-divider);color:var(--color-text-muted)">${esc(val || 'Task')}</span></div>`;
+            } else if (col.key === 'linkedId') {
+              td.innerHTML = `
+                <div class="td-inner" style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(val || '')}">
+                  <span style="font-family:var(--font-mono);font-size:11px;color:var(--color-text);background:var(--color-surface-2);padding:1px 6px;border-radius:3px;border:1px solid var(--color-divider)">${esc(val || '—')}</span>
+                </div>
+              `;
+            } else if (col.type === 'date') {
+              td.innerHTML = `<div class="td-inner" style="font-family:var(--mono);font-size:11.5px;color:var(--color-text-muted)">${val ? fmtDate(val) : '—'}</div>`;
             } else {
               td.innerHTML = `<div class="td-inner">${esc(val || '—')}</div>`;
             }
@@ -47515,18 +47695,35 @@ Earned Value Management measures project performance and progress by comparing p
 
       let finished = false;
       let input;
-      if (col.type === 'select' || ['status', 'environment', 'signOffStatus', 'smokeTestStatus', 'moduleType', 'module', 'releaseVersion', 'approver'].includes(col.key)) {
+      if (col.type === 'select' || ['status', 'environment', 'signOffStatus', 'smokeTestStatus', 'moduleType', 'module', 'releaseVersion', 'approver', 'category', 'almStatus', 'reportedBy', 'fixedBy', 'linkedType', 'linkedId'].includes(col.key)) {
         input = document.createElement('select');
         input.style.cssText = cStyle;
         let opts = col.opts || [];
-        if (col.key === 'status') opts = (P.dropdowns && P.dropdowns.deliveryStatus) || ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'];
+        if (col.key === 'category') opts = ['GSP++ Delivery', 'Regression/NRT Defect'];
+        else if (col.key === 'almStatus') opts = ['New', 'Open', 'In Progress', 'Fixed', 'Ready for Test', 'Retest', 'Closed', 'Rejected', 'Reopened'];
+        else if (col.key === 'reportedBy' || col.key === 'fixedBy' || col.key === 'approver') opts = (P.members || []).map(m => m.name);
+        else if (col.key === 'linkedType') opts = ['Task', 'Screen', 'None'];
+        else if (col.key === 'linkedId') {
+          if (delivery.linkedType === 'Screen') {
+            const screens = [];
+            (P.tasks || []).forEach(t => {
+              (t.screens || []).forEach(s => {
+                const sName = typeof s === 'string' ? s : (s.name || s.id);
+                screens.push(`[${sName}] (Task: ${t.id} - ${t.name})`);
+              });
+            });
+            opts = screens.length ? screens : ['No screens defined'];
+          } else {
+            opts = (P.tasks || []).map(t => `[${t.id}] ${t.name}`);
+          }
+        }
+        else if (col.key === 'status') opts = (P.dropdowns && P.dropdowns.deliveryStatus) || ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'];
         else if (col.key === 'environment') opts = (P.dropdowns && P.dropdowns.deliveryEnv) || ['Production', 'Staging', 'UAT', 'QA', 'Dev'];
         else if (col.key === 'signOffStatus') opts = (P.dropdowns && P.dropdowns.deliverySignOff) || ['Pending', 'Approved', 'Rejected', 'Not Required'];
         else if (col.key === 'smokeTestStatus') opts = ['Not Run', 'Running', 'Passed', 'Failed'];
         else if (col.key === 'moduleType') opts = ['Server', 'GUI', 'Hybrid', 'Database', 'General'];
         else if (col.key === 'module') opts = Array.from(new Set([...(P.dropdowns && P.dropdowns.module ? P.dropdowns.module : []), ...(P.deliveries || []).map(d => d.module).filter(Boolean)])).sort();
         else if (col.key === 'releaseVersion') opts = Array.from(new Set([...(P.releases ? P.releases.map(r => r.name || r) : []), ...(P.dropdowns && P.dropdowns.release ? P.dropdowns.release : []), ...(P.deliveries || []).map(d => d.releaseVersion).filter(Boolean)])).sort();
-        else if (col.key === 'approver') opts = (P.members || []).map(m => m.name);
 
         opts.forEach(o => {
           const opt = document.createElement('option');
@@ -48439,7 +48636,7 @@ Earned Value Management measures project performance and progress by comparing p
                         <span style="font-size:11px; font-weight:700; color:${d.environment === 'Production' ? 'var(--red)' : '#06b6d4'}">${esc(d.environment || 'Prod')}</span>
                       </td>
                       <td style="padding:12px 10px">
-                        <span style="font-size:11px; font-weight:700; color:${d.status === 'Deployed' ? 'var(--green)' : 'var(--amber)'}">${esc(d.status || 'Scheduled')}</span>
+                        <span class="st-badge st-${DEL_ST_CLS[d.status] || 'scheduled'}" style="font-size:9.5px; padding:2px 8px; min-width:80px"><span class="dot"></span>${esc(d.status || 'Scheduled')}</span>
                       </td>
                       <td style="padding:12px 10px; font-family:var(--mono); font-size:11px; color:var(--color-text-muted)">
                         ${esc(d.targetDeliveryDate || '—')}
@@ -49128,130 +49325,244 @@ Earned Value Management measures project performance and progress by comparing p
       notify('Loaded 15 sample deliverables successfully', 'ok');
     };
 
-    // ── Delivery Flyout Handlers ──
+    // ── Delivery Flyout Handlers & Linkage Engine ──
     window.openDeliveryFlyout = openDeliveryFlyout;
     window.openDeliveryModal = openDeliveryFlyout;
-    function openDeliveryFlyout(id) {
-      P._editingDeliveryId = id || null;
-      const d = id ? (P.deliveries || []).find(x => x.id === id) : null;
 
-      const titleEl = $id('delivery-modal-title');
-      if (titleEl) titleEl.textContent = d ? 'Edit Delivery' : 'Log Delivery';
-      const subt = $id('delivery-flyout-subtitle');
-      if (subt) subt.textContent = d ? 'Delivery ID: ' + d.id : 'Delivery ID: —';
+    window.updateDeliveryLinkedOptions = function(preSelectedId) {
+      const typeSel = $id('del_linked_type');
+      const idSel = $id('del_linked_id');
+      if (!typeSel || !idSel) return;
+      const t = typeSel.value;
+      let opts = [];
 
-      $id('del_name').value = d ? (d.name || '') : '';
-      $id('del_almid').value = d ? (d.almId || '') : '';
-      $id('del_pdn').value = d ? (d.pdn || '') : '';
-      
-      // Module options
-      const modSel = $id('del_module');
-      const modules = Array.from(new Set([
-        ...(P.dropdowns && P.dropdowns.module ? P.dropdowns.module : []),
-        ...(P.deliveries || []).map(x => x.module).filter(Boolean)
-      ])).sort();
-      modSel.innerHTML = modules.map(m => `<option value="${esc(m)}" ${d && d.module === m ? 'selected' : ''}>${esc(m)}</option>`).join('') +
-        (modules.length === 0 ? '<option value="General">General</option>' : '');
-
-      $id('del_module_type').value = d ? (d.moduleType || 'Server') : 'Server';
-
-      // Release options
-      const relSel = $id('del_release');
-      const releases = Array.from(new Set([
-        ...(P.releases ? P.releases.map(r => r.name || r) : []),
-        ...(P.dropdowns && P.dropdowns.release ? P.dropdowns.release : []),
-        ...(P.deliveries || []).map(x => x.releaseVersion).filter(Boolean)
-      ])).sort();
-      relSel.innerHTML = releases.map(r => `<option value="${esc(r)}" ${d && d.releaseVersion === r ? 'selected' : ''}>${esc(r)}</option>`).join('') +
-        (releases.length === 0 ? '<option value="v1.0.0">v1.0.0</option>' : '');
-
-      $id('del_environment').value = d ? (d.environment || 'Production') : 'Production';
-      $id('del_status').value = d ? (d.status || 'Scheduled') : 'Scheduled';
-      $id('del_signoff').value = d ? (d.signOffStatus || 'Pending') : 'Pending';
-
-      // Approvers
-      const appSel = $id('del_approver');
-      appSel.innerHTML = (P.members || []).map(m => `<option value="${esc(m.name)}" ${d && d.approver === m.name ? 'selected' : ''}>${esc(m.name)}</option>`).join('') +
-        ((!P.members || P.members.length === 0) ? '<option value="Lead Engineer">Lead Engineer</option>' : '');
-
-      $id('del_smoke_test').value = d ? (d.smokeTestStatus || 'Not Run') : 'Not Run';
-      $id('del_target_date').value = d ? (d.targetDeliveryDate || '') : todayStr();
-      $id('del_actual_date').value = d ? (d.actualDeliveryDate || '') : '';
-      $id('del_lead_time').value = d && d.leadTimeDays != null ? d.leadTimeDays : '';
-      $id('del_gui_screens').value = d ? (Array.isArray(d.guiScreens) ? d.guiScreens.join(', ') : (d.guiScreens || '')) : '';
-      $id('del_rollback_plan').value = d ? (d.rollbackPlan || '') : '';
-      $id('del_notes').value = d ? (d.notes || '') : '';
-
-      // Render delivery custom fields
-      const cfCont = $id('del_custom_fields_container');
-      if (cfCont) {
-        if (P.delCustomFields && P.delCustomFields.length) {
-          cfCont.innerHTML = `
-            <div style="margin-top:4px; padding:16px; background:rgba(var(--color-primary-rgb),0.03); border:1px solid var(--color-divider); border-radius:12px">
-              <div style="font-size:11px; font-weight:800; text-transform:uppercase; color:var(--color-primary); margin-bottom:12px; display:flex; align-items:center; gap:6px">
-                <i data-lucide="layers" style="width:14px; height:14px"></i> Custom Attributes
-              </div>
-              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
-                ${P.delCustomFields.map(cf => {
-                  const val = d ? (d[cf.name] !== undefined ? d[cf.name] : (d.custom && d.custom[cf.name] !== undefined ? d.custom[cf.name] : '')) : '';
-                  if (cf.type === 'dropdown' || cf.type === 'select') {
-                    const opts = cf.source === 'global' && P.dropdowns && P.dropdowns[cf.globalKey] ? P.dropdowns[cf.globalKey] : (cf.options || []);
-                    return `
-                      <div class="fg">
-                        <label class="flbl">${esc(cf.name)} ${cf.required ? '<span style="color:var(--red)">*</span>' : ''}</label>
-                        <select class="fsel del-cf-input" data-cf-name="${esc(cf.name)}">
-                          <option value="">-- Select --</option>
-                          ${opts.map(o => `<option value="${esc(o)}" ${String(val) === String(o) ? 'selected' : ''}>${esc(o)}</option>`).join('')}
-                        </select>
-                      </div>
-                    `;
-                  } else if (cf.type === 'number') {
-                    return `
-                      <div class="fg">
-                        <label class="flbl">${esc(cf.name)} ${cf.required ? '<span style="color:var(--red)">*</span>' : ''}</label>
-                        <input type="number" class="finp del-cf-input" data-cf-name="${esc(cf.name)}" value="${esc(val)}" placeholder="0">
-                      </div>
-                    `;
-                  } else if (cf.type === 'date') {
-                    return `
-                      <div class="fg">
-                        <label class="flbl">${esc(cf.name)} ${cf.required ? '<span style="color:var(--red)">*</span>' : ''}</label>
-                        <input type="date" class="finp del-cf-input" data-cf-name="${esc(cf.name)}" value="${esc(val)}" max="9999-12-31">
-                      </div>
-                    `;
-                  } else if (cf.type === 'checkbox' || cf.type === 'boolean') {
-                    return `
-                      <div class="fg" style="display:flex; align-items:center; gap:8px; margin-top:24px">
-                        <input type="checkbox" class="del-cf-input" data-cf-name="${esc(cf.name)}" ${val ? 'checked' : ''} style="width:16px; height:16px; accent-color:var(--color-primary)">
-                        <label class="flbl" style="margin-bottom:0; cursor:pointer">${esc(cf.name)}</label>
-                      </div>
-                    `;
-                  } else {
-                    return `
-                      <div class="fg">
-                        <label class="flbl">${esc(cf.name)} ${cf.required ? '<span style="color:var(--red)">*</span>' : ''}</label>
-                        <input type="text" class="finp del-cf-input" data-cf-name="${esc(cf.name)}" value="${esc(val)}" placeholder="Value…">
-                      </div>
-                    `;
-                  }
-                }).join('')}
-              </div>
-            </div>
-          `;
-          if (window.lucide) lucide.createIcons(cfCont);
-        } else {
-          cfCont.innerHTML = '';
-        }
+      if (t === 'Task') {
+        const tasks = P.tasks || [];
+        opts = tasks.map(tk => ({
+          val: tk.id || tk.name,
+          label: `${tk.id ? tk.id + ' — ' : ''}${tk.name || 'Untitled Task'}`
+        }));
+      } else if (t === 'Screen') {
+        const screenSet = new Set();
+        (P.features || []).forEach(f => {
+          (f.screens || []).forEach(s => {
+            const sName = typeof s === 'object' ? (s.name || s.id) : s;
+            if (sName) screenSet.add(sName);
+          });
+        });
+        opts = Array.from(screenSet).map(s => ({ val: s, label: s }));
+      } else {
+        opts = [{ val: 'None', label: 'None (Standalone Item)' }];
       }
 
-      const delBtn = $id('del_del_btn');
-      if (delBtn) delBtn.style.display = d ? 'inline-flex' : 'none';
+      if (!opts.length) {
+        opts = [{ val: 'None', label: 'None Available' }];
+      }
 
-      closeAllFlyouts();
-      const flyout = $id('delivery-flyout');
-      if (flyout) flyout.classList.add('open');
-      const overlay = $id('flyout-overlay');
-      if (overlay) overlay.classList.add('on');
+      idSel.innerHTML = opts.map(o => `<option value="${esc(o.val)}" ${String(preSelectedId || '') === String(o.val) ? 'selected' : ''}>${esc(o.label)}</option>`).join('');
+    };
+
+    window.appendDelComponentTemplate = function(type) {
+      const el = $id('del_components_delivered');
+      if (!el) return;
+      let snippet = '';
+      if (type === 'service') snippet = '• Service/API: /api/v1/[service-endpoint] (build #)\n';
+      else if (type === 'screen') snippet = '• UI Screen: [Screen Name] component bundle & assets\n';
+      else if (type === 'db') snippet = '• DB Migration: V2026.08__schema_update.sql\n';
+      el.value = (el.value ? el.value.trimEnd() + '\n' : '') + snippet;
+      el.focus();
+    };
+
+    window.autoComputeLeadTime = function() {
+      const d1Val = $id('del_pdn_date')?.value || $id('del_target_date')?.value;
+      const d2Val = $id('del_actual_date')?.value;
+      const leadEl = $id('del_lead_time');
+      if (!leadEl) return;
+      if (d1Val && d2Val) {
+        try {
+          const t1 = new Date(d1Val).getTime();
+          const t2 = new Date(d2Val).getTime();
+          if (!isNaN(t1) && !isNaN(t2)) {
+            const diff = Math.round((t2 - t1) / 864e5);
+            leadEl.value = Math.max(0, diff);
+          }
+        } catch(e) {}
+      }
+    };
+
+    function openDeliveryFlyout(id) {
+      try {
+        P._editingDeliveryId = id || null;
+        const d = id ? (P.deliveries || []).find(x => x.id === id) : null;
+
+        const titleEl = $id('delivery-modal-title');
+        if (titleEl) titleEl.textContent = d ? 'Edit Delivery' : 'Log Delivery';
+        const subt = $id('delivery-flyout-subtitle');
+        if (subt) subt.textContent = d ? 'Delivery ID: ' + d.id : 'Delivery ID: —';
+
+        // 1. ALM ID & Category
+        if ($id('del_almid')) $id('del_almid').value = d ? (d.almId || '') : '';
+        if ($id('del_category')) $id('del_category').value = d ? (d.category || 'GSP++ Delivery') : 'GSP++ Delivery';
+
+        // 2. Name / Description
+        if ($id('del_name')) $id('del_name').value = d ? (d.name || d.description || '') : '';
+
+        // 3. PDN Info & PDN Date
+        if ($id('del_pdn')) $id('del_pdn').value = d ? (d.pdn || '') : '';
+        if ($id('del_pdn_date')) $id('del_pdn_date').value = d ? (d.pdnProcessingDate || d.targetDeliveryDate || '') : todayStr();
+
+        // 4. Module options
+        const modSel = $id('del_module');
+        if (modSel) {
+          const modules = Array.from(new Set([
+            ...(P.dropdowns && P.dropdowns.module ? P.dropdowns.module : []),
+            ...(P.deliveries || []).map(x => x.module).filter(Boolean)
+          ])).sort();
+          modSel.innerHTML = modules.map(m => `<option value="${esc(m)}" ${d && d.module === m ? 'selected' : ''}>${esc(m)}</option>`).join('') +
+            (modules.length === 0 ? '<option value="General">General</option>' : '');
+          if (d && d.module) modSel.value = d.module;
+        }
+
+        // 5. ALM Status
+        if ($id('del_alm_status')) $id('del_alm_status').value = d ? (d.almStatus || 'Open') : 'Open';
+
+        // 6. Reported By & Fixed By Team Dropdowns
+        const members = (P.members || []).map(m => m.name || m).filter(Boolean);
+        const teamOpts = members.length > 0 ? members : ['Lead Engineer', 'Alice', 'Bob', 'Charlie', 'Eve'];
+
+        const repSel = $id('del_reported_by');
+        if (repSel) {
+          repSel.innerHTML = teamOpts.map(m => `<option value="${esc(m)}" ${d && d.reportedBy === m ? 'selected' : ''}>${esc(m)}</option>`).join('');
+          if (d && d.reportedBy) repSel.value = d.reportedBy;
+        }
+
+        const fixSel = $id('del_fixed_by');
+        if (fixSel) {
+          fixSel.innerHTML = teamOpts.map(m => `<option value="${esc(m)}" ${d && d.fixedBy === m ? 'selected' : ''}>${esc(m)}</option>`).join('');
+          if (d && d.fixedBy) fixSel.value = d.fixedBy;
+        }
+
+        // 7. Linked Type & Linked ID
+        if ($id('del_linked_type')) {
+          $id('del_linked_type').value = d ? (d.linkedType || 'Task') : 'Task';
+        }
+        updateDeliveryLinkedOptions(d ? (d.linkedId || '') : '');
+
+        // 8. Components Delivered
+        const compEl = $id('del_components_delivered');
+        if (compEl) {
+          compEl.value = d ? (d.componentsDelivered || (Array.isArray(d.guiScreens) ? d.guiScreens.join(', ') : (d.guiScreens || ''))) : '';
+        }
+
+        // 9. Governance & Extended Fields
+        if ($id('del_module_type')) $id('del_module_type').value = d ? (d.moduleType || 'Server') : 'Server';
+
+        const relSel = $id('del_release');
+        if (relSel) {
+          const releases = Array.from(new Set([
+            ...(P.releases ? P.releases.map(r => r.name || r) : []),
+            ...(P.dropdowns && P.dropdowns.release ? P.dropdowns.release : []),
+            ...(P.deliveries || []).map(x => x.releaseVersion).filter(Boolean)
+          ])).sort();
+          relSel.innerHTML = releases.map(r => `<option value="${esc(r)}" ${d && d.releaseVersion === r ? 'selected' : ''}>${esc(r)}</option>`).join('') +
+            (releases.length === 0 ? '<option value="v1.0.0">v1.0.0</option>' : '');
+          if (d && d.releaseVersion) relSel.value = d.releaseVersion;
+        }
+
+        if ($id('del_environment')) $id('del_environment').value = d ? (d.environment || 'Production') : 'Production';
+        if ($id('del_status')) $id('del_status').value = d ? (d.status || 'Scheduled') : 'Scheduled';
+        if ($id('del_signoff')) $id('del_signoff').value = d ? (d.signOffStatus || 'Pending') : 'Pending';
+
+        const appSel = $id('del_approver');
+        if (appSel) {
+          appSel.innerHTML = teamOpts.map(m => `<option value="${esc(m)}" ${d && d.approver === m ? 'selected' : ''}>${esc(m)}</option>`).join('');
+          if (d && d.approver) appSel.value = d.approver;
+        }
+
+        if ($id('del_smoke_test')) $id('del_smoke_test').value = d ? (d.smokeTestStatus || 'Not Run') : 'Not Run';
+        if ($id('del_target_date')) $id('del_target_date').value = d ? (d.targetDeliveryDate || '') : (d ? (d.pdnProcessingDate || '') : todayStr());
+        if ($id('del_actual_date')) $id('del_actual_date').value = d ? (d.actualDeliveryDate || '') : '';
+        if ($id('del_lead_time')) $id('del_lead_time').value = d && d.leadTimeDays != null ? d.leadTimeDays : '';
+        if ($id('del_rollback_plan')) $id('del_rollback_plan').value = d ? (d.rollbackPlan || '') : '';
+        if ($id('del_notes')) $id('del_notes').value = d ? (d.notes || '') : '';
+
+        // Render delivery custom fields
+        const cfCont = $id('del_custom_fields_container');
+        if (cfCont) {
+          if (P.delCustomFields && P.delCustomFields.length) {
+            cfCont.innerHTML = `
+              <div style="margin-top:4px; padding:16px; background:rgba(var(--color-primary-rgb),0.03); border:1px solid var(--color-divider); border-radius:12px">
+                <div style="font-size:11px; font-weight:800; text-transform:uppercase; color:var(--color-primary); margin-bottom:12px; display:flex; align-items:center; gap:6px">
+                  <i data-lucide="layers" style="width:14px; height:14px"></i> Custom Attributes
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
+                  ${P.delCustomFields.map(cf => {
+                    const val = d ? (d[cf.name] !== undefined ? d[cf.name] : (d.custom && d.custom[cf.name] !== undefined ? d.custom[cf.name] : '')) : '';
+                    if (cf.type === 'dropdown' || cf.type === 'select') {
+                      const opts = cf.source === 'global' && P.dropdowns && P.dropdowns[cf.globalKey] ? P.dropdowns[cf.globalKey] : (cf.options || []);
+                      return `
+                        <div class="fg">
+                          <label class="flbl">${esc(cf.name)} ${cf.required ? '<span style="color:var(--red)">*</span>' : ''}</label>
+                          <select class="fsel del-cf-input" data-cf-name="${esc(cf.name)}">
+                            <option value="">-- Select --</option>
+                            ${opts.map(o => `<option value="${esc(o)}" ${String(val) === String(o) ? 'selected' : ''}>${esc(o)}</option>`).join('')}
+                          </select>
+                        </div>
+                      `;
+                    } else if (cf.type === 'number') {
+                      return `
+                        <div class="fg">
+                          <label class="flbl">${esc(cf.name)} ${cf.required ? '<span style="color:var(--red)">*</span>' : ''}</label>
+                          <input type="number" class="finp del-cf-input" data-cf-name="${esc(cf.name)}" value="${esc(val)}" placeholder="0">
+                        </div>
+                      `;
+                    } else if (cf.type === 'date') {
+                      return `
+                        <div class="fg">
+                          <label class="flbl">${esc(cf.name)} ${cf.required ? '<span style="color:var(--red)">*</span>' : ''}</label>
+                          <input type="date" class="finp del-cf-input" data-cf-name="${esc(cf.name)}" value="${esc(val)}" max="9999-12-31">
+                        </div>
+                      `;
+                    } else if (cf.type === 'checkbox' || cf.type === 'boolean') {
+                      return `
+                        <div class="fg" style="display:flex; align-items:center; gap:8px; margin-top:24px">
+                          <input type="checkbox" class="del-cf-input" data-cf-name="${esc(cf.name)}" ${val ? 'checked' : ''} style="width:16px; height:16px; accent-color:var(--color-primary)">
+                          <label class="flbl" style="margin-bottom:0; cursor:pointer">${esc(cf.name)}</label>
+                        </div>
+                      `;
+                    } else {
+                      return `
+                        <div class="fg">
+                          <label class="flbl">${esc(cf.name)} ${cf.required ? '<span style="color:var(--red)">*</span>' : ''}</label>
+                          <input type="text" class="finp del-cf-input" data-cf-name="${esc(cf.name)}" value="${esc(val)}" placeholder="Value…">
+                        </div>
+                      `;
+                    }
+                  }).join('')}
+                </div>
+              </div>
+            `;
+            if (window.lucide) lucide.createIcons(cfCont);
+          } else {
+            cfCont.innerHTML = '';
+          }
+        }
+
+        const delBtn = $id('del_del_btn');
+        if (delBtn) delBtn.style.display = d ? 'inline-flex' : 'none';
+
+        closeAllFlyouts();
+        const flyout = $id('delivery-flyout');
+        if (flyout) {
+          flyout.classList.add('open');
+          if (window.lucide) lucide.createIcons(flyout);
+        }
+        const overlay = $id('flyout-overlay');
+        if (overlay) overlay.classList.add('on');
+      } catch(err) {
+        console.error('Error opening delivery flyout:', err);
+        notify('Could not open delivery form: ' + err.message, 'err');
+      }
     }
 
     window.closeDeliveryFlyout = closeDeliveryFlyout;
@@ -49264,30 +49575,40 @@ Earned Value Management measures project performance and progress by comparing p
 
     window.saveDeliveryItem = saveDeliveryItem;
     function saveDeliveryItem() {
-      const name = $id('del_name').value.trim();
-      if (!name) { notify('Delivery Name/Scope is required', 'err'); return; }
+      const name = ($id('del_name')?.value || '').trim();
+      if (!name) { notify('Description - ALM Description is required', 'err'); return; }
 
-      const rawScreens = $id('del_gui_screens').value.trim();
-      const screensArr = rawScreens ? rawScreens.split(',').map(s => s.trim()).filter(Boolean) : [];
+      const almId = ($id('del_almid')?.value || '').trim();
+      const pdn = ($id('del_pdn')?.value || '').trim();
+      const pdnDate = $id('del_pdn_date')?.value || '';
+      const compDelivered = ($id('del_components_delivered')?.value || '').trim();
 
       const data = {
         name: name,
-        almId: $id('del_almid').value.trim(),
-        pdn: $id('del_pdn').value.trim(),
-        module: $id('del_module').value,
-        moduleType: $id('del_module_type').value,
-        releaseVersion: $id('del_release').value,
-        environment: $id('del_environment').value,
-        status: $id('del_status').value,
-        signOffStatus: $id('del_signoff').value,
-        approver: $id('del_approver').value,
-        smokeTestStatus: $id('del_smoke_test').value,
-        targetDeliveryDate: $id('del_target_date').value,
-        actualDeliveryDate: $id('del_actual_date').value,
-        leadTimeDays: $id('del_lead_time').value !== '' ? Number($id('del_lead_time').value) : null,
-        guiScreens: screensArr,
-        rollbackPlan: $id('del_rollback_plan').value.trim(),
-        notes: $id('del_notes').value.trim(),
+        description: name,
+        almId: almId,
+        category: $id('del_category')?.value || 'GSP++ Delivery',
+        pdn: pdn,
+        pdnProcessingDate: pdnDate,
+        module: $id('del_module')?.value || 'General',
+        almStatus: $id('del_alm_status')?.value || 'Open',
+        reportedBy: $id('del_reported_by')?.value || '',
+        fixedBy: $id('del_fixed_by')?.value || '',
+        linkedType: $id('del_linked_type')?.value || 'Task',
+        linkedId: $id('del_linked_id')?.value || '',
+        componentsDelivered: compDelivered,
+        moduleType: $id('del_module_type')?.value || 'Server',
+        releaseVersion: $id('del_release')?.value || '',
+        environment: $id('del_environment')?.value || 'Production',
+        status: $id('del_status')?.value || 'Scheduled',
+        signOffStatus: $id('del_signoff')?.value || 'Pending',
+        approver: $id('del_approver')?.value || '',
+        smokeTestStatus: $id('del_smoke_test')?.value || 'Not Run',
+        targetDeliveryDate: $id('del_target_date')?.value || pdnDate,
+        actualDeliveryDate: $id('del_actual_date')?.value || '',
+        leadTimeDays: $id('del_lead_time')?.value !== '' ? Number($id('del_lead_time').value) : null,
+        rollbackPlan: ($id('del_rollback_plan')?.value || '').trim(),
+        notes: ($id('del_notes')?.value || '').trim(),
         updatedAt: nowISO()
       };
 
@@ -49352,13 +49673,112 @@ Earned Value Management measures project performance and progress by comparing p
 
     const DELIVERY_SYSTEM_FIELDS = [
       {
+        key: 'almId',
+        label: 'Defect ID - ALM ID',
+        required: true,
+        icon: 'ticket',
+        type: 'text',
+        desc: 'Enterprise ALM / Jira / Defect Ticket reference',
+        aliases: ['almid', 'alm', 'ticket', 'defectid', 'defect', 'defectno', 'defect_id', 'changeid', 'changeticket', 'jirakey', 'jira', 'cr', 'crid', 'changerequest', 'trackingid', 'ticketid', 'workitemid', 'alm_id', 'defect_id_alm_id']
+      },
+      {
         key: 'name',
-        label: 'Delivery Scope / Name',
+        label: 'Description - ALM Description',
+        required: true,
+        icon: 'file-text',
+        type: 'text',
+        desc: 'Primary delivery scope, defect title or ALM description',
+        aliases: ['description', 'almdescription', 'name', 'scope', 'deliveryscope', 'deliveryscopename', 'title', 'packagename', 'releasename', 'item', 'deliverable', 'deliverablescope', 'summary', 'deliverabletitle', 'deliverablename', 'description_alm_description']
+      },
+      {
+        key: 'pdn',
+        label: 'PDN Info',
+        required: true,
+        icon: 'hash',
+        type: 'text',
+        desc: 'Product Delivery Notice reference and details',
+        aliases: ['pdn', 'pdninfo', 'pdnnumber', 'pdnid', 'notice', 'deliverynotice', 'deploymentnotice', 'pdn_no', 'crnotice', 'noticenumber', 'pdn_info']
+      },
+      {
+        key: 'pdnProcessingDate',
+        label: 'PDN Processing Date',
+        required: true,
+        icon: 'calendar',
+        type: 'date',
+        desc: 'Date when PDN was processed and released',
+        aliases: ['pdnprocessingdate', 'pdndate', 'processingdate', 'processeddate', 'pdnprocessed', 'pdn_processing_date', 'pdnprocessdate']
+      },
+      {
+        key: 'componentsDelivered',
+        label: 'Components Delivered',
         required: true,
         icon: 'package',
         type: 'text',
-        desc: 'Primary deliverable title or scope description',
-        aliases: ['name', 'scope', 'deliveryscope', 'deliveryscopename', 'title', 'packagename', 'releasename', 'item', 'deliverable', 'description', 'deliverablescope', 'summary', 'deliverabletitle', 'deliverablename']
+        desc: 'List of source files, JARs, SQL scripts, configs, or GUI screens delivered',
+        aliases: ['componentsdelivered', 'components', 'deliveredcomponents', 'filesdelivered', 'artifacts', 'assets', 'sources', 'modulesdelivered', 'screens', 'guiscreens', 'components_delivered']
+      },
+      {
+        key: 'category',
+        label: 'Category',
+        required: true,
+        icon: 'tag',
+        type: 'select',
+        desc: 'Package classification: GSP++ Delivery or Regression/NRT Defect',
+        aliases: ['category', 'deliverycategory', 'defectcategory', 'packagetype', 'type', 'deliverytype', 'defecttype']
+      },
+      {
+        key: 'module',
+        label: 'Module',
+        required: true,
+        icon: 'box',
+        type: 'select',
+        desc: 'Architecture subsystem or functional domain',
+        aliases: ['module', 'modulename', 'component', 'subsystem', 'service', 'domain', 'appmodule', 'featuremodule', 'systemmodule']
+      },
+      {
+        key: 'almStatus',
+        label: 'ALM Status',
+        required: true,
+        icon: 'activity',
+        type: 'select',
+        desc: 'Defect status in ALM (New, Open, Fixed, Ready for Test, Closed, etc.)',
+        aliases: ['almstatus', 'defectstatus', 'defectstate', 'almstate', 'alm_status']
+      },
+      {
+        key: 'reportedBy',
+        label: 'Reported By',
+        required: true,
+        icon: 'user',
+        type: 'select',
+        desc: 'Tester, QA, or stakeholder who reported the item',
+        aliases: ['reportedby', 'reporter', 'raisedby', 'submittedby', 'loggedby', 'discoveredby', 'reported_by']
+      },
+      {
+        key: 'fixedBy',
+        label: 'Defect Fixed By',
+        required: true,
+        icon: 'user-check',
+        type: 'select',
+        desc: 'Developer or team member who resolved the defect',
+        aliases: ['fixedby', 'defectfixedby', 'resolvedby', 'developer', 'assignee', 'owner', 'fixer', 'implementedby', 'defect_fixed_by', 'fixed_by']
+      },
+      {
+        key: 'linkedType',
+        label: 'Linked Type',
+        required: true,
+        icon: 'link',
+        type: 'select',
+        desc: 'Link relationship target: Task, Screen, or None',
+        aliases: ['linkedtype', 'linktype', 'relationshiptype', 'targettype', 'linked_type']
+      },
+      {
+        key: 'linkedId',
+        label: 'Linked ID',
+        required: true,
+        icon: 'layers',
+        type: 'select',
+        desc: 'Identifier or title of the linked project Task or Screen',
+        aliases: ['linkedid', 'linkid', 'taskid', 'screenid', 'targetid', 'linkedtask', 'linkedscreen', 'linked_id']
       },
       {
         key: 'id',
@@ -49366,62 +49786,17 @@ Earned Value Management measures project performance and progress by comparing p
         required: false,
         icon: 'hash',
         type: 'text',
-        desc: 'Unique delivery identifier (DEL-xxx)',
+        desc: 'Internal unique delivery identifier (DEL-xxx)',
         aliases: ['id', 'deliveryid', 'delid', 'code', 'del_id', 'delno', 'deliverynumber', 'deliveriesid', 'key', 'ref']
       },
       {
-        key: 'almId',
-        label: 'ALM / Change ID',
-        required: false,
-        icon: 'ticket',
-        type: 'text',
-        desc: 'Enterprise ALM / Jira / Change Ticket reference',
-        aliases: ['almid', 'alm', 'ticket', 'changeid', 'changeticket', 'jirakey', 'jira', 'cr', 'crid', 'changerequest', 'trackingid', 'ticketid', 'workitemid', 'alm_id']
-      },
-      {
-        key: 'pdn',
-        label: 'PDN (Deployment Notice)',
-        required: false,
-        icon: 'file-text',
-        type: 'text',
-        desc: 'Product Delivery Notice reference',
-        aliases: ['pdn', 'pdnnumber', 'pdnid', 'notice', 'deliverynotice', 'deploymentnotice', 'pdn_no', 'crnotice', 'noticenumber']
-      },
-      {
-        key: 'module',
-        label: 'System Module',
-        required: false,
-        icon: 'box',
-        type: 'select',
-        desc: 'Architecture subsystem or functional domain',
-        aliases: ['module', 'modulename', 'component', 'subsystem', 'service', 'domain', 'appmodule', 'featuremodule', 'systemmodule']
-      },
-      {
-        key: 'moduleType',
-        label: 'Module Type',
-        required: false,
-        icon: 'cpu',
-        type: 'select',
-        desc: 'Classification (Server, GUI, Interface, Mobile, etc.)',
-        aliases: ['moduletype', 'type', 'archtype', 'systemtype', 'classification', 'layer', 'architecturetype', 'techstack']
-      },
-      {
-        key: 'releaseVersion',
-        label: 'Target Release Version',
-        required: false,
-        icon: 'milestone',
-        type: 'select',
-        desc: 'Target release version (v1.0.0, etc.)',
-        aliases: ['releaseversion', 'release', 'version', 'targetrelease', 'targetversion', 'rel', 'versiontag', 'releaseid', 'fixversion']
-      },
-      {
         key: 'environment',
-        label: 'Target Environment',
+        label: 'Environment',
         required: false,
         icon: 'server',
         type: 'select',
         desc: 'Deployment tier (Production, Staging, QA, Dev, UAT)',
-        aliases: ['environment', 'env', 'targetenv', 'targetenvironment', 'tier', 'stage', 'deploymentenv', 'envname', 'targetenvironment']
+        aliases: ['environment', 'env', 'targetenv', 'targetenvironment', 'tier', 'stage', 'deploymentenv', 'envname']
       },
       {
         key: 'status',
@@ -49429,35 +49804,17 @@ Earned Value Management measures project performance and progress by comparing p
         required: false,
         icon: 'activity',
         type: 'select',
-        desc: 'Lifecycle state (Scheduled, In Progress, Deployed, etc.)',
+        desc: 'Lifecycle state (Scheduled, In Progress, Deployed, Rolled Back, etc.)',
         aliases: ['status', 'deliverystatus', 'state', 'stage', 'phase', 'progressstatus', 'currentstatus', 'deploystatus', 'executionstatus']
       },
       {
-        key: 'targetDeliveryDate',
-        label: 'Target Delivery Date',
+        key: 'releaseVersion',
+        label: 'Release Version',
         required: false,
-        icon: 'calendar',
-        type: 'date',
-        desc: 'Planned deployment schedule date',
-        aliases: ['targetdeliverydate', 'targetdate', 'scheduleddate', 'planneddate', 'duedate', 'target', 'deliverydate', 'eta', 'targetdelivery', 'planneddeliverydate', 'scheduleddelivery', 'targetrelease']
-      },
-      {
-        key: 'actualDeliveryDate',
-        label: 'Actual Delivery Date',
-        required: false,
-        icon: 'calendar-check',
-        type: 'date',
-        desc: 'Actual execution / deployment timestamp',
-        aliases: ['actualdeliverydate', 'actualdate', 'deployeddate', 'completeddate', 'completiondate', 'actual', 'deployedon', 'actualdelivery', 'releasedate', 'proddeployeddate', 'donedate']
-      },
-      {
-        key: 'leadTimeDays',
-        label: 'Lead Time (Days)',
-        required: false,
-        icon: 'clock',
-        type: 'number',
-        desc: 'Turnaround duration in days (auto-computed if blank)',
-        aliases: ['leadtimedays', 'leadtime', 'leadtimes', 'days', 'duration', 'cycletime', 'turnaround', 'turnarounddays', 'cycletimedays']
+        icon: 'milestone',
+        type: 'select',
+        desc: 'Target release version (v1.0.0, etc.)',
+        aliases: ['releaseversion', 'release', 'version', 'targetrelease', 'targetversion', 'rel', 'versiontag', 'releaseid', 'fixversion']
       },
       {
         key: 'signOffStatus',
@@ -49466,16 +49823,16 @@ Earned Value Management measures project performance and progress by comparing p
         icon: 'check-circle-2',
         type: 'select',
         desc: 'Governance approval (Pending, Approved, Rejected, Not Required)',
-        aliases: ['signoffstatus', 'signoff', 'approvalstatus', 'approval', 'signoffstate', 'leadapproval', 'signoff_status', 'approvalstate', 'signoff']
+        aliases: ['signoffstatus', 'signoff', 'approvalstatus', 'approval', 'signoffstate', 'leadapproval', 'signoff_status', 'approvalstate']
       },
       {
         key: 'approver',
-        label: 'Approver / Sign-Off Lead',
+        label: 'Approver / Lead',
         required: false,
         icon: 'user-check',
         type: 'select',
         desc: 'Designated sign-off engineer or release manager',
-        aliases: ['approver', 'signofflead', 'lead', 'owner', 'approvedby', 'architect', 'signoffapprover', 'reviewer', 'signoffby', 'signer', 'leadapprover']
+        aliases: ['approver', 'signofflead', 'approvedby', 'architect', 'signoffapprover', 'reviewer', 'signoffby', 'signer', 'leadapprover']
       },
       {
         key: 'smokeTestStatus',
@@ -49483,35 +49840,53 @@ Earned Value Management measures project performance and progress by comparing p
         required: false,
         icon: 'test-tube-2',
         type: 'select',
-        desc: 'Sanity testing state (Not Run, Running, Passed, Failed, Skipped)',
+        desc: 'Sanity testing state (Not Run, Running, Passed, Failed)',
         aliases: ['smoketeststatus', 'smoketest', 'smokestatus', 'teststatus', 'sanitytest', 'qaverification', 'smoketesting', 'postdeploytest', 'testresult']
       },
       {
-        key: 'guiScreens',
-        label: 'Screens / Artifacts',
+        key: 'targetDeliveryDate',
+        label: 'Target Delivery Date',
         required: false,
-        icon: 'layout',
-        type: 'array',
-        desc: 'Packaged UI screens or assets (comma-separated)',
-        aliases: ['guiscreens', 'screens', 'screen', 'artifacts', 'assets', 'interfaces', 'guimodules', 'screensartifacts', 'packagelist', 'associatedscreens']
+        icon: 'calendar',
+        type: 'date',
+        desc: 'Planned deployment schedule date',
+        aliases: ['targetdeliverydate', 'targetdate', 'scheduleddate', 'planneddate', 'duedate', 'target', 'deliverydate', 'eta', 'targetdelivery']
+      },
+      {
+        key: 'actualDeliveryDate',
+        label: 'Actual Delivery Date',
+        required: false,
+        icon: 'calendar-check',
+        type: 'date',
+        desc: 'Actual execution / deployment timestamp',
+        aliases: ['actualdeliverydate', 'actualdate', 'deployeddate', 'completeddate', 'completiondate', 'actual', 'deployedon', 'actualdelivery', 'releasedate']
+      },
+      {
+        key: 'leadTimeDays',
+        label: 'Lead Time (Days)',
+        required: false,
+        icon: 'clock',
+        type: 'number',
+        desc: 'Turnaround duration in days (auto-computed if blank)',
+        aliases: ['leadtimedays', 'leadtime', 'leadtimes', 'days', 'duration', 'cycletime', 'turnaround', 'turnarounddays']
       },
       {
         key: 'rollbackPlan',
-        label: 'Rollback Contingency Plan',
+        label: 'Rollback Plan',
         required: false,
         icon: 'rotate-ccw',
         type: 'text',
         desc: 'Contingency protocol and backout strategy',
-        aliases: ['rollbackplan', 'rollback', 'contingency', 'fallback', 'backoutplan', 'mitigationplan', 'rollbackstrategy', 'backoutstrategy', 'rollbackprocedure']
+        aliases: ['rollbackplan', 'rollback', 'contingency', 'fallback', 'backoutplan', 'mitigationplan', 'rollbackstrategy', 'backoutstrategy']
       },
       {
         key: 'notes',
-        label: 'Notes / Commentary',
+        label: 'Notes',
         required: false,
         icon: 'message-square',
         type: 'text',
         desc: 'Operational details and commentary',
-        aliases: ['notes', 'comments', 'comment', 'description', 'remarks', 'operationalnotes', 'details', 'memo', 'note', 'changelog']
+        aliases: ['notes', 'comments', 'comment', 'remarks', 'operationalnotes', 'details', 'memo', 'note']
       }
     ];
 
@@ -50046,39 +50421,36 @@ Earned Value Management measures project performance and progress by comparing p
             <tr style="border-bottom:1px solid var(--color-divider); color:var(--color-text-muted); font-size:10px; text-transform:uppercase; background:var(--color-surface-2)">
               <th style="padding:6px 10px">#</th>
               <th style="padding:6px 10px">ID</th>
-              <th style="padding:6px 10px">Scope / Name</th>
               <th style="padding:6px 10px">ALM ID</th>
+              <th style="padding:6px 10px">Description</th>
               <th style="padding:6px 10px">PDN</th>
+              <th style="padding:6px 10px">PDN Date</th>
+              <th style="padding:6px 10px">Category</th>
               <th style="padding:6px 10px">Module</th>
-              <th style="padding:6px 10px">Release</th>
+              <th style="padding:6px 10px">ALM Status</th>
+              <th style="padding:6px 10px">Reported By</th>
+              <th style="padding:6px 10px">Fixed By</th>
+              <th style="padding:6px 10px">Linked</th>
               <th style="padding:6px 10px">Env</th>
               <th style="padding:6px 10px">Status</th>
-              <th style="padding:6px 10px">Target Date</th>
-              <th style="padding:6px 10px">Actual Date</th>
-              <th style="padding:6px 10px">Lead Time</th>
-              <th style="padding:6px 10px">Sign-Off</th>
-              <th style="padding:6px 10px">Approver</th>
-              <th style="padding:6px 10px">Smoke Test</th>
             </tr>
           </thead>
           <tbody>
             ${mappedRecords.map((m, idx) => `
               <tr style="border-bottom:1px solid var(--color-divider)">
                 <td style="padding:6px 10px; color:var(--color-text-faint); font-family:var(--mono)">${idx + 1}</td>
-                <td style="padding:6px 10px; font-weight:700; color:var(--color-primary); font-family:var(--mono)">${esc(m.id || `DEL-AUTO`)}</td>
-                <td style="padding:6px 10px; font-weight:600; color:var(--color-text)">${esc(m.name || '—')}</td>
-                <td style="padding:6px 10px; font-family:var(--mono)">${esc(m.almId || '—')}</td>
+                <td style="padding:6px 10px; font-weight:700; color:var(--color-primary); font-family:var(--mono)">${esc(m.almId || m.id || `DEL-AUTO`)}</td>
+                <td style="padding:6px 10px; font-weight:600; color:var(--color-text); max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(m.name || '—')}</td>
                 <td style="padding:6px 10px; font-family:var(--mono)">${esc(m.pdn || '—')}</td>
+                <td style="padding:6px 10px; font-family:var(--mono)">${esc(m.pdnProcessingDate || '—')}</td>
+                <td style="padding:6px 10px"><span style="padding:1px 6px; border-radius:3px; font-weight:700; font-size:10px; background:rgba(99,102,241,0.08); color:var(--color-primary)">${esc(m.category || 'GSP++ Delivery')}</span></td>
                 <td style="padding:6px 10px">${esc(m.module || '—')}</td>
-                <td style="padding:6px 10px">${esc(m.releaseVersion || '—')}</td>
+                <td style="padding:6px 10px">${esc(m.almStatus || 'Open')}</td>
+                <td style="padding:6px 10px">${esc(m.reportedBy || '—')}</td>
+                <td style="padding:6px 10px">${esc(m.fixedBy || '—')}</td>
+                <td style="padding:6px 10px; font-size:11px">${esc(m.linkedType || 'None')}: ${esc(m.linkedId || '—')}</td>
                 <td style="padding:6px 10px"><span style="padding:1px 6px; border-radius:3px; font-weight:700; font-size:10px; background:var(--color-surface-3); border:1px solid var(--color-divider)">${esc(m.environment || 'Production')}</span></td>
                 <td style="padding:6px 10px">${esc(m.status || 'Scheduled')}</td>
-                <td style="padding:6px 10px; font-family:var(--mono)">${esc(m.targetDeliveryDate || '—')}</td>
-                <td style="padding:6px 10px; font-family:var(--mono)">${esc(m.actualDeliveryDate || '—')}</td>
-                <td style="padding:6px 10px">${m.leadTimeDays != null ? m.leadTimeDays + ' d' : '—'}</td>
-                <td style="padding:6px 10px">${esc(m.signOffStatus || 'Pending')}</td>
-                <td style="padding:6px 10px">${esc(m.approver || '—')}</td>
-                <td style="padding:6px 10px">${esc(m.smokeTestStatus || 'Not Run')}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -50092,7 +50464,15 @@ Earned Value Management measures project performance and progress by comparing p
         name: '',
         almId: '',
         pdn: '',
+        pdnProcessingDate: '',
+        componentsDelivered: '',
+        category: 'GSP++ Delivery',
         module: '',
+        almStatus: 'Open',
+        reportedBy: '',
+        fixedBy: '',
+        linkedType: 'Task',
+        linkedId: '',
         moduleType: 'Server',
         releaseVersion: '',
         environment: 'Production',
@@ -50103,7 +50483,6 @@ Earned Value Management measures project performance and progress by comparing p
         targetDeliveryDate: '',
         actualDeliveryDate: '',
         leadTimeDays: null,
-        guiScreens: [],
         rollbackPlan: '',
         notes: '',
         custom: {}
@@ -50120,18 +50499,19 @@ Earned Value Management measures project performance and progress by comparing p
           item[cfName] = cleanVal;
           if (!item.custom) item.custom = {};
           item.custom[cfName] = cleanVal;
-        } else if (targetKey === 'targetDeliveryDate' || targetKey === 'actualDeliveryDate') {
+        } else if (targetKey === 'pdnProcessingDate' || targetKey === 'targetDeliveryDate' || targetKey === 'actualDeliveryDate') {
           item[targetKey] = parseCleanDateValue(val);
         } else if (targetKey === 'leadTimeDays') {
           const num = parseInt(String(val).replace(/\D/g, ''));
           item[targetKey] = !isNaN(num) ? num : null;
-        } else if (targetKey === 'guiScreens') {
-          if (Array.isArray(val)) item.guiScreens = val.map(s => String(s).trim()).filter(Boolean);
-          else item.guiScreens = String(val).split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
         } else {
           item[targetKey] = String(val).trim();
         }
       }
+
+      // Ensure name or description is set
+      if (!item.name && item.description) item.name = item.description;
+      if (!item.description && item.name) item.description = item.name;
 
       // Auto-compute lead time if dates exist and leadTime is empty
       if (item.leadTimeDays == null && item.targetDeliveryDate && item.actualDeliveryDate) {
@@ -50406,8 +50786,18 @@ Earned Value Management measures project performance and progress by comparing p
     };
 
     window.exportDeliveriesToCSV = function() {
-      const cols = ['id', 'almId', 'pdn', 'name', 'module', 'moduleType', 'releaseVersion', 'environment', 'status', 'targetDeliveryDate', 'actualDeliveryDate', 'leadTimeDays', 'signOffStatus', 'approver', 'smokeTestStatus', 'guiScreens', 'rollbackPlan', 'notes'];
-      const headers = ['Delivery ID', 'ALM ID', 'PDN', 'Delivery Scope / Name', 'Module', 'Module Type', 'Target Release', 'Environment', 'Status', 'Target Date', 'Actual Date', 'Lead Time (Days)', 'Sign-Off Status', 'Approver / Lead', 'Smoke Test Status', 'GUI Screens / Artifacts', 'Rollback Plan', 'Notes'];
+      const cols = [
+        'id', 'almId', 'name', 'pdn', 'pdnProcessingDate', 'componentsDelivered',
+        'category', 'module', 'almStatus', 'reportedBy', 'fixedBy', 'linkedType', 'linkedId',
+        'environment', 'status', 'releaseVersion', 'signOffStatus', 'approver',
+        'smokeTestStatus', 'targetDeliveryDate', 'actualDeliveryDate', 'leadTimeDays', 'rollbackPlan', 'notes'
+      ];
+      const headers = [
+        'Delivery ID', 'Defect ID - ALM ID', 'Description - ALM Description', 'PDN Info', 'PDN Processing Date', 'Components Delivered',
+        'Category', 'Module', 'ALM Status', 'Reported By', 'Defect Fixed By', 'Linked Type', 'Linked ID',
+        'Environment', 'Delivery Status', 'Release', 'Sign-Off Status', 'Approver',
+        'Smoke Test Status', 'Target Date', 'Actual Date', 'Lead Time (Days)', 'Rollback Plan', 'Notes'
+      ];
 
       const rows = (P.deliveries || []).map(d => {
         return cols.map(c => {
@@ -53942,26 +54332,32 @@ Earned Value Management measures project performance and progress by comparing p
               });
             };
 
-        const ws = wb.addWorksheet('Deliveries', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 2 }] });
+        const ws = wb.addWorksheet('Deliveries', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 3 }] });
         ws.properties.tabColor = { argb: COLORS.emerald || 'FF10B981' };
         const cols = [
-          { header: 'Delivery ID', key: 'id', width: 16 },
-          { header: 'ALM ID', key: 'almId', width: 16 },
-          { header: 'PDN', key: 'pdn', width: 14 },
-          { header: 'Delivery Scope / Name', key: 'name', width: 35 },
-          { header: 'Module', key: 'module', width: 25 },
-          { header: 'Module Type', key: 'moduleType', width: 16 },
-          { header: 'Release Version', key: 'releaseVersion', width: 18 },
+          { header: 'Delivery ID', key: 'id', width: 15 },
+          { header: 'Defect ID - ALM ID', key: 'almId', width: 18 },
+          { header: 'Description - ALM Description', key: 'name', width: 38 },
+          { header: 'PDN Info', key: 'pdn', width: 16 },
+          { header: 'PDN Processing Date', key: 'pdnProcessingDate', width: 20 },
+          { header: 'Components Delivered', key: 'componentsDelivered', width: 35 },
+          { header: 'Category', key: 'category', width: 22 },
+          { header: 'Module', key: 'module', width: 22 },
+          { header: 'ALM Status', key: 'almStatus', width: 18 },
+          { header: 'Reported By', key: 'reportedBy', width: 20 },
+          { header: 'Defect Fixed By', key: 'fixedBy', width: 20 },
+          { header: 'Linked Type', key: 'linkedType', width: 16 },
+          { header: 'Linked ID', key: 'linkedId', width: 22 },
           { header: 'Environment', key: 'environment', width: 16 },
-          { header: 'Status', key: 'status', width: 18 },
+          { header: 'Delivery Status', key: 'status', width: 18 },
+          { header: 'Release Version', key: 'releaseVersion', width: 18 },
+          { header: 'Sign-off Status', key: 'signOffStatus', width: 18 },
+          { header: 'Approver / Lead', key: 'approver', width: 20 },
+          { header: 'Smoke Test Status', key: 'smokeTestStatus', width: 18 },
           { header: 'Target Delivery Date', key: 'targetDeliveryDate', width: 20 },
           { header: 'Actual Delivery Date', key: 'actualDeliveryDate', width: 20 },
           { header: 'Lead Time (Days)', key: 'leadTimeDays', width: 16 },
-          { header: 'Sign-off Status', key: 'signOffStatus', width: 18 },
-          { header: 'Approver / Lead', key: 'approver', width: 22 },
-          { header: 'Smoke Test Status', key: 'smokeTestStatus', width: 18 },
           { header: 'Rollback Plan', key: 'rollbackPlan', width: 35 },
-          { header: 'Screens / Artifacts', key: 'guiScreens', width: 35 },
           { header: 'Notes', key: 'notes', width: 40 }
         ];
         (P.delCustomFields || []).forEach(f => { cols.push({ header: f.name, key: f.name, width: 22 }); });
@@ -53969,15 +54365,29 @@ Earned Value Management measures project performance and progress by comparing p
 
         (P.deliveries || []).forEach((d, i) => {
           const rowValues = {
-            id: S(d.id), almId: S(d.almId), pdn: S(d.pdn), name: S(d.name),
-            module: S(d.module), moduleType: S(d.moduleType), releaseVersion: S(d.releaseVersion),
-            environment: S(d.environment), status: S(d.status),
+            id: S(d.id),
+            almId: S(d.almId),
+            name: S(d.name || d.description),
+            pdn: S(d.pdn),
+            pdnProcessingDate: cleanFmtDate(d.pdnProcessingDate || d.targetDeliveryDate),
+            componentsDelivered: S(d.componentsDelivered || (Array.isArray(d.guiScreens) ? d.guiScreens.join(', ') : d.guiScreens)),
+            category: S(d.category || 'GSP++ Delivery'),
+            module: S(d.module),
+            almStatus: S(d.almStatus || 'Open'),
+            reportedBy: S(d.reportedBy),
+            fixedBy: S(d.fixedBy),
+            linkedType: S(d.linkedType || 'Task'),
+            linkedId: S(d.linkedId),
+            environment: S(d.environment || 'Dev'),
+            status: S(d.status || 'Scheduled'),
+            releaseVersion: S(d.releaseVersion),
+            signOffStatus: S(d.signOffStatus || 'Pending'),
+            approver: S(d.approver),
+            smokeTestStatus: S(d.smokeTestStatus || 'Not Run'),
             targetDeliveryDate: cleanFmtDate(d.targetDeliveryDate),
             actualDeliveryDate: cleanFmtDate(d.actualDeliveryDate),
             leadTimeDays: d.leadTimeDays != null ? d.leadTimeDays : '',
-            signOffStatus: S(d.signOffStatus), approver: S(d.approver),
-            smokeTestStatus: S(d.smokeTestStatus), rollbackPlan: S(d.rollbackPlan),
-            guiScreens: Array.isArray(d.guiScreens) ? d.guiScreens.join(', ') : S(d.guiScreens),
+            rollbackPlan: S(d.rollbackPlan),
             notes: S(d.notes)
           };
           (P.delCustomFields || []).forEach(f => {
@@ -63972,62 +64382,86 @@ Earned Value Management measures project performance and progress by comparing p
           deliveries: [
             {
               id: 'DEL-001',
-              almId: 'ALM-101',
-              pdn: 'PDN-2026-W1',
-              name: 'Authentication & Core API Gateway Release',
+              almId: 'ALM-10101',
+              name: 'Fix session token expiry race condition on dual login',
+              description: 'Fix session token expiry race condition on dual login',
+              pdn: 'PDN-2026-0881',
+              pdnProcessingDate: '2026-08-26',
+              componentsDelivered: 'AuthService.java, TokenValidator.js, schema_auth_v2.sql',
+              category: 'GSP++ Delivery',
               module: 'Authentication',
+              almStatus: 'Closed',
+              reportedBy: 'Alice',
+              fixedBy: 'Bob',
+              linkedType: 'Task',
+              linkedId: 'TSK-001',
               moduleType: 'Server',
               releaseVersion: 'v1.0.0',
               environment: 'Production',
               status: 'Deployed',
               targetDeliveryDate: '2026-08-28',
               actualDeliveryDate: '2026-08-27',
-              leadTimeDays: 14,
+              leadTimeDays: 4,
               signOffStatus: 'Approved',
               approver: 'Alice',
               smokeTestStatus: 'Passed',
               rollbackPlan: 'Blue-green router fallback to release v0.9.4.',
-              guiScreens: ['Login Form', 'Signup Portal', 'MFA Verification'],
               notes: 'Passed SOC2 audit verification.'
             },
             {
               id: 'DEL-002',
-              almId: 'ALM-102',
-              pdn: 'PDN-2026-W2',
-              name: 'Dashboard & Intelligence Suite Beta',
+              almId: 'ALM-10102',
+              name: 'Dashboard analytics chart responsiveness on iPad screens',
+              description: 'Dashboard analytics chart responsiveness on iPad screens',
+              pdn: 'PDN-2026-0892',
+              pdnProcessingDate: '2026-08-28',
+              componentsDelivered: 'DashboardChart.vue, analytics-grid.css',
+              category: 'Regression/NRT Defect',
               module: 'Analytics Service',
+              almStatus: 'Ready for Test',
+              reportedBy: 'Eve',
+              fixedBy: 'Sneha',
+              linkedType: 'Screen',
+              linkedId: 'BI Viewer',
               moduleType: 'GUI',
               releaseVersion: 'v1.1.0',
               environment: 'Staging',
               status: 'Ready for Deployment',
               targetDeliveryDate: '2026-11-15',
               actualDeliveryDate: '',
-              leadTimeDays: 18,
+              leadTimeDays: 6,
               signOffStatus: 'Pending',
               approver: 'Eve',
               smokeTestStatus: 'Passed',
               rollbackPlan: 'Revert CDN distribution tag to commit HEAD~1.',
-              guiScreens: ['BI Viewer', 'Export Utility'],
               notes: 'Awaiting staging acceptance testing.'
             },
             {
               id: 'DEL-003',
-              almId: 'ALM-103',
-              pdn: 'PDN-2026-W3',
-              name: 'Database Migration Service v2.0',
+              almId: 'ALM-10103',
+              name: 'Database deadlocks on high concurrency batch insertion',
+              description: 'Database deadlocks on high concurrency batch insertion',
+              pdn: 'PDN-2026-0905',
+              pdnProcessingDate: '2026-09-01',
+              componentsDelivered: 'BatchInsertEngine.go, V3_migration.sql',
+              category: 'GSP++ Delivery',
               module: 'Database Migration',
+              almStatus: 'In Progress',
+              reportedBy: 'Charlie',
+              fixedBy: 'Vikram',
+              linkedType: 'Task',
+              linkedId: 'TSK-003',
               moduleType: 'Server',
               releaseVersion: 'v2.0.0-Beta',
               environment: 'Dev',
               status: 'Scheduled',
               targetDeliveryDate: '2026-12-15',
               actualDeliveryDate: '',
-              leadTimeDays: 20,
+              leadTimeDays: 8,
               signOffStatus: 'Pending',
               approver: 'Bob',
               smokeTestStatus: 'Not Run',
               rollbackPlan: 'Restore RDS snapshot taken prior to schema upgrade.',
-              guiScreens: ['Data Engine'],
               notes: 'Schema validation scripts queued.'
             }
           ]
