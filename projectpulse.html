@@ -13242,13 +13242,18 @@
               <select class="fsel" id="del_linked_type" onchange="updateDeliveryLinkedOptions()">
                 <option value="Task">Task</option>
                 <option value="Screen">Screen</option>
+                <option value="Defect">Defect</option>
                 <option value="None">None</option>
               </select>
             </div>
             <div class="fg" style="margin-bottom:0">
-              <label class="flbl">Linked ID (ID & Name of Task/Screen) <span style="color:var(--red);font-weight:bold">*</span></label>
-              <select class="fsel" id="del_linked_id"></select>
+              <label class="flbl">Linked ID (ID & Name of Task/Screen/Defect) <span style="color:var(--red);font-weight:bold">*</span></label>
+              <select class="fsel" id="del_linked_id" onchange="onDeliveryLinkedItemChange(true)"></select>
             </div>
+          </div>
+          <div id="del_linked_sync_hint" style="display:none; margin-top:8px; font-size:11px; color:var(--color-primary); display:flex; align-items:center; gap:5px">
+            <i data-lucide="sparkles" style="width:12px; height:12px"></i>
+            <span id="del_linked_sync_text">Release version & planned delivery date fetched from linked item.</span>
           </div>
         </div>
 
@@ -13263,6 +13268,12 @@
             </div>
           </div>
           <textarea class="finp" id="del_components_delivered" rows="6" style="font-family:var(--font-mono); font-size:12px; line-height:1.55; min-height:130px; padding:10px 12px; white-space:pre" placeholder="List all components, binaries, services, screens, jars, SQL migrations, configurations, scripts, or container tags delivered in this package...&#10;• /services/auth-gateway:v2.1&#10;• LoginView.tsx & UserSettingsModal.tsx&#10;• V2026.08.15__add_sso_indexes.sql"></textarea>
+        </div>
+
+        <!-- Remarks / Notes -->
+        <div class="fg" style="margin-top:2px">
+          <label class="flbl">Remarks / Notes</label>
+          <textarea class="finp" id="del_notes" rows="3" style="font-size:12px; line-height:1.5; min-height:75px; padding:8px 12px" placeholder="Additional remarks, deployment observations, or notes..."></textarea>
         </div>
 
         <div id="del_custom_fields_container"></div>
@@ -13328,6 +13339,9 @@
 
           <!-- Quick Action Buttons -->
           <div style="display:flex; align-items:center; gap:8px">
+            <button class="btn ghost mini" onclick="downloadDeliveryExcelTemplate()" style="height:30px; font-size:11px; font-weight:700; color:var(--color-primary); display:inline-flex; align-items:center; gap:4px" title="Download standard 12-column Excel template">
+              <i data-lucide="download" style="width:13px; height:13px"></i> Template (12 Cols)
+            </button>
             <button class="btn ghost mini" onclick="autoMapAllDeliveryFields()" style="height:30px; font-size:11px; font-weight:700; display:inline-flex; align-items:center; gap:4px">
               <i data-lucide="sparkles" style="width:13px; height:13px; color:var(--color-primary)"></i> Auto-Map All
             </button>
@@ -13341,7 +13355,7 @@
         <div class="custom-scroll" style="padding:20px 24px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:18px">
           
           <!-- Mapping Stats Banner -->
-          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px">
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px">
             <div style="padding:10px 14px; border-radius:10px; background:var(--color-surface-2); border:1px solid var(--color-divider); display:flex; align-items:center; justify-content:space-between">
               <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Total Excel Columns</div>
               <div id="del-map-stat-total-cols" style="font-size:15px; font-weight:800; color:var(--color-text)">0</div>
@@ -13355,33 +13369,45 @@
               <div id="del-map-stat-rows" style="font-size:15px; font-weight:800; color:var(--green)">0</div>
             </div>
             <div style="padding:10px 14px; border-radius:10px; background:var(--color-surface-2); border:1px solid var(--color-divider); display:flex; align-items:center; justify-content:space-between">
-              <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Required Name Field</div>
+              <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Duplicate Check</div>
+              <div id="del-map-stat-duplicates" style="font-size:12px; font-weight:800; color:var(--green); display:flex; align-items:center; gap:4px">
+                <i data-lucide="check-circle-2" style="width:13px; height:13px"></i> 0 Duplicates
+              </div>
+            </div>
+            <div style="padding:10px 14px; border-radius:10px; background:var(--color-surface-2); border:1px solid var(--color-divider); display:flex; align-items:center; justify-content:space-between">
+              <div style="font-size:11px; color:var(--color-text-muted); font-weight:600">Required Identifier</div>
               <div id="del-map-stat-required" style="font-size:12px; font-weight:800; color:var(--amber)">Checking…</div>
             </div>
           </div>
 
           <!-- Mapping Grid Container -->
-          <div style="border:1px solid var(--color-divider); border-radius:12px; overflow:hidden; background:var(--color-surface)">
-            <div style="display:grid; grid-template-columns:260px 1fr 40px 280px; gap:12px; padding:10px 16px; background:var(--color-surface-2); border-bottom:1px solid var(--color-divider); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-text-faint)">
+          <div style="border:1px solid var(--color-divider); border-radius:12px; overflow:hidden; background:var(--color-surface); flex-shrink:0">
+            <div style="display:grid; grid-template-columns:260px 1fr 40px 280px; gap:12px; padding:11px 16px; background:var(--color-surface-2); border-bottom:1px solid var(--color-divider); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-text-faint); position:sticky; top:0; z-index:2">
               <div>Spreadsheet Column</div>
               <div>Sample Values (First 3 Rows)</div>
               <div style="text-align:center"></div>
               <div>System Target Field</div>
             </div>
-            <div id="del-mapping-rows-container" style="max-height:340px; overflow-y:auto" class="custom-scroll">
+            <div id="del-mapping-rows-container" style="overflow:visible">
               <!-- Rendered dynamically -->
             </div>
           </div>
 
           <!-- Live Transformed Data Preview Section -->
-          <div style="border:1px solid var(--color-divider); border-radius:12px; overflow:hidden; background:var(--color-surface)">
+          <div style="border:1px solid var(--color-divider); border-radius:12px; overflow:hidden; background:var(--color-surface); flex-shrink:0; margin-bottom:12px">
             <div style="padding:10px 16px; background:var(--color-surface-2); border-bottom:1px solid var(--color-divider); display:flex; align-items:center; justify-content:space-between">
               <div style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; color:var(--color-text); display:flex; align-items:center; gap:6px">
-                <i data-lucide="eye" style="width:13px; height:13px; color:var(--color-primary)"></i> Live Import Preview (Sample Records)
+                <i data-lucide="eye" style="width:13px; height:13px; color:var(--color-primary)"></i> Live Import Preview (Sample Records & Duplicate Status)
               </div>
-              <span style="font-size:11px; color:var(--color-text-muted)">Previewing formatted delivery rows based on current mapping</span>
+              <div style="display:flex; align-items:center; gap:10px">
+                <span style="font-size:11px; color:var(--color-text-muted)">Previewing formatted delivery rows based on current mapping</span>
+                <button type="button" class="btn ghost mini" id="del-preview-toggle-btn" onclick="toggleDeliveryPreviewCollapse()" style="font-size:11px; height:24px; padding:0 8px; gap:4px">
+                  <i data-lucide="chevron-up" id="del-preview-toggle-icon" style="width:12px; height:12px"></i>
+                  <span id="del-preview-toggle-text">Collapse</span>
+                </button>
+              </div>
             </div>
-            <div id="del-import-live-preview" style="max-height:180px; overflow-x:auto; overflow-y:auto; padding:4px" class="custom-scroll">
+            <div id="del-import-live-preview" style="max-height:220px; overflow-x:auto; overflow-y:auto; padding:4px" class="custom-scroll">
               <!-- Rendered dynamically -->
             </div>
           </div>
@@ -13396,6 +13422,84 @@
           <div style="display:flex; gap:10px">
             <button class="btn ghost outline" onclick="closeDeliveryImportModal()" style="height:36px; padding:0 16px; font-size:12px">Cancel</button>
             <button id="del-import-confirm-btn" class="btn primary" onclick="executeDeliveryImport()" style="height:36px; padding:0 22px; font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:6px">
+              <i data-lucide="check" style="width:14px; height:14px"></i> Confirm & Import Deliveries
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- DELIVERIES DUPLICATE RESOLUTION INTELLIGENCE MODAL -->
+    <div id="delivery-duplicate-resolution-modal" class="mbg" style="z-index:26000">
+      <div class="mcard glass" style="max-width:980px; width:95vw; max-height:90vh; display:flex; flex-direction:column; border-radius:var(--radius-xl); overflow:hidden; border:1px solid var(--color-divider); box-shadow:var(--shadow-lg); background:var(--color-surface)">
+        
+        <!-- Modal Header -->
+        <div style="padding:18px 24px; border-bottom:1px solid var(--color-divider); display:flex; align-items:center; justify-content:space-between; background:var(--color-surface-2)">
+          <div style="display:flex; align-items:center; gap:12px">
+            <div style="width:40px; height:40px; border-radius:10px; background:rgba(245,158,11,0.14); color:var(--amber); display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow-sm)">
+              <i data-lucide="copy" style="width:22px; height:22px"></i>
+            </div>
+            <div>
+              <div style="font-size:16px; font-weight:800; color:var(--color-text); display:flex; align-items:center; gap:8px">
+                <span>Duplicate Records Intelligence</span>
+                <span id="del-dup-badge-count" style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; background:rgba(245,158,11,0.15); color:var(--amber)">0 Flagged</span>
+              </div>
+              <div style="font-size:12px; color:var(--color-text-muted); margin-top:2px">
+                Duplicate or conflicting records detected between your spreadsheet and existing project deliveries. Choose how you want each duplicate handled.
+              </div>
+            </div>
+          </div>
+          <button class="btn ghost mini icon-btn" onclick="closeModal('delivery-duplicate-resolution-modal')" style="border-radius:8px; width:32px; height:32px">
+            <i data-lucide="x" style="width:16px; height:16px"></i>
+          </button>
+        </div>
+
+        <!-- Global Batch Action Bar -->
+        <div style="padding:12px 24px; border-bottom:1px solid var(--color-divider); background:var(--color-surface); display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px">
+          <div style="display:flex; align-items:center; gap:8px">
+            <span style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--color-text-faint); letter-spacing:0.5px">Batch Strategy for All Duplicates:</span>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px">
+            <button type="button" class="btn secondary mini" onclick="setAllDuplicateResolutions('keep_new')" style="height:32px; font-size:11px; font-weight:700; display:inline-flex; align-items:center; gap:5px; border-color:rgba(16,185,129,0.3)" title="Keep duplicates as new distinct records with newly generated DEL-XXX IDs">
+              <i data-lucide="plus-circle" style="width:13px; height:13px; color:var(--green)"></i> Keep All as New Records
+            </button>
+            <button type="button" class="btn secondary mini" onclick="setAllDuplicateResolutions('update')" style="height:32px; font-size:11px; font-weight:700; display:inline-flex; align-items:center; gap:5px; border-color:rgba(99,102,241,0.3)" title="Merge spreadsheet fields into existing matching records">
+              <i data-lucide="refresh-cw" style="width:13px; height:13px; color:var(--color-primary)"></i> Overwrite / Update All Matches
+            </button>
+            <button type="button" class="btn secondary mini" onclick="setAllDuplicateResolutions('skip')" style="height:32px; font-size:11px; font-weight:700; display:inline-flex; align-items:center; gap:5px; border-color:rgba(239,68,68,0.3)" title="Skip duplicate rows and preserve existing records">
+              <i data-lucide="ban" style="width:13px; height:13px; color:var(--red)"></i> Skip All Duplicates
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter & Search Toolbar -->
+        <div style="padding:10px 24px; border-bottom:1px solid var(--color-divider); background:var(--color-surface-2); display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap">
+          <div style="display:flex; align-items:center; gap:8px" id="del-dup-filter-tabs">
+            <button type="button" class="btn mini primary" onclick="filterDuplicateResolutionView('all')" id="dup-tab-all" style="height:26px; font-size:11px; padding:0 10px">All Duplicates</button>
+            <button type="button" class="btn mini ghost" onclick="filterDuplicateResolutionView('existing')" id="dup-tab-existing" style="height:26px; font-size:11px; padding:0 10px">Existing Project Matches</button>
+            <button type="button" class="btn mini ghost" onclick="filterDuplicateResolutionView('in_batch')" id="dup-tab-in_batch" style="height:26px; font-size:11px; padding:0 10px">In-File Duplicates</button>
+          </div>
+          <div style="font-size:11px; color:var(--color-text-muted)">
+            <span id="del-dup-showing-count">Showing 0 records</span>
+          </div>
+        </div>
+
+        <!-- Modal Body / Conflict Items List -->
+        <div class="custom-scroll" style="padding:16px 24px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:12px; background:var(--color-surface)">
+          <div id="del-dup-resolution-container">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div style="padding:14px 24px; border-top:1px solid var(--color-divider); background:var(--color-surface-2); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px">
+          <div id="del-dup-footer-summary" style="font-size:12px; color:var(--color-text-muted); display:flex; align-items:center; gap:8px">
+            <!-- Dynamic summary -->
+          </div>
+          <div style="display:flex; gap:10px">
+            <button class="btn ghost outline" onclick="closeModal('delivery-duplicate-resolution-modal')" style="height:36px; padding:0 16px; font-size:12px">Back to Mapper</button>
+            <button id="del-dup-execute-btn" class="btn primary" onclick="executeDeliveryImportWithResolutions()" style="height:36px; padding:0 22px; font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:6px">
               <i data-lucide="check" style="width:14px; height:14px"></i> Confirm & Import Deliveries
             </button>
           </div>
@@ -16613,30 +16717,19 @@
           { key: 'updatedAt', label: 'Updated', w: 90, type: 'date', edit: false },
         ],
         delCols: [
-          { key: 'id', label: 'Delivery ID', w: 85, type: 'text', edit: false },
-          { key: 'almId', label: 'Defect ID - ALM ID', w: 120, type: 'text', edit: true, required: true },
-          { key: 'name', label: 'Description - ALM Description', w: 240, type: 'text', edit: true, required: true },
-          { key: 'pdn', label: 'PDN Info', w: 115, type: 'text', edit: true, required: true },
-          { key: 'pdnProcessingDate', label: 'PDN Processing Date', w: 130, type: 'date', edit: true, required: true },
-          { key: 'componentsDelivered', label: 'Components Delivered', w: 230, type: 'text', edit: true, required: true },
-          { key: 'category', label: 'Category', w: 140, type: 'select', opts: ['GSP++ Delivery', 'Regression/NRT Defect'], edit: true, required: true },
+          { key: 'almId', label: 'Defect ID - ALM ID', w: 130, type: 'text', edit: true, required: true },
+          { key: 'name', label: 'Description - ALM Description', w: 270, type: 'text', edit: true, required: true },
+          { key: 'pdn', label: 'PDN Info', w: 125, type: 'text', edit: true, required: true },
+          { key: 'pdnProcessingDate', label: 'PDN Processing Date', w: 135, type: 'date', edit: true, required: true },
+          { key: 'componentsDelivered', label: 'Components Delivered', w: 250, type: 'text', edit: true, required: true },
+          { key: 'category', label: 'Category', w: 145, type: 'select', opts: ['GSP++ Delivery', 'Regression/NRT Defect'], edit: true, required: true },
           { key: 'module', label: 'Module', w: 130, type: 'select', edit: true, required: true },
-          { key: 'almStatus', label: 'ALM Status', w: 120, type: 'select', opts: ['New', 'Open', 'In Progress', 'Fixed', 'Ready for Test', 'Retest', 'Closed', 'Rejected', 'Reopened'], edit: true, required: true },
-          { key: 'reportedBy', label: 'Reported By', w: 125, type: 'select', edit: true, required: true },
-          { key: 'fixedBy', label: 'Defect Fixed By', w: 125, type: 'select', edit: true, required: true },
-          { key: 'linkedType', label: 'Linked Type', w: 105, type: 'select', opts: ['Task', 'Screen', 'None'], edit: true, required: true },
+          { key: 'almStatus', label: 'ALM Status', w: 125, type: 'select', opts: ['New', 'Open', 'In Progress', 'Fixed', 'Ready for Test', 'Retest', 'Closed', 'Rejected', 'Reopened'], edit: true, required: true },
+          { key: 'reportedBy', label: 'Reported By', w: 130, type: 'select', edit: true, required: true },
+          { key: 'fixedBy', label: 'Defect Fixed By', w: 130, type: 'select', edit: true, required: true },
+          { key: 'linkedType', label: 'Linked Type', w: 110, type: 'select', opts: ['Task', 'Screen', 'None'], edit: true, required: true },
           { key: 'linkedId', label: 'Linked ID', w: 180, type: 'select', edit: true, required: true },
-          { key: 'environment', label: 'Environment', w: 110, type: 'select', opts: ['Production', 'Staging', 'UAT', 'QA', 'Dev'], edit: true },
-          { key: 'status', label: 'Delivery Status', w: 135, type: 'select', opts: ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'], edit: true },
-          { key: 'releaseVersion', label: 'Release', w: 100, type: 'select', edit: true },
-          { key: 'signOffStatus', label: 'Sign-Off Status', w: 120, type: 'select', opts: ['Pending', 'Approved', 'Rejected', 'Not Required'], edit: true },
-          { key: 'approver', label: 'Approver', w: 120, type: 'select', edit: true },
-          { key: 'smokeTestStatus', label: 'Smoke Test', w: 110, type: 'select', opts: ['Not Run', 'Running', 'Passed', 'Failed'], edit: true },
-          { key: 'targetDeliveryDate', label: 'Target Date', w: 105, type: 'date', edit: true },
-          { key: 'actualDeliveryDate', label: 'Actual Date', w: 105, type: 'date', edit: true },
-          { key: 'leadTimeDays', label: 'Lead Time (Days)', w: 90, type: 'number', edit: true },
-          { key: 'rollbackPlan', label: 'Rollback Plan', w: 160, type: 'text', edit: true },
-          { key: 'notes', label: 'Notes', w: 160, type: 'text', edit: true },
+          { key: 'notes', label: 'Remarks / Notes', w: 200, type: 'text', edit: true }
         ],
         features: [
           {
@@ -21461,53 +21554,43 @@
             if (!P.delCustomFields || !Array.isArray(P.delCustomFields)) P.delCustomFields = d.delCustomFields || [];
             if (!P.delCols || !Array.isArray(P.delCols) || P.delCols.length === 0) {
               P.delCols = [
-                { key: 'id', label: 'Delivery ID', w: 85, type: 'text', edit: false },
-                { key: 'almId', label: 'Defect ID - ALM ID', w: 120, type: 'text', edit: true, required: true },
-                { key: 'name', label: 'Description - ALM Description', w: 240, type: 'text', edit: true, required: true },
-                { key: 'pdn', label: 'PDN Info', w: 115, type: 'text', edit: true, required: true },
-                { key: 'pdnProcessingDate', label: 'PDN Processing Date', w: 130, type: 'date', edit: true, required: true },
-                { key: 'componentsDelivered', label: 'Components Delivered', w: 230, type: 'text', edit: true, required: true },
-                { key: 'category', label: 'Category', w: 140, type: 'select', opts: ['GSP++ Delivery', 'Regression/NRT Defect'], edit: true, required: true },
+                { key: 'almId', label: 'Defect ID - ALM ID', w: 130, type: 'text', edit: true, required: true },
+                { key: 'name', label: 'Description - ALM Description', w: 270, type: 'text', edit: true, required: true },
+                { key: 'pdn', label: 'PDN Info', w: 125, type: 'text', edit: true, required: true },
+                { key: 'pdnProcessingDate', label: 'PDN Processing Date', w: 135, type: 'date', edit: true, required: true },
+                { key: 'componentsDelivered', label: 'Components Delivered', w: 250, type: 'text', edit: true, required: true },
+                { key: 'category', label: 'Category', w: 145, type: 'select', opts: ['GSP++ Delivery', 'Regression/NRT Defect'], edit: true, required: true },
                 { key: 'module', label: 'Module', w: 130, type: 'select', edit: true, required: true },
-                { key: 'almStatus', label: 'ALM Status', w: 120, type: 'select', opts: ['New', 'Open', 'In Progress', 'Fixed', 'Ready for Test', 'Retest', 'Closed', 'Rejected', 'Reopened'], edit: true, required: true },
-                { key: 'reportedBy', label: 'Reported By', w: 125, type: 'select', edit: true, required: true },
-                { key: 'fixedBy', label: 'Defect Fixed By', w: 125, type: 'select', edit: true, required: true },
-                { key: 'linkedType', label: 'Linked Type', w: 105, type: 'select', opts: ['Task', 'Screen', 'None'], edit: true, required: true },
+                { key: 'almStatus', label: 'ALM Status', w: 125, type: 'select', opts: ['New', 'Open', 'In Progress', 'Fixed', 'Ready for Test', 'Retest', 'Closed', 'Rejected', 'Reopened'], edit: true, required: true },
+                { key: 'reportedBy', label: 'Reported By', w: 130, type: 'select', edit: true, required: true },
+                { key: 'fixedBy', label: 'Defect Fixed By', w: 130, type: 'select', edit: true, required: true },
+                { key: 'linkedType', label: 'Linked Type', w: 110, type: 'select', opts: ['Task', 'Screen', 'None'], edit: true, required: true },
                 { key: 'linkedId', label: 'Linked ID', w: 180, type: 'select', edit: true, required: true },
-                { key: 'environment', label: 'Environment', w: 110, type: 'select', opts: ['Production', 'Staging', 'UAT', 'QA', 'Dev'], edit: true },
-                { key: 'status', label: 'Delivery Status', w: 135, type: 'select', opts: ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'], edit: true },
-                { key: 'releaseVersion', label: 'Release', w: 100, type: 'select', edit: true },
-                { key: 'signOffStatus', label: 'Sign-Off Status', w: 120, type: 'select', opts: ['Pending', 'Approved', 'Rejected', 'Not Required'], edit: true },
-                { key: 'approver', label: 'Approver', w: 120, type: 'select', edit: true },
-                { key: 'smokeTestStatus', label: 'Smoke Test', w: 110, type: 'select', opts: ['Not Run', 'Running', 'Passed', 'Failed'], edit: true },
-                { key: 'targetDeliveryDate', label: 'Target Date', w: 105, type: 'date', edit: true },
-                { key: 'actualDeliveryDate', label: 'Actual Date', w: 105, type: 'date', edit: true },
-                { key: 'leadTimeDays', label: 'Lead Time (Days)', w: 90, type: 'number', edit: true },
-                { key: 'rollbackPlan', label: 'Rollback Plan', w: 160, type: 'text', edit: true },
-                { key: 'notes', label: 'Notes', w: 160, type: 'text', edit: true }
+                { key: 'notes', label: 'Remarks / Notes', w: 200, type: 'text', edit: true }
               ];
             } else {
-              // Ensure all mandatory columns exist for legacy datasets
+              // Ensure all standard columns exist for legacy datasets
               const reqCols = [
-                { key: 'almId', label: 'Defect ID - ALM ID', w: 120, type: 'text', edit: true, required: true },
-                { key: 'name', label: 'Description - ALM Description', w: 240, type: 'text', edit: true, required: true },
-                { key: 'pdn', label: 'PDN Info', w: 115, type: 'text', edit: true, required: true },
-                { key: 'pdnProcessingDate', label: 'PDN Processing Date', w: 130, type: 'date', edit: true, required: true },
-                { key: 'componentsDelivered', label: 'Components Delivered', w: 230, type: 'text', edit: true, required: true },
-                { key: 'category', label: 'Category', w: 140, type: 'select', opts: ['GSP++ Delivery', 'Regression/NRT Defect'], edit: true, required: true },
+                { key: 'almId', label: 'Defect ID - ALM ID', w: 130, type: 'text', edit: true, required: true },
+                { key: 'name', label: 'Description - ALM Description', w: 270, type: 'text', edit: true, required: true },
+                { key: 'pdn', label: 'PDN Info', w: 125, type: 'text', edit: true, required: true },
+                { key: 'pdnProcessingDate', label: 'PDN Processing Date', w: 135, type: 'date', edit: true, required: true },
+                { key: 'componentsDelivered', label: 'Components Delivered', w: 250, type: 'text', edit: true, required: true },
+                { key: 'category', label: 'Category', w: 145, type: 'select', opts: ['GSP++ Delivery', 'Regression/NRT Defect'], edit: true, required: true },
                 { key: 'module', label: 'Module', w: 130, type: 'select', edit: true, required: true },
-                { key: 'almStatus', label: 'ALM Status', w: 120, type: 'select', opts: ['New', 'Open', 'In Progress', 'Fixed', 'Ready for Test', 'Retest', 'Closed', 'Rejected', 'Reopened'], edit: true, required: true },
-                { key: 'reportedBy', label: 'Reported By', w: 125, type: 'select', edit: true, required: true },
-                { key: 'fixedBy', label: 'Defect Fixed By', w: 125, type: 'select', edit: true, required: true },
-                { key: 'linkedType', label: 'Linked Type', w: 105, type: 'select', opts: ['Task', 'Screen', 'None'], edit: true, required: true },
-                { key: 'linkedId', label: 'Linked ID', w: 180, type: 'select', edit: true, required: true }
+                { key: 'almStatus', label: 'ALM Status', w: 125, type: 'select', opts: ['New', 'Open', 'In Progress', 'Fixed', 'Ready for Test', 'Retest', 'Closed', 'Rejected', 'Reopened'], edit: true, required: true },
+                { key: 'reportedBy', label: 'Reported By', w: 130, type: 'select', edit: true, required: true },
+                { key: 'fixedBy', label: 'Defect Fixed By', w: 130, type: 'select', edit: true, required: true },
+                { key: 'linkedType', label: 'Linked Type', w: 110, type: 'select', opts: ['Task', 'Screen', 'None'], edit: true, required: true },
+                { key: 'linkedId', label: 'Linked ID', w: 180, type: 'select', edit: true, required: true },
+                { key: 'notes', label: 'Remarks / Notes', w: 200, type: 'text', edit: true }
               ];
               reqCols.forEach(rc => {
                 const existing = P.delCols.find(c => c.key === rc.key);
                 if (!existing) {
                   P.delCols.push(rc);
                 } else {
-                  if (rc.label && rc.label.includes('ALM') && !existing.label.includes('ALM')) existing.label = rc.label;
+                  if (rc.label && existing.label !== rc.label) existing.label = rc.label;
                   if (rc.required) existing.required = true;
                   if (rc.opts && !existing.opts) existing.opts = rc.opts;
                 }
@@ -38494,23 +38577,28 @@
             shapingCard.style.gridColumn = `span ${shapingSpan}`;
             grid.appendChild(shapingCard);
 
-            const hData = typeof computeFeatureDeliveryHeatmapData === 'function' ? computeFeatureDeliveryHeatmapData() : { features: [], stats: { overallShapingScore: 0, prodDeployedScreens: 0, totalScreens: 0, totalFeatures: 0 } };
-            const hStats = hData.stats;
-            const topFeats = (hData.features || []).slice(0, 4);
+            const hData = typeof computeFeatureDeliveryHeatmapData === 'function' ? computeFeatureDeliveryHeatmapData() : { features: [], totals: { overallShapingScore: 0, prodDeployedScreens: 0, totalScreens: 0, totalFeatures: 0 }, stats: { overallShapingScore: 0, prodDeployedScreens: 0, totalScreens: 0, totalFeatures: 0 } };
+            const hStats = (hData && (hData.stats || hData.totals)) || { overallShapingScore: 0, prodDeployedScreens: 0, totalScreens: 0, totalFeatures: 0 };
+            const topFeats = (hData && hData.features ? hData.features : []).slice(0, 4);
+
+            const shapingScoreVal = Number(hStats.overallShapingScore || 0);
+            const prodDeployedVal = Number(hStats.prodDeployedScreens ?? hStats.closedScreens ?? 0);
+            const totalScreensVal = Number(hStats.totalScreens || 0);
+            const totalFeatsVal = Number(hStats.totalFeatures ?? hStats.featuresCount ?? (hData && hData.features ? hData.features.length : 0));
 
             let shpHtml = `
               <div style="display:flex;flex-direction:column;padding:14px 16px;gap:14px">
                 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;background:var(--color-surface-2);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:10px 14px">
                   <div style="display:flex;align-items:center;gap:10px">
                     <span style="font-size:12px;font-weight:700;color:var(--color-text)">Global Shaping Maturity:</span>
-                    <span style="font-size:18px;font-weight:900;color:${hStats.overallShapingScore >= 75 ? 'var(--green)' : 'var(--color-primary)'};font-family:var(--font-mono)">${hStats.overallShapingScore}%</span>
+                    <span style="font-size:18px;font-weight:900;color:${shapingScoreVal >= 75 ? 'var(--green)' : 'var(--color-primary)'};font-family:var(--font-mono)">${shapingScoreVal}%</span>
                     <div style="width:90px;height:6px;background:var(--color-surface-3);border-radius:3px;overflow:hidden">
-                      <div style="width:${hStats.overallShapingScore}%;height:100%;background:linear-gradient(90deg,#6366f1,#10b981);border-radius:3px"></div>
+                      <div style="width:${Math.min(100, shapingScoreVal)}%;height:100%;background:linear-gradient(90deg,#6366f1,#10b981);border-radius:3px"></div>
                     </div>
                   </div>
                   <div style="display:flex;gap:12px;font-size:11px;color:var(--color-text-muted)">
-                    <span><b>${hStats.prodDeployedScreens}</b> / <b>${hStats.totalScreens}</b> Screens Deployed</span>
-                    <span><b>${hStats.totalFeatures}</b> Features Tracked</span>
+                    <span><b>${prodDeployedVal}</b> / <b>${totalScreensVal}</b> Screens Deployed</span>
+                    <span><b>${totalFeatsVal}</b> Features Tracked</span>
                   </div>
                   <button class="btn primary mini" onclick="nav('deliveries'); setDeliveryViewMode('heatmap')" style="font-size:11px">
                     <i data-lucide="flame" style="width:13px;height:13px;margin-right:4px"></i> Open Full Heatmap Workspace
@@ -38519,19 +38607,21 @@
 
                 <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:10px">
                   ${topFeats.map(f => {
-                    const prodPct = f.totalScreens ? Math.round((f.prodScreens / f.totalScreens) * 100) : 0;
+                    const fScore = Number(f.shapingScore || 0);
+                    const fTotal = Number(f.totalScreens || 0);
+                    const fProd = Number(f.prodScreens ?? f.closedScreens ?? 0);
                     return `
                       <div style="background:var(--color-surface);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:10px 12px;display:flex;flex-direction:column;gap:6px">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start">
-                          <span style="font-size:12px;font-weight:700;color:var(--color-text);text-overflow:ellipsis;overflow:hidden;white-space:nowrap" title="${esc(f.name)}">${esc(f.name)}</span>
-                          <span style="font-size:11px;font-weight:800;color:${f.shapingScore >= 80 ? 'var(--green)' : 'var(--color-primary)'};font-family:var(--font-mono)">${f.shapingScore}%</span>
+                          <span style="font-size:12px;font-weight:700;color:var(--color-text);text-overflow:ellipsis;overflow:hidden;white-space:nowrap" title="${esc(f.name || '')}">${esc(f.name || '')}</span>
+                          <span style="font-size:11px;font-weight:800;color:${fScore >= 80 ? 'var(--green)' : 'var(--color-primary)'};font-family:var(--font-mono)">${fScore}%</span>
                         </div>
                         <div style="width:100%;height:5px;background:var(--color-surface-3);border-radius:2.5px;overflow:hidden">
-                          <div style="width:${f.shapingScore}%;height:100%;background:var(--green);border-radius:2.5px"></div>
+                          <div style="width:${Math.min(100, fScore)}%;height:100%;background:var(--green);border-radius:2.5px"></div>
                         </div>
                         <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--color-text-muted)">
-                          <span>${f.prodScreens}/${f.totalScreens} screens live in Prod</span>
-                          <span>${esc(f.module)}</span>
+                          <span>${fProd}/${fTotal} screens live in Prod</span>
+                          <span>${esc(f.module || 'Core')}</span>
                         </div>
                       </div>
                     `;
@@ -47373,7 +47463,7 @@ Earned Value Management measures project performance and progress by comparing p
         if (col.key === 'category') opts = ['GSP++ Delivery', 'Regression/NRT Defect'];
         else if (col.key === 'almStatus') opts = ['New', 'Open', 'In Progress', 'Fixed', 'Ready for Test', 'Retest', 'Closed', 'Rejected', 'Reopened'];
         else if (col.key === 'reportedBy' || col.key === 'fixedBy' || col.key === 'approver') opts = (P.members || []).map(m => m.name);
-        else if (col.key === 'linkedType') opts = ['Task', 'Screen', 'None'];
+        else if (col.key === 'linkedType') opts = ['Task', 'Screen', 'Defect', 'None'];
         else if (col.key === 'linkedId') {
           if (delivery.linkedType === 'Screen') {
             const screens = [];
@@ -47383,7 +47473,17 @@ Earned Value Management measures project performance and progress by comparing p
                 screens.push(`[${sName}] (Task: ${t.id} - ${t.name})`);
               });
             });
+            (P.features || []).forEach(f => {
+              (f.screens || []).forEach(s => {
+                const sName = typeof s === 'string' ? s : (s.name || s.id);
+                if (!screens.some(sc => sc.includes(`[${sName}]`))) {
+                  screens.push(`[${sName}] (Feature: ${f.name || f.id})`);
+                }
+              });
+            });
             opts = screens.length ? screens : ['No screens defined'];
+          } else if (delivery.linkedType === 'Defect') {
+            opts = (P.defects || []).map(d => `[${d.id}] ${d.title || d.desc || 'Defect'}`);
           } else {
             opts = (P.tasks || []).map(t => `[${t.id}] ${t.name}`);
           }
@@ -47414,6 +47514,25 @@ Earned Value Management measures project performance and progress by comparing p
         if (finished) return;
         finished = true;
         delivery[col.key] = input.value;
+        if (col.key === 'linkedId' || col.key === 'linkedType') {
+          const lType = delivery.linkedType || 'Task';
+          const lId = delivery.linkedId || '';
+          if (typeof getDeliveryLinkedItemInfo === 'function' && lId && lId !== 'None' && lType !== 'None') {
+            const info = getDeliveryLinkedItemInfo(lType, lId);
+            if (info) {
+              if (info.releaseVersion && (!delivery.releaseVersion || delivery.releaseVersion === 'v1.0.0')) {
+                delivery.releaseVersion = info.releaseVersion;
+              }
+              if (info.plannedDeliveryDate) {
+                if (!delivery.pdnProcessingDate) delivery.pdnProcessingDate = info.plannedDeliveryDate;
+                if (!delivery.targetDeliveryDate) delivery.targetDeliveryDate = info.plannedDeliveryDate;
+              }
+              if (info.module && (!delivery.module || delivery.module === 'General')) {
+                delivery.module = info.module;
+              }
+            }
+          }
+        }
         save();
         renderDeliveriesTable();
         if (typeof renderSidebar === 'function') renderSidebar();
@@ -47868,6 +47987,7 @@ Earned Value Management measures project performance and progress by comparing p
           screens: screenDetails,
           totalScreens: totalFeatScreens,
           closedScreens: fClosed,
+          prodScreens: fClosed,
           testingScreens: fTesting,
           inProgScreens: fInProg,
           openScreens: fOpen,
@@ -47877,20 +47997,25 @@ Earned Value Management measures project performance and progress by comparing p
         });
       });
 
+      const totalsObj = {
+        featuresCount: featureResults.length,
+        totalFeatures: featureResults.length,
+        totalScreens: totalScreensCount,
+        closedScreens: totalClosedScreens,
+        prodDeployedScreens: totalClosedScreens,
+        testingScreens: totalTestingScreens,
+        inProgScreens: totalInProgScreens,
+        openScreens: totalOpenScreens,
+        unscheduledScreens: totalUnscheduledScreens,
+        overallShapingScore: totalScreensCount > 0
+          ? Math.round(((totalClosedScreens * 1.0 + totalTestingScreens * 0.75 + totalInProgScreens * 0.5 + totalOpenScreens * 0.25) / totalScreensCount) * 100)
+          : 0
+      };
+
       return {
         features: featureResults,
-        totals: {
-          featuresCount: featureResults.length,
-          totalScreens: totalScreensCount,
-          closedScreens: totalClosedScreens,
-          testingScreens: totalTestingScreens,
-          inProgScreens: totalInProgScreens,
-          openScreens: totalOpenScreens,
-          unscheduledScreens: totalUnscheduledScreens,
-          overallShapingScore: totalScreensCount > 0
-            ? Math.round(((totalClosedScreens * 1.0 + totalTestingScreens * 0.75 + totalInProgScreens * 0.5 + totalOpenScreens * 0.25) / totalScreensCount) * 100)
-            : 0
-        }
+        totals: totalsObj,
+        stats: totalsObj
       };
     };
 
@@ -49038,7 +49163,189 @@ Earned Value Management measures project performance and progress by comparing p
     window.openDeliveryFlyout = openDeliveryFlyout;
     window.openDeliveryModal = openDeliveryFlyout;
 
-    window.updateDeliveryLinkedOptions = function(preSelectedId) {
+    window.getDeliveryLinkedItemInfo = function(type, id) {
+      if (!id || id === 'None' || type === 'None') return null;
+      const rawId = String(id).trim();
+      let cleanId = rawId;
+      const m = rawId.match(/^\[([^\]]+)\]/);
+      if (m && m[1]) cleanId = m[1].trim();
+
+      let releaseVersion = '';
+      let plannedDeliveryDate = '';
+      let module = '';
+      let name = '';
+
+      if (type === 'Task' || !type) {
+        const tasks = P.tasks || [];
+        const task = tasks.find(t => 
+          (t.id && String(t.id).trim().toLowerCase() === cleanId.toLowerCase()) ||
+          (t.id && String(t.id).trim().toLowerCase() === rawId.toLowerCase()) ||
+          (t.name && String(t.name).trim().toLowerCase() === rawId.toLowerCase())
+        );
+        if (task) {
+          name = task.name || '';
+          module = task.module || '';
+          releaseVersion = task.releaseVersion || task.release || task.targetRelease || '';
+          plannedDeliveryDate = task.targetDeliveryDate || task.dueDate || task.due || task.endDate || task.targetDate || task.plannedDeliveryDate || task.plannedDate || task.pdnProcessingDate || task.actCompletionDate || '';
+          
+          if (!plannedDeliveryDate && releaseVersion && typeof PulseUtils !== 'undefined' && PulseUtils.getReleaseDates) {
+            const rDates = PulseUtils.getReleaseDates(releaseVersion);
+            if (rDates && (rDates.endDate || rDates.startDate)) {
+              plannedDeliveryDate = rDates.endDate || rDates.startDate;
+            }
+          }
+        }
+      } else if (type === 'Screen') {
+        // First check tasks containing this screen
+        const matchedTask = (P.tasks || []).find(t => 
+          (t.screens || []).some(s => {
+            const sName = typeof s === 'object' ? (s.name || s.id) : s;
+            return sName && (String(sName).trim().toLowerCase() === rawId.toLowerCase() || rawId.toLowerCase().includes(String(sName).trim().toLowerCase()));
+          })
+        );
+        if (matchedTask) {
+          name = rawId;
+          module = matchedTask.module || '';
+          releaseVersion = matchedTask.releaseVersion || matchedTask.release || '';
+          plannedDeliveryDate = matchedTask.targetDeliveryDate || matchedTask.dueDate || matchedTask.due || matchedTask.endDate || matchedTask.targetDate || matchedTask.plannedDeliveryDate || '';
+        }
+
+        // Also check features
+        if (!releaseVersion || !plannedDeliveryDate) {
+          (P.features || []).forEach(f => {
+            const hasScreen = (f.screens || []).some(s => {
+              const sName = typeof s === 'object' ? (s.name || s.id) : s;
+              return sName && (String(sName).trim().toLowerCase() === rawId.toLowerCase() || rawId.toLowerCase().includes(String(sName).trim().toLowerCase()));
+            });
+            if (hasScreen) {
+              if (!name) name = rawId;
+              if (!module) module = f.module || f.category || '';
+              if (!releaseVersion) releaseVersion = f.release || f.releaseVersion || '';
+              if (!plannedDeliveryDate) plannedDeliveryDate = f.targetDeliveryDate || f.deliveryDate || f.targetDate || f.endDate || f.due || f.plannedDeliveryDate || '';
+            }
+          });
+        }
+
+        if (!plannedDeliveryDate && releaseVersion && typeof PulseUtils !== 'undefined' && PulseUtils.getReleaseDates) {
+          const rDates = PulseUtils.getReleaseDates(releaseVersion);
+          if (rDates && (rDates.endDate || rDates.startDate)) {
+            plannedDeliveryDate = rDates.endDate || rDates.startDate;
+          }
+        }
+      } else if (type === 'Defect') {
+        const defects = P.defects || [];
+        const defect = defects.find(d => 
+          (d.id && String(d.id).trim().toLowerCase() === cleanId.toLowerCase()) ||
+          (d.id && String(d.id).trim().toLowerCase() === rawId.toLowerCase()) ||
+          (d.title && String(d.title).trim().toLowerCase() === rawId.toLowerCase())
+        );
+        if (defect) {
+          name = defect.title || defect.desc || '';
+          module = defect.module || '';
+          releaseVersion = defect.release || defect.releaseVersion || defect.targetRelease || '';
+          plannedDeliveryDate = defect.targetDeliveryDate || defect.targetDate || defect.fixDate || defect.plannedDeliveryDate || defect.dueDate || '';
+          if (!plannedDeliveryDate && releaseVersion && typeof PulseUtils !== 'undefined' && PulseUtils.getReleaseDates) {
+            const rDates = PulseUtils.getReleaseDates(releaseVersion);
+            if (rDates && (rDates.endDate || rDates.startDate)) {
+              plannedDeliveryDate = rDates.endDate || rDates.startDate;
+            }
+          }
+        }
+      }
+
+      if (plannedDeliveryDate && typeof plannedDeliveryDate === 'string') {
+        if (plannedDeliveryDate.length > 10 && plannedDeliveryDate.includes('T')) {
+          plannedDeliveryDate = plannedDeliveryDate.split('T')[0];
+        }
+      }
+
+      return { releaseVersion, plannedDeliveryDate, module, name };
+    };
+
+    window.onDeliveryLinkedItemChange = function(force) {
+      const typeSel = $id('del_linked_type');
+      const idSel = $id('del_linked_id');
+      if (!typeSel || !idSel) return;
+      const t = typeSel.value;
+      const idVal = idSel.value;
+      if (!idVal || idVal === 'None' || t === 'None') {
+        const hintEl = $id('del_linked_sync_hint');
+        if (hintEl) hintEl.style.display = 'none';
+        return;
+      }
+
+      const info = getDeliveryLinkedItemInfo(t, idVal);
+      if (!info) return;
+
+      let appliedFields = [];
+
+      // 1. Release Version
+      const relSel = $id('del_release');
+      if (relSel && info.releaseVersion) {
+        if (force || !relSel.value || relSel.value === 'v1.0.0') {
+          let optExists = Array.from(relSel.options).some(o => o.value === info.releaseVersion);
+          if (!optExists) {
+            const newOpt = document.createElement('option');
+            newOpt.value = info.releaseVersion;
+            newOpt.textContent = info.releaseVersion;
+            relSel.appendChild(newOpt);
+          }
+          relSel.value = info.releaseVersion;
+          appliedFields.push(`Release: ${info.releaseVersion}`);
+        }
+      }
+
+      // 2. Planned Delivery Date / PDN Processing Date & Target Delivery Date
+      const pdnDateEl = $id('del_pdn_date');
+      const targetDateEl = $id('del_target_date');
+      if (info.plannedDeliveryDate) {
+        if (pdnDateEl && (force || !pdnDateEl.value || pdnDateEl.value === todayStr())) {
+          pdnDateEl.value = info.plannedDeliveryDate;
+          appliedFields.push(`Planned Date: ${info.plannedDeliveryDate}`);
+        }
+        if (targetDateEl && (force || !targetDateEl.value || targetDateEl.value === todayStr())) {
+          targetDateEl.value = info.plannedDeliveryDate;
+        }
+      }
+
+      // 3. Module
+      const modSel = $id('del_module');
+      if (modSel && info.module && (force || !modSel.value || modSel.value === 'General')) {
+        let optExists = Array.from(modSel.options).some(o => o.value === info.module);
+        if (!optExists) {
+          const newOpt = document.createElement('option');
+          newOpt.value = info.module;
+          newOpt.textContent = info.module;
+          modSel.appendChild(newOpt);
+        }
+        modSel.value = info.module;
+      }
+
+      // 4. Name / Description if empty
+      const nameEl = $id('del_name');
+      if (nameEl && info.name && (!nameEl.value || nameEl.value.trim() === '')) {
+        nameEl.value = info.name;
+      }
+
+      // Re-compute lead time if dates changed
+      if (typeof autoComputeLeadTime === 'function') {
+        autoComputeLeadTime();
+      }
+
+      // Display sync feedback hint
+      const hintEl = $id('del_linked_sync_hint');
+      const textEl = $id('del_linked_sync_text');
+      if (hintEl && textEl) {
+        if (appliedFields.length > 0) {
+          textEl.textContent = `Auto-fetched from ${t}: ${appliedFields.join(' • ')}`;
+          hintEl.style.display = 'flex';
+        } else {
+          hintEl.style.display = 'none';
+        }
+      }
+    };
+
+    window.updateDeliveryLinkedOptions = function(preSelectedId, skipAutoFetch) {
       const typeSel = $id('del_linked_type');
       const idSel = $id('del_linked_id');
       if (!typeSel || !idSel) return;
@@ -49059,7 +49366,19 @@ Earned Value Management measures project performance and progress by comparing p
             if (sName) screenSet.add(sName);
           });
         });
+        (P.tasks || []).forEach(tk => {
+          (tk.screens || []).forEach(s => {
+            const sName = typeof s === 'object' ? (s.name || s.id) : s;
+            if (sName) screenSet.add(sName);
+          });
+        });
         opts = Array.from(screenSet).map(s => ({ val: s, label: s }));
+      } else if (t === 'Defect') {
+        const defects = P.defects || [];
+        opts = defects.map(df => ({
+          val: df.id || df.title,
+          label: `${df.id ? df.id + ' — ' : ''}${df.title || 'Untitled Defect'}`
+        }));
       } else {
         opts = [{ val: 'None', label: 'None (Standalone Item)' }];
       }
@@ -49069,6 +49388,10 @@ Earned Value Management measures project performance and progress by comparing p
       }
 
       idSel.innerHTML = opts.map(o => `<option value="${esc(o.val)}" ${String(preSelectedId || '') === String(o.val) ? 'selected' : ''}>${esc(o.label)}</option>`).join('');
+
+      if (!skipAutoFetch) {
+        onDeliveryLinkedItemChange(Boolean(!preSelectedId));
+      }
     };
 
     window.appendDelComponentTemplate = function(type) {
@@ -49155,7 +49478,7 @@ Earned Value Management measures project performance and progress by comparing p
         if ($id('del_linked_type')) {
           $id('del_linked_type').value = d ? (d.linkedType || 'Task') : 'Task';
         }
-        updateDeliveryLinkedOptions(d ? (d.linkedId || '') : '');
+        updateDeliveryLinkedOptions(d ? (d.linkedId || '') : '', /* skipAutoFetch */ Boolean(d));
 
         // 8. Components Delivered
         const compEl = $id('del_components_delivered');
@@ -49194,6 +49517,17 @@ Earned Value Management measures project performance and progress by comparing p
         if ($id('del_lead_time')) $id('del_lead_time').value = d && d.leadTimeDays != null ? d.leadTimeDays : '';
         if ($id('del_rollback_plan')) $id('del_rollback_plan').value = d ? (d.rollbackPlan || '') : '';
         if ($id('del_notes')) $id('del_notes').value = d ? (d.notes || '') : '';
+
+        // If newly creating a delivery, trigger linkage auto-population now
+        if (!d) {
+          onDeliveryLinkedItemChange(true);
+        } else if (!d.releaseVersion || !d.pdnProcessingDate) {
+          onDeliveryLinkedItemChange(false);
+        } else {
+          // Hide hint initially for existing complete deliveries
+          const hintEl = $id('del_linked_sync_hint');
+          if (hintEl) hintEl.style.display = 'none';
+        }
 
         // Render delivery custom fields
         const cfCont = $id('del_custom_fields_container');
@@ -49315,11 +49649,24 @@ Earned Value Management measures project performance and progress by comparing p
         smokeTestStatus: $id('del_smoke_test')?.value || 'Not Run',
         targetDeliveryDate: $id('del_target_date')?.value || pdnDate,
         actualDeliveryDate: $id('del_actual_date')?.value || '',
-        leadTimeDays: $id('del_lead_time')?.value !== '' ? Number($id('del_lead_time').value) : null,
+        leadTimeDays: ($id('del_lead_time') && $id('del_lead_time').value !== '') ? Number($id('del_lead_time').value) : null,
         rollbackPlan: ($id('del_rollback_plan')?.value || '').trim(),
         notes: ($id('del_notes')?.value || '').trim(),
         updatedAt: nowISO()
       };
+
+      // Fallback: auto-populate release version & planned dates from linked item if left blank or default
+      if ((!data.releaseVersion || data.releaseVersion === 'v1.0.0' || !data.pdnProcessingDate) && data.linkedId && data.linkedId !== 'None') {
+        const linkInfo = typeof getDeliveryLinkedItemInfo === 'function' ? getDeliveryLinkedItemInfo(data.linkedType, data.linkedId) : null;
+        if (linkInfo) {
+          if ((!data.releaseVersion || data.releaseVersion === 'v1.0.0') && linkInfo.releaseVersion) data.releaseVersion = linkInfo.releaseVersion;
+          if (!data.pdnProcessingDate && linkInfo.plannedDeliveryDate) {
+            data.pdnProcessingDate = linkInfo.plannedDeliveryDate;
+            if (!data.targetDeliveryDate) data.targetDeliveryDate = linkInfo.plannedDeliveryDate;
+          }
+          if ((!data.module || data.module === 'General') && linkInfo.module) data.module = linkInfo.module;
+        }
+      }
 
       // Save custom fields from flyout
       const cfInputs = document.querySelectorAll('.del-cf-input');
@@ -49377,8 +49724,20 @@ Earned Value Management measures project performance and progress by comparing p
     }
 
     // ═════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     // ══════ DELIVERIES EXCEL IMPORT & FIELD MAPPING ENGINE ══════
     // ═════════════════════════════════════════════════════════════
+
+    function getExcelColLetter(colIdx) {
+      let temp = parseInt(colIdx) || 1;
+      let letter = '';
+      while (temp > 0) {
+        let rem = (temp - 1) % 26;
+        letter = String.fromCharCode(65 + rem) + letter;
+        temp = Math.floor((temp - 1) / 26);
+      }
+      return letter || String(colIdx);
+    }
 
     const DELIVERY_SYSTEM_FIELDS = [
       {
@@ -49388,7 +49747,7 @@ Earned Value Management measures project performance and progress by comparing p
         icon: 'ticket',
         type: 'text',
         desc: 'Enterprise ALM / Jira / Defect Ticket reference',
-        aliases: ['almid', 'alm', 'ticket', 'defectid', 'defect', 'defectno', 'defect_id', 'changeid', 'changeticket', 'jirakey', 'jira', 'cr', 'crid', 'changerequest', 'trackingid', 'ticketid', 'workitemid', 'alm_id', 'defect_id_alm_id']
+        aliases: ['almid', 'alm', 'ticket', 'defectid', 'defect', 'defectno', 'defect_id', 'defectnumber', 'defectnum', 'defectcode', 'changeid', 'changeticket', 'jirakey', 'jira', 'issuekey', 'issueid', 'cr', 'crid', 'changerequest', 'trackingid', 'ticketid', 'workitemid', 'alm_id', 'defect_id_alm_id', 'defid', 'incidentid', 'reqid']
       },
       {
         key: 'name',
@@ -49397,7 +49756,7 @@ Earned Value Management measures project performance and progress by comparing p
         icon: 'file-text',
         type: 'text',
         desc: 'Primary delivery scope, defect title or ALM description',
-        aliases: ['description', 'almdescription', 'name', 'scope', 'deliveryscope', 'deliveryscopename', 'title', 'packagename', 'releasename', 'item', 'deliverable', 'deliverablescope', 'summary', 'deliverabletitle', 'deliverablename', 'description_alm_description']
+        aliases: ['description', 'almdescription', 'name', 'scope', 'deliveryscope', 'deliveryscopename', 'title', 'packagename', 'releasename', 'item', 'deliverable', 'deliverablescope', 'summary', 'issuesummary', 'defectsummary', 'deliverabletitle', 'deliverablename', 'description_alm_description', 'subject', 'headline', 'taskname', 'featurename', 'details', 'deliverabledesc']
       },
       {
         key: 'pdn',
@@ -49406,7 +49765,7 @@ Earned Value Management measures project performance and progress by comparing p
         icon: 'hash',
         type: 'text',
         desc: 'Product Delivery Notice reference and details',
-        aliases: ['pdn', 'pdninfo', 'pdnnumber', 'pdnid', 'notice', 'deliverynotice', 'deploymentnotice', 'pdn_no', 'crnotice', 'noticenumber', 'pdn_info']
+        aliases: ['pdn', 'pdninfo', 'pdnnumber', 'pdnid', 'notice', 'deliverynotice', 'deploymentnotice', 'pdn_no', 'crnotice', 'noticenumber', 'pdn_info', 'releasenotice', 'patchnotice', 'pdnref', 'noticeid', 'noticeno']
       },
       {
         key: 'pdnProcessingDate',
@@ -49415,7 +49774,7 @@ Earned Value Management measures project performance and progress by comparing p
         icon: 'calendar',
         type: 'date',
         desc: 'Date when PDN was processed and released',
-        aliases: ['pdnprocessingdate', 'pdndate', 'processingdate', 'processeddate', 'pdnprocessed', 'pdn_processing_date', 'pdnprocessdate']
+        aliases: ['pdnprocessingdate', 'pdndate', 'processingdate', 'processeddate', 'pdnprocessed', 'pdn_processing_date', 'pdnprocessdate', 'noticedate', 'deliverynoticedate', 'deploynoticedate', 'processedon', 'processdate', 'releaseprocessingdate']
       },
       {
         key: 'componentsDelivered',
@@ -49424,7 +49783,7 @@ Earned Value Management measures project performance and progress by comparing p
         icon: 'package',
         type: 'text',
         desc: 'List of source files, JARs, SQL scripts, configs, or GUI screens delivered',
-        aliases: ['componentsdelivered', 'components', 'deliveredcomponents', 'filesdelivered', 'artifacts', 'assets', 'sources', 'modulesdelivered', 'screens', 'guiscreens', 'components_delivered']
+        aliases: ['componentsdelivered', 'components', 'deliveredcomponents', 'filesdelivered', 'artifacts', 'assets', 'sources', 'modulesdelivered', 'screens', 'guiscreens', 'components_delivered', 'deliveredfiles', 'fileschanged', 'codecomponents', 'impactedfiles', 'binaries', 'deliverables', 'impactedcomponents', 'sqlscripts', 'jars', 'packages']
       },
       {
         key: 'category',
@@ -49433,7 +49792,7 @@ Earned Value Management measures project performance and progress by comparing p
         icon: 'tag',
         type: 'select',
         desc: 'Package classification: GSP++ Delivery or Regression/NRT Defect',
-        aliases: ['category', 'deliverycategory', 'defectcategory', 'packagetype', 'type', 'deliverytype', 'defecttype']
+        aliases: ['category', 'deliverycategory', 'defectcategory', 'packagetype', 'type', 'deliverytype', 'defecttype', 'changetype', 'classification', 'worktype', 'itemtype', 'tickettype', 'genre', 'stream']
       },
       {
         key: 'module',
@@ -49442,7 +49801,7 @@ Earned Value Management measures project performance and progress by comparing p
         icon: 'box',
         type: 'select',
         desc: 'Architecture subsystem or functional domain',
-        aliases: ['module', 'modulename', 'component', 'subsystem', 'service', 'domain', 'appmodule', 'featuremodule', 'systemmodule']
+        aliases: ['module', 'modulename', 'component', 'subsystem', 'service', 'domain', 'appmodule', 'featuremodule', 'systemmodule', 'functionalarea', 'area', 'businessdomain', 'microservice', 'apparea']
       },
       {
         key: 'almStatus',
@@ -49451,7 +49810,7 @@ Earned Value Management measures project performance and progress by comparing p
         icon: 'activity',
         type: 'select',
         desc: 'Defect status in ALM (New, Open, Fixed, Ready for Test, Closed, etc.)',
-        aliases: ['almstatus', 'defectstatus', 'defectstate', 'almstate', 'alm_status']
+        aliases: ['almstatus', 'defectstatus', 'defectstate', 'almstate', 'alm_status', 'ticketstatus', 'jirastatus', 'issuestatus', 'workitemstatus', 'state', 'currentstate', 'lifecycle']
       },
       {
         key: 'reportedBy',
@@ -49460,7 +49819,7 @@ Earned Value Management measures project performance and progress by comparing p
         icon: 'user',
         type: 'select',
         desc: 'Tester, QA, or stakeholder who reported the item',
-        aliases: ['reportedby', 'reporter', 'raisedby', 'submittedby', 'loggedby', 'discoveredby', 'reported_by']
+        aliases: ['reportedby', 'reporter', 'raisedby', 'submittedby', 'loggedby', 'discoveredby', 'reported_by', 'qaengineer', 'tester', 'foundby', 'author', 'creator', 'originatedby', 'loggeduser']
       },
       {
         key: 'fixedBy',
@@ -49469,7 +49828,7 @@ Earned Value Management measures project performance and progress by comparing p
         icon: 'user-check',
         type: 'select',
         desc: 'Developer or team member who resolved the defect',
-        aliases: ['fixedby', 'defectfixedby', 'resolvedby', 'developer', 'assignee', 'owner', 'fixer', 'implementedby', 'defect_fixed_by', 'fixed_by']
+        aliases: ['fixedby', 'defectfixedby', 'resolvedby', 'developer', 'assignee', 'owner', 'fixer', 'implementedby', 'defect_fixed_by', 'fixed_by', 'assignedto', 'coder', 'engineer', 'dev', 'solver']
       },
       {
         key: 'linkedType',
@@ -49478,7 +49837,7 @@ Earned Value Management measures project performance and progress by comparing p
         icon: 'link',
         type: 'select',
         desc: 'Link relationship target: Task, Screen, or None',
-        aliases: ['linkedtype', 'linktype', 'relationshiptype', 'targettype', 'linked_type']
+        aliases: ['linkedtype', 'linktype', 'relationshiptype', 'targettype', 'linked_type', 'linktarget', 'associationtype', 'entitytype', 'linkedentity']
       },
       {
         key: 'linkedId',
@@ -49487,117 +49846,72 @@ Earned Value Management measures project performance and progress by comparing p
         icon: 'layers',
         type: 'select',
         desc: 'Identifier or title of the linked project Task or Screen',
-        aliases: ['linkedid', 'linkid', 'taskid', 'screenid', 'targetid', 'linkedtask', 'linkedscreen', 'linked_id']
-      },
-      {
-        key: 'id',
-        label: 'Delivery ID',
-        required: false,
-        icon: 'hash',
-        type: 'text',
-        desc: 'Internal unique delivery identifier (DEL-xxx)',
-        aliases: ['id', 'deliveryid', 'delid', 'code', 'del_id', 'delno', 'deliverynumber', 'deliveriesid', 'key', 'ref']
-      },
-      {
-        key: 'environment',
-        label: 'Environment',
-        required: false,
-        icon: 'server',
-        type: 'select',
-        desc: 'Deployment tier (Production, Staging, QA, Dev, UAT)',
-        aliases: ['environment', 'env', 'targetenv', 'targetenvironment', 'tier', 'stage', 'deploymentenv', 'envname']
-      },
-      {
-        key: 'status',
-        label: 'Delivery Status',
-        required: false,
-        icon: 'activity',
-        type: 'select',
-        desc: 'Lifecycle state (Scheduled, In Progress, Deployed, Rolled Back, etc.)',
-        aliases: ['status', 'deliverystatus', 'state', 'stage', 'phase', 'progressstatus', 'currentstatus', 'deploystatus', 'executionstatus']
-      },
-      {
-        key: 'releaseVersion',
-        label: 'Release Version',
-        required: false,
-        icon: 'milestone',
-        type: 'select',
-        desc: 'Target release version (v1.0.0, etc.)',
-        aliases: ['releaseversion', 'release', 'version', 'targetrelease', 'targetversion', 'rel', 'versiontag', 'releaseid', 'fixversion']
-      },
-      {
-        key: 'signOffStatus',
-        label: 'Sign-Off Status',
-        required: false,
-        icon: 'check-circle-2',
-        type: 'select',
-        desc: 'Governance approval (Pending, Approved, Rejected, Not Required)',
-        aliases: ['signoffstatus', 'signoff', 'approvalstatus', 'approval', 'signoffstate', 'leadapproval', 'signoff_status', 'approvalstate']
-      },
-      {
-        key: 'approver',
-        label: 'Approver / Lead',
-        required: false,
-        icon: 'user-check',
-        type: 'select',
-        desc: 'Designated sign-off engineer or release manager',
-        aliases: ['approver', 'signofflead', 'approvedby', 'architect', 'signoffapprover', 'reviewer', 'signoffby', 'signer', 'leadapprover']
-      },
-      {
-        key: 'smokeTestStatus',
-        label: 'Smoke Test Status',
-        required: false,
-        icon: 'test-tube-2',
-        type: 'select',
-        desc: 'Sanity testing state (Not Run, Running, Passed, Failed)',
-        aliases: ['smoketeststatus', 'smoketest', 'smokestatus', 'teststatus', 'sanitytest', 'qaverification', 'smoketesting', 'postdeploytest', 'testresult']
-      },
-      {
-        key: 'targetDeliveryDate',
-        label: 'Target Delivery Date',
-        required: false,
-        icon: 'calendar',
-        type: 'date',
-        desc: 'Planned deployment schedule date',
-        aliases: ['targetdeliverydate', 'targetdate', 'scheduleddate', 'planneddate', 'duedate', 'target', 'deliverydate', 'eta', 'targetdelivery']
-      },
-      {
-        key: 'actualDeliveryDate',
-        label: 'Actual Delivery Date',
-        required: false,
-        icon: 'calendar-check',
-        type: 'date',
-        desc: 'Actual execution / deployment timestamp',
-        aliases: ['actualdeliverydate', 'actualdate', 'deployeddate', 'completeddate', 'completiondate', 'actual', 'deployedon', 'actualdelivery', 'releasedate']
-      },
-      {
-        key: 'leadTimeDays',
-        label: 'Lead Time (Days)',
-        required: false,
-        icon: 'clock',
-        type: 'number',
-        desc: 'Turnaround duration in days (auto-computed if blank)',
-        aliases: ['leadtimedays', 'leadtime', 'leadtimes', 'days', 'duration', 'cycletime', 'turnaround', 'turnarounddays']
-      },
-      {
-        key: 'rollbackPlan',
-        label: 'Rollback Plan',
-        required: false,
-        icon: 'rotate-ccw',
-        type: 'text',
-        desc: 'Contingency protocol and backout strategy',
-        aliases: ['rollbackplan', 'rollback', 'contingency', 'fallback', 'backoutplan', 'mitigationplan', 'rollbackstrategy', 'backoutstrategy']
-      },
-      {
-        key: 'notes',
-        label: 'Notes',
-        required: false,
-        icon: 'message-square',
-        type: 'text',
-        desc: 'Operational details and commentary',
-        aliases: ['notes', 'comments', 'comment', 'remarks', 'operationalnotes', 'details', 'memo', 'note']
+        aliases: ['linkedid', 'linkid', 'taskid', 'screenid', 'targetid', 'linkedtask', 'linkedscreen', 'linked_id', 'associatedid', 'parentid', 'relatedid', 'linkeditem', 'referencedtask', 'associatedtask']
       }
     ];
+
+    window.downloadDeliveryExcelTemplate = async function() {
+      if (typeof ExcelJS === 'undefined') {
+        notify('ExcelJS library not loaded.', 'err');
+        return;
+      }
+      try {
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet('Deliveries_Template');
+        const cols = [
+          { header: 'Defect ID - ALM ID', key: 'almId', width: 22 },
+          { header: 'Description - ALM Description', key: 'name', width: 44 },
+          { header: 'PDN Info', key: 'pdn', width: 18 },
+          { header: 'PDN Processing Date', key: 'pdnProcessingDate', width: 22 },
+          { header: 'Components Delivered', key: 'componentsDelivered', width: 38 },
+          { header: 'Category', key: 'category', width: 24 },
+          { header: 'Module', key: 'module', width: 22 },
+          { header: 'ALM Status', key: 'almStatus', width: 18 },
+          { header: 'Reported By', key: 'reportedBy', width: 20 },
+          { header: 'Defect Fixed By', key: 'fixedBy', width: 20 },
+          { header: 'Linked Type', key: 'linkedType', width: 16 },
+          { header: 'Linked ID', key: 'linkedId', width: 24 }
+        ];
+        (P.delCustomFields || []).forEach(f => { cols.push({ header: f.name, key: f.name, width: 22 }); });
+        ws.columns = cols;
+        ws.getRow(1).height = 30;
+        ws.getRow(1).eachCell(c => {
+          c.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10, name: 'Segoe UI' };
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4338CA' } };
+          c.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          c.border = { top: { style: 'thin', color: { argb: 'FFE2E8F0' } }, bottom: { style: 'medium', color: { argb: 'FF3730A3' } } };
+        });
+
+        // Add sample row
+        ws.addRow({
+          almId: 'ALM-1001',
+          name: 'Fix high latency in core checkout payment gateway',
+          pdn: 'PDN-2026-08',
+          pdnProcessingDate: todayStr(),
+          componentsDelivered: 'CheckoutController.java, payment-api.jar, v2.1_migration.sql',
+          category: 'GSP++ Delivery',
+          module: 'Checkout & Payments',
+          almStatus: 'Fixed',
+          reportedBy: 'QA Lead',
+          fixedBy: 'Lead Engineer',
+          linkedType: 'Task',
+          linkedId: 'TSK-101'
+        });
+
+        const buf = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ProjectPulse_Deliveries_Template_12Cols.xlsx`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        notify('Downloaded Deliveries 12-Column Template', 'ok');
+      } catch(err) {
+        if (typeof PP !== 'undefined' && PP.error) PP.error(err);
+        notify('Failed to generate template: ' + err.message, 'err');
+      }
+    };
 
     window.triggerDeliveryExcelImport = function() {
       const inp = $id('del-excel-file-input');
@@ -49615,6 +49929,16 @@ Earned Value Management measures project performance and progress by comparing p
     window.updateDeliveryImportStrategy = function(mode) {
       if (P._delImportSession) {
         P._delImportSession.importMode = mode;
+        if (P._delImportSession.duplicateAnalysis) {
+          (P._delImportSession.duplicateAnalysis.duplicates || []).forEach(d => {
+            if (mode === 'append_only') {
+              d.resolution = 'keep_new';
+            } else if (mode === 'append_merge') {
+              d.resolution = d.existingMatch ? 'update' : 'keep_new';
+            }
+          });
+        }
+        updateDeliveryMappingStats();
       }
     };
 
@@ -49627,7 +49951,7 @@ Earned Value Management measures project performance and progress by comparing p
       const ext = fileName.split('.').pop().toLowerCase();
 
       try {
-        showAppLock('Inspecting Spreadsheet...', 'Parsing worksheet headers, discovering columns, and analyzing data formats...', 'import');
+        showAppLock('Inspecting Spreadsheet...', 'Deep-scanning worksheet headers, discovering all columns, and extracting all data rows...', 'import');
         await new Promise(r => setTimeout(r, 60));
 
         if (ext === 'csv') {
@@ -49658,9 +49982,31 @@ Earned Value Management measures project performance and progress by comparing p
     // Helper: Parse CSV text into virtual sheet
     async function parseDeliveryCsvContent(csvText, fileName) {
       const rows = parseCsvTextRows(csvText);
-      if (!rows.length) throw new Error('CSV file contains no rows.');
+      if (!rows.length) throw new Error('CSV file contains no readable rows.');
 
-      const headers = rows[0].map(h => String(h || '').trim()).filter(Boolean);
+      // Discover maximum columns across all rows in CSV
+      let maxCols = 0;
+      rows.forEach(r => { if (r.length > maxCols) maxCols = r.length; });
+
+      // Clean raw header row
+      const rawHeaderRow = rows[0] || [];
+      const headers = [];
+      const headerCounts = {};
+
+      for (let c = 0; c < maxCols; c++) {
+        let hVal = String(rawHeaderRow[c] || '').trim();
+        if (!hVal) {
+          hVal = `Column ${getExcelColLetter(c + 1)}`;
+        }
+        if (headerCounts[hVal]) {
+          headerCounts[hVal]++;
+          hVal = `${hVal} (${headerCounts[hVal]})`;
+        } else {
+          headerCounts[hVal] = 1;
+        }
+        headers.push(hVal);
+      }
+
       const dataRows = rows.slice(1).filter(r => r.some(cell => cell != null && String(cell).trim() !== ''));
 
       // Convert array of arrays to array of objects
@@ -49720,13 +50066,23 @@ Earned Value Management measures project performance and progress by comparing p
     async function initDeliveryExcelWorkbookSession(wb, fileName) {
       const sheetNames = [];
       wb.eachSheet(ws => {
-        if (ws.rowCount > 0) sheetNames.push(ws.name);
+        if (ws.rowCount > 0 || (ws.actualRowCount && ws.actualRowCount > 0)) {
+          sheetNames.push(ws.name);
+        }
       });
 
-      if (!sheetNames.length) throw new Error('Excel workbook has no readable worksheets.');
+      if (!sheetNames.length) {
+        // Fallback to all sheets
+        wb.eachSheet(ws => sheetNames.push(ws.name));
+      }
 
-      // Choose optimal sheet: Deliveries, or first sheet with rows
-      let defaultSheet = sheetNames.find(s => s.toLowerCase().includes('deliver') || s.toLowerCase().includes('deploy') || s.toLowerCase().includes('schedule')) || sheetNames[0];
+      if (!sheetNames.length) throw new Error('Excel workbook contains no readable worksheets.');
+
+      // Choose optimal sheet: Deliveries, Deployments, Schedules, or first sheet
+      let defaultSheet = sheetNames.find(s => {
+        const sLower = s.toLowerCase();
+        return sLower.includes('deliver') || sLower.includes('deploy') || sLower.includes('schedule') || sLower.includes('defect') || sLower.includes('sheet1');
+      }) || sheetNames[0];
 
       P._delImportSession = {
         isCsv: false,
@@ -49746,7 +50102,7 @@ Earned Value Management measures project performance and progress by comparing p
       autoMapAllDeliveryFields();
     }
 
-    // Load data from a specific sheet in workbook
+    // Load data from a specific sheet in workbook with thorough row & column discovery
     function loadDeliverySheetData(sheetName) {
       if (!P._delImportSession || P._delImportSession.isCsv) return;
       const ws = P._delImportSession.wb.getWorksheet(sheetName);
@@ -49754,40 +50110,129 @@ Earned Value Management measures project performance and progress by comparing p
 
       P._delImportSession.currentSheet = sheetName;
 
-      // Detect header row (scan rows 1 to 10 for best header candidate)
-      let headerRowIdx = 1;
-      let maxColsFound = 0;
+      // 1. Deep scan entire worksheet to find TRUE max row number and TRUE max column number
+      let maxRowNumber = 1;
+      let maxColNumber = 1;
 
-      for (let r = 1; r <= Math.min(ws.rowCount, 10); r++) {
-        const row = ws.getRow(r);
-        let validCellCount = 0;
-        row.eachCell({ includeEmpty: false }, c => {
-          const val = getCleanCellValue(c.value);
-          if (val && typeof val === 'string' && val.trim().length > 0) validCellCount++;
+      // Scan via eachRow which iterates every populated row object in ExcelJS
+      ws.eachRow({ includeEmpty: false }, (row, rNum) => {
+        if (rNum > maxRowNumber) maxRowNumber = rNum;
+        row.eachCell({ includeEmpty: false }, (cell, cNum) => {
+          if (cNum > maxColNumber) maxColNumber = cNum;
         });
-        if (validCellCount > maxColsFound) {
-          maxColsFound = validCellCount;
+      });
+
+      // Also incorporate dimension metadata if larger
+      if (ws.actualRowCount && ws.actualRowCount > maxRowNumber) maxRowNumber = ws.actualRowCount;
+      if (ws.rowCount && ws.rowCount > maxRowNumber) maxRowNumber = ws.rowCount;
+      if (ws.lastRow && ws.lastRow.number > maxRowNumber) maxRowNumber = ws.lastRow.number;
+      if (ws.columnCount && ws.columnCount > maxColNumber) maxColNumber = ws.columnCount;
+      if (ws.actualColumnCount && ws.actualColumnCount > maxColNumber) maxColNumber = ws.actualColumnCount;
+
+      // Ensure at least reasonable upper bound
+      maxColNumber = Math.max(maxColNumber, 1);
+      maxRowNumber = Math.max(maxRowNumber, 1);
+
+      // 2. Detect the Header Row (scans candidate rows 1 to 20)
+      let headerRowIdx = 1;
+      let highestHeaderScore = -1;
+
+      const headerKeywords = [
+        'alm', 'defect', 'pdn', 'id', 'description', 'name', 'module', 'status',
+        'category', 'date', 'component', 'scope', 'title', 'fixed', 'reported',
+        'link', 'target', 'actual', 'release', 'version', 'env', 'sign', 'smoke',
+        'lead', 'time', 'notes', 'type', 'ticket', 'summary', 'owner', 'item',
+        'package', 'artifact', 'task', 'screen', 'code', 'file'
+      ];
+
+      for (let r = 1; r <= Math.min(maxRowNumber, 20); r++) {
+        const row = ws.getRow(r);
+        if (!row) continue;
+
+        let filledCellsCount = 0;
+        let keywordMatches = 0;
+
+        for (let c = 1; c <= maxColNumber; c++) {
+          const val = getCleanCellValue(row.getCell(c).value);
+          if (val != null && String(val).trim().length > 0) {
+            filledCellsCount++;
+            const strVal = String(val).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (headerKeywords.some(kw => strVal.includes(kw))) {
+              keywordMatches++;
+            }
+          }
+        }
+
+        const score = (keywordMatches * 10) + filledCellsCount;
+        if (score > highestHeaderScore && filledCellsCount >= 2) {
+          highestHeaderScore = score;
           headerRowIdx = r;
         }
       }
 
-      // Extract headers
-      const headers = [];
-      const headerRow = ws.getRow(headerRowIdx);
-      const colMap = []; // index to header name
-
-      headerRow.eachCell({ includeEmpty: false }, (c, colNumber) => {
-        const hVal = String(getCleanCellValue(c.value) || '').trim();
-        if (hVal) {
-          headers.push(hVal);
-          colMap.push({ colNumber, header: hVal });
+      // If no candidate scored well, fallback to first row with at least 1 filled cell
+      if (highestHeaderScore <= 0) {
+        for (let r = 1; r <= Math.min(maxRowNumber, 10); r++) {
+          const row = ws.getRow(r);
+          let count = 0;
+          for (let c = 1; c <= maxColNumber; c++) {
+            if (getCleanCellValue(row.getCell(c).value)) count++;
+          }
+          if (count > 0) {
+            headerRowIdx = r;
+            break;
+          }
         }
-      });
+      }
 
-      // Extract all data rows
+      const headerRow = ws.getRow(headerRowIdx);
+
+      // 3. Extract ALL Columns (1 to maxColNumber) without skipping uncaptioned or trailing columns
+      const headers = [];
+      const colMap = [];
+      const headerCounts = {};
+
+      for (let c = 1; c <= maxColNumber; c++) {
+        let rawVal = getCleanCellValue(headerRow.getCell(c).value);
+        let headerTitle = rawVal != null ? String(rawVal).trim() : '';
+
+        // If header cell is empty, check if ANY data row has a value in this column
+        if (!headerTitle) {
+          let colHasData = false;
+          for (let r = headerRowIdx + 1; r <= maxRowNumber; r++) {
+            const row = ws.getRow(r);
+            const val = getCleanCellValue(row.getCell(c).value);
+            if (val != null && String(val).trim() !== '') {
+              colHasData = true;
+              break;
+            }
+          }
+          if (!colHasData && c > 12) {
+            // Skip empty phantom columns far out
+            continue;
+          }
+          headerTitle = `Column ${getExcelColLetter(c)}`;
+        }
+
+        // Handle duplicate header names gracefully
+        if (headerCounts[headerTitle]) {
+          headerCounts[headerTitle]++;
+          headerTitle = `${headerTitle} (${headerCounts[headerTitle]})`;
+        } else {
+          headerCounts[headerTitle] = 1;
+        }
+
+        headers.push(headerTitle);
+        colMap.push({ colNumber: c, header: headerTitle, colLetter: getExcelColLetter(c) });
+      }
+
+      // 4. Extract ALL Data Rows (from headerRowIdx + 1 to maxRowNumber)
       const allRows = [];
-      for (let r = headerRowIdx + 1; r <= ws.rowCount; r++) {
+
+      for (let r = headerRowIdx + 1; r <= maxRowNumber; r++) {
         const row = ws.getRow(r);
+        if (!row) continue;
+
         const rowObj = {};
         let hasAnyData = false;
 
@@ -49795,7 +50240,9 @@ Earned Value Management measures project performance and progress by comparing p
           const cell = row.getCell(cm.colNumber);
           const val = getCleanCellValue(cell.value);
           rowObj[cm.header] = val;
-          if (val != null && String(val).trim() !== '') hasAnyData = true;
+          if (val != null && String(val).trim() !== '') {
+            hasAnyData = true;
+          }
         });
 
         if (hasAnyData) {
@@ -49977,7 +50424,6 @@ Earned Value Management measures project performance and progress by comparing p
 
       const s = P._delImportSession;
       const headers = s.headers || [];
-      const targetPool = getDeliveryTargetFieldPool();
       const mappings = s.mappings || {};
 
       if (!headers.length) {
@@ -50018,7 +50464,7 @@ Earned Value Management measures project performance and progress by comparing p
               </div>
               <div style="min-width:0; flex:1">
                 <div style="font-weight:700; font-size:13px; color:var(--color-text); text-overflow:ellipsis; overflow:hidden; white-space:nowrap" title="${esc(h)}">${esc(h)}</div>
-                <div style="font-size:10px; color:var(--color-text-faint); font-family:var(--mono)">Excel Column</div>
+                <div style="font-size:10px; color:var(--color-text-faint); font-family:var(--mono)">Column ${getExcelColLetter(i + 1)}</div>
               </div>
             </div>
 
@@ -50037,10 +50483,10 @@ Earned Value Management measures project performance and progress by comparing p
               <select class="fsel" style="width:100%; height:34px; font-size:12px; font-weight:${isMapped ? '700' : '400'}; color:${isMapped ? 'var(--color-primary)' : 'var(--color-text-muted)'}; border-color:${isMapped ? 'rgba(var(--color-primary-rgb),0.4)' : 'var(--color-divider)'}" onchange="onDeliveryMappingChanged('${esc(h)}', this.value)">
                 <option value="" style="color:var(--color-text-muted)">-- Ignore Column (Do Not Import) --</option>
                 
-                <optgroup label="Core Delivery Attributes">
+                <optgroup label="Core Delivery & ALM Attributes">
                   ${DELIVERY_SYSTEM_FIELDS.map(f => `
                     <option value="${f.key}" ${currentTargetKey === f.key ? 'selected' : ''}>
-                      ${f.label} ${f.required ? '★ (Required)' : ''}
+                      ${f.label} ${f.required ? '★' : ''}
                     </option>
                   `).join('')}
                 </optgroup>
@@ -50069,6 +50515,151 @@ Earned Value Management measures project performance and progress by comparing p
       if (window.lucide) lucide.createIcons(cont);
     }
 
+    // ══════ DUPLICATE DETECTION & RESOLUTION INTELLIGENCE ENGINE ══════
+    function detectDeliveryImportDuplicates(allRows, mappings) {
+      if (!allRows || !allRows.length) {
+        return { duplicates: [], nonDuplicates: [], allItems: [], duplicateCount: 0, existingMatchCount: 0, inBatchCount: 0, totalValidRows: 0 };
+      }
+
+      const existingDeliveries = P.deliveries || [];
+      const seenIds = new Map();
+      const seenAlmIds = new Map();
+      const seenPdns = new Map();
+      const seenKeys = new Map(); // name + releaseVersion
+
+      existingDeliveries.forEach(d => {
+        if (d.id) seenIds.set(String(d.id).trim().toLowerCase(), d);
+        if (d.almId) seenAlmIds.set(String(d.almId).trim().toLowerCase(), d);
+        if (d.pdn) seenPdns.set(String(d.pdn).trim().toLowerCase(), d);
+        if (d.name) {
+          const key = `${String(d.name).trim().toLowerCase()}::${String(d.releaseVersion || '').trim().toLowerCase()}`;
+          seenKeys.set(key, d);
+        }
+      });
+
+      const fileSeenAlm = new Map();
+      const fileSeenPdn = new Map();
+      const fileSeenKey = new Map();
+
+      const duplicates = [];
+      const nonDuplicates = [];
+      const allItems = [];
+
+      let existingMatchCount = 0;
+      let inBatchCount = 0;
+
+      allRows.forEach((row, idx) => {
+        const item = transformDeliveryRow(row, mappings, idx);
+        if (!item.name && !item.almId && !item.pdn) return; // Skip empty rows
+
+        const almClean = (item.almId || '').trim().toLowerCase();
+        const pdnClean = (item.pdn || '').trim().toLowerCase();
+        const idClean = (item.id || '').trim().toLowerCase();
+        const nameClean = (item.name || '').trim().toLowerCase();
+        const keyClean = `${nameClean}::${(item.releaseVersion || '').trim().toLowerCase()}`;
+
+        let existingMatch = null;
+        let matchField = '';
+        let matchReason = '';
+
+        if (idClean && seenIds.has(idClean)) {
+          existingMatch = seenIds.get(idClean);
+          matchField = `ID: ${item.id}`;
+          matchReason = `Matches existing project delivery ${existingMatch.id}`;
+        } else if (almClean && seenAlmIds.has(almClean)) {
+          existingMatch = seenAlmIds.get(almClean);
+          matchField = `ALM ID: ${item.almId}`;
+          matchReason = `Matches existing project delivery ${existingMatch.id} by ALM ID (${item.almId})`;
+        } else if (pdnClean && seenPdns.has(pdnClean)) {
+          existingMatch = seenPdns.get(pdnClean);
+          matchField = `PDN: ${item.pdn}`;
+          matchReason = `Matches existing project delivery ${existingMatch.id} by PDN (${item.pdn})`;
+        } else if (nameClean && seenKeys.has(keyClean)) {
+          existingMatch = seenKeys.get(keyClean);
+          matchField = `Scope & Release: ${item.name} (${item.releaseVersion || 'Unassigned'})`;
+          matchReason = `Matches existing project delivery ${existingMatch.id} by name and release`;
+        }
+
+        let inBatchMatch = null;
+        let inBatchReason = '';
+        if (almClean && fileSeenAlm.has(almClean)) {
+          inBatchMatch = fileSeenAlm.get(almClean);
+          inBatchReason = `Duplicate ALM ID (${item.almId}) with row #${inBatchMatch.rowIndex + 1}`;
+        } else if (pdnClean && fileSeenPdn.has(pdnClean)) {
+          inBatchMatch = fileSeenPdn.get(pdnClean);
+          inBatchReason = `Duplicate PDN (${item.pdn}) with row #${inBatchMatch.rowIndex + 1}`;
+        } else if (nameClean && fileSeenKey.has(keyClean)) {
+          inBatchMatch = fileSeenKey.get(keyClean);
+          inBatchReason = `Duplicate Name + Release with row #${inBatchMatch.rowIndex + 1}`;
+        }
+
+        // Track for subsequent in-batch duplicate checks
+        if (almClean && !fileSeenAlm.has(almClean)) fileSeenAlm.set(almClean, { rowIndex: idx, item });
+        if (pdnClean && !fileSeenPdn.has(pdnClean)) fileSeenPdn.set(pdnClean, { rowIndex: idx, item });
+        if (nameClean && !fileSeenKey.has(keyClean)) fileSeenKey.set(keyClean, { rowIndex: idx, item });
+
+        const isDuplicate = !!(existingMatch || inBatchMatch);
+        if (existingMatch) existingMatchCount++;
+        if (inBatchMatch && !existingMatch) inBatchCount++;
+
+        // Calculate field diffs against existing record
+        const diffs = [];
+        if (existingMatch) {
+          const compareKeys = [
+            { k: 'name', label: 'Description' },
+            { k: 'almStatus', label: 'ALM Status' },
+            { k: 'status', label: 'Delivery Status' },
+            { k: 'module', label: 'Module' },
+            { k: 'releaseVersion', label: 'Release' },
+            { k: 'targetDeliveryDate', label: 'Target Date' },
+            { k: 'actualDeliveryDate', label: 'Actual Date' },
+            { k: 'fixedBy', label: 'Fixed By' },
+            { k: 'reportedBy', label: 'Reported By' },
+            { k: 'componentsDelivered', label: 'Components' }
+          ];
+          compareKeys.forEach(ck => {
+            const curVal = String(existingMatch[ck.k] || '').trim();
+            const newVal = String(item[ck.k] || '').trim();
+            if (newVal && curVal !== newVal) {
+              diffs.push({ label: ck.label, existing: curVal || '—', incoming: newVal });
+            }
+          });
+        }
+
+        const defaultAction = existingMatch ? 'update' : 'keep_new';
+        const recordInfo = {
+          rowIndex: idx,
+          item,
+          rawRow: row,
+          isDuplicate,
+          existingMatch,
+          inBatchMatch,
+          matchField,
+          matchReason: matchReason || inBatchReason,
+          matchType: existingMatch ? 'existing' : (inBatchMatch ? 'in_batch' : 'unique'),
+          diffs,
+          resolution: defaultAction // 'keep_new' | 'update' | 'skip'
+        };
+
+        allItems.push(recordInfo);
+        if (isDuplicate) {
+          duplicates.push(recordInfo);
+        } else {
+          nonDuplicates.push(recordInfo);
+        }
+      });
+
+      return {
+        duplicates,
+        nonDuplicates,
+        allItems,
+        duplicateCount: duplicates.length,
+        existingMatchCount,
+        inBatchCount,
+        totalValidRows: allItems.length
+      };
+    }
+
     function updateDeliveryMappingStats() {
       const s = P._delImportSession;
       if (!s) return;
@@ -50077,36 +50668,72 @@ Earned Value Management measures project performance and progress by comparing p
       const mappedValues = Object.values(s.mappings || {}).filter(Boolean);
       const mappedCount = mappedValues.length;
 
-      const hasNameField = mappedValues.includes('name');
+      const hasKeyField = mappedValues.includes('name') || mappedValues.includes('almId') || mappedValues.includes('id') || mappedValues.includes('pdn');
 
       $id('del-map-stat-total-cols').textContent = totalCols;
       $id('del-map-stat-mapped-cols').textContent = `${mappedCount} / ${totalCols}`;
       $id('del-map-stat-rows').textContent = s.totalRows;
 
+      // Duplicate intelligence check
+      const dupAnalysis = hasKeyField ? detectDeliveryImportDuplicates(s.allRows, s.mappings) : { duplicateCount: 0 };
+      s.duplicateAnalysis = dupAnalysis;
+
+      const dupBadge = $id('del-map-stat-duplicates');
+      if (dupBadge) {
+        if (!hasKeyField) {
+          dupBadge.innerHTML = '<span style="color:var(--color-text-muted)">—</span>';
+        } else if (dupAnalysis.duplicateCount === 0) {
+          dupBadge.innerHTML = '<span style="color:var(--green); display:inline-flex; align-items:center; gap:4px"><i data-lucide="check-circle-2" style="width:13px; height:13px"></i> 0 Duplicates</span>';
+        } else {
+          dupBadge.innerHTML = `<span style="color:var(--amber); display:inline-flex; align-items:center; gap:4px; cursor:pointer" onclick="openDeliveryDuplicateResolutionModal()" title="Click to view and configure duplicate handling"><i data-lucide="alert-triangle" style="width:13px; height:13px"></i> ${dupAnalysis.duplicateCount} Flagged (Review)</span>`;
+        }
+      }
+
       const reqBadge = $id('del-map-stat-required');
       if (reqBadge) {
-        if (hasNameField) {
-          reqBadge.innerHTML = '<span style="color:var(--green)">✓ "Delivery Scope" Mapped</span>';
+        if (hasKeyField) {
+          reqBadge.innerHTML = '<span style="color:var(--green)">✓ Identifier Mapped</span>';
         } else {
-          reqBadge.innerHTML = '<span style="color:var(--red)">⚠️ "Delivery Scope" Missing</span>';
+          reqBadge.innerHTML = '<span style="color:var(--red)">⚠️ Map ALM ID or Scope</span>';
         }
       }
 
       const footerMsg = $id('del-map-footer-msg');
       if (footerMsg) {
-        if (!hasNameField) {
-          footerMsg.innerHTML = '<span style="color:var(--red); font-weight:700">⚠️ Please map a spreadsheet column to "Delivery Scope / Name" to continue.</span>';
+        if (!hasKeyField) {
+          footerMsg.innerHTML = '<span style="color:var(--amber); font-weight:700">⚠️ Please map at least one identifier column (ALM ID, Description, or PDN) to proceed.</span>';
+        } else if (dupAnalysis.duplicateCount > 0) {
+          footerMsg.innerHTML = `<span style="color:var(--color-text); font-weight:600">✓ Ready to import ${s.totalRows} delivery records with ${mappedCount} mapped columns. <span style="color:var(--amber); font-weight:700">⚠️ ${dupAnalysis.duplicateCount} duplicates flagged for review.</span></span>`;
         } else {
-          footerMsg.innerHTML = `<span style="color:var(--green); font-weight:600">✓ Ready to import ${s.totalRows} delivery records with ${mappedCount} mapped attributes.</span>`;
+          footerMsg.innerHTML = `<span style="color:var(--green); font-weight:600">✓ Ready to import ${s.totalRows} delivery records with ${mappedCount} mapped columns. All entries unique.</span>`;
         }
       }
 
       const confirmBtn = $id('del-import-confirm-btn');
       if (confirmBtn) {
-        confirmBtn.disabled = !hasNameField || s.totalRows === 0;
-        confirmBtn.style.opacity = (!hasNameField || s.totalRows === 0) ? '0.5' : '1';
+        confirmBtn.disabled = !hasKeyField || s.totalRows === 0;
+        confirmBtn.style.opacity = (!hasKeyField || s.totalRows === 0) ? '0.5' : '1';
       }
+
+      if (window.lucide && dupBadge) lucide.createIcons(dupBadge);
     }
+
+    window.toggleDeliveryPreviewCollapse = function() {
+      const prev = $id('del-import-live-preview');
+      const icon = $id('del-preview-toggle-icon');
+      const text = $id('del-preview-toggle-text');
+      if (!prev) return;
+      if (prev.style.display === 'none') {
+        prev.style.display = '';
+        if (text) text.textContent = 'Collapse';
+        if (icon) icon.setAttribute('data-lucide', 'chevron-up');
+      } else {
+        prev.style.display = 'none';
+        if (text) text.textContent = 'Expand';
+        if (icon) icon.setAttribute('data-lucide', 'chevron-down');
+      }
+      if (window.lucide && icon) lucide.createIcons(icon.parentElement);
+    };
 
     function renderDeliveryImportLivePreview() {
       const cont = $id('del-import-live-preview');
@@ -50121,50 +50748,70 @@ Earned Value Management measures project performance and progress by comparing p
         return;
       }
 
-      // Convert sample rows using current mapping
-      const mappedRecords = sampleRows.map((r, idx) => transformDeliveryRow(r, mappings, idx));
+      // Run duplicate check on full dataset to accurately tag sample rows
+      const dupAnalysis = detectDeliveryImportDuplicates(s.allRows || sampleRows, mappings);
+      s.duplicateAnalysis = dupAnalysis;
+
+      // Map sample rows
+      const mappedRecords = sampleRows.map((r, idx) => {
+        const item = transformDeliveryRow(r, mappings, idx);
+        const dupItem = (dupAnalysis.allItems || []).find(x => x.rowIndex === idx);
+        return { item, dup: dupItem };
+      });
 
       cont.innerHTML = `
         <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left">
           <thead>
             <tr style="border-bottom:1px solid var(--color-divider); color:var(--color-text-muted); font-size:10px; text-transform:uppercase; background:var(--color-surface-2)">
               <th style="padding:6px 10px">#</th>
-              <th style="padding:6px 10px">ID</th>
+              <th style="padding:6px 10px">Status / Conflict</th>
               <th style="padding:6px 10px">ALM ID</th>
               <th style="padding:6px 10px">Description</th>
               <th style="padding:6px 10px">PDN</th>
               <th style="padding:6px 10px">PDN Date</th>
               <th style="padding:6px 10px">Category</th>
+              <th style="padding:6px 10px">Components Delivered</th>
               <th style="padding:6px 10px">Module</th>
               <th style="padding:6px 10px">ALM Status</th>
               <th style="padding:6px 10px">Reported By</th>
               <th style="padding:6px 10px">Fixed By</th>
               <th style="padding:6px 10px">Linked</th>
-              <th style="padding:6px 10px">Env</th>
-              <th style="padding:6px 10px">Status</th>
             </tr>
           </thead>
           <tbody>
-            ${mappedRecords.map((m, idx) => `
-              <tr style="border-bottom:1px solid var(--color-divider)">
-                <td style="padding:6px 10px; color:var(--color-text-faint); font-family:var(--mono)">${idx + 1}</td>
-                <td style="padding:6px 10px; font-weight:700; color:var(--color-primary); font-family:var(--mono)">${esc(m.almId || m.id || `DEL-AUTO`)}</td>
-                <td style="padding:6px 10px; font-weight:600; color:var(--color-text); max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(m.name || '—')}</td>
-                <td style="padding:6px 10px; font-family:var(--mono)">${esc(m.pdn || '—')}</td>
-                <td style="padding:6px 10px; font-family:var(--mono)">${esc(m.pdnProcessingDate || '—')}</td>
-                <td style="padding:6px 10px"><span style="padding:1px 6px; border-radius:3px; font-weight:700; font-size:10px; background:rgba(99,102,241,0.08); color:var(--color-primary)">${esc(m.category || 'GSP++ Delivery')}</span></td>
-                <td style="padding:6px 10px">${esc(m.module || '—')}</td>
-                <td style="padding:6px 10px">${esc(m.almStatus || 'Open')}</td>
-                <td style="padding:6px 10px">${esc(m.reportedBy || '—')}</td>
-                <td style="padding:6px 10px">${esc(m.fixedBy || '—')}</td>
-                <td style="padding:6px 10px; font-size:11px">${esc(m.linkedType || 'None')}: ${esc(m.linkedId || '—')}</td>
-                <td style="padding:6px 10px"><span style="padding:1px 6px; border-radius:3px; font-weight:700; font-size:10px; background:var(--color-surface-3); border:1px solid var(--color-divider)">${esc(m.environment || 'Production')}</span></td>
-                <td style="padding:6px 10px">${esc(m.status || 'Scheduled')}</td>
-              </tr>
-            `).join('')}
+            ${mappedRecords.map(({ item: m, dup }, idx) => {
+              let statusBadge = `<span style="padding:2px 6px; border-radius:4px; font-weight:700; font-size:10px; background:rgba(16,185,129,0.1); color:var(--green); display:inline-flex; align-items:center; gap:3px"><i data-lucide="plus" style="width:10px;height:10px"></i> Unique New</span>`;
+              if (dup && dup.isDuplicate) {
+                if (dup.existingMatch) {
+                  statusBadge = `<span style="padding:2px 6px; border-radius:4px; font-weight:700; font-size:10px; background:rgba(245,158,11,0.14); color:var(--amber); display:inline-flex; align-items:center; gap:3px" title="${esc(dup.matchReason)}"><i data-lucide="copy" style="width:10px;height:10px"></i> Match (${esc(dup.existingMatch.id || 'Project')})</span>`;
+                } else if (dup.inBatchMatch) {
+                  statusBadge = `<span style="padding:2px 6px; border-radius:4px; font-weight:700; font-size:10px; background:rgba(168,85,247,0.14); color:#a855f7; display:inline-flex; align-items:center; gap:3px" title="${esc(dup.matchReason)}"><i data-lucide="files" style="width:10px;height:10px"></i> File Dup (Row ${dup.inBatchMatch.rowIndex + 1})</span>`;
+                }
+              }
+
+              return `
+                <tr style="border-bottom:1px solid var(--color-divider); ${dup && dup.isDuplicate ? 'background:rgba(245,158,11,0.02)' : ''}">
+                  <td style="padding:6px 10px; color:var(--color-text-faint); font-family:var(--mono)">${idx + 1}</td>
+                  <td style="padding:6px 10px; white-space:nowrap">${statusBadge}</td>
+                  <td style="padding:6px 10px; font-weight:700; color:var(--color-primary); font-family:var(--mono)">${esc(m.almId || m.id || `DEL-AUTO`)}</td>
+                  <td style="padding:6px 10px; font-weight:600; color:var(--color-text); max-width:180px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(m.name || '—')}</td>
+                  <td style="padding:6px 10px; font-family:var(--mono)">${esc(m.pdn || '—')}</td>
+                  <td style="padding:6px 10px; font-family:var(--mono)">${esc(m.pdnProcessingDate || '—')}</td>
+                  <td style="padding:6px 10px"><span style="padding:1px 6px; border-radius:3px; font-weight:700; font-size:10px; background:rgba(99,102,241,0.08); color:var(--color-primary)">${esc(m.category || 'GSP++ Delivery')}</span></td>
+                  <td style="padding:6px 10px; max-width:150px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">${esc(m.componentsDelivered || '—')}</td>
+                  <td style="padding:6px 10px">${esc(m.module || '—')}</td>
+                  <td style="padding:6px 10px">${esc(m.almStatus || 'Open')}</td>
+                  <td style="padding:6px 10px">${esc(m.reportedBy || '—')}</td>
+                  <td style="padding:6px 10px">${esc(m.fixedBy || '—')}</td>
+                  <td style="padding:6px 10px; font-size:11px">${esc(m.linkedType || 'None')}: ${esc(m.linkedId || '—')}</td>
+                </tr>
+              `;
+            }).join('')}
           </tbody>
         </table>
       `;
+
+      if (window.lucide) lucide.createIcons(cont);
     }
 
     // Transform a raw row according to active mapping
@@ -50218,9 +50865,12 @@ Earned Value Management measures project performance and progress by comparing p
         }
       }
 
-      // Ensure name or description is set
+      // Fallback logic for primary deliverable description / name
       if (!item.name && item.description) item.name = item.description;
       if (!item.description && item.name) item.description = item.name;
+      if (!item.name && item.almId) item.name = item.almId + ' Deliverable';
+      if (!item.name && item.pdn) item.name = item.pdn + ' Package';
+      if (!item.name) item.name = 'Deliverable Item ' + (rowIndex + 1);
 
       // Auto-compute lead time if dates exist and leadTime is empty
       if (item.leadTimeDays == null && item.targetDeliveryDate && item.actualDeliveryDate) {
@@ -50243,17 +50893,14 @@ Earned Value Management measures project performance and progress by comparing p
         return !isNaN(v.getTime()) ? v.toISOString().slice(0, 10) : '';
       }
       if (typeof v === 'number') {
-        // Excel serial date format
         try {
           const jsDate = new Date(Math.round((v - 25569) * 86400 * 1000));
           return !isNaN(jsDate.getTime()) ? jsDate.toISOString().slice(0, 10) : '';
         } catch(e) { return ''; }
       }
       const str = String(v).trim();
-      // Test YYYY-MM-DD
       if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
 
-      // Test DD/MM/YYYY or DD-MM-YYYY
       const dmy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
       if (dmy) {
         const d = dmy[1].padStart(2, '0');
@@ -50262,7 +50909,6 @@ Earned Value Management measures project performance and progress by comparing p
         return `${y}-${m}-${d}`;
       }
 
-      // Test Month names like 15-Aug-2026
       const months = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
       const mMatch = str.match(/^(\d{1,2})[\s\-_]([A-Za-z]{3})[\s\-_](\d{4})$/);
       if (mMatch) {
@@ -50280,7 +50926,193 @@ Earned Value Management measures project performance and progress by comparing p
       }
     }
 
-    // Execute Import with mapped attributes
+    // ── DUPLICATE RESOLUTION MODAL LOGIC ─────────────────────────────
+    let _activeDuplicateFilter = 'all';
+
+    window.openDeliveryDuplicateResolutionModal = function() {
+      const s = P._delImportSession;
+      if (!s) return;
+
+      const dupAnalysis = detectDeliveryImportDuplicates(s.allRows, s.mappings);
+      s.duplicateAnalysis = dupAnalysis;
+
+      const badgeCount = $id('del-dup-badge-count');
+      if (badgeCount) badgeCount.textContent = `${dupAnalysis.duplicateCount} Flagged`;
+
+      renderDeliveryDuplicateResolutionList(_activeDuplicateFilter);
+      openModal('delivery-duplicate-resolution-modal');
+    };
+
+    window.filterDuplicateResolutionView = function(filterType) {
+      _activeDuplicateFilter = filterType;
+      
+      const tabAll = $id('dup-tab-all');
+      const tabExisting = $id('dup-tab-existing');
+      const tabInBatch = $id('dup-tab-in_batch');
+
+      if (tabAll) tabAll.className = filterType === 'all' ? 'btn mini primary' : 'btn mini ghost';
+      if (tabExisting) tabExisting.className = filterType === 'existing' ? 'btn mini primary' : 'btn mini ghost';
+      if (tabInBatch) tabInBatch.className = filterType === 'in_batch' ? 'btn mini primary' : 'btn mini ghost';
+
+      renderDeliveryDuplicateResolutionList(filterType);
+    };
+
+    window.setAllDuplicateResolutions = function(action) {
+      const s = P._delImportSession;
+      if (!s || !s.duplicateAnalysis) return;
+
+      (s.duplicateAnalysis.duplicates || []).forEach(dup => {
+        dup.resolution = action;
+      });
+
+      renderDeliveryDuplicateResolutionList(_activeDuplicateFilter);
+      
+      const actionLabels = {
+        'keep_new': 'Keep as New Deliveries (Appends with new IDs)',
+        'update': 'Overwrite / Update Existing Matches',
+        'skip': 'Skip Duplicates (Do not import)'
+      };
+      notify(`Set all ${s.duplicateAnalysis.duplicates.length} duplicate records to: ${actionLabels[action]}`, 'ok');
+    };
+
+    window.setDuplicateRowResolution = function(rowIndex, action) {
+      const s = P._delImportSession;
+      if (!s || !s.duplicateAnalysis) return;
+
+      const rec = (s.duplicateAnalysis.duplicates || []).find(d => d.rowIndex === rowIndex);
+      if (rec) {
+        rec.resolution = action;
+        renderDeliveryDuplicateResolutionList(_activeDuplicateFilter);
+      }
+    };
+
+    function renderDeliveryDuplicateResolutionList(filterType = 'all') {
+      const cont = $id('del-dup-resolution-container');
+      const s = P._delImportSession;
+      if (!cont || !s || !s.duplicateAnalysis) return;
+
+      const { duplicates, nonDuplicates, allItems } = s.duplicateAnalysis;
+      let filtered = duplicates;
+
+      if (filterType === 'existing') {
+        filtered = duplicates.filter(d => d.matchType === 'existing');
+      } else if (filterType === 'in_batch') {
+        filtered = duplicates.filter(d => d.matchType === 'in_batch');
+      }
+
+      const showingCountEl = $id('del-dup-showing-count');
+      if (showingCountEl) {
+        showingCountEl.textContent = `Showing ${filtered.length} of ${duplicates.length} duplicate records`;
+      }
+
+      if (!filtered.length) {
+        cont.innerHTML = `
+          <div style="padding:40px; text-align:center; color:var(--color-text-muted)">
+            <i data-lucide="check-circle" style="width:36px; height:36px; margin-bottom:8px; color:var(--green); opacity:0.8"></i>
+            <div style="font-weight:700; font-size:14px; color:var(--color-text)">No duplicates in this view</div>
+            <div style="font-size:12px; margin-top:4px">All items in this category are unique or resolved.</div>
+          </div>
+        `;
+        if (window.lucide) lucide.createIcons(cont);
+        updateDuplicateFooterSummary();
+        return;
+      }
+
+      cont.innerHTML = filtered.map((dup, idx) => {
+        const item = dup.item;
+        const res = dup.resolution || 'keep_new';
+
+        let matchBadge = '';
+        if (dup.existingMatch) {
+          matchBadge = `<span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; background:rgba(245,158,11,0.15); color:var(--amber); display:inline-flex; align-items:center; gap:4px"><i data-lucide="copy" style="width:12px;height:12px"></i> Matches Project: ${esc(dup.existingMatch.id)}</span>`;
+        } else if (dup.inBatchMatch) {
+          matchBadge = `<span style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; background:rgba(168,85,247,0.15); color:#a855f7; display:inline-flex; align-items:center; gap:4px"><i data-lucide="files" style="width:12px;height:12px"></i> Duplicate in File (Row ${dup.inBatchMatch.rowIndex + 1})</span>`;
+        }
+
+        return `
+          <div style="padding:14px 18px; border-radius:12px; border:1px solid var(--color-divider); background:var(--color-surface-2); display:flex; flex-direction:column; gap:10px; transition:all 0.15s ease">
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap">
+              <div style="flex:1; min-width:280px">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap">
+                  <span style="font-size:11px; font-weight:800; font-family:var(--mono); color:var(--color-text-faint)">Row #${dup.rowIndex + 1}</span>
+                  <span style="font-size:13px; font-weight:800; color:var(--color-text)">${esc(item.name || item.description || 'Deliverable Item')}</span>
+                  ${matchBadge}
+                </div>
+                
+                <div style="font-size:11px; color:var(--color-text-muted); display:flex; gap:12px; flex-wrap:wrap; margin-top:4px">
+                  ${item.almId ? `<span><b>ALM ID:</b> <code style="color:var(--color-primary); font-family:var(--mono)">${esc(item.almId)}</code></span>` : ''}
+                  ${item.pdn ? `<span><b>PDN:</b> <code style="font-family:var(--mono)">${esc(item.pdn)}</code></span>` : ''}
+                  ${item.releaseVersion ? `<span><b>Release:</b> ${esc(item.releaseVersion)}</span>` : ''}
+                  ${item.module ? `<span><b>Module:</b> ${esc(item.module)}</span>` : ''}
+                  ${item.category ? `<span><b>Category:</b> ${esc(item.category)}</span>` : ''}
+                </div>
+
+                <div style="font-size:11px; color:var(--amber); margin-top:6px; font-weight:600">
+                  ${esc(dup.matchReason)}
+                </div>
+
+                ${(dup.diffs && dup.diffs.length) ? `
+                  <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; background:var(--color-surface); padding:8px 12px; border-radius:8px; border:1px solid var(--color-divider)">
+                    <span style="font-size:10px; font-weight:700; text-transform:uppercase; color:var(--color-text-faint); width:100%; letter-spacing:0.5px">Field Updates from Spreadsheet:</span>
+                    ${dup.diffs.map(d => `
+                      <span style="font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(var(--color-primary-rgb),0.08); color:var(--color-text); border:1px solid var(--color-divider)">
+                        <b>${esc(d.label)}:</b> <span style="text-decoration:line-through; opacity:0.6">${esc(d.existing)}</span> ➔ <span style="font-weight:700; color:var(--color-primary)">${esc(d.incoming)}</span>
+                      </span>
+                    `).join('')}
+                  </div>
+                ` : ''}
+              </div>
+
+              <!-- Segmented Action Selector -->
+              <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px">
+                <span style="font-size:10px; font-weight:700; text-transform:uppercase; color:var(--color-text-faint); letter-spacing:0.5px">Action for this duplicate:</span>
+                <div style="display:inline-flex; border-radius:8px; border:1px solid var(--color-divider); overflow:hidden; background:var(--color-surface); box-shadow:var(--shadow-xs)">
+                  <button type="button" class="btn mini ${res === 'keep_new' ? 'primary' : 'ghost'}" onclick="setDuplicateRowResolution(${dup.rowIndex}, 'keep_new')" style="border-radius:0; height:30px; font-size:11px; font-weight:700; padding:0 10px; gap:4px">
+                    <i data-lucide="plus-circle" style="width:12px; height:12px"></i> Keep as New
+                  </button>
+                  <button type="button" class="btn mini ${res === 'update' ? 'primary' : 'ghost'}" onclick="setDuplicateRowResolution(${dup.rowIndex}, 'update')" style="border-radius:0; height:30px; font-size:11px; font-weight:700; padding:0 10px; gap:4px">
+                    <i data-lucide="refresh-cw" style="width:12px; height:12px"></i> Overwrite
+                  </button>
+                  <button type="button" class="btn mini ${res === 'skip' ? 'primary' : 'ghost'}" onclick="setDuplicateRowResolution(${dup.rowIndex}, 'skip')" style="border-radius:0; height:30px; font-size:11px; font-weight:700; padding:0 10px; gap:4px; ${res === 'skip' ? 'background:var(--red); border-color:var(--red)' : ''}">
+                    <i data-lucide="ban" style="width:12px; height:12px"></i> Skip
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      if (window.lucide) lucide.createIcons(cont);
+      updateDuplicateFooterSummary();
+    }
+
+    function updateDuplicateFooterSummary() {
+      const footer = $id('del-dup-footer-summary');
+      const s = P._delImportSession;
+      if (!footer || !s || !s.duplicateAnalysis) return;
+
+      const { duplicates, nonDuplicates } = s.duplicateAnalysis;
+      const keepNewCount = duplicates.filter(d => d.resolution === 'keep_new').length;
+      const updateCount = duplicates.filter(d => d.resolution === 'update').length;
+      const skipCount = duplicates.filter(d => d.resolution === 'skip').length;
+      const uniqueNewCount = nonDuplicates.length;
+
+      const totalImporting = uniqueNewCount + keepNewCount + updateCount;
+
+      footer.innerHTML = `
+        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:12px">
+          <span style="font-weight:700; color:var(--color-text)">Import Plan:</span>
+          <span style="padding:2px 7px; border-radius:4px; background:rgba(16,185,129,0.12); color:var(--green); font-weight:700">${uniqueNewCount} Unique New</span>
+          <span style="padding:2px 7px; border-radius:4px; background:rgba(16,185,129,0.12); color:var(--green); font-weight:700">${keepNewCount} Duplicates Kept as New</span>
+          <span style="padding:2px 7px; border-radius:4px; background:rgba(99,102,241,0.12); color:var(--color-primary); font-weight:700">${updateCount} Overwrite Matches</span>
+          ${skipCount > 0 ? `<span style="padding:2px 7px; border-radius:4px; background:rgba(239,68,68,0.12); color:var(--red); font-weight:700">${skipCount} Skipped</span>` : ''}
+          <span style="color:var(--color-text-muted); font-size:11px">(${totalImporting} total records will be imported/updated)</span>
+        </div>
+      `;
+    }
+
+    // Main Import Trigger from Mapping Modal
     window.executeDeliveryImport = async function() {
       const s = P._delImportSession;
       if (!s) return;
@@ -50288,8 +51120,9 @@ Earned Value Management measures project performance and progress by comparing p
       const mappings = s.mappings || {};
       const mappedValues = Object.values(mappings).filter(Boolean);
 
-      if (!mappedValues.includes('name')) {
-        notify('Please map the "Delivery Scope / Name" required field.', 'err');
+      const hasKeyField = mappedValues.includes('name') || mappedValues.includes('almId') || mappedValues.includes('id') || mappedValues.includes('pdn');
+      if (!hasKeyField) {
+        notify('Please map at least one identifier column (ALM ID, Description, or PDN).', 'err');
         return;
       }
 
@@ -50299,7 +51132,40 @@ Earned Value Management measures project performance and progress by comparing p
         return;
       }
 
-      showAppLock('Importing Deliveries...', `Processing ${allRows.length} delivery records with custom field mappings...`, 'import');
+      const importMode = s.importMode || 'append_merge';
+
+      // If user selected replace_all, there are no existing records to conflict with
+      if (importMode === 'replace_all') {
+        executeDeliveryImportWithResolutions();
+        return;
+      }
+
+      // Check for duplicates
+      const dupAnalysis = detectDeliveryImportDuplicates(allRows, mappings);
+      s.duplicateAnalysis = dupAnalysis;
+
+      if (dupAnalysis.duplicateCount > 0) {
+        // Flag duplicates and ask user how they want to resolve them
+        openDeliveryDuplicateResolutionModal();
+      } else {
+        // All records are unique, execute directly
+        executeDeliveryImportWithResolutions();
+      }
+    };
+
+    // Execute Import with Granular Resolved Strategies
+    window.executeDeliveryImportWithResolutions = async function() {
+      const s = P._delImportSession;
+      if (!s) return;
+
+      const mappings = s.mappings || {};
+      const allRows = s.allRows || [];
+      if (!allRows.length) {
+        notify('No data rows found to import.', 'err');
+        return;
+      }
+
+      showAppLock('Importing Deliveries...', `Processing ${allRows.length} delivery records with duplicate intelligence...`, 'import');
       await new Promise(r => setTimeout(r, 80));
 
       try {
@@ -50309,36 +51175,43 @@ Earned Value Management measures project performance and progress by comparing p
         }
 
         const importMode = s.importMode || 'append_merge';
-        let addedCount = 0;
+        let uniqueAddedCount = 0;
+        let keptDuplicatesCount = 0;
         let updatedCount = 0;
+        let skippedCount = 0;
 
         if (importMode === 'replace_all') {
           P.deliveries = [];
           P.nextDeliveryId = 1;
         }
 
+        // Use resolution map if available from duplicate intelligence modal
+        const dupAnalysis = s.duplicateAnalysis || detectDeliveryImportDuplicates(allRows, mappings);
+        const dupMap = new Map((dupAnalysis.duplicates || []).map(d => [d.rowIndex, d]));
+
         allRows.forEach((row, idx) => {
           const item = transformDeliveryRow(row, mappings, idx);
-          if (!item.name) return; // Skip empty names
+          if (!item.name && !item.almId && !item.pdn) return; // Skip empty rows
 
-          if (importMode === 'append_merge') {
-            // Find existing delivery matching ID or ALM ID or PDN or (Name + Release)
-            let existing = null;
-            if (item.id) {
-              existing = P.deliveries.find(d => d.id.toLowerCase() === item.id.toLowerCase());
-            }
-            if (!existing && item.almId) {
-              existing = P.deliveries.find(d => d.almId && d.almId.toLowerCase() === item.almId.toLowerCase());
-            }
-            if (!existing && item.pdn) {
-              existing = P.deliveries.find(d => d.pdn && d.pdn.toLowerCase() === item.pdn.toLowerCase());
-            }
-            if (!existing && item.name && item.releaseVersion) {
-              existing = P.deliveries.find(d => d.name.toLowerCase() === item.name.toLowerCase() && (d.releaseVersion || '') === item.releaseVersion);
-            }
+          if (importMode === 'replace_all') {
+            item.id = 'DEL-' + String(P.nextDeliveryId++).padStart(3, '0');
+            item.createdAt = nowISO();
+            item.updatedAt = nowISO();
+            P.deliveries.push(item);
+            uniqueAddedCount++;
+            return;
+          }
 
-            if (existing) {
-              // Update existing record
+          const dupInfo = dupMap.get(idx);
+          const resolution = dupInfo ? dupInfo.resolution : 'keep_new';
+
+          if (dupInfo && dupInfo.isDuplicate) {
+            if (resolution === 'skip') {
+              skippedCount++;
+              return;
+            } else if (resolution === 'update' && dupInfo.existingMatch) {
+              // Update matched existing delivery
+              const existing = dupInfo.existingMatch;
               for (const [k, v] of Object.entries(item)) {
                 if (v != null && v !== '') {
                   existing[k] = v;
@@ -50347,30 +51220,20 @@ Earned Value Management measures project performance and progress by comparing p
               existing.updatedAt = nowISO();
               updatedCount++;
             } else {
-              // Append new record
-              if (!item.id) {
-                item.id = 'DEL-' + String(P.nextDeliveryId++).padStart(3, '0');
-              } else {
-                const num = parseInt(String(item.id).replace(/\D/g, ''));
-                if (!isNaN(num) && num >= P.nextDeliveryId) P.nextDeliveryId = num + 1;
-              }
+              // resolution === 'keep_new' (Keep duplicate record as a new delivery)
+              item.id = 'DEL-' + String(P.nextDeliveryId++).padStart(3, '0');
               item.createdAt = nowISO();
               item.updatedAt = nowISO();
               P.deliveries.push(item);
-              addedCount++;
+              keptDuplicatesCount++;
             }
           } else {
-            // Append Only / Replace All
-            if (!item.id || importMode === 'append_only') {
-              item.id = 'DEL-' + String(P.nextDeliveryId++).padStart(3, '0');
-            } else {
-              const num = parseInt(String(item.id).replace(/\D/g, ''));
-              if (!isNaN(num) && num >= P.nextDeliveryId) P.nextDeliveryId = num + 1;
-            }
+            // Unique new record
+            item.id = 'DEL-' + String(P.nextDeliveryId++).padStart(3, '0');
             item.createdAt = nowISO();
             item.updatedAt = nowISO();
             P.deliveries.push(item);
-            addedCount++;
+            uniqueAddedCount++;
           }
         });
 
@@ -50383,21 +51246,26 @@ Earned Value Management measures project performance and progress by comparing p
             taskName: `Excel Deliveries Import (${s.fileName})`,
             field: 'deliveries',
             oldVal: '',
-            newVal: `${addedCount} added, ${updatedCount} updated`,
-            comment: `Imported from sheet "${s.currentSheet}" with strategy "${importMode}"`
+            newVal: `${uniqueAddedCount} unique added, ${keptDuplicatesCount} duplicates kept, ${updatedCount} updated, ${skippedCount} skipped`,
+            comment: `Imported from sheet "${s.currentSheet}" with duplicate resolution intelligence`
           });
         }
 
         save();
+        closeModal('delivery-duplicate-resolution-modal');
         closeDeliveryImportModal();
         hideAppLock();
         renderDeliveriesView();
         renderViewToggle();
         if (typeof renderSidebar === 'function') renderSidebar();
 
-        const msg = importMode === 'replace_all'
-          ? `Successfully replaced delivery schedule with ${addedCount} records!`
-          : `Import complete: ${addedCount} new deliveries added, ${updatedCount} existing updated.`;
+        const totalCreated = uniqueAddedCount + keptDuplicatesCount;
+        let msg = `Import complete: ${totalCreated} deliveries created`;
+        if (keptDuplicatesCount > 0) msg += ` (${keptDuplicatesCount} duplicates kept)`;
+        if (updatedCount > 0) msg += `, ${updatedCount} updated`;
+        if (skippedCount > 0) msg += `, ${skippedCount} duplicates skipped`;
+        msg += '.';
+
         notify(msg, 'ok');
       } catch(err) {
         hideAppLock();
@@ -50497,17 +51365,23 @@ Earned Value Management measures project performance and progress by comparing p
     window.exportDeliveriesToCSV = function() {
       const cols = [
         'almId', 'name', 'pdn', 'pdnProcessingDate', 'componentsDelivered',
-        'category', 'module', 'almStatus', 'reportedBy', 'fixedBy', 'linkedType', 'linkedId'
+        'category', 'module', 'almStatus', 'reportedBy', 'fixedBy', 'linkedType', 'linkedId', 'notes'
       ];
       const headers = [
         'Defect ID - ALM ID', 'Description - ALM Description', 'PDN Info', 'PDN Processing Date', 'Components Delivered',
-        'Category', 'Module', 'ALM Status', 'Reported By', 'Defect Fixed By', 'Linked Type', 'Linked ID'
+        'Category', 'Module', 'ALM Status', 'Reported By', 'Defect Fixed By', 'Linked Type', 'Linked ID', 'Remarks / Notes'
       ];
+
+      (P.delCustomFields || []).forEach(f => {
+        cols.push(f.name);
+        headers.push(f.name);
+      });
 
       const rows = (P.deliveries || []).map(d => {
         return cols.map(c => {
           let v = d[c];
           if (c === 'name' && (v == null || v === '')) v = d.description || '';
+          if (c === 'notes' && (v == null || v === '')) v = d.remarks || '';
           if (Array.isArray(v)) v = v.join(', ');
           return v == null ? '' : String(v);
         });
@@ -54052,7 +54926,8 @@ Earned Value Management measures project performance and progress by comparing p
           { header: 'Reported By', key: 'reportedBy', width: 20 },
           { header: 'Defect Fixed By', key: 'fixedBy', width: 20 },
           { header: 'Linked Type', key: 'linkedType', width: 16 },
-          { header: 'Linked ID', key: 'linkedId', width: 24 }
+          { header: 'Linked ID', key: 'linkedId', width: 24 },
+          { header: 'Remarks / Notes', key: 'notes', width: 32 }
         ];
         (P.delCustomFields || []).forEach(f => { cols.push({ header: f.name, key: f.name, width: 22 }); });
         ws.columns = cols; ws.getRow(1).height = 30; ws.getRow(1).eachCell(c => c.style = hdrStyle);
@@ -54070,7 +54945,8 @@ Earned Value Management measures project performance and progress by comparing p
             reportedBy: S(d.reportedBy),
             fixedBy: S(d.fixedBy),
             linkedType: S(d.linkedType || 'Task'),
-            linkedId: S(d.linkedId)
+            linkedId: S(d.linkedId),
+            notes: S(d.notes || d.remarks)
           };
           (P.delCustomFields || []).forEach(f => {
             const v = d[f.name] !== undefined ? d[f.name] : (d.custom && d.custom[f.name] !== undefined ? d.custom[f.name] : '');
@@ -59265,11 +60141,15 @@ Earned Value Management measures project performance and progress by comparing p
       if (!text) return;
 
       const lines = text.split('\n').filter(l => l.trim());
-      let count = 0;
+      if (!lines.length) return;
+
+      if (!P._scaffold) P._scaffold = [];
+
+      const parsedModules = [];
       lines.forEach(line => {
         const parts = line.split(/[,\t]/).map(p => p.trim());
         if (parts[0]) {
-          P._scaffold.push({
+          parsedModules.push({
             name: parts[0],
             type: parts[1] || 'GUI',
             assignee: parts[2] || '',
@@ -59278,14 +60158,46 @@ Earned Value Management measures project performance and progress by comparing p
             releaseVersion: parts[5] || '',
             screens: (parts[6] || '').replace(/\|/g, '\n')
           });
-          count++;
         }
       });
 
+      if (!parsedModules.length) return;
+
+      // Check for duplicates in scaffold
+      const duplicateNames = parsedModules
+        .map(m => m.name)
+        .filter(name => P._scaffold.some(existing => existing.name && existing.name.toLowerCase() === name.toLowerCase()));
+
+      const uniqueDuplicateNames = [...new Set(duplicateNames)];
+
+      if (uniqueDuplicateNames.length > 0) {
+        const keepDuplicates = confirm(`Duplicate Module Check:\n\nFound ${uniqueDuplicateNames.length} module(s) that already exist in your blueprint (${uniqueDuplicateNames.slice(0, 3).join(', ')}${uniqueDuplicateNames.length > 3 ? '...' : ''}).\n\nClick OK to KEEP duplicate entries and import all, or CANCEL to skip existing duplicates and only import new modules.`);
+        
+        let addedCount = 0;
+        let skippedCount = 0;
+
+        parsedModules.forEach(mod => {
+          const isDup = P._scaffold.some(existing => existing.name && existing.name.toLowerCase() === mod.name.toLowerCase());
+          if (isDup && !keepDuplicates) {
+            skippedCount++;
+          } else {
+            P._scaffold.push(mod);
+            addedCount++;
+          }
+        });
+
+        closeAllFlyouts();
+        setAdminActiveTab(P._adminActiveTab);
+        renderSidebar();
+        notify(`Blueprint import complete: ${addedCount} modules added${skippedCount ? `, ${skippedCount} duplicates skipped` : ''}.`, 'ok');
+        return;
+      }
+
+      parsedModules.forEach(m => P._scaffold.push(m));
       closeAllFlyouts();
       setAdminActiveTab(P._adminActiveTab);
       renderSidebar();
-      notify(`Successfully imported ${count} modules into the blueprint.`, 'ok');
+      notify(`Successfully imported ${parsedModules.length} modules into the blueprint.`, 'ok');
     }
 
     function loadScaffoldTemplate(type) {
