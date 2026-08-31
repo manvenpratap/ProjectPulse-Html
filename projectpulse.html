@@ -45,41 +45,32 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
         if (options && options.target && !options.root) {
           return origCreateIcons.call(window.lucide, { ...options, root: options.target });
         }
-        return origCreateIcons.call(window.lucide, options);
+        return origCreateIcons.call(window.lucide, options || {});
       } catch (e) {
-        console.warn('Lucide createIcons error:', e);
+        // silent fallback
       }
     };
 
-    // Auto-rendering MutationObserver for all dynamic HTML updates
-    let pendingIconRender = false;
+    // Zero-flicker targeted observer: ONLY scans newly added nodes and never re-scans SVGs
+    let isProcessing = false;
     const autoIconObserver = new MutationObserver((mutations) => {
-      let hasNewIcons = false;
+      if (isProcessing) return;
       for (const m of mutations) {
         if (m.type === 'childList') {
           for (const node of m.addedNodes) {
-            if (node.nodeType === 1) {
+            if (node.nodeType === 1 && node.tagName !== 'SVG' && !node.classList.contains('lucide')) {
               if (node.hasAttribute && (node.hasAttribute('data-lucide') || node.hasAttribute('icon-name'))) {
-                hasNewIcons = true; break;
-              }
-              if (node.querySelector && node.querySelector('[data-lucide], [icon-name]')) {
-                hasNewIcons = true; break;
+                isProcessing = true;
+                try { origCreateIcons.call(window.lucide, { root: node.parentNode || node }); } catch(e){}
+                isProcessing = false;
+              } else if (node.querySelector && node.querySelector('[data-lucide], [icon-name]')) {
+                isProcessing = true;
+                try { origCreateIcons.call(window.lucide, { root: node }); } catch(e){}
+                isProcessing = false;
               }
             }
           }
         }
-        if (hasNewIcons) break;
-      }
-      if (hasNewIcons && !pendingIconRender) {
-        pendingIconRender = true;
-        requestAnimationFrame(() => {
-          pendingIconRender = false;
-          try {
-            window.lucide.createIcons();
-          } catch(e) {
-            console.warn('Lucide auto-render note:', e);
-          }
-        });
       }
     });
 
@@ -12876,7 +12867,7 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
     </div>
 
     <!-- CXO EMAIL BRIEF FLYOUT -->
-    <div id="cxo-email-flyout" class="theme-flyout" style="width:min(95vw,1125px)">
+    <div id="cxo-email-flyout" class="theme-flyout" style="width:min(98vw,1600px)">
       <div class="tf-header">
         <div class="tf-header-accent" style="background:var(--color-primary)"></div>
         <div class="tf-header-main" style="padding:16px 24px; display:flex; justify-content:space-between; align-items:center; width:100%">
@@ -41979,9 +41970,10 @@ Earned Value Management measures project performance and progress by comparing p
 
       let html = '';
       html += '<style type="text/css">' +
-              '  .cxo-email-wrap { width: 100% !important; max-width: 740px !important; margin: 0 auto !important; }' +
+              '  .cxo-email-wrap { width: 100% !important; max-width: 100% !important; margin: 0 auto !important; }' +
               '  .cxo-table-scroll { width: 100% !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; display: block !important; }' +
-              '  @media only screen and (max-width: 640px) {' +
+              '  @media only screen and (max-width: 640px)' +
+              '  {' +
               '    .cxo-email-wrap { width: 100% !important; max-width: 100% !important; }' +
               '    .cxo-pad-resp { padding: 12px 10px !important; }' +
               '    .cxo-header-banner { padding: 14px 12px !important; }' +
@@ -41993,10 +41985,10 @@ Earned Value Management measures project performance and progress by comparing p
               '  }' +
               '</style>';
 
-      html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.outerBg : 'transparent') + '" class="cxo-email-wrap" style="font-family:' + C.fontFamily + '; color:' + C.textMain + '; background-color:' + C.outerBg + '; border-collapse:collapse; -webkit-font-smoothing:antialiased; margin:0 auto; ' + (isExport ? 'max-width:740px;' : 'width:100%;') + '"><tr><td style="padding:4px;">';
+      html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.outerBg : 'transparent') + '" class="cxo-email-wrap" style="font-family:' + C.fontFamily + '; color:' + C.textMain + '; background-color:' + C.outerBg + '; border-collapse:collapse; -webkit-font-smoothing:antialiased; margin:0 auto; width:100%; max-width:100%;"><tr><td style="padding:0;">';
 
-      // OUTER CONTAINER CARD
-      html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.cardBg : 'transparent') + '" style="background-color:' + C.cardBg + '; border:1px solid ' + C.cardBorder + '; border-radius:10px; border-collapse:collapse;">';
+      // OUTER CONTAINER CARD (Auto 100% width)
+      html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.cardBg : 'transparent') + '" style="background-color:' + C.cardBg + '; border:1px solid ' + C.cardBorder + '; border-radius:10px; border-collapse:collapse; width:100%;">';
 
       // 1. TOP HEADER BANNER
       html += '<tr><td class="cxo-header-banner" style="padding:18px 20px; border-bottom:3px solid ' + (isExport ? '#3b82f6' : C.primary) + '; background-color:' + C.headerBannerBg + ';">';
@@ -42014,13 +42006,13 @@ Earned Value Management measures project performance and progress by comparing p
       html += '</tr></table>';
       html += '</td></tr>';
 
-      // 2. STATUS SUMMARY & PROGRESS (Combined section block with overview & sprint)
+      // 2. STATUS SUMMARY & PROGRESS
       if (incSummary) {
         const summaryPts = generateHealthPoints(stats, pState);
         const { overallModProgress, execMods } = getCxoModuleOverallMetrics(pState, weekAgoDate, todayDate);
 
         html += '<tr><td class="cxo-pad-resp" style="padding:18px 20px 0 20px;">';
-        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.secHeaderBg : 'transparent') + '" style="background-color:' + C.secHeaderBg + '; border:1px solid ' + C.secHeaderBorder + '; border-radius:8px; border-collapse:collapse;">';
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.secHeaderBg : 'transparent') + '" style="background-color:' + C.secHeaderBg + '; border:1px solid ' + C.secHeaderBorder + '; border-radius:8px; border-collapse:collapse; width:100%;">';
         
         // Section Header Row
         html += '<tr><td style="padding:12px 14px 8px 14px; border-bottom:1px solid ' + C.secHeaderBorder + ';">';
@@ -42030,7 +42022,7 @@ Earned Value Management measures project performance and progress by comparing p
         // Executive Note
         if (execNote) {
           html += '<tr><td style="padding:10px 14px 6px 14px;">';
-          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.execNoteBg : 'transparent') + '" style="background-color:' + C.execNoteBg + '; border-left:3px solid ' + (isExport ? '#3b82f6' : C.primary) + '; border-radius:0 6px 6px 0; border-collapse:collapse;"><tr><td style="padding:10px 12px; font-size:12.5px; color:' + C.execNoteText + '; font-style:italic; line-height:1.5;">';
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.execNoteBg : 'transparent') + '" style="background-color:' + C.execNoteBg + '; border-left:3px solid ' + (isExport ? '#3b82f6' : C.primary) + '; border-radius:0 6px 6px 0; border-collapse:collapse; width:100%;"><tr><td style="padding:10px 12px; font-size:12.5px; color:' + C.execNoteText + '; font-style:italic; line-height:1.5;">';
           html += escapeHTML(execNote).replace(/\n/g, '<br>');
           html += '</td></tr></table></td></tr>';
         }
@@ -42044,36 +42036,36 @@ Earned Value Management measures project performance and progress by comparing p
         html += '</ul>';
         html += '</td></tr>';
 
-        // 3 KPI Cards
+        // 3 KPI Cards (Full fluid width across desktop, stacking on mobile)
         html += '<tr><td style="padding:0 14px 14px 14px;">';
-        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;"><tr>';
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse; width:100%;"><tr>';
 
         // KPI 1: Overall Progress
-        html += '<td class="cxo-kpi-stack" width="33.33%" style="padding-right:5px; vertical-align:top;">';
-        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.kpiProgressBg : 'transparent') + '" style="background-color:' + C.kpiProgressBg + '; border:1px solid ' + C.kpiProgressBorder + '; border-radius:6px; border-collapse:collapse;"><tr><td style="padding:10px 12px;">';
-        html += '<div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.6px; color:' + (isDark ? '#60a5fa' : '#2563eb') + '; margin-bottom:2px; font-family:' + C.displayFont + ';">Overall Progress</div>';
-        html += '<div style="font-size:22px; font-weight:900; color:' + (isDark ? '#93c5fd' : '#1d4ed8') + '; line-height:1.1; margin-bottom:2px;">' + stats.progress + '%</div>';
+        html += '<td class="cxo-kpi-stack" width="33.33%" style="padding-right:6px; vertical-align:top;">';
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.kpiProgressBg : 'transparent') + '" style="background-color:' + C.kpiProgressBg + '; border:1px solid ' + C.kpiProgressBorder + '; border-radius:6px; border-collapse:collapse; width:100%;"><tr><td style="padding:12px 14px;">';
+        html += '<div style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.6px; color:' + (isDark ? '#60a5fa' : '#2563eb') + '; margin-bottom:2px; font-family:' + C.displayFont + ';">Overall Progress</div>';
+        html += '<div style="font-size:24px; font-weight:900; color:' + (isDark ? '#93c5fd' : '#1d4ed8') + '; line-height:1.1; margin-bottom:2px;">' + stats.progress + '%</div>';
         html += miniBar(stats.progress, isDark ? '#60a5fa' : '#2563eb');
-        html += '<div style="font-size:9.5px; color:' + C.textSub + '; margin-top:4px; font-weight:600;">📦 Modules: ' + stats.completed + '/' + stats.total + ' Completed</div>';
+        html += '<div style="font-size:10.5px; color:' + C.textSub + '; margin-top:6px; font-weight:600;">📦 Modules: ' + stats.completed + '/' + stats.total + ' Completed</div>';
         html += '</td></tr></table>';
         html += '</td>';
 
         // KPI 2: Screens Delivery
-        html += '<td class="cxo-kpi-stack" width="33.33%" style="padding:0 2.5px; vertical-align:top;">';
-        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.kpiScreensBg : 'transparent') + '" style="background-color:' + C.kpiScreensBg + '; border:1px solid ' + C.kpiScreensBorder + '; border-radius:6px; border-collapse:collapse;"><tr><td style="padding:10px 12px;">';
-        html += '<div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.6px; color:' + (isDark ? '#4ade80' : '#16a34a') + '; margin-bottom:2px; font-family:' + C.displayFont + ';">Screens Completion</div>';
-        html += '<div style="font-size:22px; font-weight:900; color:' + (isDark ? '#86efac' : '#15803d') + '; line-height:1.1; margin-bottom:2px;">' + stats.guiCompleted + ' / ' + stats.guiTotal + '</div>';
+        html += '<td class="cxo-kpi-stack" width="33.33%" style="padding:0 3px; vertical-align:top;">';
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.kpiScreensBg : 'transparent') + '" style="background-color:' + C.kpiScreensBg + '; border:1px solid ' + C.kpiScreensBorder + '; border-radius:6px; border-collapse:collapse; width:100%;"><tr><td style="padding:12px 14px;">';
+        html += '<div style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.6px; color:' + (isDark ? '#4ade80' : '#16a34a') + '; margin-bottom:2px; font-family:' + C.displayFont + ';">Screens Completion</div>';
+        html += '<div style="font-size:24px; font-weight:900; color:' + (isDark ? '#86efac' : '#15803d') + '; line-height:1.1; margin-bottom:2px;">' + stats.guiCompleted + ' / ' + stats.guiTotal + '</div>';
         html += miniBar(guiPct, isDark ? '#4ade80' : '#16a34a');
-        html += '<div style="font-size:9.5px; color:' + C.textSub + '; margin-top:4px; font-weight:600;">📱 Screens Completed</div>';
+        html += '<div style="font-size:10.5px; color:' + C.textSub + '; margin-top:6px; font-weight:600;">📱 Screens Completed</div>';
         html += '</td></tr></table>';
         html += '</td>';
 
         // KPI 3: Health Score Trend
-        html += '<td class="cxo-kpi-stack" width="33.33%" style="padding-left:5px; vertical-align:top;">';
-        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.kpiTrendBg : 'transparent') + '" style="background-color:' + C.kpiTrendBg + '; border:1px solid ' + C.kpiTrendBorder + '; border-radius:6px; border-collapse:collapse;"><tr><td style="padding:10px 12px; text-align:center;">';
-        html += '<div style="font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.6px; color:' + C.textSub + '; margin-bottom:4px; font-family:' + C.displayFont + ';">Health Score Trend</div>';
-        html += '<div style="font-size:16px; font-weight:900; color:' + trendColor + '; line-height:1.2; margin-top:4px; margin-bottom:2px;">' + trendSymbol + '</div>';
-        html += '<div style="font-size:9.5px; color:' + C.textMuted + '; margin-top:6px;">vs previous cycle</div>';
+        html += '<td class="cxo-kpi-stack" width="33.33%" style="padding-left:6px; vertical-align:top;">';
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.kpiTrendBg : 'transparent') + '" style="background-color:' + C.kpiTrendBg + '; border:1px solid ' + C.kpiTrendBorder + '; border-radius:6px; border-collapse:collapse; width:100%;"><tr><td style="padding:12px 14px; text-align:center;">';
+        html += '<div style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.6px; color:' + C.textSub + '; margin-bottom:4px; font-family:' + C.displayFont + ';">Health Score Trend</div>';
+        html += '<div style="font-size:18px; font-weight:900; color:' + trendColor + '; line-height:1.2; margin-top:4px; margin-bottom:2px;">' + trendSymbol + '</div>';
+        html += '<div style="font-size:10px; color:' + C.textMuted + '; margin-top:8px;">vs previous cycle</div>';
         html += '</td></tr></table>';
         html += '</td>';
 
@@ -42089,35 +42081,35 @@ Earned Value Management measures project performance and progress by comparing p
           const pend = execMods.filter(m => m.status === 'Not Started').length;
 
           html += '<tr><td style="padding:0 14px 14px 14px;">';
-          html += '<table width="100%" border="0" cellpadding="10" cellspacing="0" bgcolor="' + (isExport ? C.innerCardBg : 'transparent') + '" style="background:' + C.innerCardBg + '; border:1px solid ' + C.innerCardBorder + '; border-radius:8px;"><tr><td>';
+          html += '<table width="100%" border="0" cellpadding="10" cellspacing="0" bgcolor="' + (isExport ? C.innerCardBg : 'transparent') + '" style="background:' + C.innerCardBg + '; border:1px solid ' + C.innerCardBorder + '; border-radius:8px; width:100%;"><tr><td>';
           
-          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:8px;"><tr>';
-          html += '<td style="font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.7px; color:' + (isDark ? '#e2e8f0' : '#475569') + '; font-family:' + C.displayFont + ';">📦 Overall Module Breakdown (' + tot + ' Total)</td>';
-          html += '<td align="right" style="font-size:11px; font-weight:800; color:' + (isExport ? '#3b82f6' : C.primary) + '; font-family:' + C.displayFont + ';">Avg Progress: ' + overallModProgress + '%</td>';
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:8px; width:100%;"><tr>';
+          html += '<td style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0.7px; color:' + (isDark ? '#e2e8f0' : '#475569') + '; font-family:' + C.displayFont + ';">📦 Overall Module Breakdown (' + tot + ' Total)</td>';
+          html += '<td align="right" style="font-size:11.5px; font-weight:800; color:' + (isExport ? '#3b82f6' : C.primary) + '; font-family:' + C.displayFont + ';">Avg Progress: ' + overallModProgress + '%</td>';
           html += '</tr></table>';
 
-          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0"><tr>';
+          html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%;"><tr>';
           
-          html += '<td style="padding-right:4px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#166534' : '#bbf7d0') + '; border-radius:6px; text-align:center;"><tr><td>';
-          html += '<div style="font-size:15px; font-weight:900; color:' + (isDark ? '#4ade80' : '#16a34a') + ';">' + comp + '</div><div style="font-size:9px; font-weight:700; color:' + (isDark ? '#4ade80' : '#15803d') + '; text-transform:uppercase;">✅ Completed</div>';
+          html += '<td style="padding-right:4px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#166534' : '#bbf7d0') + '; border-radius:6px; text-align:center; width:100%;"><tr><td>';
+          html += '<div style="font-size:16px; font-weight:900; color:' + (isDark ? '#4ade80' : '#16a34a') + ';">' + comp + '</div><div style="font-size:9.5px; font-weight:700; color:' + (isDark ? '#4ade80' : '#15803d') + '; text-transform:uppercase;">✅ Completed</div>';
           html += '</td></tr></table></td>';
 
-          html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#1e40af' : '#bfdbfe') + '; border-radius:6px; text-align:center;"><tr><td>';
-          html += '<div style="font-size:15px; font-weight:900; color:' + (isDark ? '#60a5fa' : '#2563eb') + ';">' + prog + '</div><div style="font-size:9px; font-weight:700; color:' + (isDark ? '#93c5fd' : '#1d4ed8') + '; text-transform:uppercase;">⚙️ In Progress</div>';
+          html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#1e40af' : '#bfdbfe') + '; border-radius:6px; text-align:center; width:100%;"><tr><td>';
+          html += '<div style="font-size:16px; font-weight:900; color:' + (isDark ? '#60a5fa' : '#2563eb') + ';">' + prog + '</div><div style="font-size:9.5px; font-weight:700; color:' + (isDark ? '#93c5fd' : '#1d4ed8') + '; text-transform:uppercase;">⚙️ In Progress</div>';
           html += '</td></tr></table></td>';
 
           if (risk > 0) {
-            html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#991b1b' : '#fecaca') + '; border-radius:6px; text-align:center;"><tr><td>';
-            html += '<div style="font-size:15px; font-weight:900; color:' + (isDark ? '#f87171' : '#dc2626') + ';">' + risk + '</div><div style="font-size:9px; font-weight:700; color:' + (isDark ? '#fca5a5' : '#b91c1c') + '; text-transform:uppercase;">🚨 At Risk</div>';
+            html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#991b1b' : '#fecaca') + '; border-radius:6px; text-align:center; width:100%;"><tr><td>';
+            html += '<div style="font-size:16px; font-weight:900; color:' + (isDark ? '#f87171' : '#dc2626') + ';">' + risk + '</div><div style="font-size:9.5px; font-weight:700; color:' + (isDark ? '#fca5a5' : '#b91c1c') + '; text-transform:uppercase;">🚨 At Risk</div>';
             html += '</td></tr></table></td>';
           }
 
-          html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#475569' : '#cbd5e1') + '; border-radius:6px; text-align:center;"><tr><td>';
-          html += '<div style="font-size:15px; font-weight:900; color:' + C.textSub + ';">' + pend + '</div><div style="font-size:9px; font-weight:700; color:' + C.textSub + '; text-transform:uppercase;">⏳ Not Started</div>';
+          html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#475569' : '#cbd5e1') + '; border-radius:6px; text-align:center; width:100%;"><tr><td>';
+          html += '<div style="font-size:16px; font-weight:900; color:' + C.textSub + ';">' + pend + '</div><div style="font-size:9.5px; font-weight:700; color:' + C.textSub + '; text-transform:uppercase;">⏳ Not Started</div>';
           html += '</td></tr></table></td>';
 
-          html += '<td style="padding-left:4px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#2563eb' : '#93c5fd') + '; border-radius:6px; text-align:center;"><tr><td>';
-          html += '<div style="font-size:15px; font-weight:900; color:' + (isDark ? '#60a5fa' : '#2563eb') + ';">' + overallModProgress + '%</div><div style="font-size:9px; font-weight:700; color:' + (isDark ? '#93c5fd' : '#1e40af') + '; text-transform:uppercase;">🎯 Delivery</div>';
+          html += '<td style="padding-left:4px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#2563eb' : '#93c5fd') + '; border-radius:6px; text-align:center; width:100%;"><tr><td>';
+          html += '<div style="font-size:16px; font-weight:900; color:' + (isDark ? '#60a5fa' : '#2563eb') + ';">' + overallModProgress + '%</div><div style="font-size:9.5px; font-weight:700; color:' + (isDark ? '#93c5fd' : '#1e40af') + '; text-transform:uppercase;">🎯 Delivery</div>';
           html += '</td></tr></table></td>';
 
           html += '</tr></table>';
@@ -42133,32 +42125,32 @@ Earned Value Management measures project performance and progress by comparing p
         const { monthNameSp, monthTasksSp, mCompSp, mInProgSp, mNotStartSp, mThisWeekSp, mPctSp, trendSp, trendColorSp } = getCxoSprintData(pState);
 
         html += '<tr><td class="cxo-pad-resp" style="padding:18px 20px 0 20px;">';
-        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.innerCardBg : 'transparent') + '" style="background-color:' + C.innerCardBg + '; border:1px solid ' + C.innerCardBorder + '; border-radius:8px; border-collapse:collapse;"><tr><td style="padding:14px;">';
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.innerCardBg : 'transparent') + '" style="background-color:' + C.innerCardBg + '; border:1px solid ' + C.innerCardBorder + '; border-radius:8px; border-collapse:collapse; width:100%;"><tr><td style="padding:14px;">';
         
-        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:10px;"><tr>';
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:10px; width:100%;"><tr>';
         html += '<td style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0.7px; color:' + (isExport ? '#3b82f6' : C.primary) + '; font-family:' + C.displayFont + ';">🎯 Sprint Target — ' + escapeHTML(monthNameSp) + '</td>';
         html += '<td align="right" style="font-size:11.5px; font-weight:800; color:' + trendColorSp + '; font-family:' + C.displayFont + ';">Completion: ' + mPctSp + '% (' + escapeHTML(trendSp) + ')</td>';
         html += '</tr></table>';
 
-        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:10px;"><tr>';
-        html += '<td style="padding-right:2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#166534' : '#bbf7d0') + '; border-radius:6px; text-align:center;"><tr><td>';
-        html += '<div style="font-size:15px; font-weight:900; color:' + (isDark ? '#4ade80' : '#16a34a') + ';">' + mCompSp + '</div><div style="font-size:9px; font-weight:700; color:' + (isDark ? '#4ade80' : '#15803d') + '; text-transform:uppercase;">Completed</div>';
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom:10px; width:100%;"><tr>';
+        html += '<td style="padding-right:2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#166534' : '#bbf7d0') + '; border-radius:6px; text-align:center; width:100%;"><tr><td>';
+        html += '<div style="font-size:16px; font-weight:900; color:' + (isDark ? '#4ade80' : '#16a34a') + ';">' + mCompSp + '</div><div style="font-size:9.5px; font-weight:700; color:' + (isDark ? '#4ade80' : '#15803d') + '; text-transform:uppercase;">Completed</div>';
         html += '</td></tr></table></td>';
-        html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#1e40af' : '#bfdbfe') + '; border-radius:6px; text-align:center;"><tr><td>';
-        html += '<div style="font-size:15px; font-weight:900; color:' + (isDark ? '#60a5fa' : '#2563eb') + ';">' + mInProgSp + '</div><div style="font-size:9px; font-weight:700; color:' + (isDark ? '#93c5fd' : '#1d4ed8') + '; text-transform:uppercase;">In Progress</div>';
+        html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#1e40af' : '#bfdbfe') + '; border-radius:6px; text-align:center; width:100%;"><tr><td>';
+        html += '<div style="font-size:16px; font-weight:900; color:' + (isDark ? '#60a5fa' : '#2563eb') + ';">' + mInProgSp + '</div><div style="font-size:9.5px; font-weight:700; color:' + (isDark ? '#93c5fd' : '#1d4ed8') + '; text-transform:uppercase;">In Progress</div>';
         html += '</td></tr></table></td>';
-        html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#475569' : '#cbd5e1') + '; border-radius:6px; text-align:center;"><tr><td>';
-        html += '<div style="font-size:15px; font-weight:900; color:' + C.textSub + ';">' + mNotStartSp + '</div><div style="font-size:9px; font-weight:700; color:' + C.textSub + '; text-transform:uppercase;">Not Started</div>';
+        html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#475569' : '#cbd5e1') + '; border-radius:6px; text-align:center; width:100%;"><tr><td>';
+        html += '<div style="font-size:16px; font-weight:900; color:' + C.textSub + ';">' + mNotStartSp + '</div><div style="font-size:9.5px; font-weight:700; color:' + C.textSub + '; text-transform:uppercase;">Not Started</div>';
         html += '</td></tr></table></td>';
-        html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#9a3412' : '#fed7aa') + '; border-radius:6px; text-align:center;"><tr><td>';
-        html += '<div style="font-size:15px; font-weight:900; color:' + (isDark ? '#fb923c' : '#ea580c') + ';">+' + mThisWeekSp + '</div><div style="font-size:9px; font-weight:700; color:' + (isDark ? '#fb923c' : '#c2410c') + '; text-transform:uppercase;">Weekly Pace</div>';
+        html += '<td style="padding:0 2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + (isDark ? '#9a3412' : '#fed7aa') + '; border-radius:6px; text-align:center; width:100%;"><tr><td>';
+        html += '<div style="font-size:16px; font-weight:900; color:' + (isDark ? '#fb923c' : '#ea580c') + ';">+' + mThisWeekSp + '</div><div style="font-size:9.5px; font-weight:700; color:' + (isDark ? '#fb923c' : '#c2410c') + '; text-transform:uppercase;">Weekly Pace</div>';
         html += '</td></tr></table></td>';
-        html += '<td style="padding-left:2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + C.cardBorder + '; border-radius:6px; text-align:center;"><tr><td>';
-        html += '<div style="font-size:15px; font-weight:900; color:' + trendColorSp + ';">' + mPctSp + '%</div><div style="font-size:9px; font-weight:700; color:' + trendColorSp + '; text-transform:uppercase;">' + escapeHTML(trendSp) + '</div>';
+        html += '<td style="padding-left:2px;"><table width="100%" border="0" cellpadding="6" cellspacing="0" bgcolor="' + (isExport ? C.tileBg : 'transparent') + '" style="background:' + C.tileBg + '; border:1px solid ' + C.cardBorder + '; border-radius:6px; text-align:center; width:100%;"><tr><td>';
+        html += '<div style="font-size:16px; font-weight:900; color:' + trendColorSp + ';">' + mPctSp + '%</div><div style="font-size:9.5px; font-weight:700; color:' + trendColorSp + '; text-transform:uppercase;">' + escapeHTML(trendSp) + '</div>';
         html += '</td></tr></table></td>';
         html += '</tr></table>';
 
-        // Detailed task table wrapped in responsive container
+        // Detailed task table full fluid width
         html += '<div class="cxo-table-scroll" style="width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch;">';
         html += '<table class="cxo-tbl-inner" width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border:1px solid ' + C.tableBorder + '; border-radius:8px; overflow:hidden; font-size:12px;">';
         html += '<thead><tr bgcolor="' + (isExport ? C.thBg : 'transparent') + '" style="background-color:' + C.thBg + ';">';
@@ -42204,17 +42196,17 @@ Earned Value Management measures project performance and progress by comparing p
 
         html += '<tr><td class="cxo-pad-resp" style="padding:18px 20px 0 20px;">';
         html += secHdr(isExport ? '#0ea5e9' : C.primary, '📊', 'Status Snapshot (' + totalT + ' Total Deliverables)');
-        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">';
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse; width:100%;">';
         for (let i = 0; i < statusBuckets.length; i += 2) {
           html += '<tr>';
           for (let j = i; j < Math.min(i + 2, statusBuckets.length); j++) {
             const b = statusBuckets[j];
             const pct = totalT > 0 ? Math.round((b.count / totalT) * 100) : 0;
             html += '<td class="cxo-status-stack" width="50%" style="padding:4px; vertical-align:top;">';
-            html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? b.bg : 'transparent') + '" style="background-color:' + b.bg + '; border:1px solid ' + b.color + (isDark ? '66' : '33') + '; border-radius:6px; border-collapse:collapse;"><tr>';
-            html += '<td style="padding:10px 12px;">';
+            html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? b.bg : 'transparent') + '" style="background-color:' + b.bg + '; border:1px solid ' + b.color + (isDark ? '66' : '33') + '; border-radius:6px; border-collapse:collapse; width:100%;"><tr>';
+            html += '<td style="padding:12px 14px;">';
             html += '<div style="font-size:10px; text-transform:uppercase; letter-spacing:0.6px; color:' + b.color + '; font-weight:700; margin-bottom:2px;">' + b.icon + ' ' + b.label + '</div>';
-            html += '<div style="font-size:20px; font-weight:900; color:' + b.color + '; line-height:1.1;">' + b.count + '<span style="font-size:11px; color:' + C.textSub + '; font-weight:500;"> / ' + totalT + '</span></div>';
+            html += '<div style="font-size:22px; font-weight:900; color:' + b.color + '; line-height:1.1;">' + b.count + '<span style="font-size:11.5px; color:' + C.textSub + '; font-weight:500;"> / ' + totalT + '</span></div>';
             html += miniBar(pct, b.color);
             html += '</td></tr></table>';
             html += '</td>';
@@ -42474,13 +42466,13 @@ Earned Value Management measures project performance and progress by comparing p
         
         html += '<tr><td class="cxo-pad-resp" style="padding:18px 20px 0 20px;">';
         html += secHdr(isDark ? '#c084fc' : '#8b5cf6', '🙋', 'Management\'s Ask / Support Required');
-        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.askBg : 'transparent') + '" style="background-color:' + C.askBg + '; border:1px solid ' + C.askBorder + '; border-radius:8px; border-collapse:collapse;"><tr><td style="padding:14px 16px;">';
+        html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="' + (isExport ? C.askBg : 'transparent') + '" style="background-color:' + C.askBg + '; border:1px solid ' + C.askBorder + '; border-radius:8px; border-collapse:collapse; width:100%;"><tr><td style="padding:14px 16px;">';
         
         let hasAskContent = false;
         if (execAsk) {
           hasAskContent = true;
           html += '<div style="font-size:13px; font-weight:700; color:' + C.askTitle + '; margin-bottom:6px; font-family:' + C.displayFont + ';">Direct Requests to Leadership:</div>';
-          html += '<div style="font-size:12.5px; color:' + C.askText + '; line-height:1.6; margin-bottom:10px;">' + escapeHTML(execAsk).split('\n').join('<br>') + '</div>';
+          html += '<div style="font-size:12.5px; color:' + C.askText + '; line-height:1.6; margin-bottom:10px;">' + escapeHTML(execAsk).replace(/\n/g, '<br>') + '</div>';
         }
 
         if (decisions.length > 0) {
@@ -42502,7 +42494,7 @@ Earned Value Management measures project performance and progress by comparing p
 
       // Footer
       html += '<tr><td class="cxo-pad-resp" style="padding:18px 20px;">';
-      html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="border-top:2px solid ' + C.footerBorder + '; padding-top:14px;"><tr>';
+      html += '<table width="100%" border="0" cellpadding="0" cellspacing="0" style="border-top:2px solid ' + C.footerBorder + '; padding-top:14px; width:100%;"><tr>';
       html += '<td style="font-size:10.5px; color:' + C.footerSub + '; line-height:1.4;">' + escapeHTML(pState.name || 'Project') + ' &nbsp;|&nbsp; ' + formatCxoDate(new Date()) + '</td>';
       html += '<td align="right" style="font-size:10px; color:' + C.footerPriv + '; text-transform:uppercase; letter-spacing:0.8px; font-weight:600;">Confidential &amp; Steering Privileged</td>';
       html += '</tr></table></td></tr>';
@@ -43179,7 +43171,7 @@ Earned Value Management measures project performance and progress by comparing p
         '    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }\n' +
         '    table { border-collapse: collapse !important; }\n' +
         '    body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; background-color: ' + bodyBg + '; font-family: Arial, Helvetica, sans-serif; }\n' +
-        '    .cxo-email-wrap { width: 100% !important; max-width: 740px !important; margin: 0 auto !important; }\n' +
+        '    .cxo-email-wrap { width: 100% !important; max-width: 100% !important; margin: 0 auto !important; }\n' +
         '    .cxo-table-scroll { width: 100% !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; display: block !important; }\n' +
         '    @media only screen and (max-width: 640px) {\n' +
         '      .cxo-email-wrap { width: 100% !important; max-width: 100% !important; }\n' +
@@ -43194,11 +43186,11 @@ Earned Value Management measures project performance and progress by comparing p
         '</head>\n' +
         '<body style="margin: 0; padding: 12px 6px; background-color: ' + bodyBg + '; font-family: Arial, Helvetica, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">\n' +
         '  <!--[if mso]>\n' +
-        '  <table align="center" border="0" cellspacing="0" cellpadding="0" width="740">\n' +
+        '  <table align="center" border="0" cellspacing="0" cellpadding="0" width="100%" style="width:100%;">\n' +
         '  <tr>\n' +
-        '  <td align="center" valign="top" width="740">\n' +
+        '  <td align="center" valign="top" width="100%">\n' +
         '  <![endif]-->\n' +
-        '  <table border="0" cellpadding="0" cellspacing="0" width="100%" class="cxo-email-wrap" style="max-width:740px; margin:0 auto; background-color:' + cardBg + '; border-radius:12px; overflow:hidden; border:1px solid ' + cardBorder + ';">\n' +
+        '  <table border="0" cellpadding="0" cellspacing="0" width="100%" class="cxo-email-wrap" style="width:100%; max-width:100%; margin:0 auto; background-color:' + cardBg + '; border-radius:12px; overflow:hidden; border:1px solid ' + cardBorder + ';">\n' +
         '    <tr>\n' +
         '      <td style="padding: 10px 8px;">\n' +
         '        ' + innerHtml + '\n' +
