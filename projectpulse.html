@@ -51025,7 +51025,7 @@ Earned Value Management measures project performance and progress by comparing p
                   <td style="padding:6px 10px">${esc(m.almStatus || 'Open')}</td>
                   <td style="padding:6px 10px">${esc(m.reportedBy || '—')}</td>
                   <td style="padding:6px 10px">${esc(m.fixedBy || '—')}</td>
-                  <td style="padding:6px 10px; font-size:11px">${esc(m.linkedType || 'None')}: ${esc(m.linkedId || '—')}</td>
+                  <td style="padding:6px 10px; font-size:11px">${m.linkedType && m.linkedType !== 'None' && m.linkedId ? `<span style="font-weight:700; color:var(--color-primary); display:inline-flex; align-items:center; gap:3px" title="Auto-identified Link: ${esc(m.linkedType)}: ${esc(m.linkedId)}"><i data-lucide="${m.linkedType === 'Screen' ? 'layout' : 'check-square'}" style="width:11px;height:11px"></i> ${esc(m.linkedType)}: ${esc(m.linkedId)}</span>` : `<span style="color:var(--color-text-faint)">None</span>`}</td>
                 </tr>
               `;
             }).join('')}
@@ -51108,6 +51108,227 @@ Earned Value Management measures project performance and progress by comparing p
     }
     window.resolveTeamMemberName = resolveTeamMemberName;
 
+    // Auto-identify linked task or screen based on module name and delivered components
+    function autoIdentifyDeliveryLink(item) {
+      if (!item) return { linkedType: 'None', linkedId: '' };
+
+      const modStr = (item.module || '').trim().toLowerCase();
+      const compStr = (item.componentsDelivered || (Array.isArray(item.guiScreens) ? item.guiScreens.join(', ') : item.guiScreens) || '').trim();
+      const nameStr = (item.name || item.description || '').trim();
+      const almStr = (item.almId || '').trim();
+
+      // If user already specified a valid non-empty linkedId that exists, keep it
+      if (item.linkedId && item.linkedId !== 'None' && item.linkedId !== '') {
+        const rawLId = String(item.linkedId).trim();
+        const tMatch = (P.tasks || []).find(t => t.id && t.id.toLowerCase() === rawLId.toLowerCase());
+        if (tMatch) return { linkedType: 'Task', linkedId: tMatch.id };
+        const tNameMatch = (P.tasks || []).find(t => t.name && t.name.toLowerCase() === rawLId.toLowerCase());
+        if (tNameMatch) return { linkedType: 'Task', linkedId: tNameMatch.id };
+        if (item.linkedType === 'Screen') return { linkedType: 'Screen', linkedId: rawLId };
+        if (item.linkedType === 'Defect') return { linkedType: 'Defect', linkedId: rawLId };
+      }
+
+      const tasks = Array.isArray(P.tasks) ? P.tasks : [];
+      const features = Array.isArray(P.features) ? P.features : [];
+
+      const norm = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const stripExt = (s) => (s || '').replace(/\.[a-zA-Z0-9]+$/, '').replace(/[_\-\.]+/g, ' ').trim();
+
+      // Collect all known screens with their module and parent task context
+      const knownScreens = [];
+      tasks.forEach(t => {
+        const tScreens = Array.isArray(t.guiScreens) ? t.guiScreens : (Array.isArray(t.screens) ? t.screens : []);
+        tScreens.forEach(sc => {
+          const sName = typeof sc === 'string' ? sc.trim() : (sc.name || sc.id || '').trim();
+          if (sName) {
+            knownScreens.push({
+              name: sName,
+              normName: norm(sName),
+              module: (t.module || '').toLowerCase(),
+              taskId: t.id,
+              taskName: t.name || '',
+              moduleType: t.moduleType || 'GUI'
+            });
+          }
+        });
+        (t.subtasks || []).forEach(st => {
+          if (st.type === 'screen' || st.screen) {
+            const sName = (st.name || st.screen || '').trim();
+            if (sName) {
+              knownScreens.push({
+                name: sName,
+                normName: norm(sName),
+                module: (t.module || '').toLowerCase(),
+                taskId: t.id,
+                taskName: t.name || '',
+                moduleType: 'GUI'
+              });
+            }
+          }
+        });
+      });
+
+      features.forEach(f => {
+        (f.screens || []).forEach(sc => {
+          const sName = typeof sc === 'string' ? sc.trim() : (sc.name || sc.id || '').trim();
+          if (sName && !knownScreens.some(k => k.normName === norm(sName))) {
+            knownScreens.push({
+              name: sName,
+              normName: norm(sName),
+              module: (f.module || f.category || f.name || '').toLowerCase(),
+              featureName: f.name,
+              moduleType: 'GUI'
+            });
+          }
+        });
+      });
+
+      const rawParts = compStr ? compStr.split(/[,;\n\r|/]+/).map(s => s.trim()).filter(Boolean) : [];
+      const cleanParts = rawParts.map(p => stripExt(p)).filter(Boolean);
+      const normParts = cleanParts.map(p => norm(p)).filter(Boolean);
+      const fullText = (compStr + ' ' + nameStr + ' ' + modStr + ' ' + almStr).toLowerCase();
+      const normFullText = norm(fullText);
+
+      // ── 1. SCREEN IDENTIFICATION ──
+      let bestScreenMatch = null;
+      let highestScreenScore = 0;
+
+      knownScreens.forEach(sc => {
+        const scLower = sc.name.toLowerCase();
+        const scNorm = sc.normName;
+        let score = 0;
+
+        // Exact match with clean token
+        if (cleanParts.some(p => p.toLowerCase() === scLower || norm(p) === scNorm)) {
+          score += 100;
+        } else if (normParts.some(p => p.length >= 4 && (p.includes(scNorm) || scNorm.includes(p)))) {
+          score += 70;
+        } else if (compStr && (compStr.toLowerCase().includes(scLower) || norm(compStr).includes(scNorm))) {
+          score += 60;
+        } else if (nameStr && (nameStr.toLowerCase().includes(scLower) || norm(nameStr).includes(scNorm))) {
+          score += 45;
+        }
+
+        if (score > 0) {
+          if (modStr && sc.module && (sc.module.includes(modStr) || modStr.includes(sc.module) || norm(sc.module).includes(norm(modStr)))) {
+            score += 35;
+          }
+          if (score > highestScreenScore) {
+            highestScreenScore = score;
+            bestScreenMatch = sc;
+          }
+        }
+      });
+
+      if (bestScreenMatch && highestScreenScore >= 50) {
+        return {
+          linkedType: 'Screen',
+          linkedId: bestScreenMatch.name
+        };
+      }
+
+      // ── 2. TASK IDENTIFICATION ──
+      // Check direct task ID reference (e.g. TASK-002, TSK-001)
+      const idRegex = /\b(?:TASK|TSK|T)-?0*(\d+)\b/i;
+      const taskIdMatch = fullText.match(idRegex);
+      if (taskIdMatch) {
+        const num = parseInt(taskIdMatch[1], 10);
+        const matchedById = tasks.find(t => {
+          const tNum = parseInt((t.id || '').replace(/\D/g, ''), 10);
+          return tNum === num;
+        });
+        if (matchedById) {
+          return {
+            linkedType: 'Task',
+            linkedId: matchedById.id
+          };
+        }
+      }
+
+      let bestTaskMatch = null;
+      let highestTaskScore = 0;
+
+      tasks.forEach(t => {
+        let score = 0;
+        const tNameLower = (t.name || '').toLowerCase();
+        const tNameNorm = norm(t.name);
+        const tModLower = (t.module || '').toLowerCase();
+
+        // Module match
+        const moduleMatches = modStr && tModLower && (tModLower === modStr || tModLower.includes(modStr) || modStr.includes(tModLower) || norm(tModLower).includes(norm(modStr)));
+        if (moduleMatches) {
+          score += 30;
+        }
+
+        // Component name match with task name
+        if (compStr && (tNameLower === compStr.toLowerCase() || tNameNorm === norm(compStr))) {
+          score += 90;
+        } else if (cleanParts.some(p => p.length >= 4 && (tNameLower.includes(p.toLowerCase()) || p.toLowerCase().includes(tNameLower) || tNameNorm.includes(norm(p))))) {
+          score += 60;
+        } else if (compStr && (compStr.toLowerCase().includes(tNameLower) || norm(compStr).includes(tNameNorm))) {
+          score += 45;
+        }
+
+        // Delivery description match with task name
+        if (nameStr && (tNameLower === nameStr.toLowerCase() || tNameNorm === norm(nameStr))) {
+          score += 85;
+        } else if (nameStr && (nameStr.toLowerCase().includes(tNameLower) || tNameLower.includes(nameStr.toLowerCase()) || normFullText.includes(tNameNorm))) {
+          score += 50;
+        }
+
+        // Keyword overlap
+        const tWords = tNameLower.split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !['diamond', 'milestone', 'task', 'core', 'with', 'from', 'user', 'view', 'list', 'edit'].includes(w));
+        let wordMatches = 0;
+        tWords.forEach(w => {
+          if (fullText.includes(w) || normFullText.includes(w)) wordMatches++;
+        });
+        if (wordMatches > 0) {
+          score += (wordMatches * 15);
+        }
+
+        // Task screens match component
+        const tScreens = Array.isArray(t.guiScreens) ? t.guiScreens : [];
+        if (tScreens.some(s => compStr.toLowerCase().includes(String(s).toLowerCase()) || norm(compStr).includes(norm(s)))) {
+          score += 45;
+        }
+
+        if (score > highestTaskScore) {
+          highestTaskScore = score;
+          bestTaskMatch = t;
+        }
+      });
+
+      if (bestTaskMatch && highestTaskScore >= 35) {
+        return {
+          linkedType: 'Task',
+          linkedId: bestTaskMatch.id
+        };
+      }
+
+      // Fallback: If module matched a single task or active task
+      if (modStr) {
+        const modTasks = tasks.filter(t => (t.module || '').toLowerCase() === modStr || (t.module || '').toLowerCase().includes(modStr) || norm(t.module).includes(norm(modStr)));
+        if (modTasks.length === 1) {
+          return {
+            linkedType: 'Task',
+            linkedId: modTasks[0].id
+          };
+        } else if (modTasks.length > 1) {
+          const activeTask = modTasks.find(t => t.status !== 'Completed') || modTasks[0];
+          return {
+            linkedType: 'Task',
+            linkedId: activeTask.id
+          };
+        }
+      }
+
+      return {
+        linkedType: item.linkedType || 'None',
+        linkedId: item.linkedId || ''
+      };
+    }
+    window.autoIdentifyDeliveryLink = autoIdentifyDeliveryLink;
+
     // Transform a raw row according to active mapping
     function transformDeliveryRow(rawRow, mappings, rowIndex) {
       const item = {
@@ -51178,6 +51399,31 @@ Earned Value Management measures project performance and progress by comparing p
             item.leadTimeDays = Math.max(0, diff);
           }
         } catch(e) {}
+      }
+
+      // Auto-identify linked task or screen based on module name and delivered components if not explicitly provided
+      if (!item.linkedId || item.linkedId === 'None' || !item.linkedType || item.linkedType === 'None' || (item.linkedType === 'Task' && !item.linkedId)) {
+        const autoLink = autoIdentifyDeliveryLink(item);
+        if (autoLink && autoLink.linkedId) {
+          item.linkedType = autoLink.linkedType;
+          item.linkedId = autoLink.linkedId;
+        }
+      }
+
+      // Auto-enrich missing dates/release from identified link
+      if (item.linkedId && item.linkedId !== 'None' && typeof getDeliveryLinkedItemInfo === 'function') {
+        const linkInfo = getDeliveryLinkedItemInfo(item.linkedType, item.linkedId);
+        if (linkInfo) {
+          if ((!item.releaseVersion || item.releaseVersion === 'v1.0.0') && linkInfo.releaseVersion) {
+            item.releaseVersion = linkInfo.releaseVersion;
+          }
+          if (!item.module && linkInfo.module) {
+            item.module = linkInfo.module;
+          }
+          if (!item.targetDeliveryDate && linkInfo.plannedDeliveryDate) {
+            item.targetDeliveryDate = linkInfo.plannedDeliveryDate;
+          }
+        }
       }
 
       return item;
@@ -59140,6 +59386,13 @@ Earned Value Management measures project performance and progress by comparing p
             notes: del.notes || del['Notes'] || ''
           };
           if (del.custom) item.custom = { ...del.custom };
+          if (!item.linkedId || item.linkedId === 'None') {
+            const autoLink = autoIdentifyDeliveryLink(item);
+            if (autoLink && autoLink.linkedId) {
+              item.linkedType = autoLink.linkedType;
+              item.linkedId = autoLink.linkedId;
+            }
+          }
           return item;
         });
         P.features = rawData.rawFeat.map((f, idx) => {
