@@ -47194,73 +47194,105 @@ Earned Value Management measures project performance and progress by comparing p
     window.openRaidModal = openRaidModal;
     function openRaidModal(id) {
       P._editingRaidId = id || null;
-      const r = id ? P.raids.find(x => x.id === id) : null;
+      const r = id ? (P.raids || []).find(x => x.id === id) : null;
 
-      $id('raid-modal-title').textContent = r ? 'Edit RAID Item' : 'Log RAID Item';
+      const titleEl = $id('raid-modal-title');
+      if (titleEl) titleEl.textContent = r ? 'Edit RAID Item' : 'Log RAID Item';
       const subt = $id('raid-flyout-subtitle');
       if (subt) subt.textContent = r ? 'RAID ID: ' + r.id : 'RAID ID: —';
-      $id('raid_type').value = r ? r.type : 'Risk';
-      $id('raid_title').value = r ? r.title : '';
-      $id('raid_desc').value = r ? r.desc : '';
-      $id('raid_impact').value = r ? r.impact : 'High';
-      $id('raid_prob').value = r ? (r.probability || 'High') : 'High';
-      $id('raid_severity').value = r ? r.severity : 'S2 - Major';
-      $id('raid_created').value = r ? getRaidDateSince(r) : todayStr();
-      $id('raid_due').value = r ? r.dueDate : todayStr();
-      $id('raid_status').value = r ? r.status : 'Active';
-      $id('raid_mitigation').value = r ? r.mitigation : '';
 
-      const ownerSel = $id('raid_owner');
-      ownerSel.innerHTML = P.members.map(m => `<option value="${esc(m.name)}" ${r && r.owner === m.name ? 'selected' : ''}>${esc(m.name)}</option>`).join('');
+      const typeEl = $id('raid_type') || $id('raid-type');
+      if (typeEl) typeEl.value = r ? r.type : 'Risk';
+      const tEl = $id('raid_title') || $id('raid-title');
+      if (tEl) tEl.value = r ? r.title : '';
+      const descEl = $id('raid_desc') || $id('raid-desc');
+      if (descEl) descEl.value = r ? r.desc : '';
+      const impactEl = $id('raid_impact') || $id('raid-impact');
+      if (impactEl) impactEl.value = r ? r.impact : 'High';
+      const probEl = $id('raid_prob') || $id('raid-prob');
+      if (probEl) probEl.value = r ? (r.probability || 'High') : 'High';
+      const sevEl = $id('raid_severity') || $id('raid-severity');
+      if (sevEl) sevEl.value = r ? r.severity : 'S2 - Major';
+      const createdEl = $id('raid_created') || $id('raid-created');
+      if (createdEl) createdEl.value = r ? getRaidDateSince(r) : todayStr();
+      const dueEl = $id('raid_due') || $id('raid-due');
+      if (dueEl) dueEl.value = r ? r.dueDate : todayStr();
+      const statusEl = $id('raid_status') || $id('raid-status');
+      if (statusEl) statusEl.value = r ? r.status : 'Active';
+      const mitEl = $id('raid_mitigation') || $id('raid-mitigation');
+      if (mitEl) mitEl.value = r ? r.mitigation : '';
 
-      $id('raid_del_btn').style.display = r ? 'inline-flex' : 'none';
+      const ownerSel = $id('raid_owner') || $id('raid-owner');
+      if (ownerSel) {
+        ownerSel.innerHTML = (P.members || []).map(m => `<option value="${esc(m.name)}" ${r && r.owner === m.name ? 'selected' : ''}>${esc(m.name)}</option>`).join('');
+      }
+
+      const delBtn = $id('raid_del_btn') || $id('raid-del-btn');
+      if (delBtn) delBtn.style.display = r ? 'inline-flex' : 'none';
       toggleRaidProb();
 
       closeAllFlyouts();
-      $id('raid-flyout').classList.add('open');
-      $id('flyout-overlay').classList.add('on');
+      const flyout = $id('raid-flyout');
+      if (flyout) flyout.classList.add('open');
+      const overlay = $id('flyout-overlay');
+      if (overlay) overlay.classList.add('on');
     };
     window.closeRaidFlyout = closeRaidFlyout;
     function closeRaidFlyout() {
-      $id('raid-flyout').classList.remove('open');
+      const flyout = $id('raid-flyout');
+      if (flyout) flyout.classList.remove('open');
       const overlay = $id('flyout-overlay');
       if (overlay) overlay.classList.remove('on');
     };
     window.toggleRaidProb = toggleRaidProb;
     function toggleRaidProb() {
-      const t = $id('raid-type').value;
-      const fg = $id('raid-prob-fg');
+      const typeEl = $id('raid_type') || $id('raid-type');
+      const t = typeEl ? typeEl.value : 'Risk';
+      const fg = $id('raid_prob_fg') || $id('raid-prob-fg') || ($id('raid_prob') ? $id('raid_prob').closest('.fg') : null);
       if (fg) fg.style.display = (t === 'Risk' || t === 'Assumption') ? 'block' : 'none';
     };
     window.saveRaidItem = saveRaidItem;
     function saveRaidItem() {
-      const title = $id('raid_title').value.trim();
+      const titleEl = $id('raid_title') || $id('raid-title');
+      const title = titleEl ? titleEl.value.trim() : '';
       if (!title) { notify('Title is required', 'err'); return; }
 
-      const t = $id('raid_type').value;
+      const typeEl = $id('raid_type') || $id('raid-type');
+      const t = typeEl ? typeEl.value : 'Risk';
+      const descEl = $id('raid_desc') || $id('raid-desc');
+      const ownerEl = $id('raid_owner') || $id('raid-owner');
+      const impactEl = $id('raid_impact') || $id('raid-impact');
+      const probEl = $id('raid_prob') || $id('raid-prob');
+      const sevEl = $id('raid_severity') || $id('raid-severity');
+      const createdEl = $id('raid_created') || $id('raid-created');
+      const dueEl = $id('raid_due') || $id('raid-due');
+      const statusEl = $id('raid_status') || $id('raid-status');
+      const mitEl = $id('raid_mitigation') || $id('raid-mitigation');
+
       const data = {
         type: t,
         title: title,
-        desc: $id('raid_desc').value.trim(),
-        owner: $id('raid_owner').value,
-        impact: $id('raid_impact').value,
-        probability: (t === 'Risk' || t === 'Assumption') ? $id('raid_prob').value : null,
-        severity: $id('raid_severity').value,
-        createdAt: $id('raid_created').value || todayStr(),
-        dueDate: $id('raid_due').value || todayStr(),
-        status: $id('raid_status').value,
-        mitigation: $id('raid_mitigation').value.trim(),
+        desc: descEl ? descEl.value.trim() : '',
+        owner: ownerEl ? ownerEl.value : '',
+        impact: impactEl ? impactEl.value : 'High',
+        probability: (t === 'Risk' || t === 'Assumption') ? (probEl ? probEl.value : 'High') : null,
+        severity: sevEl ? sevEl.value : 'S2 - Major',
+        createdAt: (createdEl ? createdEl.value : '') || todayStr(),
+        dueDate: (dueEl ? dueEl.value : '') || todayStr(),
+        status: statusEl ? statusEl.value : 'Active',
+        mitigation: mitEl ? mitEl.value.trim() : '',
         updatedAt: nowISO()
       };
 
       if (P._editingRaidId) {
-        const r = P.raids.find(x => x.id === P._editingRaidId);
+        const r = (P.raids || []).find(x => x.id === P._editingRaidId);
         if (r) Object.assign(r, data);
       } else {
         data.id = 'RAID-' + String(P.nextRaidId++).padStart(3, '0');
         if (!data.createdAt) data.createdAt = nowISO();
         data.linkedTasks = [];
         data.linkedMilestones = [];
+        if (!Array.isArray(P.raids)) P.raids = [];
         P.raids.push(data);
       }
 
