@@ -14533,7 +14533,18 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
         },
         getRevMap() {
           const m = {};
-          Object.entries(this.labels).forEach(([k, v]) => m[v.toLowerCase().replace(/\s/g, '')] = k);
+          Object.entries(this.labels).forEach(([k, v]) => m[v.toLowerCase().replace(/[^a-z0-9]/g, '')] = k);
+          m['empid'] = 'empId';
+          m['employeeid'] = 'empId';
+          m['eid'] = 'empId';
+          m['employeeno'] = 'empId';
+          m['empno'] = 'empId';
+          m['employeenumber'] = 'empId';
+          m['empnumber'] = 'empId';
+          m['staffid'] = 'empId';
+          m['badgeid'] = 'empId';
+          m['badge'] = 'empId';
+          m['userid'] = 'empId';
           return m;
         }
       },
@@ -22639,6 +22650,25 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
         enterApp();
       }
       initGanttResizer();
+
+      // Window focus auto-sync from disk if file was updated in external spreadsheet editor
+      window.addEventListener('focus', async () => {
+        if (P.fsHandle && !P._isLoading && !P._isSaving && !P._fsPermissionError) {
+          try {
+            const file = await P.fsHandle.getFile();
+            const fileTime = file.lastModified || 0;
+            const lastSyncMs = (P.lastSynced && !isNaN(Date.parse(P.lastSynced))) ? Date.parse(P.lastSynced) : 0;
+            if (fileTime > (lastSyncMs + 1500)) {
+              console.log('[Auto-Sync] File modification detected on focus. Reloading project...');
+              await loadFromFile();
+              render();
+              notify('Project synced with external Excel updates', 'ok');
+            }
+          } catch (e) {
+            console.debug('[Auto-Sync focus check]', e);
+          }
+        }
+      });
     }
 
     function initGanttResizer() {
@@ -58969,31 +58999,33 @@ Earned Value Management measures project performance and progress by comparing p
           if (!ws) return [];
 
           let headerRowIdx = 1;
-          if (name === 'Tasks' || name === 'Defects' || name === 'Defects Registry') {
-            for (let r = 1; r <= 10; r++) {
-              const row = ws.getRow(r);
-              let foundId = false;
-              row.eachCell(c => {
-                let v = c.value;
-                if (v && typeof v === 'object' && v.richText) v = v.richText.map(rt => rt.text).join('');
-                if (v && typeof v === 'object' && v.text) v = v.text;
-                if (v && typeof v === 'object' && v.result !== undefined) v = v.result;
-                const cellVal = String(v || '').trim().toLowerCase();
-                if (cellVal === 'id' || cellVal === 'task id' || cellVal === 'defect id' || cellVal === 'member id' || cellVal === 'subtask id') {
-                  foundId = true;
-                }
-              });
-              if (foundId) {
-                headerRowIdx = r;
-                break;
+          for (let r = 1; r <= 10; r++) {
+            const row = ws.getRow(r);
+            let foundHeader = false;
+            row.eachCell(c => {
+              let v = c.value;
+              if (v && typeof v === 'object' && v.richText) v = v.richText.map(rt => rt.text).join('');
+              if (v && typeof v === 'object' && v.text) v = v.text;
+              if (v && typeof v === 'object' && v.result !== undefined) v = v.result;
+              const cellVal = String(v || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+              if (['id', 'taskid', 'defectid', 'memberid', 'subtaskid', 'name', 'membername', 'employeeid', 'empid', 'eid', 'title', 'summary', 'deliveryid', 'almid', 'role', 'email'].includes(cellVal)) {
+                foundHeader = true;
               }
+            });
+            if (foundHeader) {
+              headerRowIdx = r;
+              break;
             }
           }
 
-          const data = []; const hdrs = []; const revMap = window.PROJECT_SCHEMA.getRevMap();
-          ws.getRow(headerRowIdx).eachCell(c => {
-            let v = c.value; if (v && typeof v === 'object' && v.richText) v = v.richText.map(rt => rt.text).join(''); if (v && typeof v === 'object' && v.text) v = v.text; if (v && typeof v === 'object' && v.result !== undefined) v = v.result;
-            const raw = String(v || '').toLowerCase().replace(/\s/g, '');
+          const data = []; const hdrs = {}; const revMap = window.PROJECT_SCHEMA.getRevMap();
+          ws.getRow(headerRowIdx).eachCell({ includeEmpty: true }, (c, colIdx) => {
+            let v = c.value;
+            if (v && typeof v === 'object' && v.richText) v = v.richText.map(rt => rt.text).join('');
+            if (v && typeof v === 'object' && v.text) v = v.text;
+            if (v && typeof v === 'object' && v.result !== undefined) v = v.result;
+            const raw = String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (!raw) return;
             let mapped = revMap[raw] || raw;
             if (name === 'Reports') {
               if (raw === 'reporttitle' || raw === 'title') mapped = 'title';
@@ -59010,12 +59042,12 @@ Earned Value Management measures project performance and progress by comparing p
             }
             if (name === 'Team') {
               if (raw === 'memberid' || raw === 'id') mapped = 'id';
-              if (raw === 'employeeid' || raw === 'empid' || raw === 'emp_id' || raw === 'eid') mapped = 'empId';
+              if (/^(employeeid|empid|eid|employee|emp|employeenumber|empnumber|employeeno|empno|staffid|badgeid|badge|userid)$/.test(raw) || raw.includes('empid') || raw.includes('employeeid') || raw.includes('employeeno')) mapped = 'empId';
             }
             if (name === 'Baseline_History') {
               if (raw === 'taskname') mapped = 'taskName';
             }
-            hdrs.push(mapped);
+            hdrs[colIdx] = mapped;
           });
 
           ws.eachRow((row, i) => {
@@ -59041,7 +59073,7 @@ Earned Value Management measures project performance and progress by comparing p
               if (v && typeof v === 'object' && v.text) v = v.text;
               if (v && typeof v === 'object' && v.result !== undefined) v = v.result;
 
-              const colKey = hdrs[colIdx - 1];
+              const colKey = hdrs[colIdx];
               if (colKey) {
                 if (typeof v === 'string') {
                   const cleaned = PulseExcel.cleanNewBadgeText(v);
@@ -59381,7 +59413,26 @@ Earned Value Management measures project performance and progress by comparing p
           }
         });
 
-        P.members = rawData.rawMem.map(m => ({ ...m, empId: m.empId || m.employeeId || m['Employee ID'] || m['employee_id'] || '', plannedLeaves: relTables['Data_MemberLeaves'].filter(l => l.memberId === m.id).map(l => ({ from: fmtD(l.from), to: fmtD(l.to), reason: l.reason })) }));
+        P.members = rawData.rawMem.map(m => {
+          let memberEmpId = String(m.empId != null ? m.empId : (m.employeeId != null ? m.employeeId : (m['Employee ID'] != null ? m['Employee ID'] : (m['employee_id'] != null ? m['employee_id'] : (m['EmployeeId'] != null ? m['EmployeeId'] : (m['Emp ID'] != null ? m['Emp ID'] : (m['EmpId'] != null ? m['EmpId'] : (m['EID'] != null ? m['EID'] : (m['eid'] != null ? m['eid'] : ''))))))))).trim();
+          let memberName = String(m.name || '').trim();
+
+          // Auto-extract Employee ID if embedded in name e.g. "Manvendra Pratap Singh (671172)"
+          const mMatch = memberName.match(/^(.*?)\s*\((\d+|[A-Za-z0-9_-]{3,})\)$/);
+          if (mMatch) {
+            memberName = mMatch[1].trim();
+            if (!memberEmpId) {
+              memberEmpId = mMatch[2].trim();
+            }
+          }
+
+          return {
+            ...m,
+            name: memberName,
+            empId: memberEmpId,
+            plannedLeaves: relTables['Data_MemberLeaves'].filter(l => l.memberId === m.id).map(l => ({ from: fmtD(l.from), to: fmtD(l.to), reason: l.reason }))
+          };
+        });
         P.defects = rawData.rawDef.map(d => ({ ...d, updatedAt: fmtD(d.updatedAt), createdAt: fmtD(d.createdAt) }));
         P.log = rawData.rawLog.map(l => ({ ...l, ts: fmtD(l.ts) })); P.reports = rawData.rawRep; P.alertHistory = rawData.rawAlerts.map(a => ({ ...a, ts: fmtD(a.ts) }));
         P.raids = (rawData.rawRaids || []).map(r => ({ ...r, dueDate: fmtD(r.dueDate), createdAt: fmtD(r.createdAt), updatedAt: fmtD(r.updatedAt) }));
