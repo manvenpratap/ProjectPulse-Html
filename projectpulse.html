@@ -59038,25 +59038,8 @@ Earned Value Management measures project performance and progress by comparing p
           if (!ws && rawData.sheetAliases[name]) { for (const alias of rawData.sheetAliases[name]) { ws = wb.getWorksheet(alias); if (ws) break; } }
           if (!ws) return [];
 
-          let headerRowIdx = 1;
-          for (let r = 1; r <= 10; r++) {
-            const row = ws.getRow(r);
-            let foundHeader = false;
-            row.eachCell(c => {
-              let v = c.value;
-              if (v && typeof v === 'object' && v.richText) v = v.richText.map(rt => rt.text).join('');
-              if (v && typeof v === 'object' && v.text) v = v.text;
-              if (v && typeof v === 'object' && v.result !== undefined) v = v.result;
-              const cellVal = String(v || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-              if (['id', 'taskid', 'defectid', 'memberid', 'subtaskid', 'name', 'membername', 'employeeid', 'empid', 'eid', 'title', 'summary', 'deliveryid', 'almid', 'role', 'email'].includes(cellVal)) {
-                foundHeader = true;
-              }
-            });
-            if (foundHeader) {
-              headerRowIdx = r;
-              break;
-            }
-          }
+          // Deterministic header row: Tasks and Defects use row 7 (due to cockpit banner), all other canonical sheets use row 1
+          let headerRowIdx = (name === 'Tasks' || name === 'Defects' || name === 'Defects Registry') ? ((ws.rowCount >= 7 && ws.getRow(7).getCell(1).value) ? 7 : 1) : 1;
 
           const data = []; const hdrs = {}; const revMap = window.PROJECT_SCHEMA.getRevMap();
           ws.getRow(headerRowIdx).eachCell({ includeEmpty: true }, (c, colIdx) => {
