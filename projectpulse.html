@@ -59651,10 +59651,6 @@ Earned Value Management measures project performance and progress by comparing p
           notify('Excel library not loaded.', 'err');
           return;
         }
-        if (typeof html2canvas === 'undefined') {
-          notify('Capture library not loaded.', 'err');
-          return;
-        }
         try {
           notify('Reconstructing Project State...', 'ok');
           const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buffer);
@@ -71995,7 +71991,21 @@ Earned Value Management measures project performance and progress by comparing p
       }
     }
 
+    async function ensureHtml2Canvas() {
+      if (typeof html2canvas !== 'undefined') return true;
+      return new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+        s.onload = () => resolve(true);
+        s.onerror = () => resolve(false);
+        document.head.appendChild(s);
+      });
+    }
+
     async function captureAreaAsCanvas(containerId) {
+      if (typeof html2canvas === 'undefined') {
+        await ensureHtml2Canvas();
+      }
       const isFeat = (P.view === 'features' && P._featViewMode === 'timeline') || (P._adminActiveTab === 'features' && P._featViewMode === 'timeline');
       if ((containerId === 'vw-tasks' && P.taskViewMode === 'timeline') || isFeat) {
         const fullGantt = await captureFullGanttChart();
@@ -72005,7 +72015,7 @@ Earned Value Management measures project performance and progress by comparing p
       if (!container) return null;
 
       if (typeof html2canvas === 'undefined') {
-        notify('Capture library not loaded yet. Using basic capture.', 'amber');
+        notify('Capture library not loaded yet.', 'amber');
         return null;
       }
 
