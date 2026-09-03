@@ -16803,17 +16803,30 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
         ],
         delCols: [
           { key: 'almId', label: 'Defect ID - ALM ID', w: 130, type: 'text', edit: true, required: true },
+          { key: 'id', label: 'Delivery ID', w: 110, type: 'text', edit: true },
           { key: 'name', label: 'Description - ALM Description', w: 270, type: 'text', edit: true, required: true },
           { key: 'pdn', label: 'PDN Info', w: 125, type: 'text', edit: true, required: true },
           { key: 'pdnProcessingDate', label: 'PDN Processing Date', w: 135, type: 'date', edit: true, required: true },
           { key: 'componentsDelivered', label: 'Components Delivered', w: 250, type: 'text', edit: true, required: true },
           { key: 'category', label: 'Category', w: 145, type: 'select', opts: ['GSP++ Delivery', 'Regression/NRT Defect'], edit: true, required: true },
           { key: 'module', label: 'Module', w: 130, type: 'select', edit: true, required: true },
+          { key: 'moduleType', label: 'Module Type', w: 110, type: 'select', opts: ['Server', 'GUI', 'Database', 'Service'], edit: true },
+          { key: 'releaseVersion', label: 'Release Version', w: 120, type: 'select', edit: true },
+          { key: 'environment', label: 'Environment', w: 110, type: 'select', opts: ['Production', 'UAT', 'Staging', 'Pre-Prod', 'SIT', 'Dev'], edit: true },
           { key: 'almStatus', label: 'ALM Status', w: 125, type: 'select', opts: ['New', 'Open', 'In Progress', 'Fixed', 'Ready for Test', 'Retest', 'Closed', 'Rejected', 'Reopened'], edit: true, required: true },
+          { key: 'signOffStatus', label: 'Sign-off Status', w: 120, type: 'select', opts: ['Approved', 'Pending', 'Rejected', 'Conditional'], edit: true },
+          { key: 'smokeTestStatus', label: 'Smoke Test Status', w: 125, type: 'select', opts: ['Passed', 'Failed', 'Running', 'Not Run'], edit: true },
+          { key: 'approver', label: 'Approver / Lead', w: 130, type: 'select', edit: true },
           { key: 'reportedBy', label: 'Reported By', w: 130, type: 'select', edit: true, required: true },
           { key: 'fixedBy', label: 'Defect Fixed By', w: 130, type: 'select', edit: true, required: true },
-          { key: 'linkedType', label: 'Linked Type', w: 110, type: 'select', opts: ['Task', 'Screen', 'None'], edit: true, required: true },
+          { key: 'targetDeliveryDate', label: 'Target Delivery Date', w: 130, type: 'date', edit: true },
+          { key: 'actualDeliveryDate', label: 'Actual Delivery Date', w: 130, type: 'date', edit: true },
+          { key: 'leadTimeDays', label: 'Lead Time (Days)', w: 110, type: 'number', edit: true },
+          { key: 'linkedType', label: 'Linked Type', w: 110, type: 'select', opts: ['Multi', 'Task', 'Screen', 'Defect', 'None'], edit: true, required: true },
           { key: 'linkedId', label: 'Linked ID', w: 180, type: 'select', edit: true, required: true },
+          { key: 'linkedTasks', label: 'Linked Tasks', w: 160, type: 'text', edit: true },
+          { key: 'linkedScreens', label: 'Linked Screens', w: 180, type: 'text', edit: true },
+          { key: 'rollbackPlan', label: 'Rollback Plan', w: 220, type: 'text', edit: true },
           { key: 'notes', label: 'Remarks / Notes', w: 200, type: 'text', edit: true }
         ],
         features: [
@@ -52231,12 +52244,18 @@ Earned Value Management measures project performance and progress by comparing p
 
     window.exportDeliveriesToCSV = function() {
       const cols = [
-        'almId', 'name', 'pdn', 'pdnProcessingDate', 'componentsDelivered',
-        'category', 'module', 'almStatus', 'reportedBy', 'fixedBy', 'linkedType', 'linkedId', 'notes'
+        'almId', 'id', 'name', 'pdn', 'pdnProcessingDate', 'componentsDelivered',
+        'category', 'module', 'moduleType', 'releaseVersion', 'environment',
+        'almStatus', 'signOffStatus', 'smokeTestStatus', 'approver', 'reportedBy', 'fixedBy',
+        'targetDeliveryDate', 'actualDeliveryDate', 'leadTimeDays', 'linkedType', 'linkedId',
+        'linkedTasks', 'linkedScreens', 'rollbackPlan', 'notes'
       ];
       const headers = [
-        'Defect ID - ALM ID', 'Description - ALM Description', 'PDN Info', 'PDN Processing Date', 'Components Delivered',
-        'Category', 'Module', 'ALM Status', 'Reported By', 'Defect Fixed By', 'Linked Type', 'Linked ID', 'Remarks / Notes'
+        'Defect ID - ALM ID', 'Delivery ID', 'Description - ALM Description', 'PDN Info', 'PDN Processing Date', 'Components Delivered',
+        'Category', 'Module', 'Module Type', 'Release Version', 'Environment',
+        'ALM Status', 'Sign-off Status', 'Smoke Test Status', 'Approver / Lead', 'Reported By', 'Defect Fixed By',
+        'Target Delivery Date', 'Actual Delivery Date', 'Lead Time (Days)', 'Linked Type', 'Linked ID',
+        'Linked Tasks', 'Linked Screens', 'Rollback Plan', 'Remarks / Notes'
       ];
 
       (P.delCustomFields || []).forEach(f => {
@@ -55776,9 +55795,28 @@ Earned Value Management measures project performance and progress by comparing p
       buildDeliveriesSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate) {
         if (!COLORS) COLORS = {};
         if (!S) S = (v) => (v == null ? '' : String(v).replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F]/g, ''));
-        if (!cleanFmtDate) cleanFmtDate = (d) => (d ? String(d).split('T')[0] : '');
+        if (!cleanFmtDate) cleanFmtDate = (d) => {
+          if (!d || d === '-' || d === '—') return '';
+          if (d instanceof Date) return isNaN(d) ? '' : d.toISOString().split('T')[0];
+          if (typeof d === 'string') {
+            const clean = d.trim();
+            if (/^\d{4}-\d{2}-\d{2}/.test(clean)) return clean.substring(0, 10);
+          }
+          try {
+            const dt = new Date(d);
+            return isNaN(dt) ? '' : dt.toISOString().split('T')[0];
+          } catch(e) { return ''; }
+        };
 
+        const navy = COLORS.navy || 'FF0F172A';
+        const indigo = COLORS.indigo || 'FF4338CA';
+        const slate = COLORS.slate || 'FF64748B';
+        const emerald = COLORS.emerald || 'FF10B981';
+        const rose = COLORS.rose || 'FFF43F5E';
+        const amber = COLORS.amber || 'FFF59E0B';
+        const blue = COLORS.blue || 'FF3B82F6';
         const textDark = COLORS.textDark || 'FF1E293B';
+        const isDark = !!COLORS.isDark;
         const styleRowFn = (typeof COLORS.styleRow === 'function')
           ? COLORS.styleRow
           : (row, i) => {
@@ -55795,50 +55833,328 @@ Earned Value Management measures project performance and progress by comparing p
               });
             };
 
-        const ws = wb.addWorksheet('Deliveries', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1, xSplit: 2 }] });
-        ws.properties.tabColor = { argb: COLORS.emerald || 'FF10B981' };
-        const cols = [
+        // Deliveries worksheet with Cockpit Telemetry panel (frozen at row 7, col 3)
+        const ws = wb.addWorksheet('Deliveries', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 7, xSplit: 3 }] });
+        ws.properties.tabColor = { argb: emerald };
+
+        const baseCols = [
           { header: 'Defect ID - ALM ID', key: 'almId', width: 20 },
+          { header: 'Delivery ID', key: 'id', width: 16 },
           { header: 'Description - ALM Description', key: 'name', width: 42 },
           { header: 'PDN Info', key: 'pdn', width: 18 },
           { header: 'PDN Processing Date', key: 'pdnProcessingDate', width: 20 },
-          { header: 'Components Delivered', key: 'componentsDelivered', width: 38 },
-          { header: 'Category', key: 'category', width: 24 },
+          { header: 'Components Delivered', key: 'componentsDelivered', width: 42 },
+          { header: 'Category', key: 'category', width: 22 },
           { header: 'Module', key: 'module', width: 22 },
+          { header: 'Module Type', key: 'moduleType', width: 16 },
+          { header: 'Release Version', key: 'releaseVersion', width: 18 },
+          { header: 'Environment', key: 'environment', width: 18 },
           { header: 'ALM Status', key: 'almStatus', width: 18 },
-          { header: 'Reported By', key: 'reportedBy', width: 20 },
-          { header: 'Defect Fixed By', key: 'fixedBy', width: 20 },
+          { header: 'Sign-off Status', key: 'signOffStatus', width: 18 },
+          { header: 'Smoke Test Status', key: 'smokeTestStatus', width: 18 },
+          { header: 'Approver / Lead', key: 'approver', width: 22 },
+          { header: 'Reported By', key: 'reportedBy', width: 22 },
+          { header: 'Defect Fixed By', key: 'fixedBy', width: 22 },
+          { header: 'Target Delivery Date', key: 'targetDeliveryDate', width: 20 },
+          { header: 'Actual Delivery Date', key: 'actualDeliveryDate', width: 20 },
+          { header: 'Lead Time (Days)', key: 'leadTimeDays', width: 16 },
+          { header: 'Variance / Delay', key: 'variance', width: 16 },
           { header: 'Linked Type', key: 'linkedType', width: 16 },
-          { header: 'Linked ID', key: 'linkedId', width: 24 },
-          { header: 'Remarks / Notes', key: 'notes', width: 32 }
+          { header: 'Linked ID', key: 'linkedId', width: 32 },
+          { header: 'Linked Tasks', key: 'linkedTasks', width: 25 },
+          { header: 'Linked Screens', key: 'linkedScreens', width: 30 },
+          { header: 'Rollback Plan', key: 'rollbackPlan', width: 42 },
+          { header: 'Remarks / Notes', key: 'notes', width: 35 },
+          { header: 'Created At', key: 'createdAt', width: 16 },
+          { header: 'Updated At', key: 'updatedAt', width: 16 }
         ];
-        (P.delCustomFields || []).forEach(f => { cols.push({ header: f.name, key: f.name, width: 22 }); });
-        ws.columns = cols; ws.getRow(1).height = 30; ws.getRow(1).eachCell(c => c.style = hdrStyle);
 
-        (P.deliveries || []).forEach((d, i) => {
+        (P.delCustomFields || []).forEach(f => {
+          baseCols.push({ header: f.name, key: f.name, width: 22 });
+        });
+
+        // Smart Derived Helper Columns matching Tasks standards
+        baseCols.push({ header: 'Delivery Health', key: 'Derived Health', width: 20 });
+        baseCols.push({ header: 'Quality Risk', key: 'Quality Risk', width: 32 });
+        baseCols.push({ header: 'Pipeline Stage', key: 'Pipeline Stage', width: 22 });
+        baseCols.push({ header: 'Traceability Rating', key: 'Traceability Rating', width: 22 });
+
+        ws.columns = baseCols.map(c => ({ key: c.key, width: c.width }));
+
+        // ── Top KPI Telemetry Cockpit Section ──
+        const drawTopKpiCard = (sheet, col, row, w, h, label, value, subLabel, accentColor) => {
+          const cardBg = isDark ? 'FF1E293B' : 'FFFFFFFF';
+          const shadowColor = isDark ? 'FF020612' : 'FFCBD5E1';
+          const highlightColor = isDark ? 'FF2A364F' : 'FFE2E8F0';
+
+          for (let r = row; r < row + h; r++) {
+            for (let c = col; c < col + w; c++) {
+              const cell = sheet.getCell(r, c);
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: cardBg } };
+            }
+          }
+          sheet.mergeCells(row, col, row + h - 1, col + w - 1);
+          const mainCell = sheet.getCell(row, col);
+          mainCell.border = {
+            top: { style: 'thin', color: { argb: highlightColor } },
+            left: { style: 'medium', color: { argb: accentColor } },
+            bottom: { style: 'medium', color: { argb: shadowColor } },
+            right: { style: 'thin', color: { argb: shadowColor } }
+          };
+          mainCell.value = {
+            richText: [
+              { text: `[${label.toUpperCase()}]\n`, font: { name: 'Courier New', size: 8, bold: true, color: { argb: slate } } },
+              { text: `${value}\n`, font: { name: 'Courier New', size: 14, bold: true, color: { argb: accentColor } } },
+              { text: subLabel || '', font: { name: 'Courier New', size: 7.5, italic: true, color: { argb: slate } } }
+            ]
+          };
+          mainCell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
+        };
+
+        const deliveries = P.deliveries || [];
+        const total = deliveries.length;
+        const closed = deliveries.filter(d => (d.almStatus === 'Closed' || d.status === 'Closed' || d.status === 'Deployed')).length;
+        const progress = total ? Math.round(closed / total * 100) : 0;
+
+        let totalLeadTime = 0;
+        let leadCount = 0;
+        deliveries.forEach(d => {
+          if (d.leadTimeDays != null && !isNaN(d.leadTimeDays)) {
+            totalLeadTime += Number(d.leadTimeDays);
+            leadCount++;
+          } else if (d.targetDeliveryDate && d.actualDeliveryDate) {
+            const tDate = new Date(d.targetDeliveryDate);
+            const aDate = new Date(d.actualDeliveryDate);
+            if (!isNaN(tDate) && !isNaN(aDate)) {
+              totalLeadTime += Math.max(0, Math.round((aDate - tDate) / (1000 * 60 * 60 * 24)));
+              leadCount++;
+            }
+          }
+        });
+        const avgLead = leadCount ? (totalLeadTime / leadCount).toFixed(1) : '0.0';
+
+        const pendingSignoff = deliveries.filter(d => (d.signOffStatus === 'Pending' || (!d.signOffStatus && d.almStatus !== 'Closed'))).length;
+        const smokePassed = deliveries.filter(d => d.smokeTestStatus === 'Passed').length;
+        const overdue = deliveries.filter(d => {
+          const target = d.targetDeliveryDate || d.pdnProcessingDate;
+          return target && d.almStatus !== 'Closed' && d.status !== 'Closed' && d.status !== 'Deployed' && new Date(target) < new Date();
+        }).length;
+        const prodCount = deliveries.filter(d => (d.environment || '').toLowerCase() === 'production').length;
+        const uatCount = deliveries.filter(d => (d.environment || '').toLowerCase() === 'uat').length;
+
+        ws.getRow(1).height = 10;
+        ws.mergeCells('A2:H2');
+        ws.getRow(2).height = 20;
+        const titleCell = ws.getCell('A2');
+        titleCell.value = ' >> COCKPIT.TELEMETRY: DELIVERIES & DEPLOYMENTS REGISTRY';
+        titleCell.font = { name: 'Courier New', size: 10, bold: true, color: { argb: indigo } };
+        titleCell.alignment = { vertical: 'middle', indent: 1 };
+
+        drawTopKpiCard(ws, 1, 3, 4, 3, 'Delivery Progress', `${closed} / ${total}`, `${progress}% verified & closed`, emerald);
+        drawTopKpiCard(ws, 5, 3, 4, 3, 'Lead Time Telemetry', `${avgLead} days`, 'Avg. Cycle Lead Time', blue);
+        drawTopKpiCard(ws, 9, 3, 4, 3, 'Quality Governance', `${smokePassed} Smoke Passed`, `${pendingSignoff} Pending Sign-Off`, pendingSignoff > 0 ? amber : emerald);
+        drawTopKpiCard(ws, 13, 3, 4, 3, 'Release Footprint', `${prodCount} Prod · ${uatCount} UAT`, overdue > 0 ? `${overdue} overdue deliveries` : 'Zero delay exceptions', overdue > 0 ? rose : indigo);
+
+        ws.getRow(6).height = 10;
+
+        // ── Grouped Functional Table Headers (Row 7) ──
+        const headerRow = ws.getRow(7);
+        headerRow.height = 32;
+        baseCols.forEach((col, colIdx) => {
+          const cell = headerRow.getCell(colIdx + 1);
+          cell.value = S(col.header);
+
+          let headerBg = slate;
+          if (colIdx < 4) headerBg = navy;                   // Core Package Identification
+          else if (colIdx < 11) headerBg = indigo;           // Architecture & Environment
+          else if (colIdx < 17) headerBg = emerald;          // Governance & Quality Flow
+          else if (colIdx < 21) headerBg = amber;            // Schedule, Lead Time & Variance
+          else if (colIdx < 25) headerBg = rose;             // Traceability Multi-Linkage
+          else headerBg = slate;                             // Operations & Metadata & Helpers
+
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: headerBg } };
+          cell.font = { name: 'Courier New', color: { argb: 'FFFFFFFF' }, bold: true, size: 9 };
+          cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          cell.border = { bottom: { style: 'medium', color: { argb: navy } } };
+        });
+
+        // ── Data Rows (Row 8+) ──
+        deliveries.forEach((d, i) => {
+          const rowIdx = i + 8;
+          const dIsNew = (PulseExcel && typeof PulseExcel.isNewWindowItem === 'function') ? PulseExcel.isNewWindowItem(d) : false;
+          const targetD = cleanFmtDate(d.targetDeliveryDate || d.pdnProcessingDate);
+          const actualD = cleanFmtDate(d.actualDeliveryDate);
+
           const rowValues = {
             almId: S(d.almId || d.id),
-            name: S(d.name || d.description),
+            id: S(d.id || d.deliveryId || ('DEL-' + String(i + 1).padStart(3, '0'))),
+            name: (PulseExcel && typeof PulseExcel.formatExcelNewBadge === 'function')
+              ? PulseExcel.formatExcelNewBadge(S(d.name || d.description), dIsNew)
+              : S(d.name || d.description),
             pdn: S(d.pdn),
-            pdnProcessingDate: cleanFmtDate(d.pdnProcessingDate || d.targetDeliveryDate),
+            pdnProcessingDate: cleanFmtDate(d.pdnProcessingDate),
             componentsDelivered: S(d.componentsDelivered || (Array.isArray(d.guiScreens) ? d.guiScreens.join(', ') : d.guiScreens)),
             category: S(d.category || 'GSP++ Delivery'),
             module: S(d.module),
+            moduleType: S(d.moduleType || 'Server'),
+            releaseVersion: S(d.releaseVersion || ''),
+            environment: S(d.environment || 'Production'),
             almStatus: S(d.almStatus || d.status || 'New'),
-            reportedBy: S(d.reportedBy),
-            fixedBy: S(d.fixedBy),
+            signOffStatus: S(d.signOffStatus || 'Pending'),
+            smokeTestStatus: S(d.smokeTestStatus || 'Not Run'),
+            approver: S(d.approver || ''),
+            reportedBy: S(d.reportedBy || ''),
+            fixedBy: S(d.fixedBy || ''),
+            targetDeliveryDate: targetD,
+            actualDeliveryDate: actualD,
+            leadTimeDays: { formula: `IF(AND(S${rowIdx}<>"",R${rowIdx}<>""), S${rowIdx}-R${rowIdx}, ${d.leadTimeDays != null ? d.leadTimeDays : 0})` },
+            variance: { formula: `IF(AND(L${rowIdx}<>"Closed", R${rowIdx}<>"", R${rowIdx}<TODAY()), TODAY()-R${rowIdx}, IF(AND(S${rowIdx}<>"", R${rowIdx}<>""), S${rowIdx}-R${rowIdx}, 0))` },
             linkedType: S(d.linkedType || 'Task'),
-            linkedId: S(d.linkedId),
-            notes: S(d.notes || d.remarks)
+            linkedId: S(d.linkedId || ''),
+            linkedTasks: S(Array.isArray(d.linkedTasks) ? d.linkedTasks.join(', ') : (d.linkedType === 'Task' ? d.linkedId : '')),
+            linkedScreens: S(Array.isArray(d.linkedScreens) ? d.linkedScreens.join(', ') : (d.linkedType === 'Screen' ? d.linkedId : '')),
+            rollbackPlan: S(d.rollbackPlan || ''),
+            notes: S(d.notes || d.remarks || ''),
+            createdAt: cleanFmtDate(d.createdAt),
+            updatedAt: cleanFmtDate(d.updatedAt)
           };
+
           (P.delCustomFields || []).forEach(f => {
             const v = d[f.name] !== undefined ? d[f.name] : (d.custom && d.custom[f.name] !== undefined ? d.custom[f.name] : '');
             rowValues[f.name] = S(v);
           });
-          const row = ws.addRow(rowValues); row.font = { name: 'Segoe UI', size: 10, color: { argb: textDark } };
+
+          const row = ws.addRow(rowValues);
+          row.font = { name: 'Segoe UI', size: 10, color: { argb: textDark } };
           styleRowFn(row, i);
+
+          // Identification styling
+          const almCell = row.getCell('almId');
+          almCell.font = { name: 'Courier New', size: 10, bold: true, color: { argb: indigo } };
+          almCell.alignment = { vertical: 'middle', horizontal: 'center' };
+          const idCell = row.getCell('id');
+          idCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+          // ALM Status badge coloring
+          const statusCell = row.getCell('almStatus');
+          const st = S(d.almStatus || d.status);
+          if (st === 'Closed') {
+            statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF064E3B' : 'FFE6F9ED' } };
+            statusCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: isDark ? 'FFF0FDF4' : 'FF15803D' } };
+          } else if (st === 'Ready for Test' || st === 'Fixed' || st === 'Retest') {
+            statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF164E63' : 'FFE0F2FE' } };
+            statusCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: isDark ? 'FFCFFAFE' : 'FF0369A1' } };
+          } else if (st === 'In Progress') {
+            statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF312E81' : 'FFEEF2FF' } };
+            statusCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: isDark ? 'FFE0E7FF' : 'FF4338CA' } };
+          } else if (st === 'Open' || st === 'New' || st === 'Reopened') {
+            statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF7F1D1D' : 'FFFFD8D8' } };
+            statusCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: isDark ? 'FFFEE2E2' : 'FF990000' } };
+          } else if (st === 'Rejected') {
+            statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF334155' : 'FFF1F5F9' } };
+            statusCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: isDark ? 'FFE2E8F0' : 'FF475569' } };
+          }
+          statusCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+          // Sign-off Status styling
+          const signCell = row.getCell('signOffStatus');
+          const sOff = S(d.signOffStatus);
+          if (sOff === 'Approved') {
+            signCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF064E3B' : 'FFE6F9ED' } };
+            signCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: isDark ? 'FFF0FDF4' : 'FF15803D' } };
+          } else if (sOff === 'Pending') {
+            signCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF78350F' : 'FFFEF3C7' } };
+            signCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: isDark ? 'FFFDE68A' : 'FF92400E' } };
+          } else if (sOff === 'Rejected') {
+            signCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF7F1D1D' : 'FFFFD8D8' } };
+            signCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: isDark ? 'FFFEE2E2' : 'FF990000' } };
+          }
+          signCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+          // Smoke Test Status styling
+          const smokeCell = row.getCell('smokeTestStatus');
+          const sm = S(d.smokeTestStatus);
+          if (sm === 'Passed') {
+            smokeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF064E3B' : 'FFE6F9ED' } };
+            smokeCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: isDark ? 'FFF0FDF4' : 'FF15803D' } };
+          } else if (sm === 'Failed') {
+            smokeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF7F1D1D' : 'FFFFD8D8' } };
+            smokeCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: isDark ? 'FFFEE2E2' : 'FF990000' } };
+          } else if (sm === 'Running') {
+            smokeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF164E63' : 'FFE0F2FE' } };
+            smokeCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: isDark ? 'FFCFFAFE' : 'FF0369A1' } };
+          }
+          smokeCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+          // Overdue highlight
+          const targetDateObj = targetD ? new Date(targetD) : null;
+          const isOverdue = st !== 'Closed' && targetDateObj && !isNaN(targetDateObj) && targetDateObj < new Date();
+          if (isOverdue) {
+            const varCell = row.getCell('variance');
+            varCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF7F1D1D' : 'FFFFD8D8' } };
+            varCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: isDark ? 'FFFEE2E2' : 'FF990000' } };
+          }
+
+          // Multi-link badge highlight
+          if (d.linkedType === 'Multi') {
+            const linkCell = row.getCell('linkedType');
+            linkCell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: indigo } };
+          }
         });
+
+        applyDeliverySheetValidations(ws, wb, safeMode);
+        applyDeliverySheetHelperColumns(ws, wb, safeMode, baseCols.length);
       },
+
+      applyDeliverySheetValidations(ws, wb, safeMode) {
+        const delCount = (P.deliveries || []).length;
+        const startRow = 8;
+        const endRow = Math.max(100, startRow + delCount + 50);
+        for (let r = startRow; r <= endRow; r++) {
+          ws.getCell(`G${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"GSP++ Delivery,Regression/NRT Defect,Hotfix,Patch Release"'] };
+          ws.getCell(`I${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"Server,GUI,Database,Service"'] };
+          ws.getCell(`K${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"Production,UAT,Staging,Pre-Prod,SIT,Dev"'] };
+          ws.getCell(`L${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['"Closed,Ready for Test,Retest,Fixed,In Progress,Open,New,Rejected,Reopened"'], showErrorMessage: true, errorTitle: 'Invalid Status', error: 'Please select a valid ALM status.' };
+          ws.getCell(`M${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"Approved,Pending,Rejected,Conditional"'] };
+          ws.getCell(`N${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"Passed,Failed,Running,Not Run"'] };
+          ws.getCell(`V${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['"Multi,Task,Screen,Defect,None"'] };
+
+          try {
+            if (wb.getWorksheet('Config_ValidationLists')) {
+              ws.getCell(`H${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Modules'] };
+              ws.getCell(`J${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Releases'] };
+              ws.getCell(`O${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Team'] };
+              ws.getCell(`P${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Team'] };
+              ws.getCell(`Q${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Team'] };
+            }
+          } catch(e) {}
+        }
+      },
+
+      applyDeliverySheetHelperColumns(ws, wb, safeMode, totalCols) {
+        const delCount = (P.deliveries || []).length;
+        const cHealth = ws.getColumn(totalCols - 3).letter;
+        const cRisk = ws.getColumn(totalCols - 2).letter;
+        const cStage = ws.getColumn(totalCols - 1).letter;
+        const cTrace = ws.getColumn(totalCols).letter;
+
+        const startRow = 8;
+        const endRow = startRow + delCount - 1;
+
+        for (let r = startRow; r <= endRow; r++) {
+          ws.getCell(`${cHealth}${r}`).value = { formula: `IF(L${r}="Closed","Verified Deployed",IF(AND(R${r}<>"",R${r}<TODAY(),L${r}<>"Closed"),"Overdue Delivery",IF(N${r}="Failed","Smoke Test Failed",IF(M${r}="Pending","Pending Sign-off","In Pipeline"))))` };
+          ws.getCell(`${cRisk}${r}`).value = { formula: `IF(N${r}="Failed","Critical: Smoke test failed in validation",IF(M${r}="Rejected","Blocked: Sign-off rejected by QA lead",IF(AND(Z${r}="",L${r}<>"Closed"),"Warning: Missing rollback procedure","Compliant")))` };
+          ws.getCell(`${cStage}${r}`).value = { formula: `IF(L${r}="Closed","Production Live",IF(OR(L${r}="Ready for Test",L${r}="Retest"),"Verification & QA",IF(L${r}="In Progress","Active Staging Pipeline",IF(L${r}="Fixed","Staging Ready","Pre-Deployment Backlog"))))` };
+          ws.getCell(`${cTrace}${r}`).value = { formula: `IF(V${r}="None","Untraced",IF(V${r}="Multi","Full Multi-Trace",IF(W${r}<>"","Single Link Trace","Unlinked")))` };
+
+          [cHealth, cRisk, cStage, cTrace].forEach(col => {
+            const cell = ws.getCell(`${col}${r}`);
+            cell.font = { name: 'Segoe UI', size: 9, italic: true, color: { argb: 'FF94A3B8' } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+          });
+        }
+      },
+
 
       buildDropdownsSheet(wb, safeMode, COLORS, hdrStyle, S) {
         const ws = wb.addWorksheet('Config_Dropdowns', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
@@ -59267,8 +59583,16 @@ Earned Value Management measures project performance and progress by comparing p
           if (!ws && rawData.sheetAliases[name]) { for (const alias of rawData.sheetAliases[name]) { ws = wb.getWorksheet(alias); if (ws) break; } }
           if (!ws) return [];
 
-          // Deterministic header row: Tasks and Defects use row 7 (due to cockpit banner), all other canonical sheets use row 1
-          let headerRowIdx = (name === 'Tasks' || name === 'Defects' || name === 'Defects Registry') ? ((ws.rowCount >= 7 && ws.getRow(7).getCell(1).value) ? 7 : 1) : 1;
+          // Deterministic header row: Tasks, Defects, and Deliveries check for Cockpit Telemetry banner (row 7 headers), or fallback to row 1
+          let headerRowIdx = 1;
+          if (name === 'Tasks' || name === 'Defects' || name === 'Defects Registry' || name === 'Deliveries') {
+            const r2Val = String(ws.getRow(2).getCell(1).value || '');
+            if (r2Val.includes('COCKPIT.TELEMETRY') || (ws.rowCount >= 7 && ws.getRow(7).getCell(1).value && !ws.getRow(1).getCell(1).value)) {
+              headerRowIdx = 7;
+            } else if (name !== 'Deliveries' && ws.rowCount >= 7 && ws.getRow(7).getCell(1).value) {
+              headerRowIdx = 7;
+            }
+          }
 
           const data = []; const hdrs = {}; const revMap = window.PROJECT_SCHEMA.getRevMap();
           ws.getRow(headerRowIdx).eachCell({ includeEmpty: true }, (c, colIdx) => {
@@ -59695,24 +60019,32 @@ Earned Value Management measures project performance and progress by comparing p
         P.deliveries = (rawData.rawDeliveries || []).map((del, idx) => {
           const item = {
             ...del,
-            id: del.id || del['Delivery ID'] || ('DEL-' + String(idx + 1).padStart(3, '0')),
-            almId: del.almId || del['ALM ID'] || 'ALM-10001',
-            pdn: del.pdn || del['PDN'] || 'PDN-001',
-            name: del.name || del['Delivery Scope / Name'] || del['Name'] || 'Unnamed Delivery',
+            id: del.id || del['Delivery ID'] || del['deliveryid'] || ('DEL-' + String(idx + 1).padStart(3, '0')),
+            almId: del.almId || del['ALM ID'] || del['Defect ID - ALM ID'] || del['almid'] || 'ALM-10001',
+            pdn: del.pdn || del['PDN'] || del['PDN Info'] || del['pdninfo'] || 'PDN-001',
+            pdnProcessingDate: fmtD(del.pdnProcessingDate || del['PDN Processing Date'] || del['pdnprocessingdate'] || del.targetDeliveryDate),
+            componentsDelivered: del.componentsDelivered || del['Components Delivered'] || del['componentsdelivered'] || '',
+            name: del.name || del['Description - ALM Description'] || del['Delivery Scope / Name'] || del['Name'] || 'Unnamed Delivery',
+            category: del.category || del['Category'] || 'GSP++ Delivery',
             module: del.module || del['Module'] || '',
-            moduleType: del.moduleType || del['Module Type'] || 'Server',
-            releaseVersion: del.releaseVersion || del['Release Version'] || '',
-            environment: del.environment || del['Environment'] || 'Production',
-            status: del.status || del['Status'] || 'Scheduled',
-            targetDeliveryDate: fmtD(del.targetDeliveryDate || del['Target Delivery Date']),
-            actualDeliveryDate: fmtD(del.actualDeliveryDate || del['Actual Delivery Date']),
+            moduleType: del.moduleType || del['Module Type'] || del['moduletype'] || 'Server',
+            releaseVersion: del.releaseVersion || del['Release Version'] || del['releaseversion'] || '',
+            environment: del.environment || del['Environment'] || del['environment'] || 'Production',
+            almStatus: del.almStatus || del['ALM Status'] || del['almstatus'] || del.status || 'New',
+            status: del.status || del['Status'] || del.almStatus || 'Scheduled',
+            signOffStatus: del.signOffStatus || del['Sign-off Status'] || del['signoffstatus'] || 'Pending',
+            approver: del.approver || del['Approver / Lead'] || del['approverlead'] || '',
+            smokeTestStatus: del.smokeTestStatus || del['Smoke Test Status'] || del['smoketeststatus'] || '',
+            reportedBy: del.reportedBy || del['Reported By'] || del['reportedby'] || '',
+            fixedBy: del.fixedBy || del['Defect Fixed By'] || del['defectfixedby'] || del['Fixed By'] || '',
+            targetDeliveryDate: fmtD(del.targetDeliveryDate || del['Target Delivery Date'] || del['targetdeliverydate']),
+            actualDeliveryDate: fmtD(del.actualDeliveryDate || del['Actual Delivery Date'] || del['actualdeliverydate']),
             leadTimeDays: del.leadTimeDays != null ? parseInt(del.leadTimeDays) : (del['Lead Time (Days)'] != null ? parseInt(del['Lead Time (Days)']) : null),
-            signOffStatus: del.signOffStatus || del['Sign-off Status'] || 'Pending',
-            approver: del.approver || del['Approver / Lead'] || '',
-            smokeTestStatus: del.smokeTestStatus || del['Smoke Test Status'] || '',
-            rollbackPlan: del.rollbackPlan || del['Rollback Plan'] || '',
+            rollbackPlan: del.rollbackPlan || del['Rollback Plan'] || del['rollbackplan'] || '',
             guiScreens: typeof (del.guiScreens || del['Screens / Artifacts']) === 'string' ? (del.guiScreens || del['Screens / Artifacts']).split(',').map(s => s.trim()).filter(Boolean) : (Array.isArray(del.guiScreens) ? del.guiScreens : []),
-            notes: del.notes || del['Notes'] || ''
+            notes: del.notes || del['Remarks / Notes'] || del['Notes'] || '',
+            createdAt: fmtD(del.createdAt || del['Created At']),
+            updatedAt: fmtD(del.updatedAt || del['Updated At'])
           };
           if (del.custom) item.custom = { ...del.custom };
           const autoLink = autoIdentifyDeliveryLink(item);
@@ -59724,8 +60056,15 @@ Earned Value Management measures project performance and progress by comparing p
               item.linkedScreens = autoLink.linkedScreens;
             }
           } else {
-            item.linkedTasks = (Array.isArray(item.linkedTasks) && item.linkedTasks.length) ? item.linkedTasks : (autoLink.linkedTasks || []);
-            item.linkedScreens = (Array.isArray(item.linkedScreens) && item.linkedScreens.length) ? item.linkedScreens : (autoLink.linkedScreens || []);
+            const rawTasks = del.linkedTasks || del['Linked Tasks'];
+            const rawScreens = del.linkedScreens || del['Linked Screens'];
+            if (Array.isArray(rawTasks)) item.linkedTasks = rawTasks;
+            else if (typeof rawTasks === 'string' && rawTasks.trim()) item.linkedTasks = rawTasks.split(',').map(s => s.trim()).filter(Boolean);
+            else item.linkedTasks = (Array.isArray(item.linkedTasks) && item.linkedTasks.length) ? item.linkedTasks : (autoLink ? autoLink.linkedTasks : []);
+
+            if (Array.isArray(rawScreens)) item.linkedScreens = rawScreens;
+            else if (typeof rawScreens === 'string' && rawScreens.trim()) item.linkedScreens = rawScreens.split(',').map(s => s.trim()).filter(Boolean);
+            else item.linkedScreens = (Array.isArray(item.linkedScreens) && item.linkedScreens.length) ? item.linkedScreens : (autoLink ? autoLink.linkedScreens : []);
           }
           return item;
         });
@@ -59944,6 +60283,8 @@ Earned Value Management measures project performance and progress by comparing p
     function buildBaselineHistorySheet(...args) { return PulseExcel.buildBaselineHistorySheet(...args); }
     function buildFeaturesSheet(...args) { return PulseExcel.buildFeaturesSheet(...args); }
     function buildDeliveriesSheet(...args) { return PulseExcel.buildDeliveriesSheet(...args); }
+    function applyDeliverySheetValidations(...args) { return PulseExcel.applyDeliverySheetValidations(...args); }
+    function applyDeliverySheetHelperColumns(...args) { return PulseExcel.applyDeliverySheetHelperColumns(...args); }
     function buildDropdownsSheet(...args) { return PulseExcel.buildDropdownsSheet(...args); }
     function buildTemplateSheets(...args) { return PulseExcel.buildTemplateSheets(...args); }
     function buildRelationSheets(...args) { return PulseExcel.buildRelationSheets(...args); }
