@@ -13253,29 +13253,50 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
           </div>
         </div>
 
-        <!-- Linked Type & Linked ID -->
-        <div style="padding:14px 16px; background:var(--color-surface-2); border:1px solid var(--color-divider); border-radius:var(--radius-lg)">
-          <div style="font-size:11px; font-weight:800; text-transform:uppercase; color:var(--color-text-muted); margin-bottom:10px; display:flex; align-items:center; gap:6px">
-            <i data-lucide="link-2" style="width:13px; height:13px"></i> Traceability Linking
+        <!-- Traceability Multi-Linking (Tasks & Screens) -->
+        <div style="padding:14px 16px; background:var(--color-surface-2); border:1px solid var(--color-divider); border-radius:var(--radius-lg); margin-top:4px">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
+            <div style="font-size:11px; font-weight:800; text-transform:uppercase; color:var(--color-text-muted); display:flex; align-items:center; gap:6px">
+              <i data-lucide="link-2" style="width:13px; height:13px"></i> Traceability Linking (Tasks & Screens)
+            </div>
+            <button type="button" class="btn ghost mini" style="font-size:10.5px; height:24px; padding:2px 8px; color:var(--color-primary)" onclick="autoDetectDeliveryLinksInFlyout()" title="Auto-detect linked tasks and screens from manifest">
+              <i data-lucide="sparkles" style="width:12px; height:12px; margin-right:4px"></i> Auto-Detect Links
+            </button>
           </div>
-          <div style="display:grid; grid-template-columns:140px 1fr; gap:14px">
-            <div class="fg" style="margin-bottom:0">
-              <label class="flbl">Linked Type <span style="color:var(--red);font-weight:bold">*</span></label>
-              <select class="fsel" id="del_linked_type" onchange="updateDeliveryLinkedOptions()">
-                <option value="Task">Task</option>
-                <option value="Screen">Screen</option>
-                <option value="Defect">Defect</option>
-                <option value="None">None</option>
+          
+          <!-- Linked Tasks -->
+          <div class="fg" style="margin-bottom:10px">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px">
+              <label class="flbl" style="margin-bottom:0">Linked Tasks</label>
+              <select id="del_add_task_sel" class="btn mini secondary" onchange="if(this.value){addDeliveryLinkedTask(this.value);this.value='';}" style="height:24px; font-size:11px; max-width:200px; padding:0 6px">
+                <option value="">+ Link Task...</option>
               </select>
             </div>
-            <div class="fg" style="margin-bottom:0">
-              <label class="flbl">Linked ID (ID & Name of Task/Screen/Defect) <span style="color:var(--red);font-weight:bold">*</span></label>
-              <select class="fsel" id="del_linked_id" onchange="onDeliveryLinkedItemChange(true)"></select>
+            <div id="del_linked_tasks_chips" style="display:flex; flex-wrap:wrap; gap:6px; min-height:28px; padding:6px; background:var(--color-surface); border:1px solid var(--color-divider); border-radius:6px">
+              <span style="font-size:11px; color:var(--color-text-faint); font-style:italic">No tasks linked</span>
             </div>
           </div>
+
+          <!-- Linked Screens -->
+          <div class="fg" style="margin-bottom:8px">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px">
+              <label class="flbl" style="margin-bottom:0">Linked Screens / UI Views</label>
+              <select id="del_add_screen_sel" class="btn mini secondary" onchange="if(this.value){addDeliveryLinkedScreen(this.value);this.value='';}" style="height:24px; font-size:11px; max-width:200px; padding:0 6px">
+                <option value="">+ Link Screen...</option>
+              </select>
+            </div>
+            <div id="del_linked_screens_chips" style="display:flex; flex-wrap:wrap; gap:6px; min-height:28px; padding:6px; background:var(--color-surface); border:1px solid var(--color-divider); border-radius:6px">
+              <span style="font-size:11px; color:var(--color-text-faint); font-style:italic">No screens linked</span>
+            </div>
+          </div>
+
+          <!-- Hidden input fields for backward compatibility -->
+          <input type="hidden" id="del_linked_type" value="Task">
+          <input type="hidden" id="del_linked_id" value="">
+
           <div id="del_linked_sync_hint" style="display:none; margin-top:8px; font-size:11px; color:var(--color-primary); display:flex; align-items:center; gap:5px">
             <i data-lucide="sparkles" style="width:12px; height:12px"></i>
-            <span id="del_linked_sync_text">Release version & planned delivery date fetched from linked item.</span>
+            <span id="del_linked_sync_text">Release version & planned delivery date fetched from linked items.</span>
           </div>
         </div>
 
@@ -47782,13 +47803,31 @@ Earned Value Management measures project performance and progress by comparing p
                 </div>
               `;
             } else if (col.key === 'linkedType') {
-              td.innerHTML = `<div class="td-inner"><span style="font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:3px;background:var(--color-surface-3);border:1px solid var(--color-divider);color:var(--color-text-muted)">${esc(val || 'Task')}</span></div>`;
+              const tCount = (Array.isArray(d.linkedTasks) ? d.linkedTasks.length : 0);
+              const sCount = (Array.isArray(d.linkedScreens) ? d.linkedScreens.length : 0);
+              let typeBadge = val || 'None';
+              if (tCount > 0 && sCount > 0) typeBadge = `Multi (${tCount}T, ${sCount}S)`;
+              else if (tCount > 1) typeBadge = `Tasks (${tCount})`;
+              else if (sCount > 1) typeBadge = `Screens (${sCount})`;
+              td.innerHTML = `<div class="td-inner"><span style="font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:3px;background:var(--color-surface-3);border:1px solid var(--color-divider);color:var(--color-text-muted)">${esc(typeBadge)}</span></div>`;
             } else if (col.key === 'linkedId') {
-              td.innerHTML = `
-                <div class="td-inner" style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(val || '')}">
-                  <span style="font-family:var(--font-mono);font-size:11px;color:var(--color-text);background:var(--color-surface-2);padding:1px 6px;border-radius:3px;border:1px solid var(--color-divider)">${esc(val || '—')}</span>
-                </div>
-              `;
+              const tasks = Array.isArray(d.linkedTasks) ? d.linkedTasks : [];
+              const screens = Array.isArray(d.linkedScreens) ? d.linkedScreens : [];
+              const rawVal = String(val || '').trim();
+
+              let chipsHtml = '';
+              if (tasks.length > 0 || screens.length > 0) {
+                const taskBadges = tasks.slice(0, 2).map(t => `<span class="badge blue" style="font-family:var(--font-mono);font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.25);cursor:pointer" onclick="event.stopPropagation();if(typeof openTaskModal==='function')openTaskModal('${esc(t)}')">${esc(t)}</span>`);
+                const screenBadges = screens.slice(0, 2).map(s => `<span class="badge purple" style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(168,85,247,0.1);color:#a855f7;border:1px solid rgba(168,85,247,0.25)">${esc(s)}</span>`);
+                const totalExtra = (tasks.length + screens.length) - (taskBadges.length + screenBadges.length);
+                chipsHtml = `<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">${taskBadges.join('')}${screenBadges.join('')}${totalExtra > 0 ? `<span style="font-size:10px;color:var(--color-text-faint);font-weight:600">+${totalExtra}</span>` : ''}</div>`;
+              } else if (rawVal && rawVal !== 'None') {
+                chipsHtml = `<span style="font-family:var(--font-mono);font-size:11px;color:var(--color-text);background:var(--color-surface-2);padding:1px 6px;border-radius:3px;border:1px solid var(--color-divider)">${esc(rawVal)}</span>`;
+              } else {
+                chipsHtml = '<span style="color:var(--color-text-faint)">—</span>';
+              }
+
+              td.innerHTML = `<div class="td-inner" style="max-width:240px" title="${esc(rawVal || '')}">${chipsHtml}</div>`;
             } else if (col.type === 'date') {
               td.innerHTML = `<div class="td-inner" style="font-family:var(--mono);font-size:11.5px;color:var(--color-text-muted)">${val ? fmtDate(val) : '—'}</div>`;
             } else {
@@ -48214,31 +48253,53 @@ Earned Value Management measures project performance and progress by comparing p
         if (filterOpts.linkedType && filterOpts.linkedType !== 'All' && del.linkedType !== filterOpts.linkedType) return;
         if (filterOpts.fixedBy && filterOpts.fixedBy !== 'All' && del.fixedBy !== filterOpts.fixedBy) return;
 
-        // 1. Direct screen linkage
-        if (del.linkedType === 'Screen' && del.linkedId) {
-          const sKey = String(del.linkedId).toLowerCase().trim();
+        // 1. Multi-Linked Screens direct indexing
+        const linkedScreens = Array.isArray(del.linkedScreens) ? del.linkedScreens : (del.linkedScreens ? String(del.linkedScreens).split(/[,;\n|]+/).map(s => s.trim()).filter(Boolean) : []);
+        linkedScreens.forEach(sc => {
+          const sKey = String(sc).toLowerCase().trim();
           if (!deliveriesByScreen[sKey]) deliveriesByScreen[sKey] = [];
-          deliveriesByScreen[sKey].push(del);
-        }
+          if (!deliveriesByScreen[sKey].includes(del)) deliveriesByScreen[sKey].push(del);
+        });
 
-        // 2. Task linkage
-        if (del.linkedType === 'Task' && del.linkedId) {
-          const matchedTask = (P.tasks || []).find(t => t.id === del.linkedId || t.name === del.linkedId);
+        // 2. Multi-Linked Tasks screen expansion
+        const linkedTasks = Array.isArray(del.linkedTasks) ? del.linkedTasks : (del.linkedTasks ? String(del.linkedTasks).split(/[,;\n|]+/).map(s => s.trim()).filter(Boolean) : []);
+        linkedTasks.forEach(tId => {
+          const matchedTask = (P.tasks || []).find(t => (t.id && t.id.toLowerCase() === tId.toLowerCase()) || (t.name && t.name.toLowerCase() === tId.toLowerCase()));
           if (matchedTask) {
             const taskScreens = Array.isArray(matchedTask.guiScreens) ? matchedTask.guiScreens : [];
             taskScreens.forEach(ts => {
               const sKey = String(ts).toLowerCase().trim();
               if (!deliveriesByScreen[sKey]) deliveriesByScreen[sKey] = [];
-              deliveriesByScreen[sKey].push(del);
+              if (!deliveriesByScreen[sKey].includes(del)) deliveriesByScreen[sKey].push(del);
             });
             (matchedTask.subtasks || []).forEach(st => {
               if (st.type === 'screen' && st.name) {
                 const sKey = String(st.name).toLowerCase().trim();
                 if (!deliveriesByScreen[sKey]) deliveriesByScreen[sKey] = [];
-                deliveriesByScreen[sKey].push(del);
+                if (!deliveriesByScreen[sKey].includes(del)) deliveriesByScreen[sKey].push(del);
               }
             });
           }
+        });
+
+        // 3. Fallback to parse linkedId tokens
+        if (del.linkedId && del.linkedId !== 'None') {
+          const rawTokens = String(del.linkedId).split(/[,;\n|]+/).map(s => s.trim()).filter(Boolean);
+          rawTokens.forEach(tok => {
+            const sKey = tok.toLowerCase();
+            const matchedTask = (P.tasks || []).find(t => (t.id && t.id.toLowerCase() === sKey) || (t.name && t.name.toLowerCase() === sKey));
+            if (matchedTask) {
+              const taskScreens = Array.isArray(matchedTask.guiScreens) ? matchedTask.guiScreens : [];
+              taskScreens.forEach(ts => {
+                const sk = String(ts).toLowerCase().trim();
+                if (!deliveriesByScreen[sk]) deliveriesByScreen[sk] = [];
+                if (!deliveriesByScreen[sk].includes(del)) deliveriesByScreen[sk].push(del);
+              });
+            } else {
+              if (!deliveriesByScreen[sKey]) deliveriesByScreen[sKey] = [];
+              if (!deliveriesByScreen[sKey].includes(del)) deliveriesByScreen[sKey].push(del);
+            }
+          });
         }
 
         // 3. Components delivered search
@@ -49520,93 +49581,161 @@ Earned Value Management measures project performance and progress by comparing p
     window.openDeliveryFlyout = openDeliveryFlyout;
     window.openDeliveryModal = openDeliveryFlyout;
 
+    // Multi-Link State & Helpers for Deliveries Flyout
+    P._delTempLinkedTasks = new Set();
+    P._delTempLinkedScreens = new Set();
+
+    window.renderDeliveryLinkedChips = function() {
+      const taskCont = $id('del_linked_tasks_chips');
+      const screenCont = $id('del_linked_screens_chips');
+
+      if (taskCont) {
+        const tasks = Array.from(P._delTempLinkedTasks || []);
+        if (tasks.length === 0) {
+          taskCont.innerHTML = '<span style="font-size:11px; color:var(--color-text-faint); font-style:italic">No tasks linked</span>';
+        } else {
+          taskCont.innerHTML = tasks.map(tId => {
+            const taskObj = (P.tasks || []).find(t => t.id === tId);
+            const label = taskObj ? `${tId}: ${taskObj.name}` : tId;
+            return `
+              <span class="badge blue" style="display:inline-flex; align-items:center; gap:6px; font-family:var(--font-mono); font-size:11px; padding:3px 8px; border-radius:5px; background:rgba(59,130,246,0.1); color:#3b82f6; border:1px solid rgba(59,130,246,0.25)" title="${esc(label)}">
+                ${esc(tId)}
+                <span onclick="removeDeliveryLinkedTask('${esc(tId)}')" style="cursor:pointer; font-weight:bold; font-size:12px; margin-left:2px; opacity:0.75" title="Remove link">✕</span>
+              </span>`;
+          }).join('');
+        }
+      }
+
+      if (screenCont) {
+        const screens = Array.from(P._delTempLinkedScreens || []);
+        if (screens.length === 0) {
+          screenCont.innerHTML = '<span style="font-size:11px; color:var(--color-text-faint); font-style:italic">No screens linked</span>';
+        } else {
+          screenCont.innerHTML = screens.map(sName => `
+            <span class="badge purple" style="display:inline-flex; align-items:center; gap:6px; font-size:11px; padding:3px 8px; border-radius:5px; background:rgba(168,85,247,0.1); color:#a855f7; border:1px solid rgba(168,85,247,0.25)" title="${esc(sName)}">
+              <i data-lucide="layout" style="width:11px; height:11px"></i>
+              ${esc(sName)}
+              <span onclick="removeDeliveryLinkedScreen('${esc(sName)}')" style="cursor:pointer; font-weight:bold; font-size:12px; margin-left:2px; opacity:0.75" title="Remove link">✕</span>
+            </span>`).join('');
+          if (window.lucide) lucide.createIcons(screenCont);
+        }
+      }
+
+      // Sync hidden inputs
+      const allTasks = Array.from(P._delTempLinkedTasks || []);
+      const allScreens = Array.from(P._delTempLinkedScreens || []);
+      const allIds = [...allTasks, ...allScreens];
+
+      if ($id('del_linked_id')) $id('del_linked_id').value = allIds.join(', ');
+      if ($id('del_linked_type')) {
+        let t = 'None';
+        if (allTasks.length > 0 && allScreens.length > 0) t = 'Multi';
+        else if (allTasks.length > 0) t = 'Task';
+        else if (allScreens.length > 0) t = 'Screen';
+        $id('del_linked_type').value = t;
+      }
+    };
+
+    window.addDeliveryLinkedTask = function(tId) {
+      if (!tId) return;
+      if (!P._delTempLinkedTasks) P._delTempLinkedTasks = new Set();
+      P._delTempLinkedTasks.add(tId);
+      renderDeliveryLinkedChips();
+      onDeliveryLinkedItemChange(false);
+    };
+
+    window.removeDeliveryLinkedTask = function(tId) {
+      if (!P._delTempLinkedTasks) return;
+      P._delTempLinkedTasks.delete(tId);
+      renderDeliveryLinkedChips();
+      onDeliveryLinkedItemChange(false);
+    };
+
+    window.addDeliveryLinkedScreen = function(sName) {
+      if (!sName) return;
+      if (!P._delTempLinkedScreens) P._delTempLinkedScreens = new Set();
+      P._delTempLinkedScreens.add(sName);
+      renderDeliveryLinkedChips();
+      onDeliveryLinkedItemChange(false);
+    };
+
+    window.removeDeliveryLinkedScreen = function(sName) {
+      if (!P._delTempLinkedScreens) return;
+      P._delTempLinkedScreens.delete(sName);
+      renderDeliveryLinkedChips();
+      onDeliveryLinkedItemChange(false);
+    };
+
+    window.autoDetectDeliveryLinksInFlyout = function() {
+      const item = {
+        name: $id('del_name')?.value || '',
+        description: $id('del_name')?.value || '',
+        module: $id('del_module')?.value || '',
+        almId: $id('del_almid')?.value || '',
+        componentsDelivered: $id('del_components_delivered')?.value || '',
+        linkedTasks: Array.from(P._delTempLinkedTasks || []),
+        linkedScreens: Array.from(P._delTempLinkedScreens || [])
+      };
+
+      const res = autoIdentifyDeliveryLink(item);
+      (res.linkedTasks || []).forEach(t => P._delTempLinkedTasks.add(t));
+      (res.linkedScreens || []).forEach(s => P._delTempLinkedScreens.add(s));
+      renderDeliveryLinkedChips();
+      onDeliveryLinkedItemChange(true);
+
+      const count = (res.linkedTasks || []).length + (res.linkedScreens || []).length;
+      if (count > 0) {
+        notify(`Identified ${(res.linkedTasks || []).length} tasks and ${(res.linkedScreens || []).length} screens`, 'ok');
+      } else {
+        notify('No additional tasks or screens matched the manifest.', 'info');
+      }
+    };
+
     window.getDeliveryLinkedItemInfo = function(type, id) {
       if (!id || id === 'None' || type === 'None') return null;
-      const rawId = String(id).trim();
-      let cleanId = rawId;
-      const m = rawId.match(/^\[([^\]]+)\]/);
-      if (m && m[1]) cleanId = m[1].trim();
+
+      const rawTokens = String(id).split(/[,;\n|]+/).map(s => s.trim()).filter(Boolean);
+      if (!rawTokens.length) return null;
 
       let releaseVersion = '';
       let plannedDeliveryDate = '';
       let module = '';
       let name = '';
 
-      if (type === 'Task' || !type) {
-        const tasks = P.tasks || [];
-        const task = tasks.find(t => 
-          (t.id && String(t.id).trim().toLowerCase() === cleanId.toLowerCase()) ||
-          (t.id && String(t.id).trim().toLowerCase() === rawId.toLowerCase()) ||
-          (t.name && String(t.name).trim().toLowerCase() === rawId.toLowerCase())
+      for (const tok of rawTokens) {
+        // Try Task match
+        const task = (P.tasks || []).find(t => 
+          (t.id && t.id.toLowerCase() === tok.toLowerCase()) ||
+          (t.name && t.name.toLowerCase() === tok.toLowerCase())
         );
         if (task) {
-          name = task.name || '';
-          module = task.module || '';
-          releaseVersion = task.releaseVersion || task.release || task.targetRelease || '';
-          plannedDeliveryDate = task.targetDeliveryDate || task.dueDate || task.due || task.endDate || task.targetDate || task.plannedDeliveryDate || task.plannedDate || task.pdnProcessingDate || task.actCompletionDate || '';
-          
-          if (!plannedDeliveryDate && releaseVersion && typeof PulseUtils !== 'undefined' && PulseUtils.getReleaseDates) {
-            const rDates = PulseUtils.getReleaseDates(releaseVersion);
-            if (rDates && (rDates.endDate || rDates.startDate)) {
-              plannedDeliveryDate = rDates.endDate || rDates.startDate;
-            }
-          }
-        }
-      } else if (type === 'Screen') {
-        // First check tasks containing this screen
-        const matchedTask = (P.tasks || []).find(t => 
-          (t.screens || []).some(s => {
-            const sName = typeof s === 'object' ? (s.name || s.id) : s;
-            return sName && (String(sName).trim().toLowerCase() === rawId.toLowerCase() || rawId.toLowerCase().includes(String(sName).trim().toLowerCase()));
-          })
-        );
-        if (matchedTask) {
-          name = rawId;
-          module = matchedTask.module || '';
-          releaseVersion = matchedTask.releaseVersion || matchedTask.release || '';
-          plannedDeliveryDate = matchedTask.targetDeliveryDate || matchedTask.dueDate || matchedTask.due || matchedTask.endDate || matchedTask.targetDate || matchedTask.plannedDeliveryDate || '';
+          if (!name) name = task.name || '';
+          if (!module) module = task.module || '';
+          if (!releaseVersion) releaseVersion = task.releaseVersion || task.release || task.targetRelease || '';
+          if (!plannedDeliveryDate) plannedDeliveryDate = task.targetDeliveryDate || task.dueDate || task.due || task.endDate || task.targetDate || task.plannedDeliveryDate || task.plannedDate || task.pdnProcessingDate || task.actCompletionDate || '';
         }
 
-        // Also check features
+        // Try Screen match
         if (!releaseVersion || !plannedDeliveryDate) {
           (P.features || []).forEach(f => {
             const hasScreen = (f.screens || []).some(s => {
               const sName = typeof s === 'object' ? (s.name || s.id) : s;
-              return sName && (String(sName).trim().toLowerCase() === rawId.toLowerCase() || rawId.toLowerCase().includes(String(sName).trim().toLowerCase()));
+              return sName && (String(sName).trim().toLowerCase() === tok.toLowerCase());
             });
             if (hasScreen) {
-              if (!name) name = rawId;
+              if (!name) name = tok;
               if (!module) module = f.module || f.category || '';
               if (!releaseVersion) releaseVersion = f.release || f.releaseVersion || '';
               if (!plannedDeliveryDate) plannedDeliveryDate = f.targetDeliveryDate || f.deliveryDate || f.targetDate || f.endDate || f.due || f.plannedDeliveryDate || '';
             }
           });
         }
+      }
 
-        if (!plannedDeliveryDate && releaseVersion && typeof PulseUtils !== 'undefined' && PulseUtils.getReleaseDates) {
-          const rDates = PulseUtils.getReleaseDates(releaseVersion);
-          if (rDates && (rDates.endDate || rDates.startDate)) {
-            plannedDeliveryDate = rDates.endDate || rDates.startDate;
-          }
-        }
-      } else if (type === 'Defect') {
-        const defects = P.defects || [];
-        const defect = defects.find(d => 
-          (d.id && String(d.id).trim().toLowerCase() === cleanId.toLowerCase()) ||
-          (d.id && String(d.id).trim().toLowerCase() === rawId.toLowerCase()) ||
-          (d.title && String(d.title).trim().toLowerCase() === rawId.toLowerCase())
-        );
-        if (defect) {
-          name = defect.title || defect.desc || '';
-          module = defect.module || '';
-          releaseVersion = defect.release || defect.releaseVersion || defect.targetRelease || '';
-          plannedDeliveryDate = defect.targetDeliveryDate || defect.targetDate || defect.fixDate || defect.plannedDeliveryDate || defect.dueDate || '';
-          if (!plannedDeliveryDate && releaseVersion && typeof PulseUtils !== 'undefined' && PulseUtils.getReleaseDates) {
-            const rDates = PulseUtils.getReleaseDates(releaseVersion);
-            if (rDates && (rDates.endDate || rDates.startDate)) {
-              plannedDeliveryDate = rDates.endDate || rDates.startDate;
-            }
-          }
+      if (!plannedDeliveryDate && releaseVersion && typeof PulseUtils !== 'undefined' && PulseUtils.getReleaseDates) {
+        const rDates = PulseUtils.getReleaseDates(releaseVersion);
+        if (rDates && (rDates.endDate || rDates.startDate)) {
+          plannedDeliveryDate = rDates.endDate || rDates.startDate;
         }
       }
 
@@ -49831,11 +49960,48 @@ Earned Value Management measures project performance and progress by comparing p
           if (d && d.fixedBy) fixSel.value = d.fixedBy;
         }
 
-        // 7. Linked Type & Linked ID
-        if ($id('del_linked_type')) {
-          $id('del_linked_type').value = d ? (d.linkedType || 'Task') : 'Task';
+        // 7. Multi-Linked Tasks & Screens Initialization
+        P._delTempLinkedTasks = new Set();
+        P._delTempLinkedScreens = new Set();
+
+        if (d) {
+          if (Array.isArray(d.linkedTasks)) d.linkedTasks.forEach(t => t && P._delTempLinkedTasks.add(t));
+          else if (typeof d.linkedTasks === 'string' && d.linkedTasks.trim()) d.linkedTasks.split(/[,;\n|]+/).forEach(t => t && P._delTempLinkedTasks.add(t.trim()));
+
+          if (Array.isArray(d.linkedScreens)) d.linkedScreens.forEach(s => s && P._delTempLinkedScreens.add(s));
+          else if (typeof d.linkedScreens === 'string' && d.linkedScreens.trim()) d.linkedScreens.split(/[,;\n|]+/).forEach(s => s && P._delTempLinkedScreens.add(s.trim()));
+
+          if (d.linkedId && d.linkedId !== 'None') {
+            const rawTokens = String(d.linkedId).split(/[,;\n|]+/).map(s => s.trim()).filter(Boolean);
+            rawTokens.forEach(tok => {
+              if (/^(?:TASK|TSK|T)-?\d+$/i.test(tok) || (P.tasks || []).some(t => t.id === tok)) {
+                P._delTempLinkedTasks.add(tok);
+              } else {
+                P._delTempLinkedScreens.add(tok);
+              }
+            });
+          }
         }
-        updateDeliveryLinkedOptions(d ? (d.linkedId || '') : '', /* skipAutoFetch */ Boolean(d));
+
+        // Populate Add Task dropdown
+        const taskSel = $id('del_add_task_sel');
+        if (taskSel) {
+          taskSel.innerHTML = '<option value="">+ Link Task...</option>' + (P.tasks || []).map(t => `<option value="${esc(t.id)}">${esc(t.id)} — ${esc(t.name || 'Untitled')}</option>`).join('');
+        }
+
+        // Populate Add Screen dropdown
+        const screenSel = $id('del_add_screen_sel');
+        if (screenSel) {
+          const allScreenNames = new Set();
+          (P.features || []).forEach(f => (f.screens || []).forEach(s => s && allScreenNames.add(typeof s === 'object' ? (s.name || s.id) : s)));
+          (P.tasks || []).forEach(t => {
+            (t.guiScreens || t.screens || []).forEach(s => s && allScreenNames.add(typeof s === 'object' ? (s.name || s.id) : s));
+            (t.subtasks || []).forEach(st => (st.screen || (st.type === 'screen' && st.name)) && allScreenNames.add(st.screen || st.name));
+          });
+          screenSel.innerHTML = '<option value="">+ Link Screen...</option>' + Array.from(allScreenNames).sort().map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+        }
+
+        renderDeliveryLinkedChips();
 
         // 8. Components Delivered
         const compEl = $id('del_components_delivered');
@@ -49983,6 +50149,14 @@ Earned Value Management measures project performance and progress by comparing p
       const pdnDate = $id('del_pdn_date')?.value || '';
       const compDelivered = ($id('del_components_delivered')?.value || '').trim();
 
+      const linkedTasks = Array.from(P._delTempLinkedTasks || []);
+      const linkedScreens = Array.from(P._delTempLinkedScreens || []);
+      const allLinkedIds = [...linkedTasks, ...linkedScreens];
+      let computedLinkedType = 'None';
+      if (linkedTasks.length > 0 && linkedScreens.length > 0) computedLinkedType = 'Multi';
+      else if (linkedTasks.length > 0) computedLinkedType = 'Task';
+      else if (linkedScreens.length > 0) computedLinkedType = 'Screen';
+
       const data = {
         name: name,
         description: name,
@@ -49994,8 +50168,10 @@ Earned Value Management measures project performance and progress by comparing p
         almStatus: $id('del_alm_status')?.value || 'Open',
         reportedBy: $id('del_reported_by')?.value || '',
         fixedBy: $id('del_fixed_by')?.value || '',
-        linkedType: $id('del_linked_type')?.value || 'Task',
-        linkedId: $id('del_linked_id')?.value || '',
+        linkedType: computedLinkedType,
+        linkedId: allLinkedIds.join(', '),
+        linkedTasks: linkedTasks,
+        linkedScreens: linkedScreens,
         componentsDelivered: compDelivered,
         moduleType: $id('del_module_type')?.value || 'Server',
         releaseVersion: $id('del_release')?.value || '',
@@ -51243,60 +51419,91 @@ Earned Value Management measures project performance and progress by comparing p
     }
     window.resolveTeamMemberName = resolveTeamMemberName;
 
-    // Auto-identify linked task or screen based on module name and delivered components
+    // Auto-identify multiple linked tasks and screens based on module name, manifest components, and descriptions
     function autoIdentifyDeliveryLink(item) {
-      if (!item) return { linkedType: 'None', linkedId: '' };
+      if (!item) return { linkedType: 'None', linkedId: '', linkedTasks: [], linkedScreens: [] };
+
+      const tasks = Array.isArray(P.tasks) ? P.tasks : [];
+      const features = Array.isArray(P.features) ? P.features : [];
+      const matchedTasks = new Set();
+      const matchedScreens = new Set();
+
+      const norm = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const stripExt = (s) => (s || '').replace(/\.[a-zA-Z0-9]+$/, '').replace(/[-_\.]+/g, ' ').trim();
 
       const modStr = (item.module || '').trim().toLowerCase();
       const compStr = (item.componentsDelivered || (Array.isArray(item.guiScreens) ? item.guiScreens.join(', ') : item.guiScreens) || '').trim();
       const nameStr = (item.name || item.description || '').trim();
       const almStr = (item.almId || '').trim();
+      const fullText = (compStr + ' ' + nameStr + ' ' + modStr + ' ' + almStr).toLowerCase();
+      const normFullText = norm(fullText);
 
-      // If user already specified a valid non-empty linkedId that exists, keep it
-      if (item.linkedId && item.linkedId !== 'None' && item.linkedId !== '') {
-        const rawLId = String(item.linkedId).trim();
-        const tMatch = (P.tasks || []).find(t => t.id && t.id.toLowerCase() === rawLId.toLowerCase());
-        if (tMatch) return { linkedType: 'Task', linkedId: tMatch.id };
-        const tNameMatch = (P.tasks || []).find(t => t.name && t.name.toLowerCase() === rawLId.toLowerCase());
-        if (tNameMatch) return { linkedType: 'Task', linkedId: tNameMatch.id };
-        if (item.linkedType === 'Screen') return { linkedType: 'Screen', linkedId: rawLId };
-        if (item.linkedType === 'Defect') return { linkedType: 'Defect', linkedId: rawLId };
+      // 1. Explicitly provided linkedTasks and linkedScreens
+      if (Array.isArray(item.linkedTasks)) {
+        item.linkedTasks.forEach(t => t && matchedTasks.add(String(t).trim()));
+      } else if (typeof item.linkedTasks === 'string' && item.linkedTasks.trim()) {
+        item.linkedTasks.split(/[,;\n|]+/).forEach(t => t && matchedTasks.add(t.trim()));
       }
 
-      const tasks = Array.isArray(P.tasks) ? P.tasks : [];
-      const features = Array.isArray(P.features) ? P.features : [];
+      if (Array.isArray(item.linkedScreens)) {
+        item.linkedScreens.forEach(s => s && matchedScreens.add(String(s).trim()));
+      } else if (typeof item.linkedScreens === 'string' && item.linkedScreens.trim()) {
+        item.linkedScreens.split(/[,;\n|]+/).forEach(s => s && matchedScreens.add(s.trim()));
+      }
 
-      const norm = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const stripExt = (s) => (s || '').replace(/\.[a-zA-Z0-9]+$/, '').replace(/[_\-\.]+/g, ' ').trim();
+      // 2. Parse existing linkedId if provided
+      if (item.linkedId && item.linkedId !== 'None' && String(item.linkedId).trim()) {
+        const rawTokens = String(item.linkedId).split(/[,;\n|]+/).map(s => s.trim()).filter(Boolean);
+        rawTokens.forEach(tok => {
+          const tMatch = tasks.find(t => (t.id && t.id.toLowerCase() === tok.toLowerCase()) || (t.name && t.name.toLowerCase() === tok.toLowerCase()));
+          if (tMatch) {
+            matchedTasks.add(tMatch.id);
+          } else if (/^(?:TASK|TSK|T)-?\d+$/i.test(tok)) {
+            matchedTasks.add(tok.toUpperCase());
+          } else {
+            matchedScreens.add(tok);
+          }
+        });
+      }
 
-      // Collect all known screens with their module and parent task context
+      // 3. Scan for all direct task ID references in text (e.g. TASK-001, TASK-004)
+      const idRegexAll = /\b(?:TASK|TSK|T)-?0*(\d+)\b/gi;
+      let match;
+      while ((match = idRegexAll.exec(fullText)) !== null) {
+        const num = parseInt(match[1], 10);
+        const matchedById = tasks.find(t => {
+          const tNum = parseInt((t.id || '').replace(/\D/g, ''), 10);
+          return tNum === num;
+        });
+        if (matchedById) {
+          matchedTasks.add(matchedById.id);
+        }
+      }
+
+      // 4. Collect all known screens with their module & task associations
       const knownScreens = [];
       tasks.forEach(t => {
         const tScreens = Array.isArray(t.guiScreens) ? t.guiScreens : (Array.isArray(t.screens) ? t.screens : []);
         tScreens.forEach(sc => {
           const sName = typeof sc === 'string' ? sc.trim() : (sc.name || sc.id || '').trim();
-          if (sName) {
+          if (sName && !knownScreens.some(k => k.normName === norm(sName))) {
             knownScreens.push({
               name: sName,
               normName: norm(sName),
               module: (t.module || '').toLowerCase(),
-              taskId: t.id,
-              taskName: t.name || '',
-              moduleType: t.moduleType || 'GUI'
+              taskId: t.id
             });
           }
         });
         (t.subtasks || []).forEach(st => {
           if (st.type === 'screen' || st.screen) {
             const sName = (st.name || st.screen || '').trim();
-            if (sName) {
+            if (sName && !knownScreens.some(k => k.normName === norm(sName))) {
               knownScreens.push({
                 name: sName,
                 normName: norm(sName),
                 module: (t.module || '').toLowerCase(),
-                taskId: t.id,
-                taskName: t.name || '',
-                moduleType: 'GUI'
+                taskId: t.id
               });
             }
           }
@@ -51310,156 +51517,73 @@ Earned Value Management measures project performance and progress by comparing p
             knownScreens.push({
               name: sName,
               normName: norm(sName),
-              module: (f.module || f.category || f.name || '').toLowerCase(),
-              featureName: f.name,
-              moduleType: 'GUI'
+              module: (f.module || f.category || f.name || '').toLowerCase()
             });
           }
         });
       });
 
-      const rawParts = compStr ? compStr.split(/[,;\n\r|/]+/).map(s => s.trim()).filter(Boolean) : [];
+      const rawParts = compStr ? compStr.split(/[,;\n\r|/•]+/).map(s => s.trim()).filter(Boolean) : [];
       const cleanParts = rawParts.map(p => stripExt(p)).filter(Boolean);
       const normParts = cleanParts.map(p => norm(p)).filter(Boolean);
-      const fullText = (compStr + ' ' + nameStr + ' ' + modStr + ' ' + almStr).toLowerCase();
-      const normFullText = norm(fullText);
 
-      // ── 1. SCREEN IDENTIFICATION ──
-      let bestScreenMatch = null;
-      let highestScreenScore = 0;
-
+      // Match all screens in clean parts and text
       knownScreens.forEach(sc => {
         const scLower = sc.name.toLowerCase();
         const scNorm = sc.normName;
-        let score = 0;
+        let matched = false;
 
-        // Exact match with clean token
         if (cleanParts.some(p => p.toLowerCase() === scLower || norm(p) === scNorm)) {
-          score += 100;
+          matched = true;
         } else if (normParts.some(p => p.length >= 4 && (p.includes(scNorm) || scNorm.includes(p)))) {
-          score += 70;
+          matched = true;
         } else if (compStr && (compStr.toLowerCase().includes(scLower) || norm(compStr).includes(scNorm))) {
-          score += 60;
-        } else if (nameStr && (nameStr.toLowerCase().includes(scLower) || norm(nameStr).includes(scNorm))) {
-          score += 45;
+          matched = true;
         }
 
-        if (score > 0) {
-          if (modStr && sc.module && (sc.module.includes(modStr) || modStr.includes(sc.module) || norm(sc.module).includes(norm(modStr)))) {
-            score += 35;
-          }
-          if (score > highestScreenScore) {
-            highestScreenScore = score;
-            bestScreenMatch = sc;
-          }
+        if (matched) {
+          matchedScreens.add(sc.name);
+          if (sc.taskId) matchedTasks.add(sc.taskId);
         }
       });
 
-      if (bestScreenMatch && highestScreenScore >= 50) {
-        return {
-          linkedType: 'Screen',
-          linkedId: bestScreenMatch.name
-        };
-      }
-
-      // ── 2. TASK IDENTIFICATION ──
-      // Check direct task ID reference (e.g. TASK-002, TSK-001)
-      const idRegex = /\b(?:TASK|TSK|T)-?0*(\d+)\b/i;
-      const taskIdMatch = fullText.match(idRegex);
-      if (taskIdMatch) {
-        const num = parseInt(taskIdMatch[1], 10);
-        const matchedById = tasks.find(t => {
-          const tNum = parseInt((t.id || '').replace(/\D/g, ''), 10);
-          return tNum === num;
-        });
-        if (matchedById) {
-          return {
-            linkedType: 'Task',
-            linkedId: matchedById.id
-          };
-        }
-      }
-
-      let bestTaskMatch = null;
-      let highestTaskScore = 0;
-
+      // Match task names against manifest tokens
       tasks.forEach(t => {
-        let score = 0;
         const tNameLower = (t.name || '').toLowerCase();
         const tNameNorm = norm(t.name);
-        const tModLower = (t.module || '').toLowerCase();
 
-        // Module match
-        const moduleMatches = modStr && tModLower && (tModLower === modStr || tModLower.includes(modStr) || modStr.includes(tModLower) || norm(tModLower).includes(norm(modStr)));
-        if (moduleMatches) {
-          score += 30;
-        }
-
-        // Component name match with task name
-        if (compStr && (tNameLower === compStr.toLowerCase() || tNameNorm === norm(compStr))) {
-          score += 90;
-        } else if (cleanParts.some(p => p.length >= 4 && (tNameLower.includes(p.toLowerCase()) || p.toLowerCase().includes(tNameLower) || tNameNorm.includes(norm(p))))) {
-          score += 60;
-        } else if (compStr && (compStr.toLowerCase().includes(tNameLower) || norm(compStr).includes(tNameNorm))) {
-          score += 45;
-        }
-
-        // Delivery description match with task name
-        if (nameStr && (tNameLower === nameStr.toLowerCase() || tNameNorm === norm(nameStr))) {
-          score += 85;
-        } else if (nameStr && (nameStr.toLowerCase().includes(tNameLower) || tNameLower.includes(nameStr.toLowerCase()) || normFullText.includes(tNameNorm))) {
-          score += 50;
-        }
-
-        // Keyword overlap
-        const tWords = tNameLower.split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !['diamond', 'milestone', 'task', 'core', 'with', 'from', 'user', 'view', 'list', 'edit'].includes(w));
-        let wordMatches = 0;
-        tWords.forEach(w => {
-          if (fullText.includes(w) || normFullText.includes(w)) wordMatches++;
-        });
-        if (wordMatches > 0) {
-          score += (wordMatches * 15);
-        }
-
-        // Task screens match component
-        const tScreens = Array.isArray(t.guiScreens) ? t.guiScreens : [];
-        if (tScreens.some(s => compStr.toLowerCase().includes(String(s).toLowerCase()) || norm(compStr).includes(norm(s)))) {
-          score += 45;
-        }
-
-        if (score > highestTaskScore) {
-          highestTaskScore = score;
-          bestTaskMatch = t;
+        if (cleanParts.some(p => p.length >= 4 && (tNameLower.includes(p.toLowerCase()) || p.toLowerCase().includes(tNameLower) || tNameNorm.includes(norm(p))))) {
+          matchedTasks.add(t.id);
+        } else if (nameStr && (tNameLower === nameStr.toLowerCase() || (tNameNorm.length >= 5 && normFullText.includes(tNameNorm)))) {
+          matchedTasks.add(t.id);
         }
       });
 
-      if (bestTaskMatch && highestTaskScore >= 35) {
-        return {
-          linkedType: 'Task',
-          linkedId: bestTaskMatch.id
-        };
-      }
-
-      // Fallback: If module matched a single task or active task
-      if (modStr) {
+      // Fallback: If no tasks matched yet but module matches a unique task
+      if (matchedTasks.size === 0 && matchedScreens.size === 0 && modStr) {
         const modTasks = tasks.filter(t => (t.module || '').toLowerCase() === modStr || (t.module || '').toLowerCase().includes(modStr) || norm(t.module).includes(norm(modStr)));
         if (modTasks.length === 1) {
-          return {
-            linkedType: 'Task',
-            linkedId: modTasks[0].id
-          };
+          matchedTasks.add(modTasks[0].id);
         } else if (modTasks.length > 1) {
           const activeTask = modTasks.find(t => t.status !== 'Completed') || modTasks[0];
-          return {
-            linkedType: 'Task',
-            linkedId: activeTask.id
-          };
+          matchedTasks.add(activeTask.id);
         }
       }
 
+      const taskArr = Array.from(matchedTasks);
+      const screenArr = Array.from(matchedScreens);
+      const allIds = [...taskArr, ...screenArr];
+
+      let lType = 'None';
+      if (taskArr.length > 0 && screenArr.length > 0) lType = 'Multi';
+      else if (taskArr.length > 0) lType = (taskArr.length > 1 ? 'Task (Multi)' : 'Task');
+      else if (screenArr.length > 0) lType = (screenArr.length > 1 ? 'Screen (Multi)' : 'Screen');
+
       return {
-        linkedType: item.linkedType || 'None',
-        linkedId: item.linkedId || ''
+        linkedType: lType,
+        linkedId: allIds.join(', '),
+        linkedTasks: taskArr,
+        linkedScreens: screenArr
       };
     }
     window.autoIdentifyDeliveryLink = autoIdentifyDeliveryLink;
@@ -51536,13 +51660,18 @@ Earned Value Management measures project performance and progress by comparing p
         } catch(e) {}
       }
 
-      // Auto-identify linked task or screen based on module name and delivered components if not explicitly provided
+      // Auto-identify linked tasks and screens based on module name and delivered components
+      const autoLink = autoIdentifyDeliveryLink(item);
       if (!item.linkedId || item.linkedId === 'None' || !item.linkedType || item.linkedType === 'None' || (item.linkedType === 'Task' && !item.linkedId)) {
-        const autoLink = autoIdentifyDeliveryLink(item);
         if (autoLink && autoLink.linkedId) {
           item.linkedType = autoLink.linkedType;
           item.linkedId = autoLink.linkedId;
+          item.linkedTasks = autoLink.linkedTasks;
+          item.linkedScreens = autoLink.linkedScreens;
         }
+      } else {
+        item.linkedTasks = (Array.isArray(item.linkedTasks) && item.linkedTasks.length) ? item.linkedTasks : (autoLink.linkedTasks || []);
+        item.linkedScreens = (Array.isArray(item.linkedScreens) && item.linkedScreens.length) ? item.linkedScreens : (autoLink.linkedScreens || []);
       }
 
       // Auto-enrich missing dates/release from identified link
@@ -59525,12 +59654,17 @@ Earned Value Management measures project performance and progress by comparing p
             notes: del.notes || del['Notes'] || ''
           };
           if (del.custom) item.custom = { ...del.custom };
+          const autoLink = autoIdentifyDeliveryLink(item);
           if (!item.linkedId || item.linkedId === 'None') {
-            const autoLink = autoIdentifyDeliveryLink(item);
             if (autoLink && autoLink.linkedId) {
               item.linkedType = autoLink.linkedType;
               item.linkedId = autoLink.linkedId;
+              item.linkedTasks = autoLink.linkedTasks;
+              item.linkedScreens = autoLink.linkedScreens;
             }
+          } else {
+            item.linkedTasks = (Array.isArray(item.linkedTasks) && item.linkedTasks.length) ? item.linkedTasks : (autoLink.linkedTasks || []);
+            item.linkedScreens = (Array.isArray(item.linkedScreens) && item.linkedScreens.length) ? item.linkedScreens : (autoLink.linkedScreens || []);
           }
           return item;
         });
