@@ -21714,7 +21714,7 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
                 { key: 'reportedBy', label: 'Reported By', w: 125, type: 'select', edit: true, required: true },
                 { key: 'fixedBy', label: 'Defect Fixed By', w: 125, type: 'select', edit: true, required: true },
                 { key: 'linkedType', label: 'Linked Type', w: 100, type: 'select', opts: ['Task', 'Screen', 'None'], edit: true, required: true },
-                { key: 'linkedId', label: 'Linked ID', w: 165, type: 'select', edit: true, required: true },
+                { key: 'linkedId', label: 'Linked ID', w: 220, type: 'select', edit: true, required: true },
                 { key: 'notes', label: 'Remarks / Notes', w: 180, type: 'text', edit: true }
               ];
             } else {
@@ -21731,7 +21731,7 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
                 { key: 'reportedBy', label: 'Reported By', w: 125, type: 'select', edit: true, required: true },
                 { key: 'fixedBy', label: 'Defect Fixed By', w: 125, type: 'select', edit: true, required: true },
                 { key: 'linkedType', label: 'Linked Type', w: 100, type: 'select', opts: ['Task', 'Screen', 'None'], edit: true, required: true },
-                { key: 'linkedId', label: 'Linked ID', w: 165, type: 'select', edit: true, required: true },
+                { key: 'linkedId', label: 'Linked ID', w: 220, type: 'select', edit: true, required: true },
                 { key: 'notes', label: 'Remarks / Notes', w: 180, type: 'text', edit: true }
               ];
               reqCols.forEach(rc => {
@@ -47995,19 +47995,37 @@ Earned Value Management measures project performance and progress by comparing p
               const screens = Array.isArray(d.linkedScreens) ? d.linkedScreens : [];
               const rawVal = String(val || '').trim();
 
+              const getTaskDisplay = (tId) => {
+                const cleanId = String(tId || '').trim();
+                const tObj = (P.tasks || []).find(x => x.id && x.id.toLowerCase() === cleanId.toLowerCase());
+                return tObj && tObj.name ? `${tObj.id} : ${tObj.name}` : cleanId;
+              };
+
               let chipsHtml = '';
               if (tasks.length > 0 || screens.length > 0) {
-                const taskBadges = tasks.slice(0, 2).map(t => `<span style="font-family:var(--font-mono);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(37,99,235,0.08);color:#2563eb;border:1px solid rgba(37,99,235,0.25);cursor:pointer;display:inline-flex;align-items:center;gap:3px;white-space:nowrap" onclick="event.stopPropagation();if(typeof openTaskModal==='function')openTaskModal('${esc(t)}')"><i data-lucide="check-square" style="width:10px;height:10px"></i>${esc(t)}</span>`);
-                const screenBadges = screens.slice(0, 2).map(s => `<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(147,51,234,0.08);color:#7e22ce;border:1px solid rgba(147,51,234,0.25);display:inline-flex;align-items:center;gap:3px;white-space:nowrap"><i data-lucide="monitor" style="width:10px;height:10px"></i>${esc(s)}</span>`);
+                const taskBadges = tasks.slice(0, 2).map(t => {
+                  const label = getTaskDisplay(t);
+                  return `<span style="font-family:var(--font-mono);font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(37,99,235,0.08);color:#2563eb;border:1px solid rgba(37,99,235,0.25);cursor:pointer;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis" title="${esc(label)}" onclick="event.stopPropagation();if(typeof openTaskModal==='function')openTaskModal('${esc(t)}')"><i data-lucide="check-square" style="width:10px;height:10px;flex-shrink:0"></i><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(label)}</span></span>`;
+                });
+                const screenBadges = screens.slice(0, 2).map(s => `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(147,51,234,0.08);color:#7e22ce;border:1px solid rgba(147,51,234,0.25);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${esc(s)}"><i data-lucide="monitor" style="width:10px;height:10px;flex-shrink:0"></i><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s)}</span></span>`);
                 const totalExtra = (tasks.length + screens.length) - (taskBadges.length + screenBadges.length);
                 chipsHtml = `<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">${taskBadges.join('')}${screenBadges.join('')}${totalExtra > 0 ? `<span style="font-size:10px;color:var(--color-text-muted);font-weight:700;background:var(--color-surface-2);border:1px solid var(--color-divider);padding:1px 5px;border-radius:3px">+${totalExtra}</span>` : ''}</div>`;
               } else if (rawVal && rawVal !== 'None') {
-                chipsHtml = `<span style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--color-text);background:var(--color-surface-2);padding:2px 7px;border-radius:4px;border:1px solid var(--color-divider);white-space:nowrap">${esc(rawVal)}</span>`;
+                const parts = rawVal.split(/[,;\n|]+/).map(s => s.trim()).filter(Boolean);
+                const formattedList = parts.map(p => getTaskDisplay(p));
+                const isTaskLike = parts.some(p => (P.tasks || []).some(x => x.id && x.id.toLowerCase() === p.toLowerCase()));
+                if (isTaskLike) {
+                  const firstFmt = formattedList[0];
+                  const extra = formattedList.length - 1;
+                  chipsHtml = `<div style="display:flex;align-items:center;gap:4px"><span style="font-family:var(--font-mono);font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(37,99,235,0.08);color:#2563eb;border:1px solid rgba(37,99,235,0.25);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-flex;align-items:center;gap:4px" title="${esc(formattedList.join(', '))}"><i data-lucide="check-square" style="width:10px;height:10px;flex-shrink:0"></i><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(firstFmt)}</span></span>${extra > 0 ? `<span style="font-size:10px;color:var(--color-text-muted);font-weight:700;background:var(--color-surface-2);border:1px solid var(--color-divider);padding:1px 5px;border-radius:3px">+${extra}</span>` : ''}</div>`;
+                } else {
+                  chipsHtml = `<span style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--color-text);background:var(--color-surface-2);padding:2px 7px;border-radius:4px;border:1px solid var(--color-divider);white-space:nowrap">${esc(rawVal)}</span>`;
+                }
               } else {
                 chipsHtml = '<span style="color:var(--color-text-faint)">—</span>';
               }
 
-              td.innerHTML = `<div class="td-inner" style="max-width:240px" title="${esc(rawVal || '')}">${chipsHtml}</div>`;
+              td.innerHTML = `<div class="td-inner" style="max-width:320px" title="${esc(rawVal || '')}">${chipsHtml}</div>`;
             } else if (col.type === 'date') {
               td.innerHTML = `<div class="td-inner" style="font-family:var(--mono);font-size:11.5px;color:var(--color-text);font-weight:500">${val ? fmtDate(val) : '<span style="color:var(--color-text-faint)">—</span>'}</div>`;
             } else {
@@ -48061,7 +48079,7 @@ Earned Value Management measures project performance and progress by comparing p
           } else if (delivery.linkedType === 'Defect') {
             opts = (P.defects || []).map(d => `[${d.id}] ${d.title || d.desc || 'Defect'}`);
           } else {
-            opts = (P.tasks || []).map(t => `[${t.id}] ${t.name}`);
+            opts = (P.tasks || []).map(t => `${t.id} : ${t.name}`);
           }
         }
         else if (col.key === 'status') opts = (P.dropdowns && P.dropdowns.deliveryStatus) || ['Scheduled', 'In Progress', 'Ready for Deployment', 'Deployed', 'Cancelled', 'Rolled Back'];
@@ -49776,13 +49794,15 @@ Earned Value Management measures project performance and progress by comparing p
         } else {
           taskCont.innerHTML = tasks.map(tId => {
             const taskObj = (P.tasks || []).find(t => t.id === tId);
-            const label = taskObj ? `${tId}: ${taskObj.name}` : tId;
+            const label = taskObj && taskObj.name ? `${tId} : ${taskObj.name}` : tId;
             return `
-              <span class="badge blue" style="display:inline-flex; align-items:center; gap:6px; font-family:var(--font-mono); font-size:11px; padding:3px 8px; border-radius:5px; background:rgba(59,130,246,0.1); color:#3b82f6; border:1px solid rgba(59,130,246,0.25)" title="${esc(label)}">
-                ${esc(tId)}
-                <span onclick="removeDeliveryLinkedTask('${esc(tId)}')" style="cursor:pointer; font-weight:bold; font-size:12px; margin-left:2px; opacity:0.75" title="Remove link">✕</span>
+              <span class="badge blue" style="display:inline-flex; align-items:center; gap:6px; font-family:var(--font-mono); font-size:11px; padding:3px 8px; border-radius:5px; background:rgba(37,99,235,0.08); color:#2563eb; border:1px solid rgba(37,99,235,0.25)" title="${esc(label)}">
+                <i data-lucide="check-square" style="width:11px; height:11px"></i>
+                ${esc(label)}
+                <span onclick="removeDeliveryLinkedTask('${esc(tId)}')" style="cursor:pointer; font-weight:bold; font-size:12px; margin-left:4px; opacity:0.75" title="Remove link">✕</span>
               </span>`;
           }).join('');
+          if (window.lucide) lucide.createIcons(taskCont);
         }
       }
 
@@ -50166,7 +50186,7 @@ Earned Value Management measures project performance and progress by comparing p
         // Populate Add Task dropdown
         const taskSel = $id('del_add_task_sel');
         if (taskSel) {
-          taskSel.innerHTML = '<option value="">+ Link Task...</option>' + (P.tasks || []).map(t => `<option value="${esc(t.id)}">${esc(t.id)} — ${esc(t.name || 'Untitled')}</option>`).join('');
+          taskSel.innerHTML = '<option value="">+ Link Task...</option>' + (P.tasks || []).map(t => `<option value="${esc(t.id)}">${esc(t.id)} : ${esc(t.name || 'Untitled')}</option>`).join('');
         }
 
         // Populate Add Screen dropdown
@@ -56117,7 +56137,13 @@ Earned Value Management measures project performance and progress by comparing p
             variance: { formula: `IF(AND(L${rowIdx}<>"Closed", R${rowIdx}<>"", R${rowIdx}<TODAY()), TODAY()-R${rowIdx}, IF(AND(S${rowIdx}<>"", R${rowIdx}<>""), S${rowIdx}-R${rowIdx}, 0))` },
             linkedType: S(d.linkedType || 'Task'),
             linkedId: S(d.linkedId || ''),
-            linkedTasks: S(Array.isArray(d.linkedTasks) ? d.linkedTasks.join(', ') : (d.linkedType === 'Task' ? d.linkedId : '')),
+            linkedTasks: S((() => {
+              const rawT = Array.isArray(d.linkedTasks) ? d.linkedTasks : (d.linkedType === 'Task' ? String(d.linkedId || '').split(/[,;\n|]+/).map(s => s.trim()).filter(Boolean) : []);
+              return rawT.map(tId => {
+                const tObj = (P.tasks || []).find(t => t.id && t.id.toLowerCase() === String(tId).toLowerCase());
+                return tObj && tObj.name ? `${tObj.id} : ${tObj.name}` : tId;
+              }).join(', ');
+            })()),
             linkedScreens: S(Array.isArray(d.linkedScreens) ? d.linkedScreens.join(', ') : (d.linkedType === 'Screen' ? d.linkedId : '')),
             rollbackPlan: S(d.rollbackPlan || ''),
             notes: S(d.notes || d.remarks || ''),
