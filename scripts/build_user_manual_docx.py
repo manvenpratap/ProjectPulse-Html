@@ -111,18 +111,19 @@ def build_toc(doc):
     chapters = [
         ("1",   "Executive Overview Dashboard",                 "5"),
         ("2",   "Live Project Insights & Analytics",            "10"),
-        ("3",   "Hierarchical Delivery Matrix",                 "15"),
-        ("4",   "Gantt Timeline & Dependency Management",       "22"),
-        ("5",   "Intelligent Weekly Scheduler & Conflict Resolver", "28"),
-        ("6",   "Unified RAID Register",                        "35"),
-        ("7",   "Team Capacity Hub & Role Management",          "41"),
-        ("8",   "Defect Tracker & Bug Lifecycle",               "46"),
-        ("9",   "Reports & Stakeholder Board Packs",            "52"),
-        ("10",  "Audit Log & Activity Streams",                 "56"),
-        ("11",  "Schedule Baselines & Snapshot History",        "60"),
-        ("12",  "System Configuration Reference",               "65"),
-        ("A",   "Appendix A — Keyboard Shortcuts",              "70"),
-        ("B",   "Appendix B — Data Schema Reference",           "72"),
+        ("3",   "Software Deliveries & Deployment Schedule",    "15"),
+        ("4",   "Hierarchical Task Matrix & Work Breakdown Structure", "21"),
+        ("5",   "Gantt Timeline & Dependency Management",       "28"),
+        ("6",   "Intelligent Weekly Scheduler & Conflict Resolver", "34"),
+        ("7",   "Unified RAID Register",                        "41"),
+        ("8",   "Team Capacity Hub & Role Management",          "47"),
+        ("9",   "Defect Tracker & Bug Lifecycle",               "52"),
+        ("10",  "Reports & Stakeholder Board Packs",            "58"),
+        ("11",  "Audit Log & Activity Streams",                 "62"),
+        ("12",  "Schedule Baselines & Snapshot History",        "66"),
+        ("13",  "System Configuration Reference",               "71"),
+        ("A",   "Appendix A — Keyboard Shortcuts",              "76"),
+        ("B",   "Appendix B — Data Schema Reference",           "78"),
     ]
 
     tbl = doc.add_table(rows=len(chapters), cols=3)
@@ -235,7 +236,7 @@ def ch_overview(doc):
     )
 
     add_callout(doc,
-        "Always capture a Schedule Baseline (Chapter 11) before committing sandbox changes. "
+        "Always capture a Schedule Baseline (Chapter 12) before committing sandbox changes. "
         "This ensures you can restore the original plan if the simulation produces undesirable outcomes.",
         style="warning")
 
@@ -315,20 +316,126 @@ def ch_insights(doc):
     add_page_break(doc)
 
 
-def ch_delivery(doc):
-    make_heading(doc, "3  Hierarchical Delivery Matrix", level=1, color=CLR_NAVY)
+def ch_deliveries(doc):
+    make_heading(doc, "3  Software Deliveries & Deployment Schedule", level=1, color=CLR_NAVY)
     add_horizontal_rule(doc, "00C2A8")
     make_body(doc,
-        "The Delivery Matrix is the operational backbone of ProjectPulse — "
-        "a high-density, spreadsheet-style task grid that supports multi-level "
-        "parent-child hierarchies, inline editing, dependency mapping, effort "
-        "estimation, and real-time status tracking. Every deliverable, epic, "
-        "task, and subtask in the project lives in this view.", space_after=8)
+        "The Software Deliveries workstation (View 3: 'deliveries') is ProjectPulse's dedicated "
+        "command center for tracking formal software delivery milestones, ALM/PDN tracking, "
+        "deployment schedules, and build releases. It bridges the gap between low-level WBS tasks "
+        "and production releases, providing project managers, release coordinators, and DevOps leads "
+        "with end-to-end visibility from code completion to production rollout.", space_after=8)
+
+    add_screenshot(doc, "02b_software_deliveries",
+                   "Figure 3.1 — Software Deliveries View: High-density table grid with status pills, ALM/PDN tracking, and quick filters")
+
+    make_heading(doc, "3.1  Delivery Record Architecture & ALM / PDN Tracking", level=2, color=CLR_ACCENT)
+    make_body(doc,
+        "Every delivery record in ProjectPulse (P.deliveries) is structured to support enterprise-grade "
+        "release management and compliance traceability:", space_after=6)
+
+    add_data_table(doc,
+        ["Field", "Type", "Description", "Business Value"],
+        [
+            ["id",               "String (Unique)", "Permanent delivery identifier (e.g. DEL-001, DEL-002)", "Unique reference across audit logs, reports, and change requests."],
+            ["title",            "String",          "Descriptive name of the delivery package or milestone", "Clear business context for executive and engineering stakeholders."],
+            ["version",          "String",          "Semantic or build version tag (e.g., v2.1.0-RC1)",      "Synchronised with git tags and CI/CD pipeline build artefacts."],
+            ["type",             "Dropdown",        "Release, Patch, Hotfix, Milestone, Internal Build",     "Categorisation determining change control governance depth."],
+            ["status",           "Dropdown",        "Scheduled, In Progress, Ready for QA, Deployed, Cancelled", "Enforces the release lifecycle state machine."],
+            ["targetDate",       "Date (YYYY-MM-DD)", "Scheduled target delivery or release window date",     "Drives countdown chips, overdue badges, and calendar scheduling."],
+            ["deployedDate",     "Date (YYYY-MM-DD)", "Actual date deployed to staging or production",        "Historical audit record for delivery SLA and velocity metrics."],
+            ["environment",      "Dropdown",        "DEV, QA / Test, Staging / UAT, Pre-Prod, Production",   "Target deployment infrastructure environment tier."],
+            ["lead",             "Dropdown",        "Delivery lead or responsible release engineer",        "Owner responsible for change review, deployment checklist, and sign-off."],
+            ["linkedTaskIds",    "Array / CSV",     "Referenced WBS task identifiers (e.g., TASK-001, TASK-004)", "Bidirectional traceability to work breakdown structure."],
+            ["linkedScreenIds",  "Array / CSV",     "Referenced GUI screens (e.g., SCR-001, SCR-005)",       "Impact mapping from code releases to user-facing interfaces."],
+            ["almPdnNumber",     "String",          "ALM / PDN work item reference (e.g., PDN-88421)",       "Enterprise ALM synchronization for corporate compliance."],
+            ["notes",            "String (Rich)",   "Deployment notes, pre-release checklists, rollback plan", "Operational instructions for execution and incident fallback."],
+        ],
+        col_widths=[1.3, 1.2, 2.5, 1.6],
+    )
+
+    make_heading(doc, "3.2  Bidirectional Multi-Linkage Engine", level=2, color=CLR_ACCENT)
+    make_body(doc,
+        "A cornerstone capability of the Deliveries module is bidirectional multi-linkage. "
+        "Deliveries are not isolated milestones; they connect directly to WBS Tasks and GUI Screens:", space_after=6)
+    make_bullet(doc, "Multi-Task Association: Multiple task IDs can be linked to a single delivery (e.g. TASK-001, TASK-003, TASK-007).")
+    make_bullet(doc, "Dynamic Progress Computation: Delivery progress is automatically inferred as the weighted completion percentage of its linked tasks.")
+    make_bullet(doc, "GUI Screen Impact Analysis: Linking deliveries to GUI screens allows QA teams to instantly see which UI surfaces are affected by a deployment.")
+    make_bullet(doc, "Automatic Cross-Referencing: Navigating from a Delivery to a Task or vice-versa reveals complete linkage details in the respective flyout drawers.")
+    doc.add_paragraph()
+
+    make_heading(doc, "3.3  Visual Perspectives: Table Grid vs. Perspective Heatmap", level=2, color=CLR_ACCENT)
+    make_body(doc,
+        "The Deliveries workstation offers two complementary visualization perspectives toggled "
+        "seamlessly via the view toolbar:", space_after=6)
+
+    add_screenshot(doc, "02c_deliveries_heatmap",
+                   "Figure 3.2 — Visual Perspective Heatmap: Pipeline matrix organizing software deliveries by milestone and environment")
+
+    make_bullet(doc, "Table Grid View: High-density tabular layout optimized for operational scanning, batch sorting, and column configuration.")
+    make_bullet(doc, "Visual Perspective Heatmap: Matrix layout clustering deliveries across Target Environments (DEV, QA, UAT, PROD) and Release Horizons, with health-colored milestone cards.")
+    make_bullet(doc, "Quick Filters: Live search bar, Status dropdown, Type filter, and Environment selector instantly filter both perspectives in real time.")
+    doc.add_paragraph()
+
+    make_heading(doc, "3.4  Slide-out Flyout Drawer & Context Menu Operations", level=2, color=CLR_ACCENT)
+    make_body(doc,
+        "Deep inspection and record modification are facilitated through ergonomic, accessible workflows:", space_after=6)
+
+    add_screenshot(doc, "11b_delivery_flyout",
+                   "Figure 3.3 — Delivery Detail Flyout Drawer: Comprehensive inspection of linked tasks, GUI screens, dependencies, and audit history")
+
+    make_bullet(doc, "3-Dot Action Menu: Every table row features an accessible ellipsis menu offering 'View Details', 'Edit Delivery', and 'Delete'.")
+    make_bullet(doc, "Right-Click Context Menu: Right-clicking any row triggers a context menu with identical high-speed shortcuts, eliminating visual clutter.")
+    make_bullet(doc, "Slide-out Flyout Drawer: Clicking any delivery opens an animated flyout drawer presenting metadata, progress gauges, linked task list with live status pills, screen badges, and audit history.")
+    doc.add_paragraph()
+
+    make_heading(doc, "3.5  5-Strategy Intelligent Column Autofit Engine", level=2, color=CLR_ACCENT)
+    make_body(doc,
+        "ProjectPulse features a proprietary multi-strategy column width optimization engine that "
+        "adapts the Deliveries table to any screen resolution and content length:", space_after=6)
+
+    add_data_table(doc,
+        ["Strategy", "Algorithm", "Best For"],
+        [
+            ["Content-Aware Autofit", "Measures rendered DOM canvas text width for headers and cell content with safety padding.", "Dense datasets with varying text lengths."],
+            ["Proportional Flex",     "Allocates column widths proportionally based on assigned flex factors.",                   "Standard widescreen monitors (1920×1080)."],
+            ["Compact / Min-Width",   "Enforces strict minimum thresholds to prevent content overflow or horizontal scrolling.",   "Laptops and tablet displays."],
+            ["Fixed Enterprise Grid", "Applies fixed, standardized column dimensions for consistent enterprise printing.",        "Export preparation and formal review."],
+            ["Saved Preference Mode", "Restores user-customized drag-resized widths stored in localStorage.",                      "Personalized power-user workflows."],
+        ],
+        col_widths=[1.6, 3.2, 1.8],
+    )
+
+    make_heading(doc, "3.6  Bidirectional Excel Synchronization", level=2, color=CLR_ACCENT)
+    make_body(doc,
+        "The Deliveries module is fully integrated into ProjectPulse's Excel engine (PulseExcel.buildDeliveriesSheet). "
+        "Exporting to Excel generates a dedicated 'Deliveries' worksheet complete with enterprise styling, "
+        "status-coded fill colors, ALM/PDN numbers, linked task arrays, and environment markers. "
+        "Importing an updated workbook flawlessly parses delivery records, synchronizing changes without data loss.", space_after=6)
+
+    add_callout(doc,
+        "Deliveries that are overdue or marked 'Blocked' automatically propagate their risk rating to the "
+        "Executive Overview Health Index. Ensuring deliveries are linked to verified WBS tasks guarantees "
+        "100% schedule alignment across the organization.",
+        style="tip")
+
+    add_page_break(doc)
+
+
+def ch_tasks(doc):
+    make_heading(doc, "4  Hierarchical Task Matrix & Work Breakdown Structure", level=1, color=CLR_NAVY)
+    add_horizontal_rule(doc, "00C2A8")
+    make_body(doc,
+        "The Hierarchical Task Matrix is the operational work breakdown structure (WBS) "
+        "backbone of ProjectPulse — a high-density, spreadsheet-style task grid that supports "
+        "multi-level parent-child hierarchies, inline editing, dependency mapping, effort "
+        "estimation, and real-time status tracking. Every deliverable, epic, task, and subtask "
+        "in the project lives in this view.", space_after=8)
 
     add_screenshot(doc, "02_delivery_matrix",
-                   "Figure 3.1 — Hierarchical Delivery Matrix showing parent tasks, child subtasks, status pills, and inline controls")
+                   "Figure 4.1 — Hierarchical Task Matrix showing parent tasks, child subtasks, status pills, and inline controls")
 
-    make_heading(doc, "3.1  Parent-Child Task Hierarchies", level=2, color=CLR_ACCENT)
+    make_heading(doc, "4.1  Parent-Child Task Hierarchies", level=2, color=CLR_ACCENT)
     make_body(doc,
         "Tasks can be structured into multi-level trees. Parent tasks (Epics or "
         "Deliverables) aggregate metrics from all child tasks:", space_after=6)
@@ -338,7 +445,7 @@ def ch_delivery(doc):
     make_bullet(doc, "Indentation: Child rows are visually indented 24px per nesting level for clear hierarchy display.")
     doc.add_paragraph()
 
-    make_heading(doc, "3.2  Spreadsheet-Style Inline Editing", level=2, color=CLR_ACCENT)
+    make_heading(doc, "4.2  Spreadsheet-Style Inline Editing", level=2, color=CLR_ACCENT)
     make_body(doc,
         "The matrix operates like a live spreadsheet — every cell is directly "
         "editable without opening a modal:", space_after=6)
@@ -348,7 +455,7 @@ def ch_delivery(doc):
     make_bullet(doc, "Ctrl+Z undoes the last inline edit within the session.")
     doc.add_paragraph()
 
-    make_heading(doc, "3.3  Task Status Lifecycle", level=2, color=CLR_ACCENT)
+    make_heading(doc, "4.3  Task Status Lifecycle", level=2, color=CLR_ACCENT)
     make_body(doc,
         "Status transitions follow a controlled workflow. Not all transitions are "
         "permitted — the system enforces the following state machine:", space_after=6)
@@ -366,7 +473,7 @@ def ch_delivery(doc):
         col_widths=[1.6, 2.8, 2.0],
     )
 
-    make_heading(doc, "3.4  Column Management & Visibility", level=2, color=CLR_ACCENT)
+    make_heading(doc, "4.4  Column Management & Visibility", level=2, color=CLR_ACCENT)
     make_body(doc,
         "The visible column set, order, and column widths are fully configurable:", space_after=6)
     make_bullet(doc, "Right-click any column header to show the Column Visibility panel.")
@@ -374,7 +481,7 @@ def ch_delivery(doc):
     make_bullet(doc, "Drag the right edge of a column header to resize it. All configurations persist across sessions via localStorage.")
     doc.add_paragraph()
 
-    make_heading(doc, "3.5  Complexity & Effort Estimation", level=2, color=CLR_ACCENT)
+    make_heading(doc, "4.5  Complexity & Effort Estimation", level=2, color=CLR_ACCENT)
     make_body(doc,
         "ProjectPulse uses a three-tier complexity model that scales estimated effort:", space_after=6)
 
@@ -393,7 +500,7 @@ def ch_delivery(doc):
         "All effort values across the entire application honour this setting — switching units automatically recalculates all displayed values.",
         style="note")
 
-    make_heading(doc, "3.6  Filtering & Sorting", level=2, color=CLR_ACCENT)
+    make_heading(doc, "4.6  Filtering & Sorting", level=2, color=CLR_ACCENT)
     make_body(doc,
         "The left sidebar provides a powerful multi-dimensional filter panel:", space_after=6)
     make_bullet(doc, "Filter by Module, Status, Priority, Assignee, Release, Category, and Module Type simultaneously.")
@@ -406,7 +513,7 @@ def ch_delivery(doc):
 
 
 def ch_gantt(doc):
-    make_heading(doc, "4  Gantt Timeline & Dependency Management", level=1, color=CLR_NAVY)
+    make_heading(doc, "5  Gantt Timeline & Dependency Management", level=1, color=CLR_NAVY)
     add_horizontal_rule(doc, "00C2A8")
     make_body(doc,
         "The Gantt Timeline provides a time-anchored visual representation of the "
@@ -416,9 +523,9 @@ def ch_gantt(doc):
         "toolbar.", space_after=8)
 
     add_screenshot(doc, "03_gantt_timeline",
-                   "Figure 4.1 — Gantt Timeline with dependency arrows, critical path highlighting, and baseline comparison overlay")
+                   "Figure 5.1 — Gantt Timeline with dependency arrows, critical path highlighting, and baseline comparison overlay")
 
-    make_heading(doc, "4.1  Timeline Controls", level=2, color=CLR_ACCENT)
+    make_heading(doc, "5.1  Timeline Controls", level=2, color=CLR_ACCENT)
     make_body(doc,
         "The timeline toolbar provides granular navigation controls:", space_after=6)
     make_bullet(doc, "Zoom Levels: Day / Week / Month / Quarter — adjust the time-axis resolution.")
@@ -427,7 +534,7 @@ def ch_gantt(doc):
     make_bullet(doc, "Baseline Overlay: Toggle the baseline date range (shown as a ghost bar behind each task bar) to visually compare planned vs. actual schedule positions.")
     doc.add_paragraph()
 
-    make_heading(doc, "4.2  Dependency Arrows", level=2, color=CLR_ACCENT)
+    make_heading(doc, "5.2  Dependency Arrows", level=2, color=CLR_ACCENT)
     make_body(doc,
         "Finish-to-Start dependency relationships between tasks are rendered as "
         "curved SVG arrows connecting predecessor task bars to successor task bars.", space_after=6)
@@ -436,7 +543,7 @@ def ch_gantt(doc):
     make_bullet(doc, "Red arrows: Violated dependencies — the successor's start date precedes the predecessor's due date (scheduling conflict).")
     doc.add_paragraph()
 
-    make_heading(doc, "4.3  Drag-to-Reschedule", level=2, color=CLR_ACCENT)
+    make_heading(doc, "5.3  Drag-to-Reschedule", level=2, color=CLR_ACCENT)
     make_body(doc,
         "Task bars on the timeline are interactive:", space_after=6)
     make_bullet(doc, "Drag the bar body horizontally to shift the start and due date together (preserving duration).")
@@ -454,7 +561,7 @@ def ch_gantt(doc):
 
 
 def ch_scheduler(doc):
-    make_heading(doc, "5  Intelligent Weekly Scheduler & Conflict Resolver", level=1, color=CLR_NAVY)
+    make_heading(doc, "6  Intelligent Weekly Scheduler & Conflict Resolver", level=1, color=CLR_NAVY)
     add_horizontal_rule(doc, "00C2A8")
     make_body(doc,
         "The Weekly Scheduler is the resource-levelling engine of ProjectPulse. "
@@ -464,9 +571,9 @@ def ch_scheduler(doc):
         "the Copilot engine.", space_after=8)
 
     add_screenshot(doc, "04_weekly_scheduler",
-                   "Figure 5.1 — Weekly Scheduler: Resource Heatmap Grid, Conflict Diagnostics, and Copilot Cockpit")
+                   "Figure 6.1 — Weekly Scheduler: Resource Heatmap Grid, Conflict Diagnostics, and Copilot Cockpit")
 
-    make_heading(doc, "5.1  The Weekly Heatmap Grid", level=2, color=CLR_ACCENT)
+    make_heading(doc, "6.1  The Weekly Heatmap Grid", level=2, color=CLR_ACCENT)
     make_body(doc,
         "The central element of the Scheduler is a two-dimensional heatmap grid: "
         "team members on the vertical axis and calendar weeks on the horizontal axis. "
@@ -483,7 +590,7 @@ def ch_scheduler(doc):
         col_widths=[1.4, 2.0, 1.8, 1.6],
     )
 
-    make_heading(doc, "5.2  Left Navigation Sidebar", level=2, color=CLR_ACCENT)
+    make_heading(doc, "6.2  Left Navigation Sidebar", level=2, color=CLR_ACCENT)
     make_body(doc, "The scheduler sidebar provides four real-time widgets:", space_after=6)
     make_bullet(doc, "Statistics Bar: Shows Active Conflicts count, Monitored Tasks, Sandbox State (CLEAN / DIRTY), and current Week Offset.")
     make_bullet(doc, "Team Workload Widget: A progress-bar checklist showing total weekly allocated days per active team member.")
@@ -491,14 +598,14 @@ def ch_scheduler(doc):
     make_bullet(doc, "Quick Tips: Contextual guidance on heatmap interpretation, sandbox usage, and date-shifting shortcuts.")
     doc.add_paragraph()
 
-    make_heading(doc, "5.3  Right-Side Diagnostics Cockpit", level=2, color=CLR_ACCENT)
+    make_heading(doc, "6.3  Right-Side Diagnostics Cockpit", level=2, color=CLR_ACCENT)
     make_body(doc, "A three-tab cockpit panel on the right side provides planning intelligence:", space_after=6)
     make_bullet(doc, "Diagnostics Tab: Lists every active conflict with its type (Over-allocated / Dependency Violation / Gap), affected resource, and impacted weeks.")
     make_bullet(doc, "Copilot Tab: Offers one-click automated resolution actions. Each action shows a preview of changes before applying.")
     make_bullet(doc, "Tips Tab: Displays keyboard shortcuts and sandbox state reminders.")
     doc.add_paragraph()
 
-    make_heading(doc, "5.4  Automated Conflict Resolution Heuristics", level=2, color=CLR_ACCENT)
+    make_heading(doc, "6.4  Automated Conflict Resolution Heuristics", level=2, color=CLR_ACCENT)
     make_body(doc,
         "The autoResolveAllSchedulerConflicts() engine evaluates tasks in the "
         "sandbox state and applies three sequential heuristics:", space_after=6)
@@ -525,7 +632,7 @@ def ch_scheduler(doc):
         "to apply them to the live schedule.",
         style="warning")
 
-    make_heading(doc, "5.5  Interactive Tooltips", level=2, color=CLR_ACCENT)
+    make_heading(doc, "6.5  Interactive Tooltips", level=2, color=CLR_ACCENT)
     make_body(doc, "Hovering over elements in the heatmap reveals live contextual data:", space_after=6)
     make_bullet(doc, "Grid Cells: Lists all tasks assigned to that resource for that week, total allocated hours, and remaining available hours.")
     make_bullet(doc, "Task Chips: Shows task status, parent deliverable name, priority level, and precise start/end dates.")
@@ -535,7 +642,7 @@ def ch_scheduler(doc):
 
 
 def ch_raid(doc):
-    make_heading(doc, "6  Unified RAID Register", level=1, color=CLR_NAVY)
+    make_heading(doc, "7  Unified RAID Register", level=1, color=CLR_NAVY)
     add_horizontal_rule(doc, "00C2A8")
     make_body(doc,
         "The RAID Register is the risk governance engine of ProjectPulse. It "
@@ -544,9 +651,9 @@ def ch_raid(doc):
         "mitigation planning, and escalation tracking.", space_after=8)
 
     add_screenshot(doc, "05_raid_register",
-                   "Figure 6.1 — Unified RAID Register with 5×5 Risk Matrix Heatmap and categorised RAID items")
+                   "Figure 7.1 — Unified RAID Register with 5×5 Risk Matrix Heatmap and categorised RAID items")
 
-    make_heading(doc, "6.1  RAID Classification Model", level=2, color=CLR_ACCENT)
+    make_heading(doc, "7.1  RAID Classification Model", level=2, color=CLR_ACCENT)
     make_body(doc, "Every RAID entry is categorised into one of four types:", space_after=6)
 
     add_data_table(doc,
@@ -564,7 +671,7 @@ def ch_raid(doc):
         col_widths=[1.3, 2.7, 2.4],
     )
 
-    make_heading(doc, "6.2  Threat Exposure Scoring", level=2, color=CLR_ACCENT)
+    make_heading(doc, "7.2  Threat Exposure Scoring", level=2, color=CLR_ACCENT)
     make_body(doc,
         "For Risk-type items, threat exposure is calculated using the industry-standard "
         "5×5 probability-impact matrix:", space_after=6)
@@ -580,7 +687,7 @@ def ch_raid(doc):
         col_widths=[1.3, 1.2, 1.5, 3.4],
     )
 
-    make_heading(doc, "6.3  RAID Item Lifecycle", level=2, color=CLR_ACCENT)
+    make_heading(doc, "7.3  RAID Item Lifecycle", level=2, color=CLR_ACCENT)
     make_body(doc, "RAID items progress through the following status workflow:", space_after=6)
     make_bullet(doc, "Identified: Newly logged item awaiting triage and owner assignment.")
     make_bullet(doc, "Active: Triaged and assigned — mitigation in progress.")
@@ -589,7 +696,7 @@ def ch_raid(doc):
     make_bullet(doc, "Realized: Risk event has occurred and become an active Issue.")
     doc.add_paragraph()
 
-    make_heading(doc, "6.4  Required Fields for Active RAID Items", level=2, color=CLR_ACCENT)
+    make_heading(doc, "7.4  Required Fields for Active RAID Items", level=2, color=CLR_ACCENT)
     make_body(doc, "To maintain governance standards, every Active RAID item must have all of the following:", space_after=6)
     make_numbered(doc, "Owner — An active team member assigned from the Capacity Hub.")
     make_numbered(doc, "Mitigation / Resolution Strategy — A detailed textual description of the action plan.")
@@ -606,7 +713,7 @@ def ch_raid(doc):
 
 
 def ch_team(doc):
-    make_heading(doc, "7  Team Capacity Hub & Role Management", level=1, color=CLR_NAVY)
+    make_heading(doc, "8  Team Capacity Hub & Role Management", level=1, color=CLR_NAVY)
     add_horizontal_rule(doc, "00C2A8")
     make_body(doc,
         "The Team Capacity Hub is the resource management control centre of "
@@ -616,9 +723,9 @@ def ch_team(doc):
         "from the capacity data managed here.", space_after=8)
 
     add_screenshot(doc, "06_team_capacity_hub",
-                   "Figure 7.1 — Team Capacity Hub: Member profiles, utilisation bars, and leave calendar integration")
+                   "Figure 8.1 — Team Capacity Hub: Member profiles, utilisation bars, and leave calendar integration")
 
-    make_heading(doc, "7.1  Adding and Managing Team Members", level=2, color=CLR_ACCENT)
+    make_heading(doc, "8.1  Adding and Managing Team Members", level=2, color=CLR_ACCENT)
     make_body(doc, "To add a new team member:", space_after=6)
     make_numbered(doc, "Navigate to the Team view via the top navigation bar.")
     make_numbered(doc, "Click '+ Add Member' in the top-right toolbar.")
@@ -627,7 +734,7 @@ def ch_team(doc):
     make_numbered(doc, "Save. The member immediately appears in the Scheduler's resource grid.")
     doc.add_paragraph()
 
-    make_heading(doc, "7.2  Capacity Parameters", level=2, color=CLR_ACCENT)
+    make_heading(doc, "8.2  Capacity Parameters", level=2, color=CLR_ACCENT)
     make_body(doc, "Each team member has the following configurable capacity parameters:", space_after=6)
 
     add_data_table(doc,
@@ -641,14 +748,14 @@ def ch_team(doc):
         col_widths=[1.8, 1.2, 3.4],
     )
 
-    make_heading(doc, "7.3  Dynamic Workload Balancing", level=2, color=CLR_ACCENT)
+    make_heading(doc, "8.3  Dynamic Workload Balancing", level=2, color=CLR_ACCENT)
     make_body(doc, "The Capacity Hub displays a real-time utilisation indicator for each member:", space_after=6)
     make_bullet(doc, "Under-Utilised (< 70%): Blue indicator. The system suggests additional task assignments based on the member's role profile.")
     make_bullet(doc, "Balanced (70%–100%): Green indicator. Optimal resource loading.")
     make_bullet(doc, "Over-allocated (> 100%): Red warning flag. The Weekly Scheduler Diagnostics will list this resource as a conflict and recommend reassignment or date extension.")
     doc.add_paragraph()
 
-    make_heading(doc, "7.4  Role-Based Assignment Logic", level=2, color=CLR_ACCENT)
+    make_heading(doc, "8.4  Role-Based Assignment Logic", level=2, color=CLR_ACCENT)
     make_body(doc,
         "Roles restrict which tasks a member can be automatically reassigned to during "
         "conflict resolution. The Smart Reassignment heuristic (Scheduler → Copilot) "
@@ -673,7 +780,7 @@ def ch_team(doc):
 
 
 def ch_defects(doc):
-    make_heading(doc, "8  Defect Tracker & Bug Lifecycle", level=1, color=CLR_NAVY)
+    make_heading(doc, "9  Defect Tracker & Bug Lifecycle", level=1, color=CLR_NAVY)
     add_horizontal_rule(doc, "00C2A8")
     make_body(doc,
         "The Defect Tracker enables QA teams and developers to log, triage, "
@@ -683,9 +790,9 @@ def ch_defects(doc):
         "specific tasks in the Delivery Matrix.", space_after=8)
 
     add_screenshot(doc, "07_defect_tracker",
-                   "Figure 8.1 — Defect Tracker: Summary cards, severity-coded defect table, and bug lifecycle diagram")
+                   "Figure 9.1 — Defect Tracker: Summary cards, severity-coded defect table, and bug lifecycle diagram")
 
-    make_heading(doc, "8.1  Defect Severity Matrix", level=2, color=CLR_ACCENT)
+    make_heading(doc, "9.1  Defect Severity Matrix", level=2, color=CLR_ACCENT)
     make_body(doc,
         "Every defect must be assigned a severity level at the time of logging. "
         "Severity determines SLA response times and health index impact:", space_after=6)
@@ -701,7 +808,7 @@ def ch_defects(doc):
         col_widths=[1.1, 0.6, 2.4, 1.6, 1.4],
     )
 
-    make_heading(doc, "8.2  Bug Lifecycle & Status Workflow", level=2, color=CLR_ACCENT)
+    make_heading(doc, "9.2  Bug Lifecycle & Status Workflow", level=2, color=CLR_ACCENT)
     make_body(doc,
         "Defects flow through the following mandatory status transitions. "
         "A defect cannot skip stages — the transition must be sequential:", space_after=6)
@@ -720,7 +827,7 @@ def ch_defects(doc):
         col_widths=[1.3, 3.5, 1.6],
     )
 
-    make_heading(doc, "8.3  Linking Defects to Tasks", level=2, color=CLR_ACCENT)
+    make_heading(doc, "9.3  Linking Defects to Tasks", level=2, color=CLR_ACCENT)
     make_body(doc,
         "Every defect must be linked to a specific entity to maintain traceability:", space_after=6)
     make_bullet(doc, "Link Type: Task, Subtask, or GUI Screen.")
@@ -729,7 +836,7 @@ def ch_defects(doc):
     make_bullet(doc, "The Task Detail flyout lists all linked defects with their severity and status.")
     doc.add_paragraph()
 
-    make_heading(doc, "8.4  Logging a New Defect — Step by Step", level=2, color=CLR_ACCENT)
+    make_heading(doc, "9.4  Logging a New Defect — Step by Step", level=2, color=CLR_ACCENT)
     make_numbered(doc, "Navigate to the Defects view via the top navigation bar.")
     make_numbered(doc, "Click '+ Log Defect' in the top toolbar.")
     make_numbered(doc, "Complete the defect form: Title, Type, Severity, Priority, Linked Task, Assignee, Reporter, Description, and Reproduction Steps.")
@@ -747,7 +854,7 @@ def ch_defects(doc):
 
 
 def ch_reports(doc):
-    make_heading(doc, "9  Reports & Stakeholder Board Packs", level=1, color=CLR_NAVY)
+    make_heading(doc, "10  Reports & Stakeholder Board Packs", level=1, color=CLR_NAVY)
     add_horizontal_rule(doc, "00C2A8")
     make_body(doc,
         "ProjectPulse features a professional report generation engine that compiles "
@@ -755,9 +862,9 @@ def ch_reports(doc):
         "workbooks, and printable PDF status reports — all in one click.", space_after=8)
 
     add_screenshot(doc, "08_reports_boardpack",
-                   "Figure 9.1 — Reports & Board Packs: Report builder, export controls, and preview panel")
+                   "Figure 10.1 — Reports & Board Packs: Report builder, export controls, and preview panel")
 
-    make_heading(doc, "9.1  Executive Board Pack", level=2, color=CLR_ACCENT)
+    make_heading(doc, "10.1  Executive Board Pack", level=2, color=CLR_ACCENT)
     make_body(doc,
         "The Board Pack compiles a complete project narrative suitable for executive "
         "and steering committee review:", space_after=6)
@@ -768,7 +875,7 @@ def ch_reports(doc):
     make_bullet(doc, "Team Velocity Trend: 4-week rolling average of completed story points.")
     doc.add_paragraph()
 
-    make_heading(doc, "9.2  Excel Workbook Export", level=2, color=CLR_ACCENT)
+    make_heading(doc, "10.2  Excel Workbook Export", level=2, color=CLR_ACCENT)
     make_body(doc,
         "The full project workbook is generated using the ExcelJS library in the browser. "
         "The export is a multi-sheet workbook with professional formatting:", space_after=6)
@@ -788,7 +895,7 @@ def ch_reports(doc):
         col_widths=[1.8, 4.6],
     )
 
-    make_heading(doc, "9.3  Excel Cell Colour Coding", level=2, color=CLR_ACCENT)
+    make_heading(doc, "10.3  Excel Cell Colour Coding", level=2, color=CLR_ACCENT)
     make_body(doc, "Exported Excel cells are colour-coded for instant readability:", space_after=6)
 
     add_data_table(doc,
@@ -812,7 +919,7 @@ def ch_reports(doc):
 
 
 def ch_activity(doc):
-    make_heading(doc, "10  Audit Log & Activity Streams", level=1, color=CLR_NAVY)
+    make_heading(doc, "11  Audit Log & Activity Streams", level=1, color=CLR_NAVY)
     add_horizontal_rule(doc, "00C2A8")
     make_body(doc,
         "ProjectPulse maintains an immutable, comprehensive audit trail of every "
@@ -821,9 +928,9 @@ def ch_activity(doc):
         "full accountability and change tracking capabilities.", space_after=8)
 
     add_screenshot(doc, "09_activity_audit_log",
-                   "Figure 10.1 — Audit Log: Chronological activity stream with user identifiers and diff payloads")
+                   "Figure 11.1 — Audit Log: Chronological activity stream with user identifiers and diff payloads")
 
-    make_heading(doc, "10.1  What Gets Logged", level=2, color=CLR_ACCENT)
+    make_heading(doc, "11.1  What Gets Logged", level=2, color=CLR_ACCENT)
     make_body(doc, "Every significant state change generates an immutable log entry:", space_after=6)
 
     add_data_table(doc,
@@ -837,7 +944,7 @@ def ch_activity(doc):
         col_widths=[1.5, 2.5, 2.4],
     )
 
-    make_heading(doc, "10.2  Log Entry Structure", level=2, color=CLR_ACCENT)
+    make_heading(doc, "11.2  Log Entry Structure", level=2, color=CLR_ACCENT)
     make_body(doc, "Each log entry contains the following structured fields:", space_after=6)
     make_bullet(doc, "ts: ISO 8601 timestamp recorded to the millisecond.")
     make_bullet(doc, "user: Name of the active team member who performed the action.")
@@ -849,7 +956,7 @@ def ch_activity(doc):
     make_bullet(doc, "actCompletionDate: Optional — retrospective actual completion date for activity date resolution.")
     doc.add_paragraph()
 
-    make_heading(doc, "10.3  Retrospective Activity Date Resolution", level=2, color=CLR_ACCENT)
+    make_heading(doc, "11.3  Retrospective Activity Date Resolution", level=2, color=CLR_ACCENT)
     make_body(doc,
         "A key capability introduced in the June 2026 release is retrospective "
         "completion date resolution. Log entries may record an actCompletionDate "
@@ -860,7 +967,7 @@ def ch_activity(doc):
         "This allows teams to accurately record when work was actually done, even "
         "if it was logged retrospectively days later.", space_after=8)
 
-    make_heading(doc, "10.4  State Reconstruction", level=2, color=CLR_ACCENT)
+    make_heading(doc, "11.4  State Reconstruction", level=2, color=CLR_ACCENT)
     make_body(doc,
         "The Activity Log provides detailed before/after diff payloads for every logged transaction. "
         "While there is no automated rollback feature directly in the Activity Log view, managers "
@@ -883,7 +990,7 @@ def ch_activity(doc):
 
 
 def ch_baselines(doc):
-    make_heading(doc, "11  Schedule Baselines & Snapshot History", level=1, color=CLR_NAVY)
+    make_heading(doc, "12  Schedule Baselines & Snapshot History", level=1, color=CLR_NAVY)
     add_horizontal_rule(doc, "00C2A8")
     make_body(doc,
         "Schedule Baselines capture a static, approved snapshot of the project plan "
@@ -893,9 +1000,9 @@ def ch_baselines(doc):
         "if assumptions change.", space_after=8)
 
     add_screenshot(doc, "10_configuration_settings",
-                   "Figure 11.1 — Schedule Baselines & Snapshot History panel in Project Settings")
+                   "Figure 12.1 — Schedule Baselines & Snapshot History panel in Project Settings")
 
-    make_heading(doc, "11.1  Three Date Sets Explained", level=2, color=CLR_ACCENT)
+    make_heading(doc, "12.1  Three Date Sets Explained", level=2, color=CLR_ACCENT)
     make_body(doc, "ProjectPulse tracks three parallel sets of dates for every task:", space_after=6)
 
     add_data_table(doc,
@@ -908,7 +1015,7 @@ def ch_baselines(doc):
         col_widths=[1.5, 2.5, 2.4],
     )
 
-    make_heading(doc, "11.2  Capturing a Baseline Snapshot", level=2, color=CLR_ACCENT)
+    make_heading(doc, "12.2  Capturing a Baseline Snapshot", level=2, color=CLR_ACCENT)
     make_numbered(doc, "Open Project Settings by clicking the ⚙ gear icon in the top navigation bar.")
     make_numbered(doc, "Select 'Schedule Baselines' from the left sidebar within Settings.")
     make_numbered(doc, "Enter a Baseline Name (e.g., 'Initial Kickoff Plan', 'Sprint 3 Reforecast') and a Description.")
@@ -920,7 +1027,7 @@ def ch_baselines(doc):
     make_bullet(doc, "The snapshot is timestamped and named for future reference.")
     doc.add_paragraph()
 
-    make_heading(doc, "11.3  Variance & Slippage Analysis", level=2, color=CLR_ACCENT)
+    make_heading(doc, "12.3  Variance & Slippage Analysis", level=2, color=CLR_ACCENT)
     make_body(doc, "Once a baseline is captured, variance is automatically calculated and displayed:", space_after=6)
 
     add_data_table(doc,
@@ -933,7 +1040,7 @@ def ch_baselines(doc):
         col_widths=[1.8, 2.2, 2.4],
     )
 
-    make_heading(doc, "11.4  Restoring a Baseline", level=2, color=CLR_ACCENT)
+    make_heading(doc, "12.4  Restoring a Baseline", level=2, color=CLR_ACCENT)
     make_body(doc,
         "From the Schedule Baselines panel, select any historical snapshot and click "
         "'Restore'. This action:", space_after=6)
@@ -952,7 +1059,7 @@ def ch_baselines(doc):
 
 
 def ch_config(doc):
-    make_heading(doc, "12  System Configuration Reference", level=1, color=CLR_NAVY)
+    make_heading(doc, "13  System Configuration Reference", level=1, color=CLR_NAVY)
     add_horizontal_rule(doc, "00C2A8")
     make_body(doc,
         "The Administration panel (⚙ Settings) centralises all system-wide "
@@ -960,9 +1067,9 @@ def ch_config(doc):
         "without requiring a page reload.", space_after=8)
 
     add_screenshot(doc, "10_configuration_settings",
-                   "Figure 12.1 — System Configuration: General Settings, Dropdown Manager, and Custom Fields panel")
+                   "Figure 13.1 — System Configuration: General Settings, Dropdown Manager, and Custom Fields panel")
 
-    make_heading(doc, "12.1  General Settings", level=2, color=CLR_ACCENT)
+    make_heading(doc, "13.1  General Settings", level=2, color=CLR_ACCENT)
     make_body(doc, "Core application behaviour is controlled by these settings:", space_after=6)
 
     add_data_table(doc,
@@ -977,7 +1084,7 @@ def ch_config(doc):
         col_widths=[1.6, 2.0, 2.8],
     )
 
-    make_heading(doc, "12.2  Dropdown Configuration Manager", level=2, color=CLR_ACCENT)
+    make_heading(doc, "13.2  Dropdown Configuration Manager", level=2, color=CLR_ACCENT)
     make_body(doc,
         "All categorical dropdowns (Status, Priority, Category, Module, Role, etc.) "
         "are fully configurable. To modify a dropdown:", space_after=6)
@@ -993,7 +1100,7 @@ def ch_config(doc):
         "However, it will no longer appear as a selectable option for new assignments.",
         style="warning")
 
-    make_heading(doc, "12.3  Custom Fields", level=2, color=CLR_ACCENT)
+    make_heading(doc, "13.3  Custom Fields", level=2, color=CLR_ACCENT)
     make_body(doc,
         "Custom Fields allow teams to extend the Task and Defect schemas with "
         "project-specific attributes:", space_after=6)
@@ -1003,13 +1110,13 @@ def ch_config(doc):
     make_bullet(doc, "Persistence: Custom field values are stored alongside standard fields in localStorage and in the Excel workbook.")
     doc.add_paragraph()
 
-    make_heading(doc, "12.4  Complexity Factor Multipliers", level=2, color=CLR_ACCENT)
+    make_heading(doc, "13.4  Complexity Factor Multipliers", level=2, color=CLR_ACCENT)
     make_body(doc,
         "The default complexity multipliers (Easy: 0.5×, Medium: 1.0×, Complex: 1.5×) "
         "can be adjusted in Settings → 'Complexity Factors'. Changing these values "
         "recalculates all velocity and EVM metrics immediately.", space_after=6)
 
-    make_heading(doc, "12.5  Theme & Visual Configuration", level=2, color=CLR_ACCENT)
+    make_heading(doc, "13.5  Theme & Visual Configuration", level=2, color=CLR_ACCENT)
     make_body(doc, "ProjectPulse ships with 20 curated visual themes:", space_after=6)
     make_bullet(doc, "Dark Themes: Nexus, Obsidian, Fintech, Codename, Workflow, Bento.")
     make_bullet(doc, "Light Themes: Emerald, Terracotta, Cloud, and 12 additional curated palettes.")
@@ -1146,16 +1253,17 @@ def build_docx():
     chapters = [
         ("Chapter 1 — Executive Overview Dashboard", ch_overview),
         ("Chapter 2 — Live Insights & Analytics",    ch_insights),
-        ("Chapter 3 — Hierarchical Delivery Matrix", ch_delivery),
-        ("Chapter 4 — Gantt Timeline",               ch_gantt),
-        ("Chapter 5 — Weekly Scheduler",             ch_scheduler),
-        ("Chapter 6 — RAID Register",                ch_raid),
-        ("Chapter 7 — Team Capacity Hub",            ch_team),
-        ("Chapter 8 — Defect Tracker",               ch_defects),
-        ("Chapter 9 — Reports & Board Packs",        ch_reports),
-        ("Chapter 10 — Audit Log",                   ch_activity),
-        ("Chapter 11 — Schedule Baselines",          ch_baselines),
-        ("Chapter 12 — Configuration Reference",     ch_config),
+        ("Chapter 3 — Software Deliveries & Deployments", ch_deliveries),
+        ("Chapter 4 — Hierarchical Task Matrix & WBS", ch_tasks),
+        ("Chapter 5 — Gantt Timeline",               ch_gantt),
+        ("Chapter 6 — Weekly Scheduler",             ch_scheduler),
+        ("Chapter 7 — RAID Register",                ch_raid),
+        ("Chapter 8 — Team Capacity Hub",            ch_team),
+        ("Chapter 9 — Defect Tracker",               ch_defects),
+        ("Chapter 10 — Reports & Board Packs",        ch_reports),
+        ("Chapter 11 — Audit Log",                   ch_activity),
+        ("Chapter 12 — Schedule Baselines",          ch_baselines),
+        ("Chapter 13 — Configuration Reference",     ch_config),
         ("Appendices",                               ch_appendix),
     ]
 

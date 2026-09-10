@@ -125,5 +125,44 @@
   - Removed temporary Office lock files (`~$*`) and scratch test scripts from workspace.
   - Synchronized AST knowledge graph (`graphify update .`).
 
+## 📅 [2026-09-03] - Deliveries Multi-Linkage, Excel Telemetry & View Engine Overhaul
+- **Multi-Linked Tasks & Screens Infrastructure**:
+  - Implemented multi-link architecture enabling deliverable packages to link simultaneously to multiple tasks (`linkedTasks: string[]`) and GUI screens (`linkedScreens: string[]`).
+  - Added auto-categorization of `linkedType`: evaluates to `'Multi'` when both tasks and screens are linked, `'Task'` for tasks only, `'Screen'` for screens only, and `'None'` when unlinked.
+  - Standardized task linkage formatting: rendered as `'Task ID : Task Name'` across table cells, modal tags, and filter chips for immediate cognitive recognition.
+- **Deliveries Excel Cockpit Telemetry Export (`buildDeliveriesSheet`)**:
+  - Upgraded Deliveries worksheet export to mirror the Tasks telemetry standard: Row 7 table headers, frozen panes (`ySplit: 7, xSplit: 3`), and a top Cockpit Telemetry panel (Rows 1-5).
+  - Added 4 KPI telemetry cards: *Delivery Progress* (closed count, % verified), *Lead Time Telemetry* (average cycle days), *Quality Governance* (smoke test passed vs pending sign-offs), and *Release Footprint* (Prod vs UAT counts, overdue counter).
+  - Programmed dynamic Excel formulas for `leadTimeDays` (`IF(AND(S<>"",R<>""), S-R, ...)`) and delay `variance` (`IF(AND(Status<>"Closed", Target<TODAY()), TODAY()-Target, ...)`).
+- **Delivery Heatmap & Analytics Workspace**:
+  - Added dedicated Heatmap workspace with 3 operational perspectives: Feature Screens Matrix (`feat_screens`), Environment Pipeline (`env_pipeline`), and Payload Impact Matrix (`del_impact`).
+  - Added quick-navigation toggle buttons and direct deep-linking between deliveries table, flyout modals, and matrix perspectives.
+
+## 📅 [2026-09-07] - Deliveries UI Design Overhaul & High-Contrast Tokens
+- **Theme-Adaptive Design System**:
+  - Replaced hardcoded purple/indigo accents with native CSS custom properties (`var(--color-primary)`, `var(--color-surface)`, `var(--color-border)`).
+  - Engineered high-contrast status badge tokens for `almStatus` (`New`, `Open`, `In Progress`, `Fixed`, `Ready for Test`, `Retest`, `Closed`, `Rejected`, `Reopened`).
+  - Added `flex-shrink: 0` and whitespace guards across all delivery pills, completely eliminating badge truncation and text spillover.
+- **Table Row Ergonomics & Visual Cues**:
+  - Added colorful initials avatars for approvers, developers, and reporters with theme-aware background gradients.
+  - Implemented theme-adaptive row hover highlights (`tr:hover`) across light and dark themes.
+- **Administrative Options Library Integration**:
+  - Integrated deliveries taxonomy into the Options Library settings panel, enabling full CRUD and reordering for `deliveryStatus`, `deliveryCategory`, `deliveryEnv`, `deliverySignOff`, and `smokeTestStatus`.
+- **Autofit Column Width Engine**:
+  - Added responsive column autofit dropdown with 5 distinct calculation strategies: *Auto-Fit All (Header & Content)*, *Content Only*, *Header Only*, *Compact View*, and *Comfortable View*.
+  - Synchronized autofit preferences to local storage and active theme layouts.
+
+## 📅 [2026-09-08] - Deliveries Excel Import Mapping Integrity & UI Streamlining
+- **Excel Import Header Reverse Mapping**:
+  - Resolved bug where delivery names loaded as `"Unnamed delivery"` when importing from Excel files.
+  - Fixed root cause in `rawData.getTable('Deliveries')` and `PROJECT_SCHEMA.getRevMap()` by adding canonical reverse mappings for stripped header strings (`descriptionalmdescription`, `deliveryscopename`, `defectidalmid`, `pdninfo`, `componentsdelivered`, etc.).
+  - Added multi-layer fallback resolution in `parseHelperAwareCanonicalSheets` to recognize raw header strings, lowercased keys, and stripped badge variants.
+  - Integrated `PulseExcel.cleanNewBadgeText` to preserve `isNewWindow` state without contaminating clean deliverable titles.
+  - Implemented automatic calculation of `maxDelId` in `rebuildDerivedState` so `P.nextDeliveryId` auto-increments cleanly after import.
+- **Row Action Cell Streamlining**:
+  - Removed redundant inline **Edit** icon button from table rows in `renderDeliveriesTable()`, leaving a clean, compact 3-dot context menu (`⋮`).
+  - Preserved full edit accessibility via 3-dot context menu, right-click menu, and row double-click.
+
+
 
 

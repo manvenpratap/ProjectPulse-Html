@@ -42,7 +42,8 @@ def ch_getting_started(doc):
         [
             ["Home/Gauge",    "Executive Overview Dashboard",  "Morning stand-up health check. Exec reporting."],
             ["Chart Bar",     "Live Insights & Analytics",     "Weekly velocity reviews. EVM reporting."],
-            ["Table Grid",    "Delivery Matrix",               "Daily task management. Inline editing."],
+            ["Package Check", "Software Deliveries & Deployments", "Release tracking, ALM/PDN change records, and smoke test audits."],
+            ["Table Grid",    "Hierarchical Task Matrix (WBS)", "Daily task management. Inline editing. Effort scaling."],
             ["Bars (Gantt)",  "Gantt Timeline",                "Schedule planning. Dependency visualisation."],
             ["Calendar",      "Weekly Scheduler",              "Resource allocation. Conflict resolution."],
             ["Shield",        "RAID Register",                 "Risk tracking. Issue management."],
@@ -224,25 +225,96 @@ def ch_insights(doc):
     add_page_break(doc)
 
 
-def ch_delivery(doc):
-    make_heading(doc,"Chapter 4 — Hierarchical Delivery Matrix",level=1,color=CLR_NAVY)
+def ch_deliveries(doc):
+    make_heading(doc,"Chapter 4 — Software Deliveries & Deployment Schedule",level=1,color=CLR_NAVY)
+    add_horizontal_rule(doc,"00C2A8")
+    make_body(doc,
+        "The Software Deliveries & Deployment workstation (View 3) is your command centre for software releases, "
+        "production deployments, and governance sign-offs. While the Task Matrix manages day-to-day engineering "
+        "hours and steps, the Deliveries module ensures that every release package is tracked through Application "
+        "Lifecycle Management (ALM) tickets, Production Deployment Notifications (PDN), and formal smoke verification.",space_after=8)
+    add_screenshot(doc,"02b_software_deliveries",
+        "Figure 4.1 — The Software Deliveries & Deployment Workstation showing release packages, ALM/PDN tracking, and verification gates.")
+
+    make_heading(doc,"4.1  Navigating the Deliveries Workstation",level=2,color=CLR_ACCENT)
+    make_body(doc,"To open the Software Deliveries view:",space_after=4)
+    make_numbered(doc,"Click the Deliveries icon (package-check) in the navigation bar or top view switcher.")
+    make_numbered(doc,"The view opens in Table Grid mode by default, listing all registered release packages.")
+    make_numbered(doc,"Review the summary KPIs at the top: Deployed Count, Sign-Off Rate, Smoke Test Pass Rate, and Avg Lead Time.")
+    doc.add_paragraph()
+
+    make_heading(doc,"4.2  Logging a New Software Delivery",level=2,color=CLR_ACCENT)
+    make_numbered(doc,"Click the '+ New Delivery' button in the top action bar.")
+    make_numbered(doc,"A slide-out drawer appears with comprehensive release fields.")
+    make_numbered(doc,"Enter the Delivery Name, ALM ID (e.g., ALM-10201), PDN Reference, Target Version, and Target Environment.")
+    make_numbered(doc,"Set the target deployment date, designated approver, and risk tier.")
+    make_numbered(doc,"Click 'Save Delivery'. The new delivery immediately appears in the grid and is synchronized across the state store.")
+    doc.add_paragraph()
+
+    make_heading(doc,"4.3  Multi-Entity Linkage: Connecting Tasks and UI Screens",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "Deliveries link directly to lower-level engineering artifacts to establish complete traceability:",space_after=4)
+    make_bullet(doc,"Parent Task Linkage: Associates one or more engineering tasks (WBS items) with the release payload.")
+    make_bullet(doc,"Granular Screen Linkage: Associates specific UI screens (e.g. SCR-01, SCR-02) to verify front-end coverage.")
+    make_bullet(doc,"Auto-Inference: Click 'Auto-Link Tasks' in the row context menu to let ProjectPulse automatically propose task associations based on matching names and module codes.")
+    doc.add_paragraph()
+
+    make_heading(doc,"4.4  Operating the Visual Perspective Heatmap",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "Switch to the Visual Perspective Heatmap to evaluate release distribution and shaping maturity:",space_after=4)
+    make_numbered(doc,"In the Deliveries toolbar, click the 'Heatmap' view toggle.")
+    make_numbered(doc,"Select your desired perspective: Screen Shaping (feat_screens), Environment Pipeline (env_pipeline), or Release Impact (del_impact).")
+    make_numbered(doc,"The Screen Shaping perspective reveals the percentage of screens verified in production and highlights any unverified UI elements.")
+    add_screenshot(doc,"02c_deliveries_heatmap",
+        "Figure 4.2 — Deliveries Visual Perspective Heatmap showing screen shaping maturity and environment pipeline flow.")
+    doc.add_paragraph()
+
+    make_heading(doc,"4.5  The Delivery Detail Drawer & Row Governance",level=2,color=CLR_ACCENT)
+    make_body(doc,"Every delivery row offers complete inspection and management controls:",space_after=4)
+    make_bullet(doc,"Click any row to open the comprehensive slide-out Flyout Drawer featuring verification checklists, linked WBS entities, smoke test results, and rollback runbooks.")
+    make_bullet(doc,"Click the 3-dot action button at the end of the row to access fast action commands.")
+    make_bullet(doc,"Right-click any row to open the Context Menu for rapid status transitions (Mark Verified, Stage Release, Defer).")
+    add_screenshot(doc,"11b_delivery_flyout",
+        "Figure 4.3 — The Delivery Detail Drawer showing verification sign-off checklists, linked WBS entities, and rollback runbooks.")
+    doc.add_paragraph()
+
+    make_heading(doc,"4.6  Adapting Table Layout with the 5-Strategy Autofit Engine",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "Click the Autofit dropdown in the toolbar to adapt the data grid to your monitor aspect ratio:",space_after=4)
+    make_bullet(doc,"Clip & Wrap: Standard balanced display with text-wrapping on descriptions.")
+    make_bullet(doc,"Clip & No-Wrap: Ultra-dense single-line layout for standard laptop displays.")
+    make_bullet(doc,"Wrap & Balance: Multi-line expansion optimized for comprehensive release notes.")
+    make_bullet(doc,"Fill & Distribute: Expands all columns proportionally to fill 100% of widescreen displays.")
+    make_bullet(doc,"Natural Scroll: Preserves natural content-measured widths with smooth horizontal scrolling.")
+    doc.add_paragraph()
+
+    make_heading(doc,"4.7  Excel Telemetry Export & Bi-Directional Sync",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "The deliveries module exports a dedicated 'Deliveries' tab within the ProjectPulse Master Excel Workbook. "
+        "When importing workbooks, the system automatically resolves header variations (ALM #, PDN, Smoke Test) "
+        "to ensure 100% data round-trip fidelity.",space_after=6)
+    add_page_break(doc)
+
+
+def ch_tasks(doc):
+    make_heading(doc,"Chapter 5 — Hierarchical Task Matrix & Work Breakdown Structure",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The Delivery Matrix is where the day-to-day work happens. "
         "Every task, subtask, assignee, date, status, and effort is managed here.",space_after=8)
     add_screenshot(doc,"02_delivery_matrix",
-        "Figure 4.1 — The Delivery Matrix showing parent tasks, subtasks, status pills, and inline editing controls.")
+        "Figure 5.1 — The Hierarchical Task Matrix showing parent tasks, subtasks, status pills, and inline editing controls.")
 
-    make_heading(doc,"4.1  Creating Your First Task",level=2,color=CLR_ACCENT)
+    make_heading(doc,"5.1  Creating Your First Task",level=2,color=CLR_ACCENT)
     make_numbered(doc,"Click the '+ Add Task' button in the top-right of the Delivery Matrix.")
     make_numbered(doc,"Alternatively, open the Task Flyout detailed panel by clicking the task detail/edit button.")
     make_numbered(doc,"A comprehensive form appears with fields for name, assignee, status, priority, complexity, dates, and dependencies.")
     make_numbered(doc,"Fill in the details and click 'Save Task'.")
     add_screenshot(doc,"11_add_task_flyout",
-        "Figure 4.2 — The interactive Task Details flyout panel showing comprehensive fields and subtask lists.")
+        "Figure 5.2 — The interactive Task Details flyout panel showing comprehensive fields and subtask lists.")
     doc.add_paragraph()
 
-    make_heading(doc,"4.2  Adding Subtasks",level=2,color=CLR_ACCENT)
+    make_heading(doc,"5.2  Adding Subtasks",level=2,color=CLR_ACCENT)
     make_numbered(doc,"Click the expand arrow ▶ on any parent task row to reveal the subtask area.")
     make_numbered(doc,"Click '+ Add Subtask'.")
     make_numbered(doc,"Enter the subtask name and category (e.g., Feature / GUI Screen / Test Case).")
@@ -250,7 +322,7 @@ def ch_delivery(doc):
     make_numbered(doc,"The parent task's progress bar automatically updates based on subtask completion.")
     doc.add_paragraph()
 
-    make_heading(doc,"4.3  Updating Task Status",level=2,color=CLR_ACCENT)
+    make_heading(doc,"5.3  Updating Task Status",level=2,color=CLR_ACCENT)
     make_numbered(doc,"Double-click the Status cell on any task row.")
     make_numbered(doc,"A dropdown appears with the available next statuses (invalid transitions are hidden).")
     make_numbered(doc,"Select the new status.")
@@ -326,14 +398,14 @@ def ch_delivery(doc):
 
 
 def ch_gantt(doc):
-    make_heading(doc,"Chapter 5 — Gantt Timeline",level=1,color=CLR_NAVY)
+    make_heading(doc,"Chapter 6 — Gantt Timeline",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The Gantt Timeline gives you a visual, time-anchored view of your entire schedule. "
         "Use it for planning, identifying bottlenecks, and communicating timelines to stakeholders.",
         space_after=8)
     add_screenshot(doc,"03_gantt_timeline",
-        "Figure 5.1 — The Gantt Timeline with task bars, dependency arrows, baseline overlay, and today marker.")
+        "Figure 6.1 — The Gantt Timeline with task bars, dependency arrows, baseline overlay, and today marker.")
 
     make_heading(doc,"5.1  Navigating the Timeline",level=2,color=CLR_ACCENT)
     make_bullet(doc,"Use the Zoom controls (Day / Week / Month / Quarter) in the toolbar to adjust the visible time horizon.")
@@ -367,15 +439,15 @@ def ch_gantt(doc):
 
 
 def ch_scheduler(doc):
-    make_heading(doc,"Chapter 6 — Weekly Scheduler & Conflict Resolution",level=1,color=CLR_NAVY)
+    make_heading(doc,"Chapter 7 — Weekly Scheduler & Conflict Resolution",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The Weekly Scheduler shows you exactly how much work is assigned to each team member "
         "each week — and alerts you immediately when someone is over-allocated.",space_after=8)
     add_screenshot(doc,"04_weekly_scheduler",
-        "Figure 6.1 — The Weekly Scheduler heatmap showing member allocations, over-allocation (red), and the Copilot panel.")
+        "Figure 7.1 — The Weekly Scheduler heatmap showing member allocations, over-allocation (red), and the Copilot panel.")
 
-    make_heading(doc,"6.1  Reading the Resource Heatmap",level=2,color=CLR_ACCENT)
+    make_heading(doc,"7.1  Reading the Resource Heatmap",level=2,color=CLR_ACCENT)
     make_body(doc,"Each row is a team member. Each column is a week. Each cell shows:",space_after=4)
     make_bullet(doc,"Allocated hours / Available capacity (e.g., 38h / 40h).")
     make_bullet(doc,"Green cells: Allocation is within capacity. No action needed.")
@@ -414,7 +486,7 @@ def ch_scheduler(doc):
 
 
 def ch_raid(doc):
-    make_heading(doc,"Chapter 7 — RAID Register",level=1,color=CLR_NAVY)
+    make_heading(doc,"Chapter 8 — RAID Register",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The RAID Register is your project's formal risk and issue management system. "
@@ -484,13 +556,13 @@ def ch_raid(doc):
 
 
 def ch_team(doc):
-    make_heading(doc,"Chapter 8 — Team Capacity Hub",level=1,color=CLR_NAVY)
+    make_heading(doc,"Chapter 9 — Team Capacity Hub",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The Team Capacity Hub is where you manage your team — adding members, "
         "setting their work capacity, and recording planned leave.",space_after=8)
     add_screenshot(doc,"06_team_capacity_hub",
-        "Figure 8.1 — The Team Capacity Hub showing member cards, utilisation bars, and the add member form.")
+        "Figure 9.1 — The Team Capacity Hub showing member cards, utilisation bars, and the add member form.")
 
     make_heading(doc,"8.1  Adding a Team Member",level=2,color=CLR_ACCENT)
     make_numbered(doc,"Click '+ Add Member' in the Team Capacity Hub.")
@@ -538,16 +610,16 @@ def ch_team(doc):
 
 
 def ch_defects(doc):
-    make_heading(doc,"Chapter 9 — Defect Tracker",level=1,color=CLR_NAVY)
+    make_heading(doc,"Chapter 10 — Defect Tracker",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The Defect Tracker manages all software defects from initial discovery "
         "through resolution and closure. Use it to ensure all bugs are tracked, "
         "assigned, and resolved within agreed SLA timeframes.",space_after=8)
     add_screenshot(doc,"07_defect_tracker",
-        "Figure 9.1 — The Defect Tracker showing severity summary cards, the defect register, and the log defect form.")
+        "Figure 10.1 — The Defect Tracker showing severity summary cards, the defect register, and the log defect form.")
 
-    make_heading(doc,"9.1  Logging a Defect",level=2,color=CLR_ACCENT)
+    make_heading(doc,"10.1  Logging a Defect",level=2,color=CLR_ACCENT)
     make_numbered(doc,"Click '+ Log Defect' in the Defect Tracker.")
     make_numbered(doc,"Enter a clear, descriptive title (e.g., 'Gantt timeline fails to load with 200+ tasks').")
     make_numbered(doc,"Select the Defect Type: Functional Bug / UI-UX Issue / Performance / Security / Data Issue / Suggestion.")
@@ -595,7 +667,7 @@ def ch_defects(doc):
 
 
 def ch_reports(doc):
-    make_heading(doc,"Chapter 10 — Reports & Board Packs",level=1,color=CLR_NAVY)
+    make_heading(doc,"Chapter 11 — Reports & Board Packs",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The Reports module lets you generate professional stakeholder deliverables "
@@ -604,7 +676,7 @@ def ch_reports(doc):
     add_screenshot(doc,"08_reports_boardpack",
         "Figure 10.1 — The Reports module with export options, workbook sheet map, and Board Pack preview.")
 
-    make_heading(doc,"10.1  Generating the Executive Board Pack",level=2,color=CLR_ACCENT)
+    make_heading(doc,"11.1  Generating the Executive Board Pack",level=2,color=CLR_ACCENT)
     make_numbered(doc,"Navigate to the Reports module.")
     make_numbered(doc,"Click 'Generate Board Pack'.")
     make_numbered(doc,"The Board Pack is assembled automatically from live project data and displayed in the preview panel.")
@@ -626,14 +698,14 @@ def ch_reports(doc):
 
 
 def ch_audit(doc):
-    make_heading(doc,"Chapter 11 — Audit Log",level=1,color=CLR_NAVY)
+    make_heading(doc,"Chapter 12 — Audit Log",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The Audit Log maintains a complete, immutable record of every change made to your project. "
         "Use it to investigate unexpected changes, track accountability, or roll back to a prior state.",
         space_after=8)
     add_screenshot(doc,"09_activity_audit_log",
-        "Figure 11.1 — The Audit Log showing the chronological activity stream with timestamps and change details.")
+        "Figure 12.1 — The Audit Log showing the chronological activity stream with timestamps and change details.")
 
     make_heading(doc,"11.1  Reading the Audit Log",level=2,color=CLR_ACCENT)
     make_body(doc,"Each entry in the Audit Log shows:",space_after=4)
@@ -659,7 +731,7 @@ def ch_audit(doc):
 
 
 def ch_config(doc):
-    make_heading(doc,"Chapter 12 — System Configuration",level=1,color=CLR_NAVY)
+    make_heading(doc,"Chapter 13 — System Configuration",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The Settings panel (gear icon in the navigation bar) lets you customise "
@@ -677,7 +749,7 @@ def ch_config(doc):
     make_numbered(doc,"Click Save. All effort displays and capacity calculations update immediately.")
     doc.add_paragraph()
 
-    make_heading(doc,"12.2  Customising Dropdowns",level=2,color=CLR_ACCENT)
+    make_heading(doc,"13.2  Customising Dropdowns",level=2,color=CLR_ACCENT)
     make_numbered(doc,"Navigate to Settings -> Dropdown Manager.")
     make_numbered(doc,"Select the dropdown you want to customise (e.g., Module, Category, Role).")
     make_numbered(doc,"Click '+ Add Option' to add a new value.")
@@ -707,7 +779,7 @@ def ch_config(doc):
 
 
 def ch_tips(doc):
-    make_heading(doc,"Chapter 13 — Tips, Best Practices & Troubleshooting",level=1,color=CLR_NAVY)
+    make_heading(doc,"Chapter 14 — Tips, Best Practices & Troubleshooting",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
 
     make_heading(doc,"13.1  Daily Recommended Workflow",level=2,color=CLR_ACCENT)
@@ -758,7 +830,7 @@ def ch_tips(doc):
     )
 
 def ch_widgets_glossary(doc):
-    make_heading(doc,"Chapter 14 — Complete Widget Directory & Glossary",level=1,color=CLR_NAVY)
+    make_heading(doc,"Chapter 15 — Complete Widget Directory & Glossary",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "ProjectPulse uses a highly modular component architecture across its interactive views. "
@@ -1080,7 +1152,7 @@ def ch_widgets_glossary(doc):
 
 
 def ch_project_intelligence(doc):
-    make_heading(doc,"Chapter 15 — Project Intelligence & Training Resources",level=1,color=CLR_NAVY)
+    make_heading(doc,"Chapter 16 — Project Intelligence & Training Resources",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "To maximize efficiency and operational insight, ProjectPulse incorporates several high-level "
@@ -1152,18 +1224,19 @@ def build_umi():
         ("1",  "Getting Started",                          "3"),
         ("2",  "Executive Overview Dashboard",             "5"),
         ("3",  "Live Insights & Analytics",               "8"),
-        ("4",  "Hierarchical Delivery Matrix",            "11"),
-        ("5",  "Gantt Timeline",                          "17"),
-        ("6",  "Weekly Scheduler & Conflict Resolution",  "21"),
-        ("7",  "RAID Register",                           "26"),
-        ("8",  "Team Capacity Hub",                       "30"),
-        ("9",  "Defect Tracker",                          "33"),
-        ("10", "Reports & Board Packs",                   "37"),
-        ("11", "Audit Log",                               "40"),
-        ("12", "System Configuration",                    "43"),
-        ("13", "Tips, Best Practices & Troubleshooting",  "47"),
-        ("14", "Complete Widget Directory & Glossary",    "50"),
-        ("15", "Project Intelligence & Training Resources", "55"),
+        ("4",  "Software Deliveries & Deployment Schedule", "11"),
+        ("5",  "Hierarchical Task Matrix & WBS",           "16"),
+        ("6",  "Gantt Timeline",                          "22"),
+        ("7",  "Weekly Scheduler & Conflict Resolution",  "26"),
+        ("8",  "RAID Register",                           "31"),
+        ("9",  "Team Capacity Hub",                       "35"),
+        ("10", "Defect Tracker",                          "38"),
+        ("11", "Reports & Board Packs",                   "42"),
+        ("12", "Audit Log",                               "45"),
+        ("13", "System Configuration",                    "48"),
+        ("14", "Tips, Best Practices & Troubleshooting",  "52"),
+        ("15", "Complete Widget Directory & Glossary",    "55"),
+        ("16", "Project Intelligence & Training Resources", "60"),
     ]
     build_toc(doc, toc_chapters)
 
@@ -1173,29 +1246,31 @@ def build_umi():
     ch_overview(doc)
     print("  Writing Ch 3: Insights...")
     ch_insights(doc)
-    print("  Writing Ch 4: Delivery Matrix...")
-    ch_delivery(doc)
-    print("  Writing Ch 5: Gantt...")
+    print("  Writing Ch 4: Software Deliveries...")
+    ch_deliveries(doc)
+    print("  Writing Ch 5: Hierarchical Task Matrix...")
+    ch_tasks(doc)
+    print("  Writing Ch 6: Gantt...")
     ch_gantt(doc)
-    print("  Writing Ch 6: Scheduler...")
+    print("  Writing Ch 7: Scheduler...")
     ch_scheduler(doc)
-    print("  Writing Ch 7: RAID...")
+    print("  Writing Ch 8: RAID...")
     ch_raid(doc)
-    print("  Writing Ch 8: Team...")
+    print("  Writing Ch 9: Team...")
     ch_team(doc)
-    print("  Writing Ch 9: Defects...")
+    print("  Writing Ch 10: Defects...")
     ch_defects(doc)
-    print("  Writing Ch 10: Reports...")
+    print("  Writing Ch 11: Reports...")
     ch_reports(doc)
-    print("  Writing Ch 11: Audit Log...")
+    print("  Writing Ch 12: Audit Log...")
     ch_audit(doc)
-    print("  Writing Ch 12: Config...")
+    print("  Writing Ch 13: Config...")
     ch_config(doc)
-    print("  Writing Ch 13: Tips...")
+    print("  Writing Ch 14: Tips...")
     ch_tips(doc)
-    print("  Writing Ch 14: Widgets Directory...")
+    print("  Writing Ch 15: Widgets Directory...")
     ch_widgets_glossary(doc)
-    print("  Writing Ch 15: Project Intelligence...")
+    print("  Writing Ch 16: Project Intelligence...")
     ch_project_intelligence(doc)
 
     print(f"\n  Saving document -> {OUT_PATH}")

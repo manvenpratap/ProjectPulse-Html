@@ -1,6 +1,6 @@
 # Architecture Audit & Refactoring Strategy — ProjectPulse
 
-This document details the architectural findings, structural dependencies, code smells, and the refactoring strategy for **ProjectPulse**, a monolithic single-page project management suite.
+This document details the architectural findings, structural dependencies, code smells, and the refactoring strategy for **ProjectPulse**, a monolithic single-page project management suite (~80,800 lines of Vanilla HTML5/JS/CSS).
 
 ---
 
@@ -47,8 +47,31 @@ Governs task, subtask, and step date propagation, effort scaling, and status rol
 * **Backup Rotations**: Stores rotating JSON snapshots and full binary buffers in IndexedDB, and propagates files to local directory structures when a local backup path is connected.
 
 ### D. Excel Import / Export Engine
-* **Export (`generateProjectWorkbook`)**: Generates an Excel workbook file containing structured sheets mapping task parent/child relationships, dependencies, RAID registries, custom columns, and project metadata.
-* **Import (`reconstructProjectFromBuffer`)**: Rebuilds the nested task hierarchy from tabular Excel buffers, validates schemas against `window.PROJECT_SCHEMA`, resolves missing columns, and repairs data integrity.
+* **Export (`generateProjectWorkbook`)**: Generates an Excel workbook file containing structured sheets mapping task parent/child relationships, dependencies, RAID registries, custom columns, project metadata, and software deliveries telemetry.
+* **Import (`reconstructProjectFromBuffer`)**: Rebuilds the nested task hierarchy from tabular Excel buffers, validates schemas against `window.PROJECT_SCHEMA`, resolves missing columns, imports software deliveries with normalized column mappings, and repairs data integrity.
+
+### E. Deliveries & Deployment Subsystem
+Governs production releases, ALM/PDN tracking, multi-entity linkage, and verification governance:
+1. **Multi-Entity Linkage**:
+   - Deliveries link to arbitrary parent tasks (`linkedTaskIds: []`) and granular UI screen subtasks (`linkedScreenIds: []`).
+   - `autoIdentifyDeliveryLink(del)` dynamically infers parent task IDs based on matching names, modules, or screen references.
+2. **Cycle Lead Time & Telemetry**:
+   - Tracks planned release dates against actual production deployment dates to calculate cycle variance.
+   - Summarizes verification sign-offs, smoke test results, approvers, and deployment target environments (UAT, Staging, Production).
+3. **Cockpit Perspectives**:
+   - **Table Grid View (`renderDeliveriesTable`)**: High-density interactive matrix with status badges, direct row editing, context menus, and inline telemetry.
+   - **Heatmap Matrix (`renderDeliveryHeatmapView`)**: Visual distribution matrix pivoting deliveries across Module, Target Version, or Deployment Phase with risk density highlighting.
+4. **Interactive Governance**:
+   - Row right-click and 3-dot kebab menus trigger `showDeliveryCtx` for instant actions (Status transitions, Edit drawer, Delete, Link Task).
+   - `openDeliveryFlyout(delId)` provides a slide-out drawer with tabbed detail breakdown, linked tasks badge lists, and audit history.
+
+### F. Intelligent Column Autofit Engine (`applyAutofitStrategy`)
+Provides 5 responsive table column sizing modes stored in `P.autofitStrategy`:
+- `clip_wrap`: Standard clipping with text wrapping on select cells.
+- `clip_nowrap`: High-density single-line layout with ellipsis truncation.
+- `wrap_balance`: Responsive multi-line wrapping optimized for text-dense columns.
+- `fill_distribute`: Proportional distribution filling 100% of the horizontal container.
+- `natural_scroll`: Content-measured natural column widths with smooth horizontal scrolling.
 
 ---
 

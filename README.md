@@ -1,6 +1,6 @@
 # ProjectPulse
 
-ProjectPulse is a monolithic, local-first project management suite built entirely using Vanilla HTML5, JavaScript, and CSS (~70,000 lines of code). It features a highly interactive and high-density interface with 20 curated themes, light/dark mode overrides, offline persistence, and automated documentation compilation.
+ProjectPulse is a monolithic, local-first project management workstation built entirely using Vanilla HTML5, JavaScript, and CSS (~80,800 lines of code). It features a highly interactive and high-density interface with 20 curated themes, light/dark mode overrides, offline persistence, bi-directional Excel synchronization, and automated documentation compilation.
 
 ---
 
@@ -27,9 +27,9 @@ The ProjectPulse repository is structured as follows:
 
 ```
 ProjectPulse/
-├── projectpulse.html            # Monolithic single-page application (~70,000 lines Vanilla HTML5/JS/CSS)
-│   ├── CSS Stylesheet           # (Lines 110 – 13,428) 20 Curated Themes, layout, and animations
-│   └── JavaScript Application   # (Lines 13,429 – 70,373) Global state, Excel sync, Gantt chart, Widgets, Scheduler
+├── projectpulse.html            # Monolithic single-page application (~80,800 lines Vanilla HTML5/JS/CSS)
+│   ├── CSS Stylesheet           # (Lines 88 – 14,600) 20 Curated Themes, layout, tokens, and animations
+│   └── JavaScript Application   # (Lines 14,605 – 80,835) Global state, Excel sync, Deliveries, Gantt, Scheduler
 ├── docs/                        # Compiled high-fidelity Word documents, presentations, and guides
 │   ├── user_manual/             # Dynamic markdown user manuals & configuration references
 │   ├── screenshots/             # Cropped screenshots captured automatically by Puppeteer
@@ -62,16 +62,24 @@ ProjectPulse/
 
 ---
 
-## 🛠️ Key Features
+## 🛠️ Key Features & 10 Operational Views
 
-- **High-Density Swiss UI Design**: Modular dashboard widgets, interactive Gantt charts, customized bento-grid layouts, and 20 custom-drawn themes.
-- **Offline-First Storage System**:
-  - **Tier 1 (LocalStorage)**: Primary application state, tables, and settings (`pp-data`).
-  - **Tier 2 (IndexedDB)**: State snapshots, backups, and file handle tracking (`ProjectPulseDB`).
-  - **Tier 3 (File System Access API)**: Synchronized local Excel workbooks and background directory backups.
-- **Calculated Metric Engine**: Real-time project health scores, delivery confidence meters, 4-week moving velocity averages, and dependency path tracking.
-- **Release Roadmap & Task Data Consistency**: Integrated release version roadmaps with explicit start/target dates, complete sample data cleanliness across 143 tasks, and automated subtask completion state inheritance.
-- **Defect, RAID & Steering Logs**: Embedded trackers mapping defects directly to tasks, features, screens, and team members with steering decision history.
+1. **Executive Overview Dashboard**: Health Index dial, Delivery Confidence meter, active RAID count, and What-If Predictive Sandbox for real-time scenario simulation.
+2. **Live Insights & Velocity Analytics**: Performance cache (`buildDashCache`), 4-week moving velocity averages, Earned Value Management (EVM), and burn-up/down trajectories.
+3. **Software Deliveries & Deployment Schedule**: Dedicated ALM / PDN release workstation, multi-entity linkage to parent tasks and screen specs, cycle lead time & variance metrics, smoke test sign-offs, and interactive visual perspective heatmaps (pivoting by Module, Target Version, or Phase).
+4. **Reports & Board Packs**: One-click executive summaries, weekly stakeholder packs, milestone checklists, and filtered multi-tab Excel export.
+5. **Intelligent Weekly Scheduler & Conflict Resolver**: Interactive resource heatmap grid, automated conflict detection, and heuristics (Auto-Sequence, Reassignment, Cascading Date Shifting).
+6. **Unified RAID Register**: Risk, Assumption, Issue, and Dependency scoring, threat matrices, mitigation owners, and due dates.
+7. **Hierarchical Task Matrix & Interactive Gantt Timeline**: Multi-tier WBS hierarchy, Fibonacci complexity estimation scaling, spreadsheet-style inline cell editing, and SVG Gantt chart with interactive dependency paths.
+8. **Team Capacity Hub**: Real-time FTE load distribution, leave schedules, role quotas, and cross-project utilization balancing.
+9. **Defect Tracker**: QA bug logging, severity/priority matrices, direct task linkage, and resolution lifecycle tracking.
+10. **Audit & Activity Log**: Chronological change journaling, state transition tracking, and forensic project history.
+
+### Core Capabilities:
+- **Intelligent 5-Strategy Column Autofit Engine**: Instant layout adaptation across all data tables (`clip_wrap`, `clip_nowrap`, `wrap_balance`, `fill_distribute`, `natural_scroll`).
+- **Offline-First Storage Tier**: LocalStorage (`pp-data`), IndexedDB (`ProjectPulseDB`) with automatic snapshot rotations, and File System Access API for local workbook sync.
+- **Bi-Directional Excel Synchronization**: Production-grade ExcelJS engine generating multi-tab relational workbooks and round-trip state reconstruction.
+- **High-Density Swiss UI Design**: 20 curated themes, dark/light mode toggle, and micro-interaction animations.
 
 ---
 

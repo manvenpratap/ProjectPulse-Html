@@ -47,10 +47,11 @@ def ch_exec_summary(doc):
         ["Persona", "Primary Use", "Key Views"],
         [
             ["Engineering Manager",     "Day-to-day project oversight, conflict resolution, resource management.", "Overview · Scheduler · Team Hub"],
-            ["Product Manager",         "Delivery progress, stakeholder communication, risk governance.", "Delivery Matrix · RAID Register · Reports"],
+            ["Release Manager / DevOps","Software release governance, ALM/PDN change tracking, smoke testing.", "Deliveries · Scheduler · Reports"],
+            ["Product Manager",         "Scope pacing, stakeholder communication, risk governance.", "Deliveries · Task Matrix · RAID · Reports"],
             ["Executive / Sponsor",     "High-level health signals, milestone confidence, board reporting.", "Overview Dashboard · Board Packs"],
-            ["QA Lead",                 "Defect lifecycle management, severity tracking, release readiness.", "Defect Tracker · Reports"],
-            ["Lead Engineer",           "Task planning, dependency management, baseline tracking.", "Gantt Timeline · Delivery Matrix · Baselines"],
+            ["QA Lead",                 "Defect lifecycle management, severity tracking, release readiness.", "Defect Tracker · Deliveries · Reports"],
+            ["Lead Engineer",           "Task planning, dependency management, baseline tracking.", "Task Matrix · Gantt Timeline · Baselines"],
         ],
         col_widths=[1.8, 3.0, 1.6],
     )
@@ -119,10 +120,10 @@ def ch_product_overview(doc):
 # ── Chapter 2: The 12 Core Capabilities ───────────────────────────────────
 
 def ch_capabilities(doc):
-    make_heading(doc, "2  The 12 Core Capabilities", level=1, color=CLR_NAVY)
+    make_heading(doc, "2  The 13 Core Capabilities", level=1, color=CLR_NAVY)
     add_horizontal_rule(doc, "00C2A8")
     make_body(doc,
-        "Each of the 12 modules delivers a distinct, high-value capability. "
+        "Each of the 13 modules delivers a distinct, high-value capability. "
         "Together they form a complete project intelligence platform that eliminates "
         "the need for multiple disconnected tools.",
         space_after=10)
@@ -144,85 +145,97 @@ def ch_capabilities(doc):
          "on rolling 3-week velocity, giving management an evidence-based delivery forecast.",
          "01b_insights_analytics", "Figure 2.2 — Live Insights: EVM Performance Metrics, Burn-up Chart, and Weekly Velocity"),
 
-        ("2.3", "Hierarchical Delivery Matrix",
-         "The Delivery Matrix is the operational backbone of ProjectPulse — a high-density, "
-         "spreadsheet-style task grid supporting unlimited parent-child hierarchies. Every "
-         "deliverable, epic, task, and subtask is managed here with inline editing, "
+        ("2.3", "Software Deliveries & Deployment Schedule",
+         "The Software Deliveries & Deployment workstation is ProjectPulse's release governance command centre. "
+         "It tracks production releases, Application Lifecycle Management (ALM) identifiers, and Production "
+         "Deployment Notification (PDN) tickets across multi-tier environments (Dev, UAT, Staging, Production). "
+         "Deliveries link directly to parent tasks and granular UI screens with automatic linkage inference. "
+         "Dual synchronized perspectives — a high-density tabular grid and an interactive visual perspective "
+         "heatmap (pivoting by Module, Version, or Deployment Phase) — provide comprehensive release visibility. "
+         "The module enforces formal sign-off gates, smoke test verification, and automated cycle lead time tracking, "
+         "powered by an intelligent 5-strategy responsive column autofit engine and bi-directional Excel synchronization.",
+         "02b_software_deliveries",
+         "Figure 2.3a — Software Deliveries & Deployment Schedule: ALM/PDN tracking, verification gates, and cycle lead times"),
+
+        ("2.4", "Hierarchical Task Matrix & Work Breakdown Structure",
+         "The Task Matrix is the operational backbone of ProjectPulse — a high-density, "
+         "spreadsheet-style task grid supporting unlimited parent-child hierarchies (WBS). Every "
+         "deliverable, epic, task, and subtask is managed here with inline editing, Fibonacci complexity scaling, "
          "a controlled status workflow, dependency linking, and multi-dimensional filtering.",
          "02_delivery_matrix",
-         "Figure 2.3 — Hierarchical Delivery Matrix: parent tasks, subtasks, status pills, inline editing"),
+         "Figure 2.4 — Hierarchical Task Matrix: parent tasks, subtasks, status pills, inline editing"),
 
-        ("2.4", "Visual Gantt & Dependency Graph",
+        ("2.5", "Visual Gantt & Dependency Graph",
          "The Gantt Timeline provides a time-anchored visual schedule with interactive task bars, "
          "dependency arrows (colour-coded by health: green=resolved, red=violated), baseline "
          "overlay ghost bars, and drag-to-reschedule with optional cascading date propagation. "
          "Four zoom levels (Day/Week/Month/Quarter) support both sprint-level and programme-level views.",
          "03_gantt_timeline",
-         "Figure 2.4 — Gantt Timeline: dependency arrows, baseline overlay, and drag-to-reschedule"),
+         "Figure 2.5 — Gantt Timeline: dependency arrows, baseline overlay, and drag-to-reschedule"),
 
-        ("2.5", "Smart Resource Scheduler",
+        ("2.6", "Smart Resource Scheduler",
          "The Weekly Scheduler maps every team member's allocated hours against their weekly capacity "
          "across a rolling 12-week horizon. Over-allocated cells glow crimson; optimal cells glow green. "
          "The Copilot engine applies three automated resolution heuristics — Auto-Sequence, Smart "
          "Reassignment, and Cascading Date Shift — to eliminate conflicts in a single click.",
          "04_weekly_scheduler",
-         "Figure 2.5 — Weekly Scheduler: resource heatmap, over-allocation alerts, and Copilot Cockpit"),
+         "Figure 2.6 — Weekly Scheduler: resource heatmap, over-allocation alerts, and Copilot Cockpit"),
 
-        ("2.6", "RAID Risk Governance",
+        ("2.7", "RAID Risk Governance",
          "The RAID Register consolidates all Risks, Assumptions, Issues, and Dependencies into a "
          "single searchable register with a formal 5x5 exposure scoring matrix. Critical items "
          "(Exposure Score >= 15) automatically surface on the Executive Dashboard and deduct "
          "points from the Health Index until mitigated.",
          "05_raid_register",
-         "Figure 2.6 — Unified RAID Register: risk matrix, RAID items, and exposure scoring"),
+         "Figure 2.7 — Unified RAID Register: risk matrix, RAID items, and exposure scoring"),
 
-        ("2.7", "Team Capacity Hub",
+        ("2.8", "Team Capacity Hub",
          "The Capacity Hub maintains rich member profiles with role assignments, weekly hour caps, "
          "utilisation rates, and planned leave calendars. All scheduling calculations — from the "
          "Weekly Scheduler's heatmap to the Copilot's Smart Reassignment — draw their capacity "
          "data from this module in real time.",
          "06_team_capacity_hub",
-         "Figure 2.7 — Team Capacity Hub: member utilisation bars and leave calendar integration"),
+         "Figure 2.8 — Team Capacity Hub: member utilisation bars and leave calendar integration"),
 
-        ("2.8", "Defect Lifecycle Management",
+        ("2.9", "Defect Lifecycle Management",
          "The Defect Tracker provides a formal bug lifecycle from initial logging through "
          "assignment, fix, retest, and closure. S1 Blocker defects trigger dashboard alerts "
          "and SLA countdown timers. Every defect is linked to a specific task, subtask, or "
          "GUI screen for full traceability, and open defects automatically impact the Health Index.",
          "07_defect_tracker",
-         "Figure 2.8 — Defect Tracker: severity cards, defect register, and lifecycle workflow"),
+         "Figure 2.9 — Defect Tracker: severity cards, defect register, and lifecycle workflow"),
 
-        ("2.9", "Stakeholder Board Packs & Reporting",
+        ("2.10", "Stakeholder Board Packs & Reporting",
          "ProjectPulse generates a full Executive Board Pack — project narrative, health trend "
          "sparkline, top risks, velocity trend, and critical path highlights — and exports the "
          "complete project dataset to an 8-sheet Excel workbook with live formulas, colour-coded "
          "status cells, and executive-ready formatting. No spreadsheet maintenance required.",
          "08_reports_boardpack",
-         "Figure 2.9 — Reports & Board Packs: export controls, preview panel, workbook sheet map"),
+         "Figure 2.10 — Reports & Board Packs: export controls, preview panel, workbook sheet map"),
 
-        ("2.10", "Immutable Audit Trail",
+        ("2.11", "Immutable Audit Trail",
          "Every state mutation — task creation, status change, RAID update, member modification — "
          "is captured in an immutable, timestamped audit log with full before/after diff payloads. "
          "Teams can trace any change back to who made it, when, and why, allowing manual recovery "
          "if needed.",
          "09_activity_audit_log",
-         "Figure 2.10 — Audit Log: chronological activity stream with diff payloads"),
+         "Figure 2.11 — Audit Log: chronological activity stream with diff payloads"),
 
-        ("2.11", "Schedule Baseline History",
+        ("2.12", "Schedule Baseline History",
          "ProjectPulse tracks three parallel date sets per task (Planned, Baseline, Actual) and "
          "supports unlimited named baseline snapshots — taken at kickoff, phase gates, or "
          "re-scopes. Schedule variance and slippage analysis are calculated automatically, "
          "and any baseline can be restored in one click.",
          None, None),
 
-        ("2.12", "Flexible Configuration & Theming",
+        ("2.13", "Flexible Configuration & Theming",
          "All categorical dropdowns (Status, Priority, Module, Role, etc.) are fully configurable "
          "via the Dropdown Manager. Custom Fields extend the Task and Defect schemas with "
          "project-specific attributes. The effort unit (hrs/days/months) switches globally "
          "with one setting. Twenty curated visual themes with dark/light override ensure the "
          "interface matches your team's preference.",
          "10_configuration_settings",
-         "Figure 2.12 — System Configuration: settings panel, dropdown manager, custom fields"),
+         "Figure 2.13 — System Configuration: settings panel, dropdown manager, custom fields"),
     ]
 
     for num, title, desc, ss, cap in caps:
@@ -230,8 +243,10 @@ def ch_capabilities(doc):
         make_body(doc, desc, space_after=8)
         if ss:
             add_screenshot(doc, ss, cap)
-        if num == "2.9":
-            add_screenshot(doc, "diagrams/report_workflow", "Figure 2.9b — Report Compilation and Board Pack Export Pipeline Flow")
+        if num == "2.3":
+            add_screenshot(doc, "02c_deliveries_heatmap", "Figure 2.3b — Deliveries Visual Perspective Heatmap: multi-dimensional release flow and screen shaping maturity")
+        if num == "2.10":
+            add_screenshot(doc, "diagrams/report_workflow", "Figure 2.10b — Report Compilation and Board Pack Export Pipeline Flow")
         doc.add_paragraph()
 
     add_page_break(doc)
@@ -295,7 +310,8 @@ def ch_capability_matrix(doc):
         [
             ["Overview Dashboard",      "Yes", "—",   "—",   "Yes", "Yes",  "—"],
             ["Live Insights",           "Yes", "—",   "—",   "Yes", "—",    "—"],
-            ["Delivery Matrix",         "Yes", "Yes", "Yes", "—",   "—",    "—"],
+            ["Software Deliveries",     "Yes", "Yes", "Yes", "Yes", "Yes",  "Yes"],
+            ["Hierarchical Task Matrix","Yes", "Yes", "Yes", "—",   "—",    "—"],
             ["Gantt Timeline",          "Yes", "Yes", "—",   "—",   "Yes",  "—"],
             ["Weekly Scheduler",        "Yes", "Yes", "—",   "—",   "Yes",  "—"],
             ["RAID Register",           "Yes", "Yes", "Yes", "—",   "—",    "Yes"],
@@ -323,16 +339,19 @@ def ch_gallery(doc):
         space_after=12)
 
     gallery = [
-        ("01_overview_dashboard",  "Executive Overview Dashboard — Health Gauge, KPI Cards, and Predictive Sandbox"),
-        ("02_delivery_matrix",     "Hierarchical Delivery Matrix — parent tasks, subtasks, status pills, and inline controls"),
-        ("03_gantt_timeline",      "Gantt Timeline — dependency arrows, baseline overlay, and today marker"),
-        ("04_weekly_scheduler",    "Weekly Scheduler — resource heatmap, over-allocation detection, and Copilot Cockpit"),
-        ("05_raid_register",       "RAID Register — risk classification, exposure scoring, and item lifecycle"),
-        ("06_team_capacity_hub",   "Team Capacity Hub — member profiles, utilisation bars, and leave calendar"),
-        ("07_defect_tracker",      "Defect Tracker — severity cards, defect register, and lifecycle workflow"),
-        ("08_reports_boardpack",   "Reports & Board Packs — export builder and workbook preview"),
-        ("09_activity_audit_log",  "Audit Log — chronological activity stream with diff payloads"),
-        ("10_configuration_settings", "System Configuration — general settings, dropdown manager, and custom fields"),
+        ("01_overview_dashboard",    "Executive Overview Dashboard — Health Gauge, KPI Cards, and Predictive Sandbox"),
+        ("02b_software_deliveries",  "Software Deliveries & Deployment Schedule — ALM/PDN tracking, sign-offs, and cycle lead times"),
+        ("02c_deliveries_heatmap",   "Deliveries Heatmap Matrix — multi-perspective release flow and screen shaping maturity"),
+        ("02_delivery_matrix",       "Hierarchical Task Matrix — parent tasks, subtasks, status pills, and inline controls"),
+        ("03_gantt_timeline",        "Gantt Timeline — dependency arrows, baseline overlay, and today marker"),
+        ("04_weekly_scheduler",      "Weekly Scheduler — resource heatmap, over-allocation detection, and Copilot Cockpit"),
+        ("05_raid_register",         "RAID Register — risk classification, exposure scoring, and item lifecycle"),
+        ("06_team_capacity_hub",     "Team Capacity Hub — member profiles, utilisation bars, and leave calendar"),
+        ("07_defect_tracker",        "Defect Tracker — severity cards, defect register, and lifecycle workflow"),
+        ("08_reports_boardpack",     "Reports & Board Packs — export builder and workbook preview"),
+        ("09_activity_audit_log",    "Audit Log — chronological activity stream with diff payloads"),
+        ("10_configuration_settings","System Configuration — general settings, dropdown manager, and custom fields"),
+        ("11b_delivery_flyout",      "Delivery Detail Drawer — verification gates, smoke test results, and linked tasks"),
     ]
     for fn, cap in gallery:
         add_screenshot(doc, fn, f"Screenshot: {cap}", width_inches=6.3)

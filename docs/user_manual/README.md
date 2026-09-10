@@ -16,23 +16,29 @@ Explore the detailed functional specifications and operating procedures for each
 2. **[Live Project Insights](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/insights.md)**
    - Performance metrics caching (`buildDashCache`).
    - Earned Value Management (EVM) and velocity pacing equations.
-3. **[Reports & Board Packs](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/reports.md)**
+3. **[Software Deliveries & Deployment Schedule](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/delivery.md)**
+   - Release governance, ALM/PDN change tracking, multi-entity task & screen linkage.
+   - Dual perspectives: Table Grid View and Visual Perspective Heatmaps (Module, Version, Phase).
+   - 5-strategy Column Autofit Engine and bi-directional Excel telemetry synchronization.
+4. **[Reports & Board Packs](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/reports.md)**
    - Generating stakeholder reports, status updates, and export parameters.
-4. **[Intelligent Weekly Scheduler & Conflict Resolver](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/scheduler.md)**
+5. **[Intelligent Weekly Scheduler & Conflict Resolver](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/scheduler.md)**
    - Operating the Weekly Heatmap Grid, Diagnostics, and Copilot.
    - Detailed heuristics: Auto-Sequence, Reassignment, and Cascading Date Shifting.
-5. **[Unified RAID Register](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/risks.md)**
+6. **[Unified RAID Register](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/risks.md)**
    - Risks, Assumptions, Issues, and Dependencies management.
    - Threat assessment matrix scoring.
-6. **[Hierarchical Delivery Matrix](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/delivery.md)**
-   - Tasks grid, spreadsheet inline edits, complexity scaling, and parent-child hierarchies.
-7. **[Team Capacity Hub](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/team.md)**
+7. **[Hierarchical Task Matrix & Interactive Gantt Timeline](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/tasks.md)**
+   - Work Breakdown Structure (WBS), subtask checklists, and screen subtask scaling.
+   - Spreadsheet-style inline cell editing and Fibonacci complexity multipliers.
+   - Interactive SVG Gantt chart, critical path calculation, and dependency links (FS, SS, FF).
+8. **[Team Capacity Hub](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/team.md)**
    - Resource loading, roles assignment, and workload balancing.
-8. **[Defect Tracker](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/defects.md)**
+9. **[Defect Tracker](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/defects.md)**
    - Bug lifecycle, severity metrics, and QA validation workflows.
-9. **[Audit & Activity Log](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/activity.md)**
-   - Historic logging, change tracking, and state reconstruction.
-10. **[Schedule Baselines & Snapshot History](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/baselines.md)**
+10. **[Audit & Activity Log](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/activity.md)**
+    - Historic logging, change tracking, and state reconstruction.
+11. **[Schedule Baselines & Snapshot History](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/docs/user_manual/baselines.md)**
     - Capturing baseline snapshots, calculating schedule variance, slippage rationales, and restoring history.
 
 ---
@@ -56,9 +62,9 @@ The diagram below represents the single-page state flow of ProjectPulse:
                  ▼
       [renderView(ActiveView)]
                  │
-  ┌──────────────┼──────────────┐
-  ▼              ▼              ▼
-[Delivery]  [Scheduler]    [Overview] ... (Other Views)
+  ┌──────────────┼──────────────┬──────────────┐
+  ▼              ▼              ▼              ▼
+[Overview]  [Deliveries]   [Scheduler]   [Tasks / Gantt] ... (Other Views)
 ```
 
 ---

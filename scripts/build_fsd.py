@@ -281,6 +281,37 @@ def part1_schemas(doc):
         ],
         col_widths=[1.8,0.9,3.9],
     )
+
+    # Delivery Schema
+    make_heading(doc,"3.7  Delivery Schema",level=2,color=CLR_ACCENT)
+    make_body(doc,"The Delivery entity represents an operational software release package or deployment milestone.",space_after=6)
+    add_data_table(doc,
+        ["Field","Type","Constraint","Default","Description"],
+        [
+            ["id",                "string",   "Unique, auto-gen", "DEL-NNN",  "Auto-generated unique identifier (e.g. DEL-001)."],
+            ["almId",             "string",   "Optional",         "",          "Enterprise Application Lifecycle Management ticket ID (e.g. ALM-10201)."],
+            ["pdn",               "string",   "Optional",         "",          "Production Deployment Notification reference code (e.g. PDN-2026-08-01)."],
+            ["name",              "string",   "Required",         "",          "Delivery title describing scope or purpose."],
+            ["description",       "string",   "Optional",         "",          "Full descriptive summary of deliverables and payload."],
+            ["module",            "string",   "Enum (dropdowns)", "",          "Associated project module from Module dropdown."],
+            ["moduleType",        "string",   "Enum",             "Server",    "Server / GUI / Interface."],
+            ["releaseVersion",    "string",   "Enum (dropdowns)", "",          "Target software release milestone (e.g. v1.0.0)."],
+            ["environment",       "string",   "Enum",             "Production","Deployment target environment (Dev / UAT / Staging / Production)."],
+            ["status",            "string",   "Enum",             "Scheduled", "Lifecycle state: Draft / Scheduled / Ready for Staging / Staged / Deployed / Verified / Deferred / Cancelled."],
+            ["targetDeliveryDate","YYYY-MM-DD","",                "",          "Scheduled delivery or deployment date."],
+            ["actualDeliveryDate","YYYY-MM-DD","",                "",          "Actual deployment completion date (null if pending)."],
+            ["leadTimeDays",      "number",   ">= 0",             "0",         "Cycle turnaround duration in days."],
+            ["signOffStatus",     "string",   "Enum",             "Pending",   "Formal release authorization: Pending / Approved / Rejected."],
+            ["approver",          "string",   "Member name",      "",          "Designated architectural or release authority."],
+            ["smokeTestStatus",   "string",   "Enum",             "Not Run",   "Post-deployment verification: Not Run / Pending / Passed / Failed / Skipped."],
+            ["linkedTaskIds",     "string[]", "Task IDs",         "[]",        "Array of linked parent task IDs implementing this release."],
+            ["linkedScreenIds",   "string[]", "Screen names",     "[]",        "Array of linked UI screen names included in this payload."],
+            ["componentsDelivered","string",  "",                 "",          "List of binary, source, or migration components included."],
+            ["rollbackPlan",      "string",   "",                 "",          "Emergency rollback procedure and runbook reference."],
+            ["notes",             "string",   "",                 "",          "Deployment remarks, testing caveats, and release notes."],
+        ],
+        col_widths=[1.5,0.8,1.3,0.9,2.1],
+    )
     add_page_break(doc)
 
 
@@ -560,17 +591,103 @@ def fsd_insights(doc):
     add_page_break(doc)
 
 
-def fsd_delivery(doc):
-    make_heading(doc,"8  Hierarchical Delivery Matrix",level=1,color=CLR_NAVY)
+def fsd_deliveries(doc):
+    make_heading(doc,"8  Software Deliveries & Deployment Schedule",level=1,color=CLR_NAVY)
+    add_horizontal_rule(doc,"00C2A8")
+    make_body(doc,
+        "The Software Deliveries & Deployment module (View 3) provides release governance and "
+        "operational tracking for production software payloads. While the Task Matrix manages "
+        "internal work breakdown and hours, the Deliveries module governs enterprise release milestones, "
+        "Application Lifecycle Management (ALM) change records, Production Deployment Notification (PDN) tickets, "
+        "environment progression, and verification gates.",space_after=8)
+    add_screenshot(doc,"02b_software_deliveries",
+        "Figure 8.1 — Software Deliveries & Deployment Workstation: High-density release grid, ALM/PDN tracking, and verification gates")
+
+    make_heading(doc,"8.1  Release Governance & ALM/PDN Integration",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "Software deliverables in ProjectPulse correspond to versioned packages, hotfixes, microservice deployments, "
+        "or client-facing releases. Key governance capabilities include:",space_after=6)
+    make_bullet(doc,"ALM / PDN Tracking: Explicitly records enterprise change management tickets (e.g. ALM-10201) and production deployment notifications (e.g. PDN-2026-08-01) for strict compliance audits.")
+    make_bullet(doc,"Environment Pipeline: Classifies releases across infrastructure tiers (Development, UAT, Staging, Production) to balance testing loads and prevent deployment bottlenecks.")
+    make_bullet(doc,"Cycle Lead Time: Measures the elapsed turnaround time in days between planned target dates and actual verified production deployment dates.")
+    make_bullet(doc,"Components & Runbooks: Documents delivered binaries, SQL migration scripts, configuration payloads, and automated rollback strategies.")
+    doc.add_paragraph()
+
+    make_heading(doc,"8.2  Delivery Lifecycle State Machine",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "Deliveries progress through an audited state machine ensuring that no release reaches production "
+        "without proper architectural approval and verification.",space_after=6)
+    add_transition_table(doc,[
+        ["Draft",              "Scheduled",          "Scope defined",          "Assign target date and release version. Log entry."],
+        ["Scheduled",          "Ready for Staging",  "Code freeze",            "Verify components bundle list and runbook."],
+        ["Ready for Staging",  "Staged",             "Deploy to staging",      "Initiate QA smoke verification and sign-off."],
+        ["Staged",             "In Production",      "Approval gate",          "Requires signOffStatus == Approved. Execute rollout."],
+        ["In Production",      "Deployed",           "Deployment complete",    "Record actualDeliveryDate = today. Compute leadTimeDays."],
+        ["Deployed",           "Verified",           "Smoke test pass",        "Requires smokeTestStatus == Passed. Close ALM ticket."],
+        ["Any State",          "Deferred",           "Scope re-plan",          "Comment required. Re-evaluate target release version."],
+        ["Any State",          "Cancelled",          "Management decision",    "Comment required. Archive delivery payload record."],
+    ])
+
+    make_heading(doc,"8.3  Multi-Entity Linkage Engine & Automated Inference",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "ProjectPulse provides bi-directional linkage between software deliveries and lower-level WBS elements:",space_after=6)
+    make_bullet(doc,"Parent Task Linkage (linkedTaskIds): Associates one or more engineering parent tasks with the delivery payload, rendering interactive clickable task pills.")
+    make_bullet(doc,"Granular Screen Linkage (linkedScreenIds): Associates specific GUI screen subtasks (e.g. SCR-01, SCR-02) to track front-end feature completeness.")
+    make_bullet(doc,"Automated Inference (autoIdentifyDeliveryLink): Heuristic algorithm that analyzes delivery titles and modules, matching them against parent tasks and screen definitions to automatically propose linkages.")
+    doc.add_paragraph()
+
+    make_heading(doc,"8.4  Dual Operational Perspectives: Grid vs Heatmap",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "The workstation features two synchronized operational perspectives toggled from the toolbar:",space_after=6)
+    make_bullet(doc,"Table Grid View (renderDeliveriesTable): High-density data grid with color-coded status badges, risk pills, inline cell editing, and quick search/filtering.")
+    make_bullet(doc,"Visual Perspective Heatmap (renderDeliveryHeatmapView): Multi-perspective matrix grouping deliverables into interactive swimlanes:")
+    make_bullet(doc,"feat_screens: Feature-to-Screen delivery mapping and screen shaping maturity score (% of screens verified in production).", level=1)
+    make_bullet(doc,"env_pipeline: Infrastructure stage flow across Dev, UAT, Staging, and Production tiers.", level=1)
+    make_bullet(doc,"del_impact: Distribution of releases by target milestone version and qualitative risk tier.", level=1)
+    add_screenshot(doc, "02c_deliveries_heatmap", "Figure 8.2 — Deliveries Heatmap Workspace: Multi-perspective release flow and feature shaping maturity")
+
+    make_heading(doc,"8.5  Detail Flyout Drawer & Context Menu Actions",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "Users interact with deliveries through rich contextual controls:",space_after=6)
+    make_bullet(doc,"Slide-Out Flyout Drawer (openDeliveryFlyout): Displays full delivery telemetry, tabbed breakdown (Scope, Verification, Linked Entities, Audit), and rollback runbooks.")
+    make_bullet(doc,"3-Dot Action Menu: Positioned on each table row for rapid single-click action access on desktop and touchscreens.")
+    make_bullet(doc,"Right-Click Context Menu (showDeliveryCtx): Instant status transitions (Mark Verified, Stage Release, Defer), task linking, duplication, and deletion.")
+    add_screenshot(doc, "11b_delivery_flyout", "Figure 8.3 — Delivery Detail Drawer: Verification checklists, linked WBS entities, and rollback runbooks")
+
+    make_heading(doc,"8.6  Intelligent 5-Strategy Column Autofit Engine",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "To optimize presentation across diverse monitor sizes and tablet displays, the table supports ProjectPulse 5-strategy column engine (P.autofitStrategy):",space_after=6)
+    add_data_table(doc,
+        ["Strategy","Key","Layout Behavior","Optimal Use Case"],
+        [
+            ["Clip & Wrap",      "clip_wrap",      "Standard cell clipping with soft word wrapping on descriptions.", "General daily operational management."],
+            ["Clip & No-Wrap",   "clip_nowrap",    "Strict single-line layout with text truncation and ellipsis.", "High-density overview on standard laptop screens."],
+            ["Wrap & Balance",   "wrap_balance",   "Balanced multi-line text wrapping across all textual columns.", "Thorough review of release notes and component lists."],
+            ["Fill & Distribute","fill_distribute", "Proportionally stretches all columns to fill 100% of horizontal width.", "Ultra-wide 4K and multi-monitor workstations."],
+            ["Natural Scroll",   "natural_scroll", "Preserves natural content-measured column widths with smooth scrolling.", "Detailed inspection of wide tables with custom columns."],
+        ],
+        col_widths=[1.5,1.2,2.3,1.8],
+    )
+
+    make_heading(doc,"8.7  Bi-Directional Excel Synchronization & Telemetry Export",level=2,color=CLR_ACCENT)
+    make_body(doc,
+        "The deliveries subsystem integrates seamlessly with the ProjectPulse Excel engine (PulseExcel):",space_after=6)
+    make_bullet(doc,"Worksheet Export (PulseExcel.buildDeliveriesSheet): Generates a dedicated Deliveries tab with executive styling, formula links, and conditional formatting.")
+    make_bullet(doc,"Worksheet Import: The import engine resolves flexible column headers (ALM #, PDN Reference, Linked Tasks) with full data preservation and schema validation.")
+    add_page_break(doc)
+
+
+def fsd_tasks(doc):
+    make_heading(doc,"9  Hierarchical Task Matrix & Work Breakdown Structure (WBS)",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The Delivery Matrix is the operational backbone of ProjectPulse. It is a high-density, "
         "spreadsheet-style task grid that manages the full task hierarchy, inline editing, "
         "status workflows, dependency mapping, and effort tracking.",space_after=8)
     add_screenshot(doc,"02_delivery_matrix",
-        "Figure 8.1 — Hierarchical Delivery Matrix: parent tasks, subtasks, status pills, inline editing")
+        "Figure 9.1 — Hierarchical Task Matrix: parent tasks, subtasks, status pills, inline editing")
 
-    make_heading(doc,"8.1  Parent-Child Tree Rendering",level=2,color=CLR_ACCENT)
+    make_heading(doc,"9.1  Parent-Child Tree Rendering",level=2,color=CLR_ACCENT)
     make_body(doc,
         "The task list is rendered as a flattened depth-first traversal of the task tree. "
         "Root tasks (parentId == '') are rendered at depth 0. Child tasks are rendered "
@@ -583,7 +700,7 @@ def fsd_delivery(doc):
         "                  ...flattenTree(tasks, t.id, depth+1)]);\n"
         "}")
 
-    make_heading(doc,"8.2  Inline Edit Cell Lifecycle",level=2,color=CLR_ACCENT)
+    make_heading(doc,"9.2  Inline Edit Cell Lifecycle",level=2,color=CLR_ACCENT)
     make_body(doc,
         "Every cell in the Delivery Matrix supports inline editing. The lifecycle is:",space_after=6)
     make_numbered(doc,"User double-clicks a cell. The cell renders an input control (text, number, date, or select).")
@@ -594,7 +711,7 @@ def fsd_delivery(doc):
     make_numbered(doc,"If invalid: the input is highlighted in red and the original value is restored on blur.")
     doc.add_paragraph()
 
-    make_heading(doc,"8.3  Task Status State Machine",level=2,color=CLR_ACCENT)
+    make_heading(doc,"9.3  Task Status State Machine",level=2,color=CLR_ACCENT)
     make_body(doc,
         "Status transitions follow the VALID_TRANSITIONS rule set. Not all transitions "
         "are permitted. Attempting an invalid transition displays an error toast.",space_after=6)
@@ -614,27 +731,27 @@ def fsd_delivery(doc):
         ["Cancelled",    "Not Started",    "No guard (re-activate)","Log Status Changed entry."],
     ])
 
-    make_heading(doc,"8.3.1  Task Lifecycle State Machine Transition Diagram",level=3,color=CLR_ACCENT)
+    make_heading(doc,"9.3.1  Task Lifecycle State Machine Transition Diagram",level=3,color=CLR_ACCENT)
     make_body(doc,
         "The diagram below outlines the valid status transitions within the ProjectPulse Task Lifecycle, "
         "including transition guards, blocked/hold state paths, and re-activation triggers.",space_after=8)
-    add_screenshot(doc, "diagrams/task_lifecycle", "Figure 8.2 — Task State Machine & Transition Paths")
+    add_screenshot(doc, "diagrams/task_lifecycle", "Figure 9.2 — Task State Machine & Transition Paths")
 
-    make_heading(doc,"8.4  Complexity Scoring Model",level=2,color=CLR_ACCENT)
+    make_heading(doc,"9.4  Complexity Scoring Model",level=2,color=CLR_ACCENT)
     make_formula(doc,
         "complexityPoints(task) = task.estEffort * P.complexityFactors[task.complexity]")
     make_body(doc,
         "Complexity points are used for velocity calculation and EVM metrics. "
         "Changing the complexity level of a task immediately updates its point contribution.",space_after=6)
 
-    make_heading(doc,"8.5  Progress Aggregation Formula",level=2,color=CLR_ACCENT)
+    make_heading(doc,"9.5  Progress Aggregation Formula",level=2,color=CLR_ACCENT)
     make_formula(doc,
         "parentProgress = SUM(subtask.progress * subtask.effort) / SUM(subtask.effort)")
     make_body(doc,
         "Parent task progress is the effort-weighted average of all child subtask progress values. "
         "If a parent task has no subtasks, progress is set directly on the parent.",space_after=6)
 
-    make_heading(doc,"8.6  Multi-Dimensional Filter Engine",level=2,color=CLR_ACCENT)
+    make_heading(doc,"9.6  Multi-Dimensional Filter Engine",level=2,color=CLR_ACCENT)
     make_body(doc,
         "The sidebar filter panel applies multiple simultaneous filters using AND logic. "
         "All active filters must be satisfied for a task to appear in the result set.",space_after=6)
@@ -644,7 +761,7 @@ def fsd_delivery(doc):
     make_bullet(doc,"Filter state persists across view switches within the same session.")
     doc.add_paragraph()
 
-    make_heading(doc,"8.7  Dependency Linking Model",level=2,color=CLR_ACCENT)
+    make_heading(doc,"9.7  Dependency Linking Model",level=2,color=CLR_ACCENT)
     make_body(doc,
         "Task dependencies are stored as a string array (dependsOn[]) of predecessor task IDs. "
         "The dependency graph is enforced to be acyclic — the system prevents creation of "
@@ -655,16 +772,16 @@ def fsd_delivery(doc):
 
 
 def fsd_gantt(doc):
-    make_heading(doc,"9  Gantt Timeline",level=1,color=CLR_NAVY)
+    make_heading(doc,"10  Gantt Timeline",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The Gantt Timeline provides a time-anchored visual schedule rendered as an SVG canvas "
         "within the browser. Task bars, dependency arrows, the today marker, and baseline "
         "overlay bars are all rendered as SVG elements.",space_after=8)
     add_screenshot(doc,"03_gantt_timeline",
-        "Figure 9.1 — Gantt Timeline: dependency arrows, baseline overlay, and today marker")
+        "Figure 10.1 — Gantt Timeline: dependency arrows, baseline overlay, and today marker")
 
-    make_heading(doc,"9.1  SVG Canvas Coordinate Model",level=2,color=CLR_ACCENT)
+    make_heading(doc,"10.1  SVG Canvas Coordinate Model",level=2,color=CLR_ACCENT)
     make_body(doc,
         "The Gantt canvas is a single SVG element scaled to fit the current zoom level and task count.",space_after=6)
     make_formula(doc,"taskBarX = (startDate - viewStartDate) * pixelsPerDay")
@@ -681,7 +798,7 @@ def fsd_gantt(doc):
         col_widths=[1.5,1.5,3.4],
     )
 
-    make_heading(doc,"9.2  Dependency Arrow Rendering",level=2,color=CLR_ACCENT)
+    make_heading(doc,"10.2  Dependency Arrow Rendering",level=2,color=CLR_ACCENT)
     make_body(doc,
         "Dependency arrows are rendered as cubic Bezier SVG <path> elements connecting the "
         "right edge of the predecessor bar to the left edge of the successor bar.",space_after=6)
@@ -692,14 +809,14 @@ def fsd_gantt(doc):
     make_code(doc,
         "d = `M ${x1} ${y1}  C ${x1+40} ${y1}  ${x2-40} ${y2}  ${x2} ${y2}`")
 
-    make_heading(doc,"9.2.1  Gantt Dependency Flow & Date Cascade Cascade",level=3,color=CLR_ACCENT)
+    make_heading(doc,"10.2.1  Gantt Dependency Flow & Date Cascade Cascade",level=3,color=CLR_ACCENT)
     make_body(doc,
         "The diagram below displays the Gantt Bezier dependency linking mechanism, showing "
         "predecessor-to-successor date cascades, visual highlighting of violated dates, "
         "and downstream rescheduling propagation.",space_after=8)
-    add_screenshot(doc, "diagrams/gantt_dependencies", "Figure 9.2 — Gantt Dependency Linkage and Cascading Reschedule Flow")
+    add_screenshot(doc, "diagrams/gantt_dependencies", "Figure 10.2 — Gantt Dependency Linkage and Cascading Reschedule Flow")
 
-    make_heading(doc,"9.3  Drag-to-Reschedule",level=2,color=CLR_ACCENT)
+    make_heading(doc,"10.3  Drag-to-Reschedule",level=2,color=CLR_ACCENT)
     make_body(doc,
         "Task bars on the Gantt timeline are draggable. The drag-reschedule workflow:",space_after=6)
     make_numbered(doc,"mousedown on a task bar: stores initial mouse X position and task start/end dates.")
@@ -714,22 +831,22 @@ def fsd_gantt(doc):
 
 
 def fsd_scheduler(doc):
-    make_heading(doc,"10  Weekly Scheduler & Conflict Resolver",level=1,color=CLR_NAVY)
+    make_heading(doc,"11  Weekly Scheduler & Conflict Resolver",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The Weekly Scheduler is the resource capacity management engine. It maps every active "
         "team member's allocation against their weekly capacity, detects conflicts, and offers "
         "automated resolution via the Copilot engine.",space_after=8)
     add_screenshot(doc,"04_weekly_scheduler",
-        "Figure 10.1 — Weekly Scheduler: resource heatmap, conflict diagnostics, and Copilot Cockpit")
+        "Figure 11.1 — Weekly Scheduler: resource heatmap, conflict diagnostics, and Copilot Cockpit")
 
-    make_heading(doc,"10.1  Weekly Capacity Formula",level=2,color=CLR_ACCENT)
+    make_heading(doc,"11.1  Weekly Capacity Formula",level=2,color=CLR_ACCENT)
     make_formula(doc,
         "weeklyCapacity(member, week) = hoursPerDay * daysPerWeek * utilisationRate - leaveHours(member, week)")
     make_body(doc,
         "where leaveHours(member, week) = number of work-day hours the member is on planned leave during that week.",space_after=8)
 
-    make_heading(doc,"10.2  Weekly Allocation Calculation",level=2,color=CLR_ACCENT)
+    make_heading(doc,"11.2  Weekly Allocation Calculation",level=2,color=CLR_ACCENT)
     make_formula(doc,
         "weeklyAllocation(member, week) = SUM(task.estEffort / task.durationWeeks\n"
         "  FOR EACH task WHERE task.assignee == member.name\n"
@@ -811,14 +928,14 @@ def fsd_scheduler(doc):
 
 
 def fsd_raid(doc):
-    make_heading(doc,"11  RAID Register",level=1,color=CLR_NAVY)
+    make_heading(doc,"12  RAID Register",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The RAID Register is the risk governance engine of ProjectPulse. It provides a "
         "structured framework for identifying, scoring, tracking, and mitigating project risks, "
         "assumptions, issues, and dependencies.",space_after=8)
     add_screenshot(doc,"05_raid_register",
-        "Figure 11.1 — Unified RAID Register: risk matrix, RAID items, and exposure scoring")
+        "Figure 12.1 — Unified RAID Register: risk matrix, RAID items, and exposure scoring")
 
     make_heading(doc,"11.1  Classification Model",level=2,color=CLR_ACCENT)
     add_data_table(doc,
@@ -888,14 +1005,14 @@ def fsd_raid(doc):
 
 
 def fsd_team(doc):
-    make_heading(doc,"12  Team Capacity Hub",level=1,color=CLR_NAVY)
+    make_heading(doc,"13  Team Capacity Hub",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The Team Capacity Hub manages all team resource profiles, capacity parameters, "
         "leave calendars, and utilisation data. It is the single source of truth for "
         "all resource-related calculations in the Scheduler, Copilot, and EVM modules.",space_after=8)
     add_screenshot(doc,"06_team_capacity_hub",
-        "Figure 12.1 — Team Capacity Hub: member profiles, utilisation bars, and leave calendar")
+        "Figure 13.1 — Team Capacity Hub: member profiles, utilisation bars, and leave calendar")
 
     make_heading(doc,"12.1  Effective Weekly Capacity Formula",level=2,color=CLR_ACCENT)
     make_formula(doc,
@@ -929,14 +1046,14 @@ def fsd_team(doc):
 
 
 def fsd_defects(doc):
-    make_heading(doc,"13  Defect Tracker",level=1,color=CLR_NAVY)
+    make_heading(doc,"14  Defect Tracker",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The Defect Tracker manages the full software defect lifecycle from initial "
         "logging through assignment, fix, retest, and closure. Defect data is integrated "
         "into the Health Index and linked to tasks for full traceability.",space_after=8)
     add_screenshot(doc,"07_defect_tracker",
-        "Figure 13.1 — Defect Tracker: severity cards, defect register, and lifecycle workflow")
+        "Figure 14.1 — Defect Tracker: severity cards, defect register, and lifecycle workflow")
 
     make_heading(doc,"13.1  Severity Matrix & SLA Targets",level=2,color=CLR_ACCENT)
     add_data_table(doc,
@@ -988,13 +1105,13 @@ def fsd_defects(doc):
 
 
 def fsd_reports(doc):
-    make_heading(doc,"14  Reports & Board Packs",level=1,color=CLR_NAVY)
+    make_heading(doc,"15  Reports & Board Packs",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The Reports module provides one-click generation of an Executive Board Pack "
         "and a professional multi-sheet Excel workbook export with live formulas.",space_after=8)
     add_screenshot(doc,"08_reports_boardpack",
-        "Figure 14.1 — Reports & Board Packs: export builder, preview panel, workbook sheet map")
+        "Figure 15.1 — Reports & Board Packs: export builder, preview panel, workbook sheet map")
 
     make_heading(doc,"14.1  Executive Board Pack — Generation Workflow",level=2,color=CLR_ACCENT)
     make_body(doc,
@@ -1047,14 +1164,14 @@ def fsd_reports(doc):
 
 
 def fsd_audit(doc):
-    make_heading(doc,"15  Audit Log & Activity Streams",level=1,color=CLR_NAVY)
+    make_heading(doc,"16  Audit Log & Activity Streams",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The Audit Log provides a complete, immutable, chronological record of every state "
         "mutation in the application. It is append-only and forms the basis for "
         "accountability reporting and change tracking.",space_after=8)
     add_screenshot(doc,"09_activity_audit_log",
-        "Figure 15.1 — Audit Log: chronological activity stream with diff payloads")
+        "Figure 16.1 — Audit Log: chronological activity stream with diff payloads")
 
     make_heading(doc,"15.1  Immutability Model",level=2,color=CLR_ACCENT)
     make_body(doc,
@@ -1078,7 +1195,7 @@ def fsd_audit(doc):
 
 
 def fsd_baselines(doc):
-    make_heading(doc,"16  Schedule Baselines",level=1,color=CLR_NAVY)
+    make_heading(doc,"17  Schedule Baselines",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "Schedule Baselines capture a named, timestamped snapshot of all task planned dates "
@@ -1141,13 +1258,13 @@ def fsd_baselines(doc):
 
 
 def fsd_config(doc):
-    make_heading(doc,"17  System Configuration",level=1,color=CLR_NAVY)
+    make_heading(doc,"18  System Configuration",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "The Administration panel (Settings icon in the navigation bar) centralises all "
         "system-wide configuration. Changes take effect immediately.",space_after=8)
     add_screenshot(doc,"10_configuration_settings",
-        "Figure 17.1 — System Configuration: general settings, dropdown manager, and custom fields")
+        "Figure 18.1 — System Configuration: general settings, dropdown manager, and custom fields")
 
     make_heading(doc,"17.1  Dropdown Configuration Manager",level=2,color=CLR_ACCENT)
     make_body(doc,
@@ -1195,7 +1312,7 @@ def fsd_config(doc):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def part3_concerns(doc):
-    make_heading(doc,"18  Security & Data Privacy",level=1,color=CLR_NAVY)
+    make_heading(doc,"19  Security & Data Privacy",level=1,color=CLR_NAVY)
     add_horizontal_rule(doc,"00C2A8")
     make_body(doc,
         "As a zero-backend application, ProjectPulse does not transmit project data to "
@@ -1210,7 +1327,7 @@ def part3_concerns(doc):
         "is served from a secure, access-controlled web server rather than opened directly "
         "from the filesystem if multiple users share a device.",style="warning")
 
-    make_heading(doc,"19  Performance & Scalability Limits",level=1,color=CLR_NAVY,space_before=18)
+    make_heading(doc,"20  Performance & Scalability Limits",level=1,color=CLR_NAVY,space_before=18)
     add_horizontal_rule(doc,"00C2A8")
     add_data_table(doc,
         ["Resource","Practical Limit","Technical Reason"],
@@ -1224,7 +1341,7 @@ def part3_concerns(doc):
         col_widths=[1.8,2.0,2.8],
     )
 
-    make_heading(doc,"20  Browser Compatibility Matrix",level=1,color=CLR_NAVY,space_before=18)
+    make_heading(doc,"21  Browser Compatibility Matrix",level=1,color=CLR_NAVY,space_before=18)
     add_horizontal_rule(doc,"00C2A8")
     add_data_table(doc,
         ["Browser","Minimum Version","Full Support","File Sync API"],
@@ -1413,21 +1530,22 @@ def build_fsd():
         ("II",  "PART II — Module Functional Specifications",       "—"),
         ("6",   "Executive Overview Dashboard",                     "23"),
         ("7",   "Live Insights & Analytics",                        "28"),
-        ("8",   "Hierarchical Delivery Matrix",                     "32"),
-        ("9",   "Gantt Timeline",                                   "38"),
-        ("10",  "Weekly Scheduler & Conflict Resolver",             "42"),
-        ("11",  "RAID Register",                                    "48"),
-        ("12",  "Team Capacity Hub",                                "53"),
-        ("13",  "Defect Tracker",                                   "57"),
-        ("14",  "Reports & Board Packs",                            "62"),
-        ("15",  "Audit Log & Activity Streams",                     "66"),
-        ("16",  "Schedule Baselines",                               "70"),
-        ("17",  "System Configuration",                             "74"),
+        ("8",   "Software Deliveries & Deployment Schedule",        "32"),
+        ("9",   "Hierarchical Task Matrix & WBS",                   "37"),
+        ("10",  "Gantt Timeline",                                   "43"),
+        ("11",  "Weekly Scheduler & Conflict Resolver",             "47"),
+        ("12",  "RAID Register",                                    "53"),
+        ("13",  "Team Capacity Hub",                                "58"),
+        ("14",  "Defect Tracker",                                   "62"),
+        ("15",  "Reports & Board Packs",                            "67"),
+        ("16",  "Audit Log & Activity Streams",                     "71"),
+        ("17",  "Schedule Baselines",                               "75"),
+        ("18",  "System Configuration",                             "79"),
         # Part III
         ("III", "PART III — Cross-Cutting Concerns",                "—"),
-        ("18",  "Security & Data Privacy",                          "78"),
-        ("19",  "Performance & Scalability Limits",                 "80"),
-        ("20",  "Browser Compatibility Matrix",                     "81"),
+        ("19",  "Security & Data Privacy",                          "83"),
+        ("20",  "Performance & Scalability Limits",                 "85"),
+        ("21",  "Browser Compatibility Matrix",                     "86"),
         # Appendices
         ("A",   "Appendix A — Keyboard Shortcuts",                  "82"),
         ("B",   "Appendix B — Formula Reference Card",              "83"),
@@ -1450,16 +1568,17 @@ def build_fsd():
         "Complete specification of all 12 product modules — formulas, workflows, state machines, and business rules.")
     print("  Writing Ch 6: Overview..."); fsd_overview(doc)
     print("  Writing Ch 7: Insights..."); fsd_insights(doc)
-    print("  Writing Ch 8: Delivery Matrix..."); fsd_delivery(doc)
-    print("  Writing Ch 9: Gantt..."); fsd_gantt(doc)
-    print("  Writing Ch 10: Scheduler..."); fsd_scheduler(doc)
-    print("  Writing Ch 11: RAID..."); fsd_raid(doc)
-    print("  Writing Ch 12: Team..."); fsd_team(doc)
-    print("  Writing Ch 13: Defects..."); fsd_defects(doc)
-    print("  Writing Ch 14: Reports..."); fsd_reports(doc)
-    print("  Writing Ch 15: Audit Log..."); fsd_audit(doc)
-    print("  Writing Ch 16: Baselines..."); fsd_baselines(doc)
-    print("  Writing Ch 17: Config..."); fsd_config(doc)
+    print("  Writing Ch 8: Software Deliveries..."); fsd_deliveries(doc)
+    print("  Writing Ch 9: Hierarchical Task Matrix..."); fsd_tasks(doc)
+    print("  Writing Ch 10: Gantt..."); fsd_gantt(doc)
+    print("  Writing Ch 11: Scheduler..."); fsd_scheduler(doc)
+    print("  Writing Ch 12: RAID..."); fsd_raid(doc)
+    print("  Writing Ch 13: Team..."); fsd_team(doc)
+    print("  Writing Ch 14: Defects..."); fsd_defects(doc)
+    print("  Writing Ch 15: Reports..."); fsd_reports(doc)
+    print("  Writing Ch 16: Audit Log..."); fsd_audit(doc)
+    print("  Writing Ch 17: Baselines..."); fsd_baselines(doc)
+    print("  Writing Ch 18: Config..."); fsd_config(doc)
 
     # PART III
     add_section_divider(doc,"PART III","Cross-Cutting Concerns",

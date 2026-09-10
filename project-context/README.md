@@ -1,6 +1,6 @@
 # ProjectPulse — High-Density AI Context Pack
 
-This single document contains the authoritative architecture mapping, schema specifications, runtime business rules, and integration guidelines for **ProjectPulse**—a monolithic single-page project management suite (~70,000 lines of Vanilla HTML5/JS/CSS).
+This single document contains the authoritative architecture mapping, schema specifications, runtime business rules, and integration guidelines for **ProjectPulse**—a monolithic single-page project management suite (~80,800 lines of Vanilla HTML5/JS/CSS).
 
 ---
 
@@ -8,11 +8,11 @@ This single document contains the authoritative architecture mapping, schema spe
 The ProjectPulse repository consists of the monolithic core application, automated document compilers, and structured documentation assets.
 ```
 ProjectPulse/
-├── projectpulse.html            # Monolithic single-page application (~70,000 lines Vanilla HTML5/JS/CSS)
-│   ├── CSS Stylesheet           # (Lines 110 – 13,428) 20 Curated Themes, Light/Dark modes, layout, animations
-│   └── JavaScript Application   # (Lines 13,429 – 70,373) State, Persistence, CRUD, Gantt, Widgets, Scheduler
+├── projectpulse.html            # Monolithic single-page application (~80,800 lines Vanilla HTML5/JS/CSS)
+│   ├── CSS Stylesheet           # (Lines 110 – 14,970) 20 Curated Themes, Light/Dark modes, layout, animations
+│   └── JavaScript Application   # (Lines 14,971 – 80,830) State, Persistence, CRUD, Gantt, Widgets, Scheduler, Deliveries
 ├── docs/                        # Authoritative product specifications and user guides
-│   ├── user_manual/             # Compiled dynamic markdown user manuals
+│   ├── user_manual/             # Compiled dynamic markdown user manuals & configuration references
 │   ├── screenshots/             # Cropped widget screenshot assets for manual illustrations
 │   ├── stitch_projectpulse_design_assets/ # UI design components and specs
 │   └── *.docx, *.pptx           # High-fidelity compiled Word documents and presentation decks
@@ -53,6 +53,7 @@ The global state resides in `const P`. UI state is volatile, while core data and
 * `tasks` (Task[]): Master task list.
 * `members` (Member[]): Team member directory.
 * `defects` (Defect[]): Defect tracking registry.
+* `deliveries` (Delivery[]): Software delivery packages, PDN releases, defect fixes, components, and deployments registry.
 * `reports` (Report[]): Saved custom report layouts.
 * `log` (Log[]): Audit history log (auto-pruned to last 500 entries).
 * `features` (Feature[]): Strategic business feature alignments.
@@ -62,12 +63,13 @@ The global state resides in `const P`. UI state is volatile, while core data and
 * `releases` (Release[]): Release version configurations (`id`, `name`, `startDate`, `date`, `status`).
 
 ### B. Configurations
-* `dropdowns` (object): System registries (`status`, `priority`, `category`, `module`, `moduleType`, `role`).
-* `customFields` / `defCustomFields` (Field[]): Custom task/defect attribute definitions.
+* `dropdowns` (object): System registries (`status`, `priority`, `category`, `module`, `moduleType`, `role`, `deliveryStatus`, `deliveryCategory`, `deliveryEnv`, `deliverySignOff`, `smokeTestStatus`, `almStatus`).
+* `customFields` / `defCustomFields` / `delCustomFields` (Field[]): Custom task/defect/delivery attribute definitions.
 * `stepTemplates` (Template[]): Workflow blueprints for subtask generation.
 * `settings` (object): General system preferences (`effortUnit`, `hoursPerDay`, `daysPerWeek`, `workDays`, `alertPrefs`).
-* `cols` / `defCols` (ColDef[]): Column layouts, sizes, and visibilities.
+* `cols` / `defCols` / `delCols` (ColDef[]): Column layouts, sizes, and visibilities.
 * `complexityFactors` (object): Effort multipliers (`{Easy: 0.5, Medium: 1.0, Complex: 1.5}`).
+* `nextTaskId` / `nextDefectId` / `nextDeliveryId` / `nextRaidId` / `nextDecisionId` (number): Auto-incrementing entity sequence counters.
 
 ### C. Persistent File System State
 * `fsHandle` (FileHandle): Linked Excel file handle (stored in IndexedDB).
@@ -75,12 +77,16 @@ The global state resides in `const P`. UI state is volatile, while core data and
 * `fsDirName` (string): Directory display name. Saved to Excel as `'Local Folder Sync Path'`.
 
 ### D. Volatile UI State
-* `view` (string): Current view ID (`tasks`, `dash`, `team`, `defects`, `reports`, `admin`, `log`, `releases`, `architect`).
-* `theme` (string): Selected theme ID (`nexus`, `obsidian`, `emerald`, `fintech`, `bento`, `workflow`, `terracotta`, `codename`, etc.).
+* `view` (string): Current view ID (`tasks`, `dash`, `deliveries`, `team`, `defects`, `reports`, `scheduler`, `risks`, `log`, `releases`, `architect`).
+* `theme` (string): Selected theme ID (`origin`, `nova`, `terminal`, `aurora-studio`, `obsidian-dark`, `paper-editorial`, `nexus`, `fintech`, `bento`, `workflow`, `terracotta`, `codename`, `play`, `prism`, etc.).
 * `colorMode` (string): Dark/Light mode overrides (`default`, `light`, `dark`).
-* `filters` (object): Selected sidebar multi-filters.
-* `sort` / `defSort` (object): Sorting columns and directions.
+* `filters` / `delColFilters` (object): Selected sidebar multi-filters and inline column filters.
+* `sort` / `defSort` / `delSort` (object): Sorting columns and directions.
 * `taskViewMode` (string): Tasks presentation (`table` or `timeline`).
+* `_delViewMode` (string): Deliveries presentation mode (`table`, `matrix`, `kanban`).
+* `_delHeatmapPerspective` (string): Deliveries heatmap analytics perspective (`feat_screens`, `env_pipeline`, `del_impact`).
+* `_selectedDeliveries` (Set<string>): Set of selected delivery IDs for bulk operations.
+* `autofitStrategy` (string): Active column width strategy (`all`, `content-only`, `header-only`, `compact`, `comfortable`).
 
 ---
 
@@ -182,6 +188,43 @@ The global state resides in `const P`. UI state is volatile, while core data and
 }
 ```
 
+### Delivery
+```typescript
+{
+  id: string,                 // "DEL-001" (Unique system delivery identifier)
+  almId: string,              // Enterprise ALM / Defect / Jira ticket (e.g. "ALM-10001")
+  name: string,               // Primary delivery scope / ALM description
+  pdn: string,                // Product Delivery Notice reference (e.g. "PDN-2026-001")
+  pdnProcessingDate: string,  // YYYY-MM-DD
+  componentsDelivered: string,// List of source files, JARs, SQL scripts, or artifacts
+  category: string,           // "GSP++ Delivery" | "Regression/NRT Defect" | custom
+  module: string,             // Application module (e.g. "Authentication", "Billing")
+  moduleType: string,         // "Server" | "GUI" | "Interface" | "Service"
+  releaseVersion: string,     // Target release version (e.g. "v2.4.0")
+  environment: string,        // "Production" | "Staging" | "UAT" | "QA" | "Dev"
+  almStatus: string,          // "New" | "Open" | "In Progress" | "Fixed" | "Ready for Test" | "Retest" | "Closed" | "Rejected" | "Reopened"
+  status: string,             // "Scheduled" | "In Progress" | "Ready for Deployment" | "Deployed" | "Cancelled" | "Rolled Back"
+  signOffStatus: string,      // "Pending" | "Approved" | "Rejected" | "Not Required"
+  approver: string,           // Lead / Approver team member name
+  smokeTestStatus: string,    // "Not Run" | "Running" | "Passed" | "Failed"
+  reportedBy: string,         // Reporter team member name
+  fixedBy: string,            // Developer / member who delivered the fix
+  targetDeliveryDate: string, // YYYY-MM-DD
+  actualDeliveryDate: string, // YYYY-MM-DD (null if pending)
+  leadTimeDays: number,       // Integer cycle duration in days
+  variance: number,           // Delay variance vs target in days
+  linkedType: string,         // "Multi" | "Task" | "Screen" | "None"
+  linkedId: string,           // Composite reference string
+  linkedTasks: string[],      // Array of linked Task IDs (e.g. ["TSK-001", "TSK-002"])
+  linkedScreens: string[],    // Array of linked GUI screen names
+  rollbackPlan: string,       // Contingency / rollback instructions
+  notes: string,              // Remarks / comments
+  custom: object,             // Dynamic custom field values
+  createdAt: string,          // YYYY-MM-DD
+  updatedAt: string           // YYYY-MM-DD
+}
+```
+
 ### Log
 ```typescript
 {
@@ -208,23 +251,31 @@ The global state resides in `const P`. UI state is volatile, while core data and
 * `renderTasksView()` (~L11744): Draws the task grid table, filters, and module rollups.
 * `renderTimeline()` (~L13200): Draws the Gantt chart, dependency lines, and resize handlers.
 * `renderDash()` (~L19100): Compiles the analytics dashboard in an off-screen `DocumentFragment` using cached values.
+* `renderDeliveriesView()` (~L48118): Renders master deliveries view with search, filter toggles, perspective selector, and action bar.
+* `renderDeliveriesTable()` (~L48225): Renders high-performance software deliveries spreadsheet table with bulk selection, sorting, column filters, context menus, and auto-computed lead times.
+* `renderDeliveryHeatmapView()` (~L49230): Renders delivery analytics and telemetry matrix with 3 perspectives (`feat_screens`, `env_pipeline`, `del_impact`).
 * `renderReleases()` (~L54922): Renders the Release Roadmap table with version start dates, target dates, status badges, and mapped asset counts.
 
-### B. CRUD Operations & Scheduling
+### B. CRUD Operations, Delivery Governance & Scheduling
 * `createTask()` / `updateField()` / `deleteTask()` (~L11177-L11446): Manages task CRUD lifecycle.
 * `addSubtask()` / `updateSubtask()` / `deleteSubtask()` (~L11457-L11502): Manages task checklist sub-steps.
+* `openDeliveryFlyout(id)` (~L50670): Dual-mode flyout for creating and editing deliveries with interactive multi-linked task and screen chips.
+* `showDeliveryCtx(e, delId)` (~L48754): Context menu for deliveries supporting Edit, Duplicate, and Delete actions.
 * `syncTaskToTemplate(task)` (~L16460): Auto-generates or updates subtasks based on workflow step templates, inheriting completion states when parent tasks are complete.
 * `PulseScheduler.recalcDatesAndStatus(task)` (~L21192): Recalculates effort rollups, parent task progress, auto-maps baseline dates from release roadmaps, and computes `actCompletionDate` fallbacks.
 
 ### C. Data Operations & Caching
 * `buildDashCache(tasks, log)` (~L18000): **O(n) hot path.** Computes task stats, dependency lookups, entity resolution maps, and log frequencies in a single pass to power dashboard widgets at `O(1)`.
 * `getHealthScore()` (~L8983): Computes composite project health based on overdue, blocked, and on-hold tasks.
+* `autoIdentifyDeliveryLink(item)` (~L52200): Automated heuristic engine that matches deliverable ALM descriptions, tickets, and keywords against project tasks and screens.
+* `applyAutofitStrategy(prefix, strategy)` (~L73020): Applies responsive column auto-sizing (`all`, `content-only`, `header-only`, `compact`, `comfortable`) across task, defect, and delivery grids.
 * `convertEffortToDays(eff, unit)` / `convertDaysToEffort(days, unit)` (~L11100): Dynamic scaling between `hrs`, `days`, and `months`.
 
-### D. Persistence Lifecycle
+### D. Persistence & Excel Lifecycle
 * `save()` (~L10048): Debounced auto-save (10s idle) or immediate save via `Ctrl+S` or manual triggers. Writes to `localStorage` and triggers background directory/file backup writes.
 * `saveToFile()` (~L10732): Generates and writes the ExcelJS binary buffer to the linked `P.fsHandle` file.
-* `reconstructProjectFromBuffer(buf)` (~L28286): Parses import buffers, matches structures against `PROJECT_SCHEMA`, reconstructs task nesting, resolves missing fields, and runs migrations.
+* `PulseExcel.buildDeliveriesSheet(wb, safeMode, COLORS, ...)` (~L56498): Generates high-fidelity Deliveries sheet with Cockpit Telemetry banner (Row 7 headers, frozen panes, KPI telemetry cards for Progress, Lead Time, Quality Governance, Release Footprint) and dynamic Excel formulas.
+* `reconstructProjectFromBuffer(buf)` (~L60963): Parses import buffers, validates headers using `PROJECT_SCHEMA.getRevMap()`, reconstructs task and delivery models, resolves missing fields, and recalculates derived counters (`P.nextDeliveryId`).
 
 ---
 
@@ -294,6 +345,22 @@ Status transitions must strictly match the following mapping. Comment logging is
   - Performed data audit and reconciled all 143 sample tasks in `sampleTasks` and `samples.hierarchical.tasks` to eliminate discrepancies between task status and logged completion actuals.
   - Enhanced `syncTaskToTemplate` for completed subtask inheritance and `PulseScheduler.recalcDatesAndStatus` for `actCompletionDate` fallback calculation.
   - Cleaned temporary files and synchronized AST knowledge graph via `graphify update .`.
+* **📅 [2026-09-03] Deliveries Multi-Linkage, Excel Telemetry & View Engine Overhaul**:
+  - Supported linking multiple tasks (`linkedTasks`) and multiple GUI screens (`linkedScreens`) to a single delivery item, automatically classifying composite linkages as `Multi`.
+  - Standardized task link visualization across table cells, modal tags, and chips as `'Task ID : Task Name'`.
+  - Upgraded Deliveries Excel export (`buildDeliveriesSheet`) with a Cockpit Telemetry banner, frozen panes, KPI telemetry summary cards, and dynamic formulas for cycle lead time and delay variance.
+  - Implemented the Delivery Heatmap Workspace featuring 3 distinct perspectives: Feature x Screens, Environment Pipeline, and Payload Impact Matrix.
+* **📅 [2026-09-07] Deliveries UI Design Overhaul & High-Contrast Tokens**:
+  - Replaced purple/indigo accent overuse with unified, theme-adaptive CSS design tokens.
+  - Enhanced status badges (`almStatus`, `category`, `linkedType`) with `flex-shrink:0` to permanently resolve text spillover and truncation.
+  - Integrated colorful initials avatars for approvers, developers, and reporters, and added theme-adaptive row hover highlights.
+  - Added full administrative configuration for delivery dropdowns (`deliveryStatus`, `deliveryCategory`, `deliveryEnv`, `deliverySignOff`, `smokeTestStatus`) into the Options Library.
+  - Added Autofit column width dropdown with 5 responsive strategies (`all`, `content-only`, `header-only`, `compact`, `comfortable`).
+* **📅 [2026-09-08] Deliveries Excel Import Mapping Integrity & UI Streamlining**:
+  - Resolved delivery name loss on Excel file load where items imported as `"Unnamed delivery"` due to header stripping and missing reverse schema mappings.
+  - Enhanced `PROJECT_SCHEMA.getRevMap()`, `getTable()`, and `parseHelperAwareCanonicalSheets` to bi-directionally normalize and map functional headers (`Description - ALM Description`, `Defect ID - ALM ID`, etc.).
+  - Rebuilt `P.nextDeliveryId` derived state counter on workbook load.
+  - Streamlined deliveries table row action cells by removing redundant inline edit icon button, maintaining clean access via the 3-dot context menu, right-click, and direct row click.
 
 ---
 

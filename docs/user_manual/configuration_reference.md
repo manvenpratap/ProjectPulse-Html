@@ -268,6 +268,25 @@ Here is the current taxonomical setup utilized in the Delivery Matrix, RAID Regi
     - Rejected
     - Appealed
 
+### Delivery Category
+*   **Key**: `deliveryCategory`
+*   **Options**:
+    - GSP++ Delivery
+    - Regression/NRT Defect
+
+### Alm Status
+*   **Key**: `almStatus`
+*   **Options**:
+    - New
+    - Open
+    - In Progress
+    - Fixed
+    - Ready for Test
+    - Retest
+    - Closed
+    - Rejected
+    - Reopened
+
 ### Delivery Status
 *   **Key**: `deliveryStatus`
 *   **Options**:
@@ -296,6 +315,14 @@ Here is the current taxonomical setup utilized in the Delivery Matrix, RAID Regi
     - Approved
     - Rejected
 
+### Smoke Test Status
+*   **Key**: `smokeTestStatus`
+*   **Options**:
+    - Not Run
+    - Running
+    - Passed
+    - Failed
+
 ---
 
-*Last compiled on: Sun, 06 Sep 2026 18:30:11 GMT*
+*Last compiled on: Wed, 09 Sep 2026 18:30:04 GMT*

@@ -179,6 +179,73 @@ DEMO_STATE = {
         {"ts":"2026-06-11T11:20:00Z","user":"Jordan Kim","action":"Status Changed","taskId":"TASK-003","taskName":"Portfolio Management — Dashboard GUI","field":"subtask.status","oldVal":"Not Started","newVal":"In Progress","subtaskId":"ST-005","actCompletionDate":""},
         {"ts":"2026-06-10T08:00:00Z","user":"Chris Thompson","action":"Updated","taskId":"TASK-008","taskName":"Payment Module — PCI-DSS Integration","field":"progress","oldVal":"72","newVal":"80","subtaskId":"","actCompletionDate":""},
     ],
+    "deliveries": [
+        {
+            "id": "DEL-001", "almId": "ALM-10201", "name": "Fix OAuth2 token expiration race condition during concurrent MFA logins",
+            "description": "Fix OAuth2 token expiration race condition during concurrent MFA logins",
+            "pdn": "PDN-2026-08-01", "pdnProcessingDate": "2026-08-14", "componentsDelivered": "AuthService.java, TokenValidator.js, V2026.08__auth_indexes.sql",
+            "category": "GSP++ Delivery", "module": "Authentication", "almStatus": "Closed", "reportedBy": "Sarah Chen", "fixedBy": "Alex Rivera",
+            "linkedType": "Task", "linkedId": "TASK-001", "linkedTaskIds": ["TASK-001"], "linkedScreenIds": ["SCR-01"],
+            "moduleType": "Server", "releaseVersion": "v1.0.0", "environment": "Production", "status": "Deployed",
+            "targetDeliveryDate": "2026-08-15", "actualDeliveryDate": "2026-08-14", "leadTimeDays": 14,
+            "signOffStatus": "Approved", "approver": "Sarah Chen", "smokeTestStatus": "Passed",
+            "rollbackPlan": "Automated blue-green switchback to v0.9.8 AMI with zero downtime.",
+            "notes": "Successfully deployed to production cluster. Security pen-testing passed."
+        },
+        {
+            "id": "DEL-002", "almId": "ALM-10202", "name": "Real-Time WebSocket market data stream engine buffering fix",
+            "description": "Real-Time WebSocket market data stream engine buffering fix",
+            "pdn": "PDN-2026-08-02", "pdnProcessingDate": "2026-08-19", "componentsDelivered": "MarketDataGateway.go, socket-dispatcher.cpp, stream-config.json",
+            "category": "GSP++ Delivery", "module": "Market Data", "almStatus": "Closed", "reportedBy": "Alex Rivera", "fixedBy": "Alex Rivera",
+            "linkedType": "Task", "linkedId": "TASK-002", "linkedTaskIds": ["TASK-002"], "linkedScreenIds": [],
+            "moduleType": "Server", "releaseVersion": "v1.1.0", "environment": "Production", "status": "Deployed",
+            "targetDeliveryDate": "2026-08-20", "actualDeliveryDate": "2026-08-19", "leadTimeDays": 12,
+            "signOffStatus": "Approved", "approver": "Alex Rivera", "smokeTestStatus": "Passed",
+            "rollbackPlan": "Hot standby gateway instance failover via DNS switch.",
+            "notes": "Production benchmarks show 45% reduction in WebSocket latency under peak load."
+        },
+        {
+            "id": "DEL-003", "almId": "ALM-10203", "name": "Portfolio Management — High-Density Grid & P&L Widget Bundle",
+            "description": "Portfolio Management — High-Density Grid & P&L Widget Bundle",
+            "pdn": "PDN-2026-08-03", "pdnProcessingDate": "2026-08-25", "componentsDelivered": "PortfolioGrid.tsx, PlChartWidget.tsx, theme-tokens.css",
+            "category": "GSP++ Delivery", "module": "Portfolio Management (PM)", "almStatus": "Open", "reportedBy": "Jordan Kim", "fixedBy": "Jordan Kim",
+            "linkedType": "Task", "linkedId": "TASK-003", "linkedTaskIds": ["TASK-003"], "linkedScreenIds": ["Portfolio Overview", "P&L Dashboard"],
+            "moduleType": "GUI", "releaseVersion": "v1.1.0", "environment": "Staging", "status": "Ready for Staging",
+            "targetDeliveryDate": "2026-09-02", "actualDeliveryDate": "", "leadTimeDays": 8,
+            "signOffStatus": "Approved", "approver": "Sarah Chen", "smokeTestStatus": "Pending",
+            "rollbackPlan": "Feature flag disable (FLAG_PORTFOLIO_V2=false).",
+            "notes": "Passed cross-browser UI/UX testing in Staging-01."
+        },
+        {
+            "id": "DEL-004", "almId": "ALM-10204", "name": "Order Book Matching Engine — Latency & Throughput Enhancements",
+            "description": "Order Book Matching Engine — Latency & Throughput Enhancements",
+            "pdn": "PDN-2026-08-04", "pdnProcessingDate": "2026-08-28", "componentsDelivered": "MatchingEngine.cpp, OrderBook.h, ring_buffer.hpp",
+            "category": "GSP++ Delivery", "module": "Core Engine", "almStatus": "In Progress", "reportedBy": "Alex Rivera", "fixedBy": "Chris Thompson",
+            "linkedType": "Task", "linkedId": "TASK-004", "linkedTaskIds": ["TASK-004"], "linkedScreenIds": [],
+            "moduleType": "Server", "releaseVersion": "v1.1.0", "environment": "UAT", "status": "Staged",
+            "targetDeliveryDate": "2026-09-08", "actualDeliveryDate": "", "leadTimeDays": 11,
+            "signOffStatus": "Pending", "approver": "Alex Rivera", "smokeTestStatus": "Passed",
+            "rollbackPlan": "Binary swap back to core-engine-1.0.4 binary.",
+            "notes": "UAT verification ongoing with institutional trading desk simulations."
+        },
+        {
+            "id": "DEL-005", "almId": "ALM-10205", "name": "Payment Gateway — Multi-Currency Stripe Webhook Settlement Fix",
+            "description": "Payment Gateway — Multi-Currency Stripe Webhook Settlement Fix",
+            "pdn": "PDN-2026-08-05", "pdnProcessingDate": "2026-08-30", "componentsDelivered": "StripeWebhookHandler.py, LedgerService.py, migration_ledger_04.sql",
+            "category": "GSP++ Delivery", "module": "Payment Module", "almStatus": "Open", "reportedBy": "Chris Thompson", "fixedBy": "Chris Thompson",
+            "linkedType": "Task", "linkedId": "TASK-008", "linkedTaskIds": ["TASK-008"], "linkedScreenIds": [],
+            "moduleType": "Server", "releaseVersion": "v1.2.0", "environment": "Production", "status": "Scheduled",
+            "targetDeliveryDate": "2026-09-18", "actualDeliveryDate": "", "leadTimeDays": 0,
+            "signOffStatus": "Pending", "approver": "Sarah Chen", "smokeTestStatus": "Pending",
+            "rollbackPlan": "Database schema migration downgrade script V4__down.sql.",
+            "notes": "Scheduled for deployment during maintenance window Sunday 02:00 UTC."
+        }
+    ],
+    "delCols": [],
+    "delCustomFields": [],
+    "nextDeliveryId": 6,
+    "_delViewMode": "table",
+    "_delHeatmapPerspective": "feat_screens",
     "cols": [],
     "defCols": [],
     "customFields": [],
@@ -198,17 +265,18 @@ DEMO_STATE = {
 }
 
 VIEWS = [
-    ("overview",  "01_overview_dashboard"),
-    ("dash",      "01b_insights_analytics"),
-    ("tasks",     "02_delivery_matrix"),
-    ("timeline",  "03_gantt_timeline"),
-    ("scheduler", "04_weekly_scheduler"),
-    ("raid",      "05_raid_register"),
-    ("team",      "06_team_capacity_hub"),
-    ("defects",   "07_defect_tracker"),
-    ("reports",   "08_reports_boardpack"),
-    ("log",       "09_activity_audit_log"),
-    ("admin",     "10_configuration_settings"),
+    ("overview",   "01_overview_dashboard"),
+    ("dash",       "01b_insights_analytics"),
+    ("deliveries", "02b_software_deliveries"),
+    ("tasks",      "02_delivery_matrix"),
+    ("timeline",   "03_gantt_timeline"),
+    ("scheduler",  "04_weekly_scheduler"),
+    ("raid",       "05_raid_register"),
+    ("team",       "06_team_capacity_hub"),
+    ("defects",    "07_defect_tracker"),
+    ("reports",    "08_reports_boardpack"),
+    ("log",        "09_activity_audit_log"),
+    ("admin",      "10_configuration_settings"),
 ]
 
 def seed_and_screenshot(page, view_id, filename):
@@ -308,7 +376,33 @@ def main():
             except Exception as ex:
                 print(f"  ✗  {fname} — {ex}")
 
+        # Deliveries Heatmap View
+        try:
+            page.evaluate("() => { try { setView('deliveries'); P._delViewMode = 'heatmap'; renderDeliveriesView(); } catch(e) {} }")
+            page.wait_for_timeout(2000)
+            out_path = os.path.join(OUT_DIR, "02c_deliveries_heatmap.png")
+            page.screenshot(path=out_path)
+            screenshots["02c_deliveries_heatmap"] = out_path
+            print("  ✓  02c_deliveries_heatmap.png")
+            # Reset back to table mode
+            page.evaluate("() => { try { P._delViewMode = 'table'; renderDeliveriesView(); } catch(e) {} }")
+        except Exception as ex:
+            print(f"  ✗  02c_deliveries_heatmap — {ex}")
+
         print("\nCapturing interactive flyouts…\n")
+
+        # 11b. Delivery Flyout
+        try:
+            page.evaluate("() => { try { setView('deliveries'); openDeliveryFlyout('DEL-001', 'view'); } catch(e) { P.view='deliveries'; openDeliveryFlyout('DEL-001', 'view'); } }")
+            page.wait_for_timeout(1500)
+            out_path = os.path.join(OUT_DIR, "11b_delivery_flyout.png")
+            page.screenshot(path=out_path)
+            screenshots["11b_delivery_flyout"] = out_path
+            print("  ✓  11b_delivery_flyout.png")
+            # Close delivery flyout
+            page.evaluate("() => { try { closeDeliveryFlyout(); } catch(e) {} }")
+        except Exception as ex:
+            print(f"  ✗  11b_delivery_flyout — {ex}")
 
         # 11. Task Flyout
         try:
