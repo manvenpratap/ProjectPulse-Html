@@ -30883,15 +30883,38 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
         cont.innerHTML = '<div style="font-size:11px; color:var(--color-text-faint); padding:2px 0; user-select:none">No screens added yet. Search below to add.</div>';
         return;
       }
-      cont.innerHTML = sel.map((s, i) => `
+      cont.innerHTML = sel.map((s, i) => {
+        const mod = getScreenModuleLabel(s);
+        return `
         <span style="display:inline-flex; align-items:center; gap:5px; padding:4px 10px; background:var(--color-primary-highlight, rgba(99,102,241,.12)); border:1px solid var(--color-primary, #6366f1); border-radius:20px; font-size:11px; font-weight:600; color:var(--color-primary, #6366f1); cursor:default; animation:fadeIn .2s ease">
-          📺 ${esc(s)}
+          📺 <span>${esc(s)}</span>
+          ${mod ? `<span style="font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; padding:1px 6px; border-radius:10px; background:rgba(var(--color-primary-rgb,99,102,241),.16); color:var(--color-text-muted);">${esc(mod)}</span>` : ''}
           <span onclick="featRemoveScreen(${i})" style="cursor:pointer; margin-left:2px; display:inline-flex; align-items:center; opacity:.7; transition:opacity .15s" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='.7'" title="Remove this screen"><i data-lucide="x" style="width:12px; height:12px"></i></span>
         </span>
-      `).join('');
+      `;
+      }).join('');
       if (window.lucide) {
         lucide.createIcons(cont);
       }
+    }
+
+    function getScreenModuleLabel(scName) {
+      if (!scName) return '';
+      const dc = window.lastDashCache && window.lastDashCache.screenByName && window.lastDashCache.screenByName[scName];
+      if (dc) {
+        const m = dc.module || (dc.parentTasks && dc.parentTasks[0] && dc.parentTasks[0].module);
+        if (m) return m;
+      }
+      if (Array.isArray(P.tasks)) {
+        for (let i = 0; i < P.tasks.length; i++) {
+          const t = P.tasks[i];
+          if (!t) continue;
+          const hasGui = Array.isArray(t.guiScreens) && t.guiScreens.includes(scName);
+          const hasSub = Array.isArray(t.subtasks) && t.subtasks.some(st => st && st.name === scName);
+          if ((hasGui || hasSub) && t.module) return t.module;
+        }
+      }
+      return '';
     }
 
     function featRemoveScreen(idx) {
@@ -31094,7 +31117,8 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
       const scored = [];
       screenSet.forEach(s => {
         if (selected.has(s)) return;          // already a chip
-        const sTokens = _featTokenise(s);
+        const mod = getScreenModuleLabel(s);
+        const sTokens = [..._featTokenise(s), ..._featTokenise(mod)];
         let overlap = 0;
         sTokens.forEach(t => { if (refTokens.has(t)) overlap++; });
         if (overlap >= 1) scored.push({ name: s, score: overlap });
@@ -31114,12 +31138,14 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
       if (!suggestions.length) { wrap.style.display = 'none'; return; }
 
       wrap.style.display = 'block';
-      pills.innerHTML = suggestions.map(s => `
+      pills.innerHTML = suggestions.map(s => {
+        const mod = getScreenModuleLabel(s);
+        return `
         <span
           onclick="featAddScreen('${s.replace(/'/g, "\\'")}')"
-          title="Click to add"
+          title="${mod ? `Module: ${esc(mod)} — Click to add` : 'Click to add'}"
           style="
-            display:inline-flex; align-items:center; gap:5px;
+            display:inline-flex; align-items:center; gap:6px;
             padding:4px 10px; cursor:pointer; user-select:none;
             background:rgba(var(--color-primary-rgb,99,102,241),.07);
             border:1px dashed var(--color-primary,#6366f1);
@@ -31129,9 +31155,12 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
           onmouseenter="this.style.background='rgba(var(--color-primary-rgb,99,102,241),.18)';this.style.transform='scale(1.04)'"
           onmouseleave="this.style.background='rgba(var(--color-primary-rgb,99,102,241),.07)';this.style.transform='none'"
         >
-          <i data-lucide="plus-circle" style="width:11px;height:11px"></i> ${esc(s)}
+          <i data-lucide="plus-circle" style="width:11px;height:11px"></i>
+          <span>${esc(s)}</span>
+          ${mod ? `<span style="font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; padding:1px 6px; border-radius:10px; background:rgba(var(--color-primary-rgb,99,102,241),.15); color:var(--color-text-muted);">${esc(mod)}</span>` : ''}
         </span>
-      `).join('');
+      `;
+      }).join('');
       if (window.lucide) lucide.createIcons(pills);
     }
 
@@ -31152,16 +31181,21 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
         const q = inp.value.toLowerCase().trim();
         const allScreens = getAllScreens();
         const selected = new Set(P._featSelectedScreens || []);
-        const matches = allScreens.filter(s => !selected.has(s) && s.toLowerCase().includes(q));
+        const matches = allScreens.filter(s => {
+          if (selected.has(s)) return false;
+          const mod = getScreenModuleLabel(s).toLowerCase();
+          return s.toLowerCase().includes(q) || mod.includes(q);
+        });
 
         if (!q && !matches.length) { dd.style.display = 'none'; return; }
 
         dd.innerHTML = '';
         if (matches.length) {
           matches.forEach(s => {
+            const mod = getScreenModuleLabel(s);
             const row = document.createElement('div');
             row.style = 'padding:10px 14px; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:8px; transition:background .15s; border-bottom:1px solid var(--color-divider)';
-            row.innerHTML = `<span style="font-size:14px">📺</span> <span style="flex:1; font-weight:500">${esc(s)}</span> <span style="font-size:10px; color:var(--color-text-faint); opacity:0; transition:opacity .15s" class="add-hint">click to add</span>`;
+            row.innerHTML = `<span style="font-size:14px">📺</span> <span style="flex:1; font-weight:500; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(s)}</span> ${mod ? `<span style="font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; padding:2px 7px; border-radius:6px; background:var(--color-surface-2); border:1px solid var(--color-border); color:var(--color-text-muted); flex-shrink:0;">${esc(mod)}</span>` : ''} <span style="font-size:10px; color:var(--color-text-faint); opacity:0; transition:opacity .15s; flex-shrink:0;" class="add-hint">click to add</span>`;
             row.onmouseenter = () => { row.style.background = 'var(--color-surface-2)'; row.querySelector('.add-hint').style.opacity = '1'; };
             row.onmouseleave = () => { row.style.background = 'transparent'; row.querySelector('.add-hint').style.opacity = '0'; };
             row.onclick = () => featAddScreen(s);
