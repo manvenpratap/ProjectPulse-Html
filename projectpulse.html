@@ -52882,6 +52882,29 @@ Earned Value Management measures project performance and progress by comparing p
           });
         }
 
+        // Restore Active Theme & Color Mode if the imported Deliveries Excel workbook contains System State / App_State metadata
+        if (s.wb) {
+          const stateWs = s.wb.getWorksheet('System State') || s.wb.getWorksheet('App_State') || s.wb.getWorksheet('Project');
+          if (stateWs) {
+            const importedState = {};
+            stateWs.eachRow((r, rIdx) => {
+              if (rIdx === 1) return;
+              const k = String(getCleanCellValue(r.getCell(1).value) || '').trim();
+              const v = String(getCleanCellValue(r.getCell(2).value) || '').trim();
+              if (k && v) importedState[k] = v;
+            });
+            if (importedState['Active Theme'] && typeof setTheme === 'function') {
+              P.theme = importedState['Active Theme'];
+              setTheme(P.theme);
+            }
+            if (importedState['Color Mode']) {
+              P.colorMode = importedState['Color Mode'];
+              localStorage.setItem('pp-color-mode', P.colorMode);
+              document.documentElement.setAttribute('data-color-mode', P.colorMode);
+            }
+          }
+        }
+
         save();
         closeModal('delivery-duplicate-resolution-modal');
         closeDeliveryImportModal();
@@ -52925,6 +52948,7 @@ Earned Value Management measures project performance and progress by comparing p
         const COLORS = palette ? palette.COLORS : {
           navy: 'FF0F172A',
           indigo: 'FF4338CA',
+          primaryHover: 'FF3730A3',
           slate: 'FF64748B',
           emerald: 'FF10B981',
           rose: 'FFF43F5E',
@@ -52935,9 +52959,13 @@ Earned Value Management measures project performance and progress by comparing p
           purple: 'FF8B5CF6',
           bg: 'FFF8FAFC',
           surface: 'FFFFFFFF',
+          surfaceAlt: 'FFF1F5F9',
           divider: 'FFE2E8F0',
+          border: 'FFE2E8F0',
           muted: 'FF64748B',
           textDark: 'FF1E293B',
+          isDark: false,
+          getThemeTint: (argb, factor) => argb || 'FFFFFFFF',
           styleRow: (row, i) => {
             const bg = (i % 2 === 1) ? 'FFF8FAFC' : 'FFFFFFFF';
             row.eachCell(c => {
@@ -52973,8 +53001,25 @@ Earned Value Management measures project performance and progress by comparing p
           } catch(e) { return '-'; }
         };
 
-        if (window.PulseExcel && typeof window.PulseExcel.buildDeliveriesSheet === 'function') {
-          window.PulseExcel.buildDeliveriesSheet(wb, false, COLORS, hdrStyle, S, cleanFmtDate);
+        if (window.PulseExcel) {
+          if (typeof window.PulseExcel.buildValidationListsSheet === 'function') {
+            window.PulseExcel.buildValidationListsSheet(wb, false, COLORS, hdrStyle);
+            if (typeof window.PulseExcel.registerNamedRanges === 'function') {
+              window.PulseExcel.registerNamedRanges(wb, false);
+            }
+            const valWs = wb.getWorksheet('ValidationLists');
+            if (valWs) valWs.state = 'veryHidden';
+          }
+          if (typeof window.PulseExcel.buildDeliveriesSheet === 'function') {
+            window.PulseExcel.buildDeliveriesSheet(wb, false, COLORS, hdrStyle, S, cleanFmtDate);
+          }
+          if (typeof window.PulseExcel.buildAppStateSheets === 'function') {
+            window.PulseExcel.buildAppStateSheets(wb, false, COLORS, hdrStyle, S);
+            ['System State', 'Config_Settings', 'Config_Layouts', 'Config_GridState', 'Config_GridColumns', 'State_Filters'].forEach(sn => {
+              const sw = wb.getWorksheet(sn);
+              if (sw) sw.state = 'hidden';
+            });
+          }
         }
 
         const buf = await wb.xlsx.writeBuffer();
@@ -52985,7 +53030,7 @@ Earned Value Management measures project performance and progress by comparing p
         a.download = `${(P.name || 'Project').replace(/[\\\/*?:"<>|\s]/g, '_')}_Deliveries_${todayStr()}.xlsx`;
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
-        notify('Deliveries exported to Excel', 'ok');
+        notify('Deliveries exported to Excel (Theme: ' + (P.theme || 'nexus') + ')', 'ok');
       } catch(err) {
         if (typeof PP !== 'undefined' && PP.error) PP.error(err);
         else console.error(err);
@@ -53608,23 +53653,44 @@ Earned Value Management measures project performance and progress by comparing p
 
         const cssBg = style.getPropertyValue('--color-bg') || '';
         const cssSurface = style.getPropertyValue('--color-surface') || '';
+        const cssSurface2 = style.getPropertyValue('--color-surface-2') || '';
         const cssText = style.getPropertyValue('--color-text') || '';
         const cssPrimary = style.getPropertyValue('--color-primary') || '';
+        const cssPrimaryHover = style.getPropertyValue('--color-primary-hover') || '';
         const cssDivider = style.getPropertyValue('--color-divider') || '';
+        const cssBorder = style.getPropertyValue('--color-border') || '';
         const cssTextMuted = style.getPropertyValue('--color-text-muted') || '';
 
         const resolvedBg = parseCssColorToArgb(cssBg, 'FFF8FAFC');
         const resolvedSurface = parseCssColorToArgb(cssSurface, 'FFFFFFFF');
-        const resolvedText = parseCssColorToArgb(cssText, 'FF0F172A');
-        const resolvedPrimary = parseCssColorToArgb(cssPrimary, 'FF4338CA');
-        const resolvedDivider = parseCssColorToArgb(cssDivider, 'FFE2E8F0');
-        const resolvedMuted = parseCssColorToArgb(cssTextMuted, 'FF64748B');
-
         const isThemeDark = isColorDark(resolvedBg);
+        const resolvedSurface2 = parseCssColorToArgb(cssSurface2, isThemeDark ? 'FF111827' : 'FFF1F5F9');
+        const resolvedText = parseCssColorToArgb(cssText, isThemeDark ? 'FFFFFFFF' : 'FF0F172A');
+        const resolvedPrimary = parseCssColorToArgb(cssPrimary, 'FF4338CA');
+        const resolvedPrimaryHover = parseCssColorToArgb(cssPrimaryHover, resolvedPrimary);
+        const resolvedDivider = parseCssColorToArgb(cssDivider, isThemeDark ? 'FF1E293B' : 'FFE2E8F0');
+        const resolvedBorder = parseCssColorToArgb(cssBorder, resolvedDivider);
+        const resolvedMuted = parseCssColorToArgb(cssTextMuted, isThemeDark ? 'FF94A3B8' : 'FF64748B');
+
+        const blendColors = (argbA, argbB, weightA = 0.5) => {
+          const hexA = (argbA && argbA.length >= 6) ? argbA.substring(argbA.length - 6) : '4338CA';
+          const hexB = (argbB && argbB.length >= 6) ? argbB.substring(argbB.length - 6) : 'FFFFFF';
+          const rA = parseInt(hexA.substring(0, 2), 16) || 0;
+          const gA = parseInt(hexA.substring(2, 4), 16) || 0;
+          const bA = parseInt(hexA.substring(4, 6), 16) || 0;
+          const rB = parseInt(hexB.substring(0, 2), 16) || 0;
+          const gB = parseInt(hexB.substring(2, 4), 16) || 0;
+          const bB = parseInt(hexB.substring(4, 6), 16) || 0;
+          const r = Math.max(0, Math.min(255, Math.round(rA * weightA + rB * (1 - weightA))));
+          const g = Math.max(0, Math.min(255, Math.round(gA * weightA + gB * (1 - weightA))));
+          const b = Math.max(0, Math.min(255, Math.round(bA * weightA + bB * (1 - weightA))));
+          return 'FF' + r.toString(16).padStart(2, '0').toUpperCase() + g.toString(16).padStart(2, '0').toUpperCase() + b.toString(16).padStart(2, '0').toUpperCase();
+        };
 
         const COLORS = {
           navy: resolvedText,
           indigo: resolvedPrimary,
+          primaryHover: resolvedPrimaryHover,
           slate: resolvedMuted,
           emerald: 'FF10B981',
           rose: 'FFF43F5E',
@@ -53635,23 +53701,21 @@ Earned Value Management measures project performance and progress by comparing p
           purple: 'FF8B5CF6',
           bg: resolvedBg,
           surface: resolvedSurface,
+          surfaceAlt: resolvedSurface2,
           divider: resolvedDivider,
+          border: resolvedBorder,
           muted: resolvedMuted,
           textDark: resolvedText,
-          surfaceAlt: isThemeDark ? 'FF111827' : 'FFF1F5F9',
-          isDark: isThemeDark
+          isDark: isThemeDark,
+          themeName: (typeof P !== 'undefined' && P && P.theme) || document.documentElement.getAttribute('data-theme') || 'nexus',
+          colorMode: (typeof P !== 'undefined' && P && P.colorMode) || document.documentElement.getAttribute('data-color-mode') || 'default',
+          blendColors,
+          getReadableText: (bgArgb, lightArgb = 'FFFFFFFF', darkArgb = 'FF0F172A') => isColorDark(bgArgb) ? lightArgb : darkArgb
         };
 
         COLORS.getThemeTint = (argb, factor) => {
-          if (!argb || argb.length < 6) return 'FFFFFFFF';
-          let hex = argb.substring(argb.length - 6);
-          let r = parseInt(hex.substring(0, 2), 16) || 0;
-          let g = parseInt(hex.substring(2, 4), 16) || 0;
-          let b = parseInt(hex.substring(4, 6), 16) || 0;
-          r = Math.round(r * factor + 255 * (1 - factor));
-          g = Math.round(g * factor + 255 * (1 - factor));
-          b = Math.round(b * factor + 255 * (1 - factor));
-          return 'FF' + r.toString(16).padStart(2, '0').toUpperCase() + g.toString(16).padStart(2, '0').toUpperCase() + b.toString(16).padStart(2, '0').toUpperCase();
+          if (!argb || argb.length < 6) return resolvedBg;
+          return blendColors(argb, resolvedBg, factor);
         };
 
         COLORS.styleRow = (row, i, maxDataCol = 100) => {
@@ -53661,10 +53725,10 @@ Earned Value Management measures project performance and progress by comparing p
           row.eachCell((c, colNum) => {
             if (colNum <= maxDataCol) {
               c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-              c.font = Object.assign({}, c.font, { name: 'Segoe UI', size: 10, color: { argb: 'FF1E293B' } });
+              c.font = Object.assign({}, c.font, { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } });
             } else {
-              c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
-              c.font = Object.assign({}, c.font, { name: 'Segoe UI', size: 9, color: { argb: 'FFFFFFFF' } });
+              c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.bg } };
+              c.font = Object.assign({}, c.font, { name: 'Segoe UI', size: 9, color: { argb: COLORS.bg } });
             }
           });
         };
@@ -53672,7 +53736,7 @@ Earned Value Management measures project performance and progress by comparing p
         const isHeaderDark = isColorDark(COLORS.indigo);
         const hdrStyle = {
           fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } },
-          font: { color: { argb: isHeaderDark ? 'FFFFFFFF' : 'FF1E293B' }, bold: true, size: 10 },
+          font: { color: { argb: isHeaderDark ? 'FFFFFFFF' : 'FF0F172A' }, bold: true, size: 10 },
           alignment: { vertical: 'middle', horizontal: 'center' },
           border: { bottom: { style: 'medium', color: { argb: COLORS.navy } } }
         };
@@ -56566,29 +56630,50 @@ Earned Value Management measures project performance and progress by comparing p
         const rose = COLORS.rose || 'FFF43F5E';
         const amber = COLORS.amber || 'FFF59E0B';
         const blue = COLORS.blue || 'FF3B82F6';
+        const purple = COLORS.purple || 'FF8B5CF6';
         const textDark = COLORS.textDark || 'FF1E293B';
         const isDark = !!COLORS.isDark;
-        const styleRowFn = (typeof COLORS.styleRow === 'function')
-          ? COLORS.styleRow
-          : (row, i) => {
-              const bg = (i % 2 === 1) ? 'FFF8FAFC' : 'FFFFFFFF';
-              row.eachCell(c => {
-                c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-                c.font = { name: 'Segoe UI', size: 10, color: { argb: textDark } };
-                c.border = {
-                  top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-                  left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-                  bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-                  right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
-                };
-              });
-            };
 
-        // Deliveries worksheet with Cockpit Telemetry panel & Hierarchical Outline
+        const blendArgb = (argbA, argbB, weightA = 0.5) => {
+          if (typeof COLORS.blendColors === 'function') return COLORS.blendColors(argbA, argbB, weightA);
+          const hexA = (argbA && argbA.length >= 6) ? argbA.substring(argbA.length - 6) : '4338CA';
+          const hexB = (argbB && argbB.length >= 6) ? argbB.substring(argbB.length - 6) : 'FFFFFF';
+          const rA = parseInt(hexA.substring(0, 2), 16) || 0;
+          const gA = parseInt(hexA.substring(2, 4), 16) || 0;
+          const bA = parseInt(hexA.substring(4, 6), 16) || 0;
+          const rB = parseInt(hexB.substring(0, 2), 16) || 0;
+          const gB = parseInt(hexB.substring(2, 4), 16) || 0;
+          const bB = parseInt(hexB.substring(4, 6), 16) || 0;
+          const r = Math.max(0, Math.min(255, Math.round(rA * weightA + rB * (1 - weightA))));
+          const g = Math.max(0, Math.min(255, Math.round(gA * weightA + gB * (1 - weightA))));
+          const b = Math.max(0, Math.min(255, Math.round(bA * weightA + bB * (1 - weightA))));
+          return 'FF' + r.toString(16).padStart(2, '0').toUpperCase() + g.toString(16).padStart(2, '0').toUpperCase() + b.toString(16).padStart(2, '0').toUpperCase();
+        };
+
+        const themePrimary = indigo;
+        const themePrimaryHover = COLORS.primaryHover || blendArgb(themePrimary, 'FF090D16', 0.78);
+        const themeBg = COLORS.bg || (isDark ? 'FF090D16' : 'FFF8FAFC');
+        const themeSurface = COLORS.surface || (isDark ? 'FF111827' : 'FFFFFFFF');
+        const themeSurfaceAlt = COLORS.surfaceAlt || (isDark ? 'FF1E293B' : 'FFF1F5F9');
+        const themeDivider = COLORS.divider || (isDark ? 'FF1E293B' : 'FFE2E8F0');
+        const themeText = COLORS.textDark || (isDark ? 'FFFFFFFF' : 'FF0F172A');
+        const themeMuted = COLORS.slate || (isDark ? 'FF94A3B8' : 'FF64748B');
+        const activeThemeName = String(COLORS.themeName || (typeof P !== 'undefined' && P && P.theme) || 'nexus').toUpperCase();
+
+        const themeTint = (accentArgb, factor, baseArgb = themeBg) => {
+          return blendArgb(accentArgb, baseArgb, factor);
+        };
+
+        // Ensure an accent color used as text on a surface card has readable contrast
+        const readableAccentOnSurface = (accentArgb) => {
+          return isDark ? blendArgb(accentArgb, 'FFFFFFFF', 0.78) : blendArgb(accentArgb, 'FF0F172A', 0.75);
+        };
+
+        // Deliveries worksheet with Theme-Aware Cockpit Telemetry panel & Hierarchical Outline
         // Freeze at ySplit: 7 (headers) and xSplit: 4 (Columns A..D: _spacer, Row Type, ALM ID, Delivery ID)
         // Card 1 spans B3:D5 (cols 2..4, 100% inside frozen pane) and Card 2 starts at E3 (col 5), preventing any freeze-line clipping!
         const ws = wb.addWorksheet('Deliveries', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 7, xSplit: 4 }] });
-        ws.properties.tabColor = { argb: 'FF10B981' };
+        ws.properties.tabColor = { argb: themePrimary };
         ws.properties.outlineProperties = { summaryBelow: false, summaryRight: false };
 
         const baseCols = [
@@ -56858,8 +56943,8 @@ Earned Value Management measures project performance and progress by comparing p
           });
         }
 
-        // ── Top KPI Telemetry Cockpit Section (Freeze-Safe Alignment) ──
-        const cockpitCanvasBg = isDark ? 'FF090D16' : 'FFF1F5F9';
+        // ── Top KPI Telemetry Cockpit Section (Theme-Aware & Freeze-Safe Alignment) ──
+        const cockpitCanvasBg = themeBg;
         for (let r = 1; r <= 6; r++) {
           for (let c = 1; c <= baseCols.length; c++) {
             ws.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: cockpitCanvasBg } };
@@ -56867,10 +56952,11 @@ Earned Value Management measures project performance and progress by comparing p
         }
 
         const drawTopKpiCard = (sheet, col, row, w, h, label, value, subLabel, accentColor) => {
-          const cardBg = isDark ? 'FF111827' : 'FFFFFFFF';
-          const borderOuter = isDark ? 'FF1E293B' : 'FFCBD5E1';
-          const labelColor = isDark ? 'FF94A3B8' : 'FF64748B';
-          const subColor = isDark ? 'FFCBD5E1' : 'FF475569';
+          const cardBg = themeSurface;
+          const borderOuter = themeDivider;
+          const labelColor = themeMuted;
+          const subColor = blendArgb(themeText, themeMuted, 0.45);
+          const valueColor = readableAccentOnSurface(accentColor);
 
           for (let r = row; r < row + h; r++) {
             for (let c = col; c < col + w; c++) {
@@ -56889,7 +56975,7 @@ Earned Value Management measures project performance and progress by comparing p
           mainCell.value = {
             richText: [
               { text: `${label.toUpperCase()}\n`, font: { name: 'Segoe UI', size: 8, bold: true, color: { argb: labelColor } } },
-              { text: `${value}\n`, font: { name: 'Segoe UI', size: 14, bold: true, color: { argb: accentColor } } },
+              { text: `${value}\n`, font: { name: 'Segoe UI', size: 14, bold: true, color: { argb: valueColor } } },
               { text: subLabel || '', font: { name: 'Segoe UI', size: 8, italic: true, color: { argb: subColor } } }
             ]
           };
@@ -56940,124 +57026,137 @@ Earned Value Management measures project performance and progress by comparing p
         ws.mergeCells('B2:P2');
         ws.getRow(2).height = 24;
         const titleCell = ws.getCell('B2');
+        const bannerBadgeColor = blendArgb(themePrimary, 'FFFFFFFF', 0.42);
         titleCell.value = {
           richText: [
-            { text: ' >> COCKPIT TELEMETRY  |  ', font: { name: 'Consolas', size: 10.5, bold: true, color: { argb: 'FF34D399' } } },
+            { text: ` >> COCKPIT TELEMETRY [${activeThemeName} · ${isDark ? 'DARK' : 'LIGHT'}]  |  `, font: { name: 'Consolas', size: 10, bold: true, color: { argb: bannerBadgeColor } } },
             { text: 'HIERARCHICAL DELIVERIES, SCREEN-DRIVEN FEATURE COMPLETION & COMPONENT MANIFEST', font: { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FFFFFFFF' } } }
           ]
         };
         titleCell.alignment = { vertical: 'middle', indent: 1 };
 
+        const bannerStartArgb = blendArgb(themePrimary, 'FF090D16', 0.58);
+        const bannerEndArgb = blendArgb(themePrimaryHover, isDark ? themeSurface : 'FF0F172A', 0.68);
         const bannerGradFill = {
           type: 'gradient',
           gradient: 'angle',
           degree: 90,
           stops: [
-            { position: 0, color: { argb: 'FF064E3B' } },
-            { position: 1, color: { argb: 'FF0F172A' } }
+            { position: 0, color: { argb: bannerStartArgb } },
+            { position: 1, color: { argb: bannerEndArgb } }
           ]
         };
         for (let c = 2; c <= 16; c++) {
           const cell = ws.getCell(2, c);
           cell.fill = bannerGradFill;
-          cell.border = { bottom: { style: 'medium', color: { argb: 'FF10B981' } } };
+          cell.border = { bottom: { style: 'medium', color: { argb: themePrimary } } };
         }
 
         // Card 1 (Cols 2..4 = B..D) is 100% inside frozen left pane (xSplit: 4).
         // Card 2 (Cols 5..7 = E..G) starts at Col 5 (first scrollable column), so the freeze line between Col 4 and Col 5 NEVER cuts a card!
-        drawTopKpiCard(ws, 2, 3, 3, 3, 'Delivery Progress', `${closed} / ${total}`, `${progress}% verified & closed`, 'FF10B981');
-        drawTopKpiCard(ws, 5, 3, 3, 3, 'Feature Screen Completion', `${overallFeatureCompletionPct}% Done`, `${projectDeliveredFeatureScreens}/${projectTotalFeatureScreens} Screens · ${totalComponentCount} Artifacts [+]`, 'FF8B5CF6');
-        drawTopKpiCard(ws, 8, 3, 4, 3, 'Quality Governance', `${smokePassed} Smoke Passed`, `${pendingSignoff} Pending Sign-Off · ${avgLead}d Lead`, pendingSignoff > 0 ? 'FFF59E0B' : 'FF10B981');
-        drawTopKpiCard(ws, 12, 3, 5, 3, 'Release Footprint', `${prodCount} Prod · ${uatCount} UAT`, overdue > 0 ? `${overdue} overdue deliveries` : 'Zero delay exceptions', overdue > 0 ? 'FFF43F5E' : 'FF6366F1');
+        drawTopKpiCard(ws, 2, 3, 3, 3, 'Delivery Progress', `${closed} / ${total}`, `${progress}% verified & closed`, themePrimary);
+        drawTopKpiCard(ws, 5, 3, 3, 3, 'Feature Screen Completion', `${overallFeatureCompletionPct}% Done`, `${projectDeliveredFeatureScreens}/${projectTotalFeatureScreens} Screens · ${totalComponentCount} Artifacts [+]`, blendArgb(themePrimary, 'FF8B5CF6', 0.55));
+        drawTopKpiCard(ws, 8, 3, 4, 3, 'Quality Governance', `${smokePassed} Smoke Passed`, `${pendingSignoff} Pending Sign-Off · ${avgLead}d Lead`, pendingSignoff > 0 ? (COLORS.amber || 'FFF59E0B') : (COLORS.emerald || 'FF10B981'));
+        drawTopKpiCard(ws, 12, 3, 5, 3, 'Release Footprint', `${prodCount} Prod · ${uatCount} UAT`, overdue > 0 ? `${overdue} overdue deliveries` : 'Zero delay exceptions', overdue > 0 ? (COLORS.rose || 'FFF43F5E') : themePrimaryHover);
 
         ws.getRow(6).height = 10;
 
-        // ── Grouped Functional Table Headers (Row 7) — Guaranteed WCAG AAA Contrast ──
+        // ── Grouped Functional Table Headers (Row 7) — Theme-Harmonized + Guaranteed WCAG AAA Contrast ──
         const headerRow = ws.getRow(7);
         headerRow.height = 30;
+        const headerBaseDark = blendArgb(themePrimary, isDark ? themeSurface : 'FF0F172A', 0.72);
         baseCols.forEach((col, colIdx) => {
           if (col.key === '_spacer') return;
           const cell = headerRow.getCell(colIdx + 1);
           cell.value = S(col.header);
 
-          let headerBg = 'FF1E293B';
-          let bottomAccent = 'FF475569';
+          let headerBg = headerBaseDark;
+          let bottomAccent = themePrimary;
           if (colIdx <= 6) {
-            headerBg = 'FF0F172A';       // Deep Obsidian Navy — Core Package & Hierarchy Identification
-            bottomAccent = 'FF10B981';
+            // Core Package & Hierarchy Identification — Anchored by Active Theme Primary
+            headerBg = blendArgb(themePrimary, 'FF090D16', 0.66);
+            bottomAccent = themePrimary;
           } else if (colIdx <= 13) {
-            headerBg = 'FF1E1B4B';       // Deep Royal Indigo — Components Summary & Architecture
-            bottomAccent = 'FF6366F1';
+            // Components Summary & Architecture — Theme Primary blended with Royal Indigo
+            headerBg = blendArgb(blendArgb(themePrimary, 'FF312E81', 0.55), 'FF090D16', 0.62);
+            bottomAccent = blendArgb(themePrimary, 'FF6366F1', 0.5);
           } else if (colIdx <= 16) {
-            headerBg = 'FF064E3B';       // Deep Forest Emerald — Governance & Quality Flow
-            bottomAccent = 'FF34D399';
+            // Governance & Quality Flow — Theme Primary blended with Forest Emerald
+            headerBg = blendArgb(blendArgb(themePrimary, 'FF065F46', 0.6), 'FF090D16', 0.64);
+            bottomAccent = COLORS.emerald || 'FF10B981';
           } else if (colIdx <= 23) {
-            headerBg = 'FF3B0764';       // Deep Plum Violet — Linked Scope & Screen-Driven Feature Completion
-            bottomAccent = 'FFA855F7';
+            // Linked Scope & Screen-Driven Feature Completion — Theme Primary blended with Plum Violet
+            headerBg = blendArgb(blendArgb(themePrimary, 'FF4C1D95', 0.6), 'FF090D16', 0.62);
+            bottomAccent = blendArgb(themePrimary, 'FFA855F7', 0.6);
           } else if (colIdx <= 30) {
-            headerBg = 'FF451A03';       // Deep Bronze Amber — Ownership, Schedule, Lead Time & Variance
-            bottomAccent = 'FFF59E0B';
+            // Ownership, Schedule, Lead Time & Variance — Theme Primary blended with Bronze Amber
+            headerBg = blendArgb(blendArgb(themePrimary, 'FF78350F', 0.65), 'FF090D16', 0.65);
+            bottomAccent = COLORS.amber || 'FFF59E0B';
           } else {
-            headerBg = 'FF1E293B';       // Deep Slate — Operations, Metadata & Derived Telemetry
-            bottomAccent = 'FF64748B';
+            // Operations, Metadata & Derived Telemetry — Theme Surface Slate
+            headerBg = blendArgb(themePrimary, 'FF1E293B', 0.78);
+            bottomAccent = blendArgb(themePrimary, themeMuted, 0.5);
           }
 
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: headerBg } };
           cell.font = { name: 'Segoe UI', color: { argb: 'FFFFFFFF' }, bold: true, size: 9.5 };
           cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
           cell.border = {
-            top: { style: 'thin', color: { argb: 'FF334155' } },
+            top: { style: 'thin', color: { argb: blendArgb(themePrimary, 'FF334155', 0.65) } },
             bottom: { style: 'medium', color: { argb: bottomAccent } },
-            right: { style: 'thin', color: { argb: 'FF334155' } }
+            right: { style: 'thin', color: { argb: blendArgb(themePrimary, 'FF334155', 0.75) } }
           };
         });
 
-        // ── Cohesive 3-Tier Hierarchical Row Styling Helper ──
+        // ── Cohesive 3-Tier Hierarchical Row Styling Helper (Theme-Aware) ──
         const styleHierarchyRow = (row, tier, variant) => {
           let rowBg, primaryText, secondaryText, borderTop, borderBottom, leftAccentColor, leftAccentStyle;
 
           if (tier === 0) {
             row.height = 26;
-            rowBg = isDark ? 'FF0D2821' : 'FFECFDF5';
-            primaryText = isDark ? 'FFFFFFFF' : 'FF0F172A';
-            secondaryText = isDark ? 'FFE2E8F0' : 'FF1E293B';
-            borderTop = { style: 'medium', color: { argb: isDark ? 'FF059669' : 'FF10B981' } };
-            borderBottom = { style: 'thin', color: { argb: isDark ? 'FF065F46' : 'FFA7F3D0' } };
-            leftAccentColor = 'FF10B981';
+            rowBg = themeTint(themePrimary, isDark ? 0.20 : 0.11);
+            primaryText = isDark ? 'FFFFFFFF' : themeText;
+            secondaryText = isDark ? blendArgb(themeText, 'FFE2E8F0', 0.35) : blendArgb(themeText, themeMuted, 0.2);
+            borderTop = { style: 'medium', color: { argb: blendArgb(themePrimary, themeDivider, 0.3) } };
+            borderBottom = { style: 'thin', color: { argb: blendArgb(themePrimary, themeDivider, 0.55) } };
+            leftAccentColor = themePrimary;
             leftAccentStyle = 'thick';
           } else if (tier === 1) {
             row.height = 22;
             if (variant === 'task') {
-              rowBg = isDark ? 'FF0F172A' : 'FFF0F9FF';
-              primaryText = isDark ? 'FFE2E8F0' : 'FF0F172A';
-              secondaryText = isDark ? 'FF94A3B8' : 'FF334155';
-              leftAccentColor = 'FF3B82F6';
+              const taskAccent = blendArgb(themePrimary, 'FF3B82F6', 0.65);
+              rowBg = blendArgb(themeSurface, taskAccent, isDark ? 0.14 : 0.08);
+              primaryText = themeText;
+              secondaryText = blendArgb(themeText, themeMuted, 0.35);
+              leftAccentColor = taskAccent;
             } else if (variant === 'screen') {
-              rowBg = isDark ? 'FF17153B' : 'FFF5F3FF';
-              primaryText = isDark ? 'FFEDE9FE' : 'FF2E1065';
-              secondaryText = isDark ? 'FFC4B5FD' : 'FF4C1D95';
-              leftAccentColor = 'FF8B5CF6';
+              const screenAccent = blendArgb(themePrimary, 'FF8B5CF6', 0.65);
+              rowBg = blendArgb(themeSurface, screenAccent, isDark ? 0.16 : 0.09);
+              primaryText = themeText;
+              secondaryText = blendArgb(themeText, themeMuted, 0.3);
+              leftAccentColor = screenAccent;
             } else {
-              rowBg = isDark ? 'FF131C38' : 'FFEEF2FF';
-              primaryText = isDark ? 'FFC7D2FE' : 'FF1E1B4B';
-              secondaryText = isDark ? 'FF93C5FD' : 'FF3730A3';
-              leftAccentColor = 'FF6366F1';
+              const manifestAccent = blendArgb(themePrimary, 'FF6366F1', 0.5);
+              rowBg = blendArgb(themeSurface, manifestAccent, isDark ? 0.15 : 0.08);
+              primaryText = themeText;
+              secondaryText = blendArgb(themeText, themeMuted, 0.3);
+              leftAccentColor = manifestAccent;
             }
-            borderTop = { style: 'thin', color: { argb: isDark ? 'FF1E293B' : 'FFE2E8F0' } };
-            borderBottom = { style: 'thin', color: { argb: isDark ? 'FF1E293B' : 'FFE2E8F0' } };
+            borderTop = { style: 'thin', color: { argb: themeDivider } };
+            borderBottom = { style: 'thin', color: { argb: themeDivider } };
             leftAccentStyle = 'medium';
           } else {
             row.height = 20;
-            rowBg = isDark ? 'FF090D16' : 'FFF8FAFC';
-            primaryText = isDark ? 'FFCBD5E1' : 'FF334155';
-            secondaryText = isDark ? 'FF94A3B8' : 'FF64748B';
-            borderTop = { style: 'thin', color: { argb: isDark ? 'FF161F30' : 'FFF1F5F9' } };
-            borderBottom = { style: 'thin', color: { argb: isDark ? 'FF161F30' : 'FFF1F5F9' } };
-            leftAccentColor = isDark ? 'FF334155' : 'FFCBD5E1';
+            rowBg = isDark ? blendArgb(themeBg, themeSurface, 0.4) : blendArgb(themeSurface, themeBg, 0.55);
+            primaryText = blendArgb(themeText, themeMuted, 0.25);
+            secondaryText = themeMuted;
+            borderTop = { style: 'thin', color: { argb: blendArgb(themeDivider, themeBg, 0.4) } };
+            borderBottom = { style: 'thin', color: { argb: blendArgb(themeDivider, themeBg, 0.4) } };
+            leftAccentColor = blendArgb(themePrimary, themeDivider, 0.65);
             leftAccentStyle = 'thin';
           }
 
-          const gridLineColor = isDark ? 'FF1E293B' : 'FFE2E8F0';
+          const gridLineColor = themeDivider;
           row.eachCell({ includeEmpty: true }, (c, colN) => {
             if (colN === 1) return;
             c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: rowBg } };
@@ -57081,20 +57180,20 @@ Earned Value Management measures project performance and progress by comparing p
         const styleFeatureCompletionCell = (cell, pct, isEnablerOnly) => {
           if (!cell) return;
           if (isEnablerOnly) {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF1E293B' : 'FFF1F5F9' } };
-            cell.font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: isDark ? 'FF93C5FD' : 'FF334155' } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: themeTint(themePrimary, isDark ? 0.22 : 0.12) } };
+            cell.font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: readableAccentOnSurface(themePrimary) } };
           } else if (pct >= 85) {
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF064E3B' : 'FFD1FAE5' } };
             cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: isDark ? 'FF6EE7B7' : 'FF065F46' } };
           } else if (pct >= 50) {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF1E1B4B' : 'FFEDE9FE' } };
-            cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: isDark ? 'FFC4B5FD' : 'FF5B21B6' } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: themeTint(themePrimary, isDark ? 0.28 : 0.15) } };
+            cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: readableAccentOnSurface(themePrimary) } };
           } else if (pct > 0) {
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF78350F' : 'FFFEF3C7' } };
             cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: isDark ? 'FFFCD34D' : 'FF92400E' } };
           } else {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF334155' : 'FFF1F5F9' } };
-            cell.font = { name: 'Segoe UI', size: 9, italic: true, color: { argb: isDark ? 'FF94A3B8' : 'FF64748B' } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: themeSurfaceAlt } };
+            cell.font = { name: 'Segoe UI', size: 9, italic: true, color: { argb: themeMuted } };
           }
           cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
         };
@@ -57303,20 +57402,20 @@ Earned Value Management measures project performance and progress by comparing p
           row.outlineLevel = 0;
           styleHierarchyRow(row, 0, 'delivery');
 
-          // Style Node Type Pill ('Delivery')
+          // Style Node Type Pill ('Delivery') — Theme-Aware Primary Pill
           const ntCell = row.getCell('nodeType');
-          ntCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF065F46' : 'FFD1FAE5' } };
-          ntCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: isDark ? 'FF6EE7B7' : 'FF065F46' } };
+          ntCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: themeTint(themePrimary, isDark ? 0.34 : 0.20) } };
+          ntCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: readableAccentOnSurface(themePrimary) } };
           ntCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
           // High-contrast Identification styling (ALM ID & Delivery ID)
           const almCell = row.getCell('almId');
-          almCell.font = { name: 'Consolas', size: 10, bold: true, color: { argb: isDark ? 'FF34D399' : 'FF047857' } };
+          almCell.font = { name: 'Consolas', size: 10, bold: true, color: { argb: readableAccentOnSurface(themePrimary) } };
           almCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
           const idCell = row.getCell('id');
-          idCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF13382E' : 'FFA7F3D0' } };
-          idCell.font = { name: 'Consolas', size: 9.5, bold: true, color: { argb: isDark ? 'FFFFFFFF' : 'FF064E3B' } };
+          idCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: themeTint(themePrimary, isDark ? 0.28 : 0.16) } };
+          idCell.font = { name: 'Consolas', size: 9.5, bold: true, color: { argb: isDark ? 'FFFFFFFF' : readableAccentOnSurface(themePrimary) } };
           idCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
           // Center-align PDN Info, Dates, Release Version, Module Type, Environment, Lead Time & Variance so they never collide with adjacent text
@@ -57328,8 +57427,9 @@ Earned Value Management measures project performance and progress by comparing p
           // Style Components Summary cell + attach structured Excel cell comment/note for instant hover inspection
           const compSumCell = row.getCell('componentsSummary');
           if (classifiedComps.length > 0) {
-            compSumCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF1E1B4B' : 'FFE0E7FF' } };
-            compSumCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: isDark ? 'FFA5B4FC' : 'FF3730A3' } };
+            const compAccent = blendArgb(themePrimary, 'FF6366F1', 0.45);
+            compSumCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: themeTint(compAccent, isDark ? 0.26 : 0.15) } };
+            compSumCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: readableAccentOnSurface(compAccent) } };
             const noteLines = [
               `📦 ${delIdStr} — DELIVERED COMPONENTS MANIFEST (${classifiedComps.length})`,
               `Architecture Breakdown: ${layerBreakdownStr}`,
@@ -57342,15 +57442,16 @@ Earned Value Management measures project performance and progress by comparing p
             }
             compSumCell.note = noteLines.join('\n');
           } else {
-            compSumCell.font = { name: 'Segoe UI', size: 9, italic: true, color: { argb: isDark ? 'FF64748B' : 'FF94A3B8' } };
+            compSumCell.font = { name: 'Segoe UI', size: 9, italic: true, color: { argb: themeMuted } };
           }
           compSumCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
 
           // Style Linked Scope Summary cell + attach structured Excel hover note
           const scopeSumCell = row.getCell('linkedScopeSummary');
           if (resolvedTasks.length > 0 || resolvedScreens.length > 0) {
-            scopeSumCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF172554' : 'FFDBEAFE' } };
-            scopeSumCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: isDark ? 'FF93C5FD' : 'FF1E40AF' } };
+            const scopeAccent = blendArgb(themePrimary, 'FF3B82F6', 0.5);
+            scopeSumCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: themeTint(scopeAccent, isDark ? 0.26 : 0.15) } };
+            scopeSumCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: readableAccentOnSurface(scopeAccent) } };
             const scopeNoteLines = [`🔗 ${delIdStr} — LINKED TRACEABILITY SCOPE`];
             if (resolvedTasks.length > 0) {
               scopeNoteLines.push(`\n📋 Linked Tasks (${resolvedTasks.length}):`);
@@ -57367,7 +57468,7 @@ Earned Value Management measures project performance and progress by comparing p
             }
             scopeSumCell.note = scopeNoteLines.join('\n');
           } else {
-            scopeSumCell.font = { name: 'Segoe UI', size: 9, italic: true, color: { argb: isDark ? 'FF64748B' : 'FF94A3B8' } };
+            scopeSumCell.font = { name: 'Segoe UI', size: 9, italic: true, color: { argb: themeMuted } };
           }
           scopeSumCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
 
@@ -57375,8 +57476,9 @@ Earned Value Management measures project performance and progress by comparing p
           const impFeatCell = row.getCell('impactedFeature');
           const featCompCell = row.getCell('featureCompletion');
           if (primaryEntry) {
-            impFeatCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF2E1065' : 'FFF3E8FF' } };
-            impFeatCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: isDark ? 'FFD8B4FE' : 'FF6B21A8' } };
+            const featAccent = blendArgb(themePrimary, 'FF8B5CF6', 0.55);
+            impFeatCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: themeTint(featAccent, isDark ? 0.26 : 0.14) } };
+            impFeatCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: readableAccentOnSurface(featAccent) } };
             impFeatCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
             styleFeatureCompletionCell(featCompCell, primaryEntry.feat.completionPct, isBackendEnabler);
             if (featureHoverNote) {
@@ -57644,17 +57746,18 @@ Earned Value Management measures project performance and progress by comparing p
             manifestGroupRow.hidden = true;
             styleHierarchyRow(manifestGroupRow, 1, 'manifest');
 
+            const manifestAccent = blendArgb(themePrimary, 'FF6366F1', 0.5);
             const mNtCell = manifestGroupRow.getCell('nodeType');
-            mNtCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF312E81' : 'FFE0E7FF' } };
-            mNtCell.font = { name: 'Segoe UI', size: 8.5, bold: true, color: { argb: isDark ? 'FFA5B4FC' : 'FF4338CA' } };
+            mNtCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: themeTint(manifestAccent, isDark ? 0.28 : 0.16) } };
+            mNtCell.font = { name: 'Segoe UI', size: 8.5, bold: true, color: { argb: readableAccentOnSurface(manifestAccent) } };
             mNtCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
             const mAlmCell = manifestGroupRow.getCell('almId');
-            mAlmCell.font = { name: 'Consolas', size: 8.5, color: { argb: isDark ? 'FF818CF8' : 'FF4F46E5' } };
+            mAlmCell.font = { name: 'Consolas', size: 8.5, color: { argb: readableAccentOnSurface(manifestAccent) } };
             mAlmCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
             const mIdCell = manifestGroupRow.getCell('id');
-            mIdCell.font = { name: 'Consolas', size: 9, bold: true, color: { argb: isDark ? 'FFA5B4FC' : 'FF3730A3' } };
+            mIdCell.font = { name: 'Consolas', size: 9, bold: true, color: { argb: readableAccentOnSurface(manifestAccent) } };
             mIdCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
             ['moduleType', 'releaseVersion', 'environment', 'almStatus', 'signOffStatus', 'smokeTestStatus', 'actualDeliveryDate'].forEach(k => {
@@ -57706,16 +57809,16 @@ Earned Value Management measures project performance and progress by comparing p
               styleHierarchyRow(compRow, 2, 'component');
 
               const cNtCell = compRow.getCell('nodeType');
-              cNtCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF1E293B' : 'FFF1F5F9' } };
-              cNtCell.font = { name: 'Segoe UI', size: 8, italic: true, color: { argb: isDark ? 'FF94A3B8' : 'FF64748B' } };
+              cNtCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: themeSurfaceAlt } };
+              cNtCell.font = { name: 'Segoe UI', size: 8, italic: true, color: { argb: themeMuted } };
               cNtCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
               const cAlmCell = compRow.getCell('almId');
-              cAlmCell.font = { name: 'Consolas', size: 8, color: { argb: isDark ? 'FF64748B' : 'FF94A3B8' } };
+              cAlmCell.font = { name: 'Consolas', size: 8, color: { argb: themeMuted } };
               cAlmCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
               const cIdCell = compRow.getCell('id');
-              cIdCell.font = { name: 'Consolas', size: 8.5, color: { argb: isDark ? 'FF94A3B8' : 'FF64748B' } };
+              cIdCell.font = { name: 'Consolas', size: 8.5, color: { argb: blendArgb(themeText, themeMuted, 0.5) } };
               cIdCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
               ['moduleType', 'almStatus', 'signOffStatus', 'smokeTestStatus'].forEach(k => {
@@ -57727,7 +57830,7 @@ Earned Value Management measures project performance and progress by comparing p
         });
 
         this.applyDeliverySheetValidations(ws, wb, safeMode, deliveryRowIndices, currentRowIdx);
-        this.applyDeliverySheetHelperColumns(ws, wb, safeMode, baseCols.length, deliveryRowIndices, isDark);
+        this.applyDeliverySheetHelperColumns(ws, wb, safeMode, baseCols.length, deliveryRowIndices, isDark, COLORS);
       },
 
       applyDeliverySheetValidations(ws, wb, safeMode, deliveryRowIndices, maxRowIdx) {
@@ -57764,7 +57867,7 @@ Earned Value Management measures project performance and progress by comparing p
           if (cLinkType) ws.getCell(`${cLinkType}${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['"Multi,Task,Screen,Defect,None"'] };
 
           try {
-            if (wb.getWorksheet('Config_ValidationLists')) {
+            if (wb.getWorksheet('ValidationLists') || wb.getWorksheet('Config_ValidationLists')) {
               if (cMod) ws.getCell(`${cMod}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Modules'] };
               if (cRel) ws.getCell(`${cRel}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Releases'] };
               if (cApp) ws.getCell(`${cApp}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Team'] };
@@ -57775,7 +57878,7 @@ Earned Value Management measures project performance and progress by comparing p
         });
       },
 
-      applyDeliverySheetHelperColumns(ws, wb, safeMode, totalCols, deliveryRowIndices, isDark) {
+      applyDeliverySheetHelperColumns(ws, wb, safeMode, totalCols, deliveryRowIndices, isDark, COLORS) {
         const cHealth = ws.getColumn(totalCols - 3).letter;
         const cRisk = ws.getColumn(totalCols - 2).letter;
         const cStage = ws.getColumn(totalCols - 1).letter;
@@ -57789,8 +57892,13 @@ Earned Value Management measures project performance and progress by comparing p
         const cLinkType = ws.getColumn('linkedType').letter;
         const cLinkId = ws.getColumn('linkedId').letter;
 
-        const helperBg = isDark ? 'FF0B1F1A' : 'FFF0FDF4';
-        const helperFg = isDark ? 'FF6EE7B7' : 'FF065F46';
+        const themePrimary = (COLORS && COLORS.indigo) ? COLORS.indigo : (isDark ? 'FF10B981' : 'FF059669');
+        const helperBg = (COLORS && typeof COLORS.getThemeTint === 'function')
+          ? COLORS.getThemeTint(themePrimary, isDark ? 0.16 : 0.08)
+          : (isDark ? 'FF0B1F1A' : 'FFF0FDF4');
+        const helperFg = (COLORS && typeof COLORS.blendColors === 'function')
+          ? (isDark ? COLORS.blendColors(themePrimary, 'FFFFFFFF', 0.45) : COLORS.blendColors(themePrimary, 'FF0F172A', 0.35))
+          : (isDark ? 'FF6EE7B7' : 'FF065F46');
 
         const rowsToProcess = Array.isArray(deliveryRowIndices) ? deliveryRowIndices : [];
         rowsToProcess.forEach(r => {
@@ -61150,7 +61258,10 @@ Earned Value Management measures project performance and progress by comparing p
             buildUnifiedTasksSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
             buildFeatureRolloutsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
 
-            // Group E: Technical Reference Metadata & Setup
+            // Group D/E: Theme & Technical Reference Metadata
+            buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S);
+            const sysWs = wb.getWorksheet('System State');
+            if (sysWs) sysWs.state = 'hidden';
             buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle);
             registerNamedRanges(wb, safeMode);
           } else if (P.view === 'defects') {
@@ -61158,7 +61269,10 @@ Earned Value Management measures project performance and progress by comparing p
             buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate);
             buildDefectsSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
 
-            // Group E: Technical Reference Metadata & Setup
+            // Group D/E: Theme & Technical Reference Metadata
+            buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S);
+            const sysWs = wb.getWorksheet('System State');
+            if (sysWs) sysWs.state = 'hidden';
             buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle);
             registerNamedRanges(wb, safeMode);
           } else if (P.view === 'deliveries') {
@@ -61166,7 +61280,10 @@ Earned Value Management measures project performance and progress by comparing p
             buildExecutiveDashboardSheets(wb, safeMode, COLORS, hdrStyle, STATUS_COLORS, S, cleanFmtDate);
             buildDeliveriesSheet(wb, safeMode, COLORS, hdrStyle, S, cleanFmtDate);
 
-            // Group E: Technical Reference Metadata & Setup
+            // Group D/E: Theme & Technical Reference Metadata
+            buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S);
+            const sysWs = wb.getWorksheet('System State');
+            if (sysWs) sysWs.state = 'hidden';
             buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle);
             registerNamedRanges(wb, safeMode);
           } else {
@@ -61381,11 +61498,15 @@ Earned Value Management measures project performance and progress by comparing p
         appStateData.forEach(r => { const k = r.key || r.property || r.settingkey; if (k) stateMap[k] = r.value !== undefined ? r.value : r.val; });
 
         P.name = stateMap['Project Name'] || P.name; P.desc = stateMap['Description'] || P.desc;
-        P.nextTaskId = parseInt(stateMap['Next Task ID']) || 1; P.nextMemberId = parseInt(stateMap['Next Member ID']) || 1;
-        P.nextSubId = parseInt(stateMap['Next Subtask ID']) || 1; P.nextLogId = parseInt(stateMap['Next Log ID']) || 1;
-        P.nextDefectId = parseInt(stateMap['Next Defect ID']) || 1; P.nextReportId = parseInt(stateMap['Next Report ID']) || 1;
-        P.nextRaidId = parseInt(stateMap['Next Raid ID']) || 1; P.nextDecisionId = parseInt(stateMap['Next Decision ID']) || 1;
-        P.theme = stateMap['Active Theme'] || 'nexus'; P.view = stateMap['Active View'] || 'dash'; P.ganttZoom = stateMap['Gantt Zoom'] || 'week';
+        P.nextTaskId = parseInt(stateMap['Next Task ID']) || P.nextTaskId || 1; P.nextMemberId = parseInt(stateMap['Next Member ID']) || P.nextMemberId || 1;
+        P.nextSubId = parseInt(stateMap['Next Subtask ID']) || P.nextSubId || 1; P.nextLogId = parseInt(stateMap['Next Log ID']) || P.nextLogId || 1;
+        P.nextDefectId = parseInt(stateMap['Next Defect ID']) || P.nextDefectId || 1; P.nextReportId = parseInt(stateMap['Next Report ID']) || P.nextReportId || 1;
+        P.nextRaidId = parseInt(stateMap['Next Raid ID']) || P.nextRaidId || 1; P.nextDecisionId = parseInt(stateMap['Next Decision ID']) || P.nextDecisionId || 1;
+        P.theme = stateMap['Active Theme'] || P.theme || 'nexus'; P.view = stateMap['Active View'] || P.view || 'dash'; P.ganttZoom = stateMap['Gantt Zoom'] || P.ganttZoom || 'week';
+        const importedColorMode = String(stateMap['Color Mode'] || '').toLowerCase();
+        if (importedColorMode === 'dark' || importedColorMode === 'light') {
+          document.documentElement.setAttribute('data-color-mode', importedColorMode);
+        }
         P.sort = { col: stateMap['Sort Column'] || 'id', dir: stateMap['Sort Dir'] || 'asc' }; P.defSort = { col: stateMap['Def Sort Column'] || 'id', dir: stateMap['Def Sort Dir'] || 'asc' };
         P.displayLevel = parseInt(stateMap['Display Level']); if (isNaN(P.displayLevel)) P.displayLevel = 1;
         P.showInlineFilters = stateMap['Show Inline Filters'] === 'true';

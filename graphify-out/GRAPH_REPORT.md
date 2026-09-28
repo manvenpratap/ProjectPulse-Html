@@ -1,16 +1,16 @@
 # Graph Report - ProjectPulse  (2026-09-28)
 
 ## Corpus Check
-- 4 files · ~406,929 words
+- 4 files · ~407,634 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2405 nodes · 4964 edges · 61 communities (51 shown, 10 thin omitted)
+- 2405 nodes · 4964 edges · 62 communities (52 shown, 10 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `b5168767`
+- Built from commit: `c8ca1f3c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -76,6 +76,7 @@
 - [[_COMMUNITY_Community 58|Community 58]]
 - [[_COMMUNITY_Community 59|Community 59]]
 - [[_COMMUNITY_Community 60|Community 60]]
+- [[_COMMUNITY_Community 61|Community 61]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `$id()` - 163 edges
@@ -91,17 +92,17 @@
 
 ## Surprising Connections (you probably didn't know these)
 - `renderBackupList()` --calls--> `warn()`  [EXTRACTED]
-  temp_test.js → temp_test.js  _Bridges community 19 → community 7_
+  temp_test.js → temp_test.js  _Bridges community 17 → community 18_
 - `syncFsDirectory()` --calls--> `error()`  [EXTRACTED]
-  temp_test.js → temp_test.js  _Bridges community 8 → community 7_
+  temp_test.js → temp_test.js  _Bridges community 11 → community 18_
 - `updateCxoEmailPreview()` --calls--> `error()`  [EXTRACTED]
-  temp_test.js → temp_test.js  _Bridges community 8 → community 19_
-- `updateBulkBar()` --calls--> `$id()`  [EXTRACTED]
-  temp_test.js → temp_test.js  _Bridges community 7 → community 50_
-- `applyBulkEdit()` --calls--> `$id()`  [EXTRACTED]
-  temp_test.js → temp_test.js  _Bridges community 7 → community 12_
+  temp_test.js → temp_test.js  _Bridges community 11 → community 17_
+- `showViewHelp()` --calls--> `$id()`  [EXTRACTED]
+  temp_test.js → temp_test.js  _Bridges community 7 → community 24_
+- `syncFsDirectory()` --calls--> `$id()`  [EXTRACTED]
+  temp_test.js → temp_test.js  _Bridges community 7 → community 18_
 
-## Communities (61 total, 10 thin omitted)
+## Communities (62 total, 10 thin omitted)
 
 ### Community 0 - "Configuration & Reference & Status"
 Cohesion: 0.0
@@ -109,35 +110,35 @@ Nodes (498): aCard, acCard, acPath, _act, active, activeEffortSum, activeIdx, ac
 
 ### Community 1 - "Readme & State & Block"
 Cohesion: 0.01
-Nodes (102): activeModal, allDone, anyStarted, autoFitAllCols(), blocked, bulkDeleteTasks(), bulkSelectedTasks, c (+94 more)
+Nodes (96): activeModal, allDone, anyStarted, autoFitAllCols(), blocked, bulkDeleteTasks(), bulkSelectedTasks, c (+88 more)
 
 ### Community 2 - "Architecture & Audit & State"
 Cohesion: 0.01
-Nodes (81): activeModal, allDone, anyStarted, blocked, bulkDeleteTasks(), bulkSelectedTasks, c, cache (+73 more)
+Nodes (91): activeModal, allDone, anyStarted, autoFitAllCols(), blocked, bulkDeleteTasks(), bulkSelectedTasks, c (+83 more)
 
 ### Community 3 - "Manual & State & Md"
 Cohesion: 0.04
-Nodes (93): addCustomFieldV(), addDep(), addLeaveRow(), addScaffoldRow(), cancelEditFeature(), cancelTplConfirmV(), clearPvFilt(), closeAllFlyouts() (+85 more)
+Nodes (76): addCustomFieldV(), addDep(), addLeaveRow(), cancelEditFeature(), cancelTplConfirmV(), clearPvFilt(), closeAllFlyouts(), closeCmdPalette() (+68 more)
 
 ### Community 4 - "Changelog & 2026 & 05"
 Cohesion: 0.04
-Nodes (91): addDDValueV(), addLog(), addRelease(), applyBulkEdit(), applyDashLayout(), applyReportLayout(), applyTemplate(), autoPopulateReport() (+83 more)
+Nodes (75): addCustomFieldV(), addDep(), addLeaveRow(), cancelEditFeature(), cancelTplConfirmV(), clearPvFilt(), closeAllFlyouts(), closeCmdPalette() (+67 more)
 
 ### Community 5 - "Schedule & Manual & Check"
-Cohesion: 0.04
-Nodes (81): addCustomFieldV(), addDep(), addLeaveRow(), cancelTplConfirmV(), cap(), clearPvFilt(), closeCmdPalette(), closeCtx() (+73 more)
+Cohesion: 0.05
+Nodes (75): addDDValueV(), addLog(), addNewGUIScreen(), applyDashLayout(), applyReportLayout(), applyTemplate(), applyWorkflowTemplate(), autoPopulateReport() (+67 more)
 
 ### Community 6 - "Readme & Typescript & Entity"
-Cohesion: 0.05
-Nodes (74): addDDValueV(), addLog(), addRelease(), applyDashLayout(), applyReportLayout(), applyTemplate(), autoPopulateReport(), buildBoardPackContent() (+66 more)
+Cohesion: 0.06
+Nodes (71): addDDValueV(), addLog(), applyDashLayout(), applyReportLayout(), applyTemplate(), autoPopulateReport(), buildBoardPackContent(), clearProjectState() (+63 more)
 
 ### Community 7 - "Scheduler & The & Heuristic"
 Cohesion: 0.05
-Nodes (68): addDep(), addLeaveRow(), autoInferCategory(), autoInferRelease(), cancelTplConfirmV(), clearPvFilt(), closeCmdPalette(), closeDefectFlyout() (+60 more)
+Nodes (70): addCustomFieldV(), addDep(), addLeaveRow(), autoInferCategory(), autoInferRelease(), cancelEditFeature(), cancelTplConfirmV(), clearPvFilt() (+62 more)
 
 ### Community 8 - "Overview & Md & Executive"
 Cohesion: 0.06
-Nodes (52): addLog(), applyDashLayout(), applyTemplate(), autoPopulateReport(), captureAreaAsCanvas(), captureFullFeatureGantt(), captureFullGanttChart(), closeMemberFlyout() (+44 more)
+Nodes (51): autoResolveAllSchedulerConflicts(), autoSequenceAssignee(), changeSchedulerWeek(), clearMatrixFilter(), closeRaidFlyout(), deleteRaidItem(), deleteRaidItemById(), editReport() (+43 more)
 
 ### Community 9 - "Risks & Raid & Md"
 Cohesion: 0.07
@@ -148,56 +149,56 @@ Cohesion: 0.06
 Nodes (45): autoResolveAllSchedulerConflicts(), autoSequenceAssignee(), changeSchedulerWeek(), clearMatrixFilter(), filterDashboardMetric(), filterRaid(), filterTasksByAssignee(), filterTasksByRole() (+37 more)
 
 ### Community 11 - "Delivery & Md & Hierarchical"
-Cohesion: 0.05
-Nodes (42): addScaffoldRow(), cancelEditFeature(), closeAllFlyouts(), closeFeatFlyout(), closeTplFlyout(), createBaselineSnapshot(), createFileBackup(), deleteBaselineSnapshot() (+34 more)
+Cohesion: 0.08
+Nodes (42): addLog(), applyBulkEdit(), applyDashLayout(), applyTemplate(), autoPopulateReport(), captureAreaAsCanvas(), captureFullFeatureGantt(), captureFullGanttChart() (+34 more)
 
 ### Community 12 - "Insights & Burn & Md"
 Cohesion: 0.08
-Nodes (41): applyBulkEdit(), autoFitCol(), doGridSort(), doSort(), downloadGanttAsHtml(), finalizeColOrder(), getFiltered(), getGridFiltered() (+33 more)
+Nodes (41): aggregateCustomData(), autoFitCol(), doGridSort(), doSort(), downloadGanttAsHtml(), entries, finalizeColOrder(), getFiltered() (+33 more)
 
 ### Community 13 - "Team & Capacity & Role"
-Cohesion: 0.1
-Nodes (34): addDDValueV(), addRelease(), applyReportLayout(), buildBoardPackContent(), createNewGlobalSet(), cycleCwSize(), cycleStandardSize(), deleteGlobalSet() (+26 more)
+Cohesion: 0.08
+Nodes (40): addDDValueV(), addRelease(), animateCounter(), applyReportLayout(), buildBoardPackContent(), createNewGlobalSet(), cycleCwSize(), cycleStandardSize() (+32 more)
 
 ### Community 14 - "Defects & Defect & Bug"
 Cohesion: 0.07
-Nodes (33): addCustomFieldV(), addScaffoldRow(), cancelEditFeature(), closeAllFlyouts(), closeFeatFlyout(), createBaselineSnapshot(), deleteBaselineSnapshot(), duplicateScaffoldRow() (+25 more)
+Nodes (38): addEmptyState(), addGrid(), addST(), closeCtx(), esc(), formatDateStringFriendly(), getModuleMilestones(), _matrixCellHover() (+30 more)
 
 ### Community 15 - "Reports & Board & Md"
-Cohesion: 0.08
-Nodes (33): clearMatrixFilter(), closeRaidFlyout(), deleteRaidItem(), deleteRaidItemById(), filterRaid(), getSorted(), renderGantt(), renderKanban() (+25 more)
+Cohesion: 0.07
+Nodes (35): applyPvFilt(), cancelEditCw(), cap(), createBaselineSnapshot(), deleteBaselineSnapshot(), editCustomWidgetCtx(), editCw(), editReport() (+27 more)
 
 ### Community 16 - "Activity & Md & Audit"
 Cohesion: 0.08
-Nodes (32): captureAreaAsCanvas(), captureFullFeatureGantt(), captureFullGanttChart(), copyAllShares(), copyChart(), copyWidgetAsImage(), createFileBackup(), downloadGanttAsHtml() (+24 more)
-
-### Community 17 - "Project & Status & Md"
-Cohesion: 0.08
 Nodes (31): addEmptyState(), addGrid(), addST(), esc(), formatDateStringFriendly(), getModuleMilestones(), _matrixCellHover(), _matrixStateChange() (+23 more)
 
-### Community 18 - "User Manual & Architecture & Sync"
-Cohesion: 0.09
-Nodes (29): addEmptyState(), autoResolveAllSchedulerConflicts(), autoSequenceAssignee(), changeSchedulerWeek(), findScheduleConflicts(), formatDateStringFriendly(), generateIntelligentSuggestions(), getModuleMilestones() (+21 more)
-
-### Community 19 - "Delivery Matrix & Hierarchy & Edit"
+### Community 17 - "Project & Status & Md"
 Cohesion: 0.15
 Nodes (28): closeCxoEmailFlyout(), closeCxoEmailModal(), computeCxoStatusBreakdown(), computeGlobalStats(), copyCxoEmailToClipboard(), copyCxoPlainTextToClipboard(), copyCxoRichTextToClipboard(), escapeHTML() (+20 more)
 
-### Community 20 - "Capacity & Workload & Role"
-Cohesion: 0.13
-Nodes (27): autoFitAllCols(), autoFitCol(), closeDD(), _closeDDH(), doGridSort(), doSort(), executeAutofit(), finalizeColOrder() (+19 more)
+### Community 18 - "User Manual & Architecture & Sync"
+Cohesion: 0.1
+Nodes (27): addEmptyState(), closeCtx(), createFileBackup(), esc(), listBackups(), mkPill(), openAddTask(), openFlyout() (+19 more)
 
-### Community 21 - "Defect Tracker & Bug Lifecycle"
+### Community 19 - "Delivery Matrix & Hierarchy & Edit"
+Cohesion: 0.1
+Nodes (27): applyPvFilt(), cancelEditCw(), cap(), editCustomWidgetCtx(), editCw(), getFieldType(), _matrixCellClick(), moveDashSec() (+19 more)
+
+### Community 20 - "Capacity & Workload & Role"
 Cohesion: 0.08
 Nodes (24): 12 Change Log Baseline, 📅 [2026-05-14] - Baseline Documentation Established, 📅 [2026-05-17] - Dashboard Rendering Optimization (O(1) Caching & Batched Drawing), 📅 [2026-05-17] - Defect Categories Widget `undefined` Chart Label Fix, 📅 [2026-05-17] - Defect Hotspots Entity Resolution Fix, 📅 [2026-05-17] - Defect Intelligence Widget `Unlinked` Module Mapping Resolution, 📅 [2026-05-17] - Dynamic Dashboard Mini-Map Integration, 📅 [2026-05-17] - Premium Theme Expansion (User Request #3) (+16 more)
 
-### Community 22 - "Reports & Board & Export"
-Cohesion: 0.09
-Nodes (26): addNewGUIScreen(), aggregateCustomData(), animateCounter(), applyWorkflowTemplate(), commitWhatIfScenario(), entries, fmtDate(), getFilteredLogs() (+18 more)
-
-### Community 23 - "Audit Log & Activity & Session"
+### Community 21 - "Defect Tracker & Bug Lifecycle"
 Cohesion: 0.14
 Nodes (26): applyBulkEdit(), autoFitCol(), doGridSort(), doSort(), finalizeColOrder(), getGridFiltered(), getGridPK(), getGridSorted() (+18 more)
+
+### Community 22 - "Reports & Board & Export"
+Cohesion: 0.14
+Nodes (26): applyBulkEdit(), autoFitCol(), doGridSort(), doSort(), finalizeColOrder(), getGridFiltered(), getGridPK(), getGridSorted() (+18 more)
+
+### Community 23 - "Audit Log & Activity & Session"
+Cohesion: 0.08
+Nodes (25): addRelease(), addScaffoldRow(), createBaselineSnapshot(), deleteBaselineSnapshot(), deleteRelease(), duplicateScaffoldRow(), generateFromScaffold(), loadScaffoldTemplate() (+17 more)
 
 ### Community 24 - "Widgets & Capture & Screenshot"
 Cohesion: 0.11
@@ -209,31 +210,31 @@ Nodes (22): autoResolveAllSchedulerConflicts(), autoSequenceAssignee(), changeSc
 
 ### Community 26 - "Community 26"
 Cohesion: 0.1
-Nodes (19): 1. Global State Schema & Lifecycle, 1. In-place Mutation of Legacy Globals, 2. Core Subsystem Map, 2. High Mixing of Business Logic and DOM Operations, 3. Identified Code Smells, Redundancies, and Coupling, 3. Redundant / Brittle Script Utilities (`fix_orphan.py` bug), 4. Refactoring Strategy, A. Scheduling Engine (`recalcDatesAndStatus` & `recalcGUIScreen`) (+11 more)
+Nodes (22): clearProjectState(), enterApp(), initApp(), initDesignSpells(), initGanttResizer(), listBackups(), load(), loadCustomLayouts() (+14 more)
 
 ### Community 27 - "Community 27"
-Cohesion: 0.15
-Nodes (18): applyPvFilt(), cancelEditCw(), cap(), editCustomWidgetCtx(), editCw(), getFieldType(), moveDashSec(), moveRptSec() (+10 more)
+Cohesion: 0.1
+Nodes (19): 1. Global State Schema & Lifecycle, 1. In-place Mutation of Legacy Globals, 2. Core Subsystem Map, 2. High Mixing of Business Logic and DOM Operations, 3. Identified Code Smells, Redundancies, and Coupling, 3. Redundant / Brittle Script Utilities (`fix_orphan.py` bug), 4. Refactoring Strategy, A. Scheduling Engine (`recalcDatesAndStatus` & `recalcGUIScreen`) (+11 more)
 
 ### Community 28 - "Community 28"
-Cohesion: 0.16
-Nodes (18): clearProjectState(), computeAlerts(), dismissAlert(), dismissAllAlerts(), enterApp(), loadCustomLayouts(), loadSample(), moveViewOrder() (+10 more)
+Cohesion: 0.13
+Nodes (21): computeAlerts(), dismissAlert(), dismissAllAlerts(), enterApp(), initApp(), initDesignSpells(), initGanttResizer(), load() (+13 more)
 
 ### Community 29 - "Community 29"
+Cohesion: 0.1
+Nodes (21): addRelease(), addScaffoldRow(), deleteRelease(), duplicateScaffoldRow(), generateFromScaffold(), loadScaffoldTemplate(), removeScaffoldRow(), renderAdminView() (+13 more)
+
+### Community 30 - "Community 30"
+Cohesion: 0.14
+Nodes (20): captureAreaAsCanvas(), captureFullFeatureGantt(), captureFullGanttChart(), copyAllShares(), copyChart(), copyWidgetAsImage(), createFileBackup(), downloadGanttAsHtml() (+12 more)
+
+### Community 31 - "Community 31"
 Cohesion: 0.12
 Nodes (18): addNewGUIScreen(), applyWorkflowTemplate(), commitWhatIfScenario(), fmtDate(), markAllGUIStepsDone(), openEwsModal(), openScreenFlyout(), renderGUIScreens() (+10 more)
 
-### Community 30 - "Community 30"
-Cohesion: 0.18
-Nodes (17): clearProjectState(), computeAlerts(), dismissAlert(), dismissAllAlerts(), enterApp(), loadSample(), moveViewOrder(), nowISO() (+9 more)
-
-### Community 31 - "Community 31"
-Cohesion: 0.16
-Nodes (17): addEmptyState(), closeCtx(), esc(), mkPill(), openAddTask(), openFlyout(), openReleaseAssetsFlyout(), openServerWorkflowFlyout() (+9 more)
-
 ### Community 32 - "Community 32"
-Cohesion: 0.16
-Nodes (17): applyPvFilt(), cancelEditCw(), editCustomWidgetCtx(), editCw(), getFieldType(), moveDashSec(), moveRptSec(), openDashBuilder() (+9 more)
+Cohesion: 0.12
+Nodes (18): addNewGUIScreen(), applyWorkflowTemplate(), commitWhatIfScenario(), fmtDate(), markAllGUIStepsDone(), openEwsModal(), openScreenFlyout(), renderGUIScreens() (+10 more)
 
 ### Community 33 - "Community 33"
 Cohesion: 0.18
@@ -241,71 +242,75 @@ Nodes (17): clearProjectState(), computeAlerts(), dismissAlert(), dismissAllAler
 
 ### Community 34 - "Community 34"
 Cohesion: 0.13
-Nodes (14): code:bash (# Using Node.js), code:block2 (ProjectPulse/), code:bash (node scripts/update_manual.js), code:bash (python scripts/build_all.py), code:bash (python scripts/check_syntax.py), code:bash (graphify update .), Core Capabilities:, 🛠️ Developer Guidelines (+6 more)
+Nodes (17): captureAreaAsCanvas(), captureFullGanttChart(), copyAllShares(), copyChart(), copyWidgetAsImage(), downloadGanttAsHtml(), exportFeatureMatrixExcel(), exportLogCSV() (+9 more)
 
 ### Community 35 - "Community 35"
-Cohesion: 0.15
-Nodes (15): captureAreaAsCanvas(), captureFullGanttChart(), copyAllShares(), copyChart(), copyWidgetAsImage(), downloadGanttAsHtml(), exportFeatureMatrixExcel(), exportLogCSV() (+7 more)
+Cohesion: 0.13
+Nodes (14): code:bash (# Using Node.js), code:block2 (ProjectPulse/), code:bash (node scripts/update_manual.js), code:bash (python scripts/build_all.py), code:bash (python scripts/check_syntax.py), code:bash (graphify update .), Core Capabilities:, 🛠️ Developer Guidelines (+6 more)
 
 ### Community 36 - "Community 36"
 Cohesion: 0.15
-Nodes (15): addNewGUIScreen(), applyWorkflowTemplate(), commitWhatIfScenario(), fmtDate(), markAllGUIStepsDone(), openScreenFlyout(), renderGUIScreens(), renderWhatIfSandbox() (+7 more)
+Nodes (14): addScaffoldRow(), duplicateScaffoldRow(), generateFromScaffold(), loadScaffoldTemplate(), removeScaffoldRow(), renderAdminView(), renderScaffolder(), renderScaffoldStep1() (+6 more)
 
 ### Community 37 - "Community 37"
-Cohesion: 0.2
-Nodes (12): draw(), drawAgeBars(), drawBarChart(), drawDonut(), drawGroupedBar(), drawHBar(), drawMiniHistory(), drawSpark() (+4 more)
+Cohesion: 0.17
+Nodes (13): createBaselineSnapshot(), deleteBaselineSnapshot(), editReport(), formatRaidDateSince(), getRaidAgeDays(), getRaidDateSince(), openNewReport(), openRaidModal() (+5 more)
 
 ### Community 38 - "Community 38"
-Cohesion: 0.22
-Nodes (11): 3. Entity Schemas, code:typescript ({), code:typescript ({), code:typescript ({), code:typescript ({), code:typescript ({), Defect, Member (+3 more)
+Cohesion: 0.24
+Nodes (13): closeRaidFlyout(), computeAlerts(), deleteRaidItem(), deleteRaidItemById(), dismissAlert(), dismissAllAlerts(), nowISO(), pruneAlertHistory() (+5 more)
 
 ### Community 39 - "Community 39"
 Cohesion: 0.2
-Nodes (11): addGrid(), addST(), mkCC(), mkCvs(), pivotTasks(), renderCustomWidget(), renderPivotGrid(), renderResourcesIntelligence() (+3 more)
+Nodes (12): draw(), drawAgeBars(), drawBarChart(), drawDonut(), drawGroupedBar(), drawHBar(), drawMiniHistory(), drawSpark() (+4 more)
 
 ### Community 40 - "Community 40"
+Cohesion: 0.22
+Nodes (11): 3. Entity Schemas, code:typescript ({), code:typescript ({), code:typescript ({), code:typescript ({), code:typescript ({), Defect, Member (+3 more)
+
+### Community 41 - "Community 41"
 Cohesion: 0.2
 Nodes (11): addGrid(), addST(), mkCC(), mkCvs(), pivotTasks(), renderCustomWidget(), renderPivotGrid(), renderResourcesIntelligence() (+3 more)
 
-### Community 41 - "Community 41"
+### Community 42 - "Community 42"
 Cohesion: 0.22
 Nodes (8): 1. Codebase Architecture & File Map, 5. Storage & Persistence Tiers, 7. Change Log (Milestones), 8. Modular Documentation Build System, A. Dynamic Configuration Extraction, B. High-Fidelity Word (.docx) Compilation, code:block1 (ProjectPulse/), ProjectPulse — High-Density AI Context Pack
 
-### Community 42 - "Community 42"
-Cohesion: 0.29
-Nodes (8): 6. Authoritative Business Rules, A. Task Status Transitions, B. Calculated Metrics, code:typescript ({), code:typescript ({), code:block9 ([Not Started] ──> [In Progress] ──> [Under Review] ──> [Comp), Delivery, Log
-
 ### Community 43 - "Community 43"
-Cohesion: 0.25
-Nodes (8): 4. Core Function Registry, A. View Rendering (Orchestration & Target Containers), B. CRUD Operations, B. CRUD Operations, Delivery Governance & Scheduling, B. CRUD Operations & Scheduling, C. Data Operations & Caching, D. Persistence & Excel Lifecycle, D. Persistence Lifecycle
+Cohesion: 0.22
+Nodes (9): commitWhatIfScenario(), fmtDate(), openEwsModal(), renderOverviewView(), renderWhatIfSandbox(), resetWhatIfSandbox(), runEarlyWarningScanners(), toggleWhatIfDrawer() (+1 more)
 
 ### Community 44 - "Community 44"
 Cohesion: 0.29
-Nodes (7): createBaselineSnapshot(), deleteBaselineSnapshot(), editReport(), openNewReport(), renderSettingsBaselines(), restoreBaselineSnapshot(), todayStr()
+Nodes (8): 6. Authoritative Business Rules, A. Task Status Transitions, B. Calculated Metrics, code:typescript ({), code:typescript ({), code:block9 ([Not Started] ──> [In Progress] ──> [Under Review] ──> [Comp), Delivery, Log
 
 ### Community 45 - "Community 45"
+Cohesion: 0.25
+Nodes (8): 4. Core Function Registry, A. View Rendering (Orchestration & Target Containers), B. CRUD Operations, B. CRUD Operations, Delivery Governance & Scheduling, B. CRUD Operations & Scheduling, C. Data Operations & Caching, D. Persistence & Excel Lifecycle, D. Persistence Lifecycle
+
+### Community 46 - "Community 46"
 Cohesion: 0.33
 Nodes (6): initApp(), initDesignSpells(), initGanttResizer(), load(), loadRecentProject(), renderRecentProjects()
 
-### Community 46 - "Community 46"
+### Community 47 - "Community 47"
 Cohesion: 0.4
 Nodes (5): 2. Global State Schema (`P` Object), A. Core Data Arrays, B. Configurations, C. Persistent File System State, D. Volatile UI State
 
-### Community 47 - "Community 47"
+### Community 48 - "Community 48"
 Cohesion: 0.4
 Nodes (5): autoFitAllCols(), closeDD(), _closeDDH(), executeAutofit(), getGridCols()
 
-### Community 48 - "Community 48"
-Cohesion: 0.67
-Nodes (3): closeFlyout(), confirmDeleteTask(), deleteTask()
-
 ### Community 49 - "Community 49"
 Cohesion: 0.67
-Nodes (3): bulkDeleteTasks(), resetProject(), showConfirm()
+Nodes (3): toggleAllBulkTasks(), toggleBulkTask(), updateBulkBar()
 
 ### Community 50 - "Community 50"
 Cohesion: 0.67
-Nodes (3): toggleAllBulkTasks(), toggleBulkTask(), updateBulkBar()
+Nodes (3): bulkDeleteTasks(), resetProject(), showConfirm()
+
+### Community 51 - "Community 51"
+Cohesion: 0.67
+Nodes (3): closeFlyout(), confirmDeleteTask(), deleteTask()
 
 ## Knowledge Gaps
 - **684 isolated node(s):** `code:bash (# Using Node.js)`, `code:block2 (ProjectPulse/)`, `Core Capabilities:`, `code:bash (node scripts/update_manual.js)`, `code:bash (python scripts/build_all.py)` (+679 more)
@@ -315,11 +320,11 @@ Nodes (3): toggleAllBulkTasks(), toggleBulkTask(), updateBulkBar()
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `$id()` connect `Schedule & Manual & Check` to `Community 32`, `Architecture & Audit & State`, `Community 35`, `Changelog & 2026 & 05`, `Community 36`, `Community 40`, `Delivery & Md & Hierarchical`, `Reports & Board & Md`, `User Manual & Architecture & Sync`, `Capacity & Workload & Role`, `Community 28`?**
+- **Why does `$id()` connect `Changelog & 2026 & 05` to `Community 32`, `Architecture & Audit & State`, `Community 34`, `Readme & Typescript & Entity`, `Overview & Md & Executive`, `Defects & Defect & Bug`, `Delivery Matrix & Hierarchy & Edit`, `Defect Tracker & Bug Lifecycle`, `Audit Log & Activity & Session`, `Community 28`?**
   _High betweenness centrality (0.003) - this node is a cross-community bridge._
-- **Why does `$id()` connect `Scheduler & The & Heuristic` to `Configuration & Reference & Status`, `Community 39`, `Overview & Md & Executive`, `Risks & Raid & Md`, `Insights & Burn & Md`, `Team & Capacity & Role`, `Defects & Defect & Bug`, `Community 48`, `Community 50`, `Delivery Matrix & Hierarchy & Edit`, `Reports & Board & Export`, `Status & Dashboard & Live`, `Community 27`, `Community 30`, `Community 31`?**
+- **Why does `$id()` connect `Scheduler & The & Heuristic` to `Configuration & Reference & Status`, `Community 33`, `Community 36`, `Community 37`, `Risks & Raid & Md`, `Community 41`, `Delivery & Md & Hierarchical`, `Insights & Burn & Md`, `Team & Capacity & Role`, `Community 49`, `User Manual & Architecture & Sync`, `Community 51`, `Project & Status & Md`, `Widgets & Capture & Screenshot`, `Status & Dashboard & Live`, `Community 31`?**
   _High betweenness centrality (0.003) - this node is a cross-community bridge._
-- **Why does `$id()` connect `Manual & State & Md` to `Readme & State & Block`, `Community 33`, `Readme & Typescript & Entity`, `Readme & Md & Project`, `Community 44`, `Activity & Md & Audit`, `Project & Status & Md`, `Audit Log & Activity & Session`, `Widgets & Capture & Screenshot`, `Community 29`?**
+- **Why does `$id()` connect `Manual & State & Md` to `Readme & State & Block`, `Schedule & Manual & Check`, `Community 38`, `Readme & Md & Project`, `Community 43`, `Reports & Board & Md`, `Activity & Md & Audit`, `Reports & Board & Export`, `Community 26`, `Community 29`, `Community 30`?**
   _High betweenness centrality (0.001) - this node is a cross-community bridge._
 - **What connects `code:bash (# Using Node.js)`, `code:block2 (ProjectPulse/)`, `Core Capabilities:` to the rest of the system?**
   _684 weakly-connected nodes found - possible documentation gaps or missing edges._
