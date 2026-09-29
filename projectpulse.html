@@ -51965,15 +51965,16 @@ Earned Value Management measures project performance and progress by comparing p
         if (existingMatch) {
           const compareKeys = [
             { k: 'name', label: 'Description' },
-            { k: 'almStatus', label: 'ALM Status' },
-            { k: 'status', label: 'Delivery Status' },
+            { k: 'pdn', label: 'PDN Info' },
+            { k: 'pdnProcessingDate', label: 'PDN Processing Date' },
+            { k: 'componentsDelivered', label: 'Components Delivered' },
+            { k: 'category', label: 'Category' },
             { k: 'module', label: 'Module' },
-            { k: 'releaseVersion', label: 'Release' },
-            { k: 'targetDeliveryDate', label: 'Target Date' },
-            { k: 'actualDeliveryDate', label: 'Actual Date' },
-            { k: 'fixedBy', label: 'Fixed By' },
+            { k: 'almStatus', label: 'ALM Status' },
             { k: 'reportedBy', label: 'Reported By' },
-            { k: 'componentsDelivered', label: 'Components' }
+            { k: 'fixedBy', label: 'Defect Fixed By' },
+            { k: 'linkedType', label: 'Linked Type' },
+            { k: 'linkedId', label: 'Linked ID' }
           ];
           compareKeys.forEach(ck => {
             const curVal = String(existingMatch[ck.k] || '').trim();
@@ -53040,18 +53041,14 @@ Earned Value Management measures project performance and progress by comparing p
 
     window.exportDeliveriesToCSV = function() {
       const cols = [
-        'almId', 'id', 'name', 'pdn', 'pdnProcessingDate', 'componentsDelivered',
-        'category', 'module', 'moduleType', 'releaseVersion', 'environment',
-        'almStatus', 'signOffStatus', 'smokeTestStatus', 'approver', 'reportedBy', 'fixedBy',
-        'targetDeliveryDate', 'actualDeliveryDate', 'leadTimeDays', 'linkedType', 'linkedId',
-        'linkedTasks', 'linkedScreens', 'rollbackPlan', 'notes'
+        'almId', 'name', 'pdn', 'pdnProcessingDate', 'componentsDelivered',
+        'category', 'module', 'almStatus', 'reportedBy', 'fixedBy',
+        'linkedType', 'linkedId'
       ];
       const headers = [
-        'Defect ID - ALM ID', 'Delivery ID', 'Description - ALM Description', 'PDN Info', 'PDN Processing Date', 'Components Delivered',
-        'Category', 'Module', 'Module Type', 'Release Version', 'Environment',
-        'ALM Status', 'Sign-off Status', 'Smoke Test Status', 'Approver / Lead', 'Reported By', 'Defect Fixed By',
-        'Target Delivery Date', 'Actual Delivery Date', 'Lead Time (Days)', 'Linked Type', 'Linked ID',
-        'Linked Tasks', 'Linked Screens', 'Rollback Plan', 'Remarks / Notes'
+        'Defect ID - ALM ID', 'Description - ALM Description', 'PDN Info', 'PDN Processing Date', 'Components Delivered',
+        'Category', 'Module', 'ALM Status', 'Reported By', 'Defect Fixed By',
+        'Linked Type', 'Linked ID'
       ];
 
       (P.delCustomFields || []).forEach(f => {
@@ -53063,7 +53060,6 @@ Earned Value Management measures project performance and progress by comparing p
         return cols.map(c => {
           let v = d[c];
           if (c === 'name' && (v == null || v === '')) v = d.description || '';
-          if (c === 'notes' && (v == null || v === '')) v = d.remarks || '';
           if (Array.isArray(v)) v = v.join(', ');
           return v == null ? '' : String(v);
         });
@@ -56671,58 +56667,33 @@ Earned Value Management measures project performance and progress by comparing p
 
         // Deliveries worksheet with Theme-Aware Cockpit Telemetry panel & Hierarchical Outline
         // Freeze at ySplit: 7 (headers) and xSplit: 4 (Columns A..D: _spacer, Row Type, ALM ID, Delivery ID)
-        // Card 1 spans B3:D5 (cols 2..4, 100% inside frozen pane) and Card 2 starts at E3 (col 5), preventing any freeze-line clipping!
-        const ws = wb.addWorksheet('Deliveries', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 7, xSplit: 4 }] });
+        // Card 1 spans B3:C5 (cols 2..3, 100% inside frozen pane) and Card 2 starts at D3 (col 4), preventing any freeze-line clipping!
+        const ws = wb.addWorksheet('Deliveries', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 7, xSplit: 3 }] });
         ws.properties.tabColor = { argb: themePrimary };
         ws.properties.outlineProperties = { summaryBelow: false, summaryRight: false };
 
+        // Strictly the 12 canonical Deliveries UI columns + 2 Screen-Driven Feature Completion columns (+ user custom fields)
         const baseCols = [
           { header: '', key: '_spacer', width: 3 },
-          { header: 'Row Type', key: 'nodeType', width: 17 },
-          { header: 'Defect ID - ALM ID', key: 'almId', width: 19 },
-          { header: 'Delivery ID', key: 'id', width: 16 },
+          { header: 'Defect ID - ALM ID', key: 'almId', width: 22 },
           { header: 'Description - ALM Description', key: 'name', width: 52 },
           { header: 'PDN Info', key: 'pdn', width: 18 },
           { header: 'PDN Processing Date', key: 'pdnProcessingDate', width: 20 },
-          { header: 'Components Summary', key: 'componentsSummary', width: 34 },
-          { header: 'Components Delivered', key: 'componentsDelivered', width: 42, outlineLevel: 1, hidden: true },
+          { header: 'Components Delivered', key: 'componentsDelivered', width: 42 },
           { header: 'Category', key: 'category', width: 22 },
           { header: 'Module', key: 'module', width: 22 },
-          { header: 'Module Type', key: 'moduleType', width: 16 },
-          { header: 'Release Version', key: 'releaseVersion', width: 18 },
-          { header: 'Environment', key: 'environment', width: 18 },
           { header: 'ALM Status', key: 'almStatus', width: 18 },
-          { header: 'Sign-off Status', key: 'signOffStatus', width: 18 },
-          { header: 'Smoke Test Status', key: 'smokeTestStatus', width: 18 },
-          { header: 'Linked Scope', key: 'linkedScopeSummary', width: 28 },
-          { header: 'Impacted Feature', key: 'impactedFeature', width: 30 },
-          { header: 'Feature Completion (Screens)', key: 'featureCompletion', width: 36 },
-          { header: 'Linked Type', key: 'linkedType', width: 16, outlineLevel: 1, hidden: true },
-          { header: 'Linked ID', key: 'linkedId', width: 32, outlineLevel: 1, hidden: true },
-          { header: 'Linked Tasks', key: 'linkedTasks', width: 28, outlineLevel: 1, hidden: true },
-          { header: 'Linked Screens', key: 'linkedScreens', width: 30, outlineLevel: 1, hidden: true },
-          { header: 'Approver / Lead', key: 'approver', width: 22 },
           { header: 'Reported By', key: 'reportedBy', width: 22 },
           { header: 'Defect Fixed By', key: 'fixedBy', width: 22 },
-          { header: 'Target Delivery Date', key: 'targetDeliveryDate', width: 20 },
-          { header: 'Actual Delivery Date', key: 'actualDeliveryDate', width: 20 },
-          { header: 'Lead Time (Days)', key: 'leadTimeDays', width: 16 },
-          { header: 'Variance / Delay', key: 'variance', width: 16 },
-          { header: 'Rollback Plan', key: 'rollbackPlan', width: 42, outlineLevel: 1, hidden: true },
-          { header: 'Remarks / Notes', key: 'notes', width: 35 },
-          { header: 'Created At', key: 'createdAt', width: 16 },
-          { header: 'Updated At', key: 'updatedAt', width: 16 }
+          { header: 'Linked Type', key: 'linkedType', width: 16 },
+          { header: 'Linked ID', key: 'linkedId', width: 30 },
+          { header: 'Impacted Feature', key: 'impactedFeature', width: 30 },
+          { header: 'Feature Completion (Screens)', key: 'featureCompletion', width: 38 }
         ];
 
         (P.delCustomFields || []).forEach(f => {
           baseCols.push({ header: f.name, key: f.name, width: 22 });
         });
-
-        // Smart Derived Helper Columns matching Tasks standards
-        baseCols.push({ header: 'Delivery Health', key: 'Derived Health', width: 20 });
-        baseCols.push({ header: 'Quality Risk', key: 'Quality Risk', width: 32 });
-        baseCols.push({ header: 'Pipeline Stage', key: 'Pipeline Stage', width: 22 });
-        baseCols.push({ header: 'Traceability Rating', key: 'Traceability Rating', width: 22 });
 
         ws.columns = baseCols.map(c => ({
           key: c.key,
@@ -56731,16 +56702,8 @@ Earned Value Management measures project performance and progress by comparing p
           hidden: !!c.hidden
         }));
 
-        const colLetterOf = (key) => {
-          const col = ws.getColumn(key);
-          return col && col.letter ? col.letter : 'A';
-        };
-        const cTargetLetter = colLetterOf('targetDeliveryDate');
-        const cActualLetter = colLetterOf('actualDeliveryDate');
-        const cAlmStatusLetter = colLetterOf('almStatus');
-
         // Helper to classify each delivered component into an architectural layer
-        const classifyComponent = (rawName, fallbackModType) => {
+        const classifyComponent = (rawName) => {
           const name = String(rawName || '').trim();
           const lower = name.toLowerCase();
           const extMatch = name.match(/\.([a-z0-9_]+)$/i);
@@ -56755,12 +56718,6 @@ Earned Value Management measures project performance and progress by comparing p
           if (['.xml', '.json', '.yaml', '.yml', '.properties', '.ini', '.conf', '.cfg', '.env', '.xsd', '.wsdl'].includes(ext) || /(^|_|\b)(config|cfg|setting|manifest|schema|prop)(_|\b|$)/i.test(lower)) {
             return { name, layer: 'Config / Schema', shortType: 'Service', icon: '📐', ext };
           }
-          if (['.cpp', '.c', '.cc', '.cxx', '.h', '.hpp', '.java', '.py', '.cs', '.go', '.js', '.ts', '.rb', '.php', '.jar', '.war', '.dll', '.so', '.exe', '.sh', '.bat'].includes(ext) || /(^|_|\b)(server|service|api|controller|handler|engine|worker|manager|dao|repo|helper|util|module)(_|\b|$)/i.test(lower)) {
-            return { name, layer: 'Server / Backend', shortType: 'Server', icon: '⚙️', ext };
-          }
-          const fb = String(fallbackModType || 'Server').trim();
-          if (fb.toLowerCase() === 'gui') return { name, layer: 'GUI / Frontend', shortType: 'GUI', icon: '🖥️', ext };
-          if (fb.toLowerCase() === 'database') return { name, layer: 'Database / SQL', shortType: 'Database', icon: '🗄️', ext };
           return { name, layer: 'Server / Backend', shortType: 'Server', icon: '⚙️', ext };
         };
 
@@ -56786,8 +56743,7 @@ Earned Value Management measures project performance and progress by comparing p
 
         const getDeliveryCompletionWeight = (delObj) => {
           const st = String(delObj.almStatus || delObj.status || '').trim().toLowerCase();
-          const sign = String(delObj.signOffStatus || '').trim().toLowerCase();
-          if (st === 'closed' || st === 'deployed' || sign === 'approved') return { weight: 1.0, label: 'Verified & Closed', icon: '🟩' };
+          if (st === 'closed' || st === 'deployed') return { weight: 1.0, label: 'Verified & Closed', icon: '🟩' };
           if (st === 'fixed' || st === 'ready for test' || st === 'retest') return { weight: 0.8, label: 'Ready for QA / Fixed', icon: '🟦' };
           if (st === 'in progress' || st === 'running') return { weight: 0.5, label: 'In Progress', icon: '🟨' };
           if (st === 'open' || st === 'new' || st === 'reopened') return { weight: 0.25, label: 'Open / Planned', icon: '🟨' };
@@ -56861,10 +56817,9 @@ Earned Value Management measures project performance and progress by comparing p
 
         featureStatsList.forEach(fs => {
           fs.screenEntries = fs.canonicalScreens.map(canonScr => {
-            // Find all deliveries linking to this screen
             const matchingDels = [];
             deliveries.forEach((d, dIdx) => {
-              const dId = S(d.id || d.deliveryId || ('DEL-' + String(dIdx + 1).padStart(3, '0')));
+              const dId = S(d.almId || d.id || ('DEL-' + String(dIdx + 1).padStart(3, '0')));
               const dScreens = extractDeliveryScreens(d);
               if (dScreens.some(ds => screensMatch(ds, canonScr))) {
                 const wInfo = getDeliveryCompletionWeight(d);
@@ -56872,7 +56827,6 @@ Earned Value Management measures project performance and progress by comparing p
                   delId: dId,
                   almId: S(d.almId || dId),
                   status: S(d.almStatus || d.status || 'Open'),
-                  signOff: S(d.signOffStatus || 'Pending'),
                   weight: wInfo.weight,
                   label: wInfo.label,
                   icon: wInfo.icon
@@ -56880,7 +56834,6 @@ Earned Value Management measures project performance and progress by comparing p
               }
             });
 
-            // Also inspect GUI task in P.tasks if present
             const guiTask = (P.tasks || []).find(t => screensMatch(t.name || t.id, canonScr));
             let bestWeight = 0;
             let bestIcon = '⬜';
@@ -56890,11 +56843,10 @@ Earned Value Management measures project performance and progress by comparing p
               matchingDels.sort((a, b) => b.weight - a.weight);
               bestWeight = matchingDels[0].weight;
               bestIcon = matchingDels[0].icon;
-              statusSummary = `${Math.round(bestWeight * 100)}% — ${matchingDels[0].label} (${matchingDels.map(m => m.delId).join(', ')})`;
+              statusSummary = `${Math.round(bestWeight * 100)}% — ${matchingDels[0].label} (${matchingDels.map(m => m.almId).join(', ')})`;
             } else if (guiTask) {
               const tProg = Number(guiTask.progress != null ? guiTask.progress : (guiTask.status === 'Done' || guiTask.status === 'Completed' ? 100 : 0));
               if (tProg > 0) {
-                // Task progress without delivery package contributes up to 60% (awaiting delivery packaging)
                 bestWeight = Math.round((tProg / 100) * 0.6 * 100) / 100;
                 bestIcon = bestWeight >= 0.5 ? '🟨' : '⬜';
                 statusSummary = `${Math.round(bestWeight * 100)}% — UI Task ${tProg}% (${guiTask.id || 'Task'}, Awaiting Delivery)`;
@@ -56984,53 +56936,34 @@ Earned Value Management measures project performance and progress by comparing p
 
         const total = deliveries.length;
         const closed = deliveries.filter(d => (d.almStatus === 'Closed' || d.status === 'Closed' || d.status === 'Deployed')).length;
+        const readyForTest = deliveries.filter(d => ['Ready for Test', 'Fixed', 'Retest'].includes(S(d.almStatus || d.status))).length;
         const progress = total ? Math.round(closed / total * 100) : 0;
 
-        let totalLeadTime = 0;
-        let leadCount = 0;
         let totalComponentCount = 0;
         let totalLinkedTasksCount = 0;
         let totalLinkedScreensCount = 0;
+        const gspCount = deliveries.filter(d => S(d.category || 'GSP++ Delivery').toLowerCase().includes('gsp')).length;
+        const nrtCount = deliveries.filter(d => !S(d.category || 'GSP++ Delivery').toLowerCase().includes('gsp')).length;
+        const uniquePdns = new Set(deliveries.map(d => S(d.pdn).trim()).filter(Boolean)).size;
 
         deliveries.forEach(d => {
-          if (d.leadTimeDays != null && !isNaN(d.leadTimeDays)) {
-            totalLeadTime += Number(d.leadTimeDays);
-            leadCount++;
-          } else if (d.targetDeliveryDate && d.actualDeliveryDate) {
-            const tDate = new Date(d.targetDeliveryDate);
-            const aDate = new Date(d.actualDeliveryDate);
-            if (!isNaN(tDate) && !isNaN(aDate)) {
-              totalLeadTime += Math.max(0, Math.round((aDate - tDate) / (1000 * 60 * 60 * 24)));
-              leadCount++;
-            }
-          }
           const rawC = String(d.componentsDelivered || '').split(/[,;\n|]+/).map(s => s.trim()).filter(Boolean);
           totalComponentCount += rawC.length;
-          const rawT = Array.isArray(d.linkedTasks) ? d.linkedTasks : (d.linkedType === 'Task' ? String(d.linkedId || '').split(/[,;\n|]+/).map(s => s.trim()).filter(Boolean) : []);
+          const rawT = Array.isArray(d.linkedTasks) ? d.linkedTasks : ((d.linkedType === 'Task' || d.linkedType === 'Multi') ? String(d.linkedId || '').split(/[,;\n|]+/).map(s => s.trim()).filter(Boolean) : []);
           totalLinkedTasksCount += rawT.length;
           const rawS = extractDeliveryScreens(d);
           totalLinkedScreensCount += rawS.length;
         });
-        const avgLead = leadCount ? (totalLeadTime / leadCount).toFixed(1) : '0.0';
-
-        const pendingSignoff = deliveries.filter(d => (d.signOffStatus === 'Pending' || (!d.signOffStatus && d.almStatus !== 'Closed'))).length;
-        const smokePassed = deliveries.filter(d => d.smokeTestStatus === 'Passed').length;
-        const overdue = deliveries.filter(d => {
-          const target = d.targetDeliveryDate || d.pdnProcessingDate;
-          return target && d.almStatus !== 'Closed' && d.status !== 'Closed' && d.status !== 'Deployed' && new Date(target) < new Date();
-        }).length;
-        const prodCount = deliveries.filter(d => (d.environment || '').toLowerCase() === 'production').length;
-        const uatCount = deliveries.filter(d => (d.environment || '').toLowerCase() === 'uat').length;
 
         ws.getRow(1).height = 8;
-        ws.mergeCells('B2:P2');
+        ws.mergeCells('B2:O2');
         ws.getRow(2).height = 24;
         const titleCell = ws.getCell('B2');
         const bannerBadgeColor = blendArgb(themePrimary, 'FFFFFFFF', 0.42);
         titleCell.value = {
           richText: [
             { text: ` >> COCKPIT TELEMETRY [${activeThemeName} · ${isDark ? 'DARK' : 'LIGHT'}]  |  `, font: { name: 'Consolas', size: 10, bold: true, color: { argb: bannerBadgeColor } } },
-            { text: 'HIERARCHICAL DELIVERIES, SCREEN-DRIVEN FEATURE COMPLETION & COMPONENT MANIFEST', font: { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FFFFFFFF' } } }
+            { text: 'DELIVERIES REGISTER, SCREEN-DRIVEN FEATURE COMPLETION & COMPONENT MANIFEST', font: { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FFFFFFFF' } } }
           ]
         };
         titleCell.alignment = { vertical: 'middle', indent: 1 };
@@ -57046,18 +56979,18 @@ Earned Value Management measures project performance and progress by comparing p
             { position: 1, color: { argb: bannerEndArgb } }
           ]
         };
-        for (let c = 2; c <= 16; c++) {
+        for (let c = 2; c <= 15; c++) {
           const cell = ws.getCell(2, c);
           cell.fill = bannerGradFill;
           cell.border = { bottom: { style: 'medium', color: { argb: themePrimary } } };
         }
 
-        // Card 1 (Cols 2..4 = B..D) is 100% inside frozen left pane (xSplit: 4).
-        // Card 2 (Cols 5..7 = E..G) starts at Col 5 (first scrollable column), so the freeze line between Col 4 and Col 5 NEVER cuts a card!
-        drawTopKpiCard(ws, 2, 3, 3, 3, 'Delivery Progress', `${closed} / ${total}`, `${progress}% verified & closed`, themePrimary);
-        drawTopKpiCard(ws, 5, 3, 3, 3, 'Feature Screen Completion', `${overallFeatureCompletionPct}% Done`, `${projectDeliveredFeatureScreens}/${projectTotalFeatureScreens} Screens · ${totalComponentCount} Artifacts [+]`, blendArgb(themePrimary, 'FF8B5CF6', 0.55));
-        drawTopKpiCard(ws, 8, 3, 4, 3, 'Quality Governance', `${smokePassed} Smoke Passed`, `${pendingSignoff} Pending Sign-Off · ${avgLead}d Lead`, pendingSignoff > 0 ? (COLORS.amber || 'FFF59E0B') : (COLORS.emerald || 'FF10B981'));
-        drawTopKpiCard(ws, 12, 3, 5, 3, 'Release Footprint', `${prodCount} Prod · ${uatCount} UAT`, overdue > 0 ? `${overdue} overdue deliveries` : 'Zero delay exceptions', overdue > 0 ? (COLORS.rose || 'FFF43F5E') : themePrimaryHover);
+        // Card 1 (Cols 2..3 = B..C) is 100% inside frozen left pane (xSplit: 3).
+        // Card 2 (Cols 4..6 = D..F) starts at Col 4 (first scrollable column), so the freeze line between Col 3 and Col 4 NEVER cuts a card!
+        drawTopKpiCard(ws, 2, 3, 2, 3, 'ALM Resolution Progress', `${closed} / ${total} Closed`, `${progress}% closed · ${readyForTest} Ready for QA`, themePrimary);
+        drawTopKpiCard(ws, 4, 3, 3, 3, 'Feature Screen Completion', `${overallFeatureCompletionPct}% Done`, `${projectDeliveredFeatureScreens}/${projectTotalFeatureScreens} Screens · ${totalComponentCount} Artifacts [+]`, blendArgb(themePrimary, 'FF8B5CF6', 0.55));
+        drawTopKpiCard(ws, 7, 3, 4, 3, 'Category & PDN Breakdown', `${gspCount} GSP++ · ${nrtCount} Defect`, `${uniquePdns} Unique PDN Batches Processed`, COLORS.emerald || 'FF10B981');
+        drawTopKpiCard(ws, 11, 3, 5, 3, 'Scope & Traceability', `${totalLinkedTasksCount} Tasks · ${totalLinkedScreensCount} Screens`, `${featureStatsList.length} Features Tracked Across Deliveries`, themePrimaryHover);
 
         ws.getRow(6).height = 10;
 
@@ -57072,30 +57005,22 @@ Earned Value Management measures project performance and progress by comparing p
 
           let headerBg = headerBaseDark;
           let bottomAccent = themePrimary;
-          if (colIdx <= 6) {
-            // Core Package & Hierarchy Identification — Anchored by Active Theme Primary
+          if (colIdx <= 4) {
+            // Defect ID, Description, PDN Info, PDN Processing Date — Active Theme Primary
             headerBg = blendArgb(themePrimary, 'FF090D16', 0.66);
             bottomAccent = themePrimary;
-          } else if (colIdx <= 13) {
-            // Components Summary & Architecture — Theme Primary blended with Royal Indigo
+          } else if (colIdx <= 7) {
+            // Components Delivered, Category, Module — Theme Primary blended with Royal Indigo
             headerBg = blendArgb(blendArgb(themePrimary, 'FF312E81', 0.55), 'FF090D16', 0.62);
             bottomAccent = blendArgb(themePrimary, 'FF6366F1', 0.5);
-          } else if (colIdx <= 16) {
-            // Governance & Quality Flow — Theme Primary blended with Forest Emerald
+          } else if (colIdx <= 10) {
+            // ALM Status, Reported By, Defect Fixed By — Theme Primary blended with Forest Emerald
             headerBg = blendArgb(blendArgb(themePrimary, 'FF065F46', 0.6), 'FF090D16', 0.64);
             bottomAccent = COLORS.emerald || 'FF10B981';
-          } else if (colIdx <= 23) {
-            // Linked Scope & Screen-Driven Feature Completion — Theme Primary blended with Plum Violet
+          } else {
+            // Linked Type, Linked ID, Impacted Feature, Feature Completion (Screens) — Theme Primary blended with Plum Violet
             headerBg = blendArgb(blendArgb(themePrimary, 'FF4C1D95', 0.6), 'FF090D16', 0.62);
             bottomAccent = blendArgb(themePrimary, 'FFA855F7', 0.6);
-          } else if (colIdx <= 30) {
-            // Ownership, Schedule, Lead Time & Variance — Theme Primary blended with Bronze Amber
-            headerBg = blendArgb(blendArgb(themePrimary, 'FF78350F', 0.65), 'FF090D16', 0.65);
-            bottomAccent = COLORS.amber || 'FFF59E0B';
-          } else {
-            // Operations, Metadata & Derived Telemetry — Theme Surface Slate
-            headerBg = blendArgb(themePrimary, 'FF1E293B', 0.78);
-            bottomAccent = blendArgb(themePrimary, themeMuted, 0.5);
           }
 
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: headerBg } };
@@ -57164,7 +57089,7 @@ Earned Value Management measures project performance and progress by comparing p
               name: tier === 2 ? 'Consolas' : 'Segoe UI',
               size: tier === 0 ? 10 : (tier === 1 ? 9 : 8.5),
               bold: tier === 0 || (tier === 1 && variant === 'manifest'),
-              color: { argb: colN === 5 ? primaryText : secondaryText }
+              color: { argb: colN === 3 ? primaryText : secondaryText }
             };
             c.border = {
               top: borderTop,
@@ -57207,19 +57132,16 @@ Earned Value Management measures project performance and progress by comparing p
           deliveryRowIndices.push(parentRowIdx);
 
           const dIsNew = (PulseExcel && typeof PulseExcel.isNewWindowItem === 'function') ? PulseExcel.isNewWindowItem(d) : false;
-          const targetD = cleanFmtDate(d.targetDeliveryDate || d.pdnProcessingDate);
-          const actualD = cleanFmtDate(d.actualDeliveryDate);
-          const delIdStr = S(d.id || d.deliveryId || ('DEL-' + String(i + 1).padStart(3, '0')));
+          const delIdStr = S(d.almId || d.id || ('DEL-' + String(i + 1).padStart(3, '0')));
           const delWeightInfo = getDeliveryCompletionWeight(d);
 
-          // 1. Parse & classify Delivered Components for progressive disclosure
-          const rawCompStr = S(d.componentsDelivered || '');
+          // 1. Parse & classify Delivered Components for hover tooltip & progressive child manifest
+          const rawCompStr = S(d.componentsDelivered || (Array.isArray(d.guiScreens) ? d.guiScreens.join(', ') : d.guiScreens));
           const compTokens = rawCompStr
             ? rawCompStr.split(/[,;\n|]+/).map(s => s.trim()).filter(Boolean)
             : [];
-          const classifiedComps = compTokens.map(tok => classifyComponent(tok, d.moduleType));
+          const classifiedComps = compTokens.map(tok => classifyComponent(tok));
 
-          // Build clean Components Summary badge + hover tooltip note
           const layerCounts = {};
           classifiedComps.forEach(c => {
             layerCounts[c.shortType] = (layerCounts[c.shortType] || 0) + 1;
@@ -57227,13 +57149,6 @@ Earned Value Management measures project performance and progress by comparing p
           const layerBreakdownStr = Object.entries(layerCounts)
             .map(([k, cnt]) => `${cnt} ${k}`)
             .join(' · ');
-
-          let compSummaryBadge = '— No Artifacts —';
-          if (classifiedComps.length === 1) {
-            compSummaryBadge = `${classifiedComps[0].icon} 1 Artifact: ${classifiedComps[0].name} [+]`;
-          } else if (classifiedComps.length > 1) {
-            compSummaryBadge = `🧩 ${classifiedComps.length} Artifacts (${layerBreakdownStr}) [+]`;
-          }
 
           // 2. Resolve Linked Tasks & Linked Screens
           const rawTaskIds = Array.isArray(d.linkedTasks) && d.linkedTasks.length > 0
@@ -57321,7 +57236,6 @@ Earned Value Management measures project performance and progress by comparing p
               featureCompletionDisplay = `${pf.visualBar} ${pf.completionPct}% Done (${pf.deliveredScreens}/${m} Scr · This: +${sharePct}% [${k}/${m}])`;
             }
 
-            // Build rich hover note detailing every screen of the Feature and how completion was deduced
             const noteHeader = [
               `🎯 FEATURE COMPLETION DEDUCTION — ${pf.name.toUpperCase()}`,
               `Overall Feature Completion: ${pf.completionPct}% (${pf.visualBar})`,
@@ -57346,51 +57260,23 @@ Earned Value Management measures project performance and progress by comparing p
             featureHoverNote = noteHeader.join('\n');
           }
 
-          // Build clean Linked Scope Summary badge
-          const scopeParts = [];
-          if (resolvedTasks.length > 0) scopeParts.push(`${resolvedTasks.length} Task${resolvedTasks.length > 1 ? 's' : ''}`);
-          if (resolvedScreens.length > 0) scopeParts.push(`${resolvedScreens.length} Screen${resolvedScreens.length > 1 ? 's' : ''}`);
-          const linkedScopeBadge = scopeParts.length > 0
-            ? `🔗 ${scopeParts.join(' · ')} [+]`
-            : (d.linkedId ? `🔗 ${S(d.linkedType || 'Link')}: ${S(d.linkedId)}` : '— Unlinked —');
-
           const rowValues = {
-            nodeType: 'Delivery',
             almId: S(d.almId || d.id),
-            id: delIdStr,
             name: (PulseExcel && typeof PulseExcel.formatExcelNewBadge === 'function')
               ? PulseExcel.formatExcelNewBadge(S(d.name || d.description), dIsNew)
               : S(d.name || d.description),
             pdn: S(d.pdn),
             pdnProcessingDate: cleanFmtDate(d.pdnProcessingDate),
-            componentsSummary: compSummaryBadge,
-            componentsDelivered: S(d.componentsDelivered || (Array.isArray(d.guiScreens) ? d.guiScreens.join(', ') : d.guiScreens)),
+            componentsDelivered: rawCompStr,
             category: S(d.category || 'GSP++ Delivery'),
             module: S(d.module),
-            moduleType: S(d.moduleType || 'Server'),
-            releaseVersion: S(d.releaseVersion || ''),
-            environment: S(d.environment || 'Production'),
             almStatus: S(d.almStatus || d.status || 'New'),
-            signOffStatus: S(d.signOffStatus || 'Pending'),
-            smokeTestStatus: S(d.smokeTestStatus || 'Not Run'),
-            linkedScopeSummary: linkedScopeBadge,
-            impactedFeature: impactedFeatureDisplay,
-            featureCompletion: featureCompletionDisplay,
-            linkedType: S(d.linkedType || 'Task'),
-            linkedId: S(d.linkedId || ''),
-            linkedTasks: S(resolvedTasks.map(rt => rt.taskObj && rt.taskObj.name ? `${rt.taskObj.id} : ${rt.taskObj.name}` : rt.rawId).join(', ')),
-            linkedScreens: S(uniqueScreens.join(', ')),
-            approver: S(d.approver || ''),
             reportedBy: S(d.reportedBy || ''),
             fixedBy: S(d.fixedBy || ''),
-            targetDeliveryDate: targetD,
-            actualDeliveryDate: actualD,
-            leadTimeDays: { formula: `IF(AND(${cActualLetter}${parentRowIdx}<>"",${cTargetLetter}${parentRowIdx}<>""), ${cActualLetter}${parentRowIdx}-${cTargetLetter}${parentRowIdx}, ${d.leadTimeDays != null ? d.leadTimeDays : 0})` },
-            variance: { formula: `IF(AND(${cAlmStatusLetter}${parentRowIdx}<>"Closed", ${cTargetLetter}${parentRowIdx}<>"", ${cTargetLetter}${parentRowIdx}<TODAY()), TODAY()-${cTargetLetter}${parentRowIdx}, IF(AND(${cActualLetter}${parentRowIdx}<>"", ${cTargetLetter}${parentRowIdx}<>""), ${cActualLetter}${parentRowIdx}-${cTargetLetter}${parentRowIdx}, 0))` },
-            rollbackPlan: S(d.rollbackPlan || ''),
-            notes: S(d.notes || d.remarks || ''),
-            createdAt: cleanFmtDate(d.createdAt),
-            updatedAt: cleanFmtDate(d.updatedAt)
+            linkedType: S(d.linkedType || 'Task'),
+            linkedId: S(d.linkedId || ''),
+            impactedFeature: impactedFeatureDisplay,
+            featureCompletion: featureCompletionDisplay
           };
 
           (P.delCustomFields || []).forEach(f => {
@@ -57402,56 +57288,34 @@ Earned Value Management measures project performance and progress by comparing p
           row.outlineLevel = 0;
           styleHierarchyRow(row, 0, 'delivery');
 
-          // Style Node Type Pill ('Delivery') — Theme-Aware Primary Pill
-          const ntCell = row.getCell('nodeType');
-          ntCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: themeTint(themePrimary, isDark ? 0.34 : 0.20) } };
-          ntCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: readableAccentOnSurface(themePrimary) } };
-          ntCell.alignment = { vertical: 'middle', horizontal: 'center' };
-
-          // High-contrast Identification styling (ALM ID & Delivery ID)
+          // High-contrast Identification styling (Defect ID - ALM ID)
           const almCell = row.getCell('almId');
           almCell.font = { name: 'Consolas', size: 10, bold: true, color: { argb: readableAccentOnSurface(themePrimary) } };
           almCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
-          const idCell = row.getCell('id');
-          idCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: themeTint(themePrimary, isDark ? 0.28 : 0.16) } };
-          idCell.font = { name: 'Consolas', size: 9.5, bold: true, color: { argb: isDark ? 'FFFFFFFF' : readableAccentOnSurface(themePrimary) } };
-          idCell.alignment = { vertical: 'middle', horizontal: 'center' };
-
-          // Center-align PDN Info, Dates, Release Version, Module Type, Environment, Lead Time & Variance so they never collide with adjacent text
-          ['pdn', 'pdnProcessingDate', 'moduleType', 'releaseVersion', 'environment', 'targetDeliveryDate', 'actualDeliveryDate', 'leadTimeDays', 'variance'].forEach(k => {
+          // Center-align PDN Info, PDN Date, and Linked Type
+          ['pdn', 'pdnProcessingDate', 'linkedType'].forEach(k => {
             const c = row.getCell(k);
             if (c) c.alignment = { vertical: 'middle', horizontal: 'center' };
           });
 
-          // Style Components Summary cell + attach structured Excel cell comment/note for instant hover inspection
-          const compSumCell = row.getCell('componentsSummary');
+          // Style Components Delivered cell + attach structured Excel cell comment/note for instant hover inspection
+          const compCell = row.getCell('componentsDelivered');
           if (classifiedComps.length > 0) {
             const compAccent = blendArgb(themePrimary, 'FF6366F1', 0.45);
-            compSumCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: themeTint(compAccent, isDark ? 0.26 : 0.15) } };
-            compSumCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: readableAccentOnSurface(compAccent) } };
+            compCell.font = { name: 'Consolas', size: 9, bold: true, color: { argb: readableAccentOnSurface(compAccent) } };
             const noteLines = [
               `📦 ${delIdStr} — DELIVERED COMPONENTS MANIFEST (${classifiedComps.length})`,
               `Architecture Breakdown: ${layerBreakdownStr}`,
               `──────────────────────────────────────────`,
               ...classifiedComps.map((c, idx) => `${idx + 1}. ${c.icon} [${c.shortType}] ${c.name}`)
             ];
-            if (d.rollbackPlan) {
-              noteLines.push(`──────────────────────────────────────────`);
-              noteLines.push(`🔄 Rollback Plan: ${S(d.rollbackPlan)}`);
-            }
-            compSumCell.note = noteLines.join('\n');
-          } else {
-            compSumCell.font = { name: 'Segoe UI', size: 9, italic: true, color: { argb: themeMuted } };
+            compCell.note = noteLines.join('\n');
           }
-          compSumCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
 
-          // Style Linked Scope Summary cell + attach structured Excel hover note
-          const scopeSumCell = row.getCell('linkedScopeSummary');
+          // Attach structured Excel hover note on Linked ID cell
+          const linkedIdCell = row.getCell('linkedId');
           if (resolvedTasks.length > 0 || resolvedScreens.length > 0) {
-            const scopeAccent = blendArgb(themePrimary, 'FF3B82F6', 0.5);
-            scopeSumCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: themeTint(scopeAccent, isDark ? 0.26 : 0.15) } };
-            scopeSumCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: readableAccentOnSurface(scopeAccent) } };
             const scopeNoteLines = [`🔗 ${delIdStr} — LINKED TRACEABILITY SCOPE`];
             if (resolvedTasks.length > 0) {
               scopeNoteLines.push(`\n📋 Linked Tasks (${resolvedTasks.length}):`);
@@ -57466,11 +57330,8 @@ Earned Value Management measures project performance and progress by comparing p
                 scopeNoteLines.push(`  ${idx + 1}. ${rs.name} [Module: ${rs.module}]${rs.features.length ? ` (Features: ${rs.features.join(', ')})` : ''}`);
               });
             }
-            scopeSumCell.note = scopeNoteLines.join('\n');
-          } else {
-            scopeSumCell.font = { name: 'Segoe UI', size: 9, italic: true, color: { argb: themeMuted } };
+            linkedIdCell.note = scopeNoteLines.join('\n');
           }
-          scopeSumCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
 
           // Style Impacted Feature & Feature Completion (Screens) cells + attach deduction hover note
           const impFeatCell = row.getCell('impactedFeature');
@@ -57508,112 +57369,43 @@ Earned Value Management measures project performance and progress by comparing p
           }
           statusCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
-          // Sign-off Status styling
-          const signCell = row.getCell('signOffStatus');
-          const sOff = S(d.signOffStatus);
-          if (sOff === 'Approved') {
-            signCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF064E3B' : 'FFD1FAE5' } };
-            signCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: isDark ? 'FF6EE7B7' : 'FF065F46' } };
-          } else if (sOff === 'Pending') {
-            signCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF78350F' : 'FFFEF3C7' } };
-            signCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: isDark ? 'FFFCD34D' : 'FF92400E' } };
-          } else if (sOff === 'Rejected') {
-            signCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF7F1D1D' : 'FFFEE2E2' } };
-            signCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: isDark ? 'FFFCA5A5' : 'FF991B1B' } };
-          }
-          signCell.alignment = { vertical: 'middle', horizontal: 'center' };
-
-          // Smoke Test Status styling
-          const smokeCell = row.getCell('smokeTestStatus');
-          const sm = S(d.smokeTestStatus);
-          if (sm === 'Passed') {
-            smokeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF064E3B' : 'FFD1FAE5' } };
-            smokeCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: isDark ? 'FF6EE7B7' : 'FF065F46' } };
-          } else if (sm === 'Failed') {
-            smokeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF7F1D1D' : 'FFFEE2E2' } };
-            smokeCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: isDark ? 'FFFCA5A5' : 'FF991B1B' } };
-          } else if (sm === 'Running') {
-            smokeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF164E63' : 'FFE0F2FE' } };
-            smokeCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: isDark ? 'FF67E8F9' : 'FF0369A1' } };
-          }
-          smokeCell.alignment = { vertical: 'middle', horizontal: 'center' };
-
-          // Overdue highlight
-          const targetDateObj = targetD ? new Date(targetD) : null;
-          const isOverdue = st !== 'Closed' && targetDateObj && !isNaN(targetDateObj) && targetDateObj < new Date();
-          if (isOverdue) {
-            const varCell = row.getCell('variance');
-            varCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF7F1D1D' : 'FFFEE2E2' } };
-            varCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: isDark ? 'FFFCA5A5' : 'FF991B1B' } };
-          }
-
           // ── CHILD NODES (Level 1): Linked Tasks ──
           resolvedTasks.forEach((rt) => {
             const t = rt.taskObj;
             const tId = S(t ? t.id : rt.rawId);
             const tName = S(t ? t.name : rt.rawId);
-            const tSubCount = t && Array.isArray(t.subtasks) ? t.subtasks.length : 0;
             const tProgress = t && t.progress != null ? Number(t.progress) : (t && t.status === 'Done' ? 100 : 0);
             const taskFeat = inferFeatureByContext((t && t.module) || d.module, tName);
 
             currentRowIdx++;
             const taskChildRow = ws.addRow({
-              nodeType: 'Linked Task',
-              almId: '├─ TASK',
-              id: tId,
+              almId: `├─ TASK: ${tId}`,
               name: `  📋 ${tId}${t && t.name ? ' — ' + tName : ''}`,
               pdn: '',
               pdnProcessingDate: '',
-              componentsSummary: tSubCount > 0 ? `📑 ${tSubCount} Subtask${tSubCount > 1 ? 's' : ''} · ${S(t.priority || 'Medium')}` : `⚡ Priority: ${S((t && t.priority) || 'Medium')}`,
               componentsDelivered: '',
               category: 'Linked Task',
               module: S((t && t.module) || d.module || ''),
-              moduleType: S((t && t.moduleType) || d.moduleType || 'Server'),
-              releaseVersion: S((t && t.release) || d.releaseVersion || ''),
-              environment: '',
               almStatus: S((t && t.status) || 'Open'),
-              signOffStatus: tProgress >= 100 ? 'Approved' : 'Pending',
-              smokeTestStatus: '—',
-              linkedScopeSummary: `📊 ${tProgress}% Task Progress`,
-              impactedFeature: taskFeat ? `🎯 ${taskFeat.name}` : '',
-              featureCompletion: taskFeat ? `${taskFeat.visualBar} ${taskFeat.completionPct}% Feature (${tProgress}% Task)` : '',
-              linkedType: 'Task',
-              linkedId: tId,
-              linkedTasks: tId,
-              linkedScreens: '',
-              approver: '',
               reportedBy: '',
               fixedBy: S((t && t.assignee) || d.fixedBy || ''),
-              targetDeliveryDate: cleanFmtDate(t && t.due),
-              actualDeliveryDate: cleanFmtDate(t && t.end),
-              leadTimeDays: (t && t.storyPoints != null) ? Number(t.storyPoints) : '',
-              variance: '',
-              rollbackPlan: '',
-              notes: S((t && t.notes) || `Linked to Delivery ${delIdStr}`),
-              createdAt: '',
-              updatedAt: ''
+              linkedType: 'Task',
+              linkedId: tId,
+              impactedFeature: taskFeat ? `🎯 ${taskFeat.name}` : '',
+              featureCompletion: taskFeat ? `${taskFeat.visualBar} ${taskFeat.completionPct}% Feature (${tProgress}% Task)` : ''
             });
             taskChildRow.outlineLevel = 1;
             taskChildRow.hidden = true;
             styleHierarchyRow(taskChildRow, 1, 'task');
 
-            const tNtCell = taskChildRow.getCell('nodeType');
-            tNtCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF1E3A8A' : 'FFDBEAFE' } };
-            tNtCell.font = { name: 'Segoe UI', size: 8.5, bold: true, color: { argb: isDark ? 'FF93C5FD' : 'FF1D4ED8' } };
-            tNtCell.alignment = { vertical: 'middle', horizontal: 'center' };
-
             const tAlmCell = taskChildRow.getCell('almId');
-            tAlmCell.font = { name: 'Consolas', size: 8.5, color: { argb: isDark ? 'FF60A5FA' : 'FF2563EB' } };
+            tAlmCell.font = { name: 'Consolas', size: 8.5, bold: true, underline: !!taskRowMap[tId.toLowerCase()], color: { argb: isDark ? 'FF60A5FA' : 'FF2563EB' } };
             tAlmCell.alignment = { vertical: 'middle', horizontal: 'center' };
-
-            const tIdCell = taskChildRow.getCell('id');
-            tIdCell.font = { name: 'Consolas', size: 9, bold: true, underline: !!taskRowMap[tId.toLowerCase()], color: { argb: isDark ? 'FF60A5FA' : 'FF1D4ED8' } };
-            tIdCell.alignment = { vertical: 'middle', horizontal: 'center' };
             if (taskRowMap[tId.toLowerCase()]) {
-              tIdCell.value = { text: tId, hyperlink: `#'Tasks & Subtasks'!C${taskRowMap[tId.toLowerCase()]}` };
+              tAlmCell.value = { text: `├─ TASK: ${tId}`, hyperlink: `#'Tasks & Subtasks'!C${taskRowMap[tId.toLowerCase()]}` };
             }
 
-            ['moduleType', 'releaseVersion', 'almStatus', 'signOffStatus', 'smokeTestStatus', 'targetDeliveryDate', 'actualDeliveryDate', 'leadTimeDays'].forEach(k => {
+            ['almStatus', 'linkedType'].forEach(k => {
               const c = taskChildRow.getCell(k);
               if (c) c.alignment = { vertical: 'middle', horizontal: 'center' };
             });
@@ -57624,7 +57416,6 @@ Earned Value Management measures project performance and progress by comparing p
             const scTask = rs.taskObj;
             const scId = S((scTask && scTask.id) || 'GUI-SCR');
             const scStatus = S((scTask && scTask.status) || d.almStatus || 'Active');
-            const scProg = (scTask && scTask.progress != null) ? `${scTask.progress}% UI Ready` : 'Linked GUI Screen';
             const scFeat = rs.featureObjs[0] || null;
             const scTotalScreens = scFeat ? Math.max(1, scFeat.totalScreens) : 1;
             const scShareOfFeat = Math.round(100 / scTotalScreens);
@@ -57632,72 +57423,42 @@ Earned Value Management measures project performance and progress by comparing p
             const scWeightPct = scEntry ? Math.round(scEntry.weight * 100) : Math.round(delWeightInfo.weight * 100);
             const scStateIcon = scEntry ? scEntry.icon : delWeightInfo.icon;
 
-            const featSummary = rs.features.length > 0 ? `🎯 Features: ${rs.features.join(', ')}` : '🖥️ GUI Screen Component';
             const screenFeatCompStr = scFeat
               ? `${scStateIcon} ${scWeightPct}% Screen · +${scShareOfFeat}% of Feature (1/${scTotalScreens} Scr → ${scFeat.completionPct}% Total)`
               : `${scStateIcon} ${scWeightPct}% Screen Completion`;
 
             currentRowIdx++;
             const screenChildRow = ws.addRow({
-              nodeType: 'Linked Screen',
-              almId: '├─ SCREEN',
-              id: scId,
+              almId: `├─ SCREEN`,
               name: `  🖥️ ${rs.name}  [Module: ${rs.module}]`,
               pdn: '',
               pdnProcessingDate: '',
-              componentsSummary: featSummary,
               componentsDelivered: rs.name,
               category: rs.features.length > 0 ? S(rs.features[0]) : 'GUI Screen',
               module: S(rs.module),
-              moduleType: 'GUI',
-              releaseVersion: S((scTask && scTask.release) || d.releaseVersion || ''),
-              environment: '',
               almStatus: scStatus,
-              signOffStatus: S(d.signOffStatus || 'Pending'),
-              smokeTestStatus: '—',
-              linkedScopeSummary: scProg,
-              impactedFeature: scFeat ? `🎯 ${scFeat.name}` : '🖥️ Standalone Screen',
-              featureCompletion: screenFeatCompStr,
-              linkedType: 'Screen',
-              linkedId: rs.name,
-              linkedTasks: '',
-              linkedScreens: rs.name,
-              approver: '',
               reportedBy: '',
               fixedBy: S((scTask && scTask.assignee) || d.fixedBy || ''),
-              targetDeliveryDate: cleanFmtDate(scTask && scTask.due),
-              actualDeliveryDate: cleanFmtDate(scTask && scTask.end),
-              leadTimeDays: '',
-              variance: '',
-              rollbackPlan: '',
-              notes: `GUI Screen '${rs.name}' [Module: ${rs.module}]${scFeat ? ` · Contributes 1/${scTotalScreens} (${scShareOfFeat}%) of '${scFeat.name}' (Overall Feature: ${scFeat.completionPct}%)` : ''}`,
-              createdAt: '',
-              updatedAt: ''
+              linkedType: 'Screen',
+              linkedId: rs.name,
+              impactedFeature: scFeat ? `🎯 ${scFeat.name}` : '🖥️ Standalone Screen',
+              featureCompletion: screenFeatCompStr
             });
             screenChildRow.outlineLevel = 1;
             screenChildRow.hidden = true;
             styleHierarchyRow(screenChildRow, 1, 'screen');
 
-            const sNtCell = screenChildRow.getCell('nodeType');
-            sNtCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isDark ? 'FF4C1D95' : 'FFEDE9FE' } };
-            sNtCell.font = { name: 'Segoe UI', size: 8.5, bold: true, color: { argb: isDark ? 'FFC4B5FD' : 'FF6D28D9' } };
-            sNtCell.alignment = { vertical: 'middle', horizontal: 'center' };
-
             const sAlmCell = screenChildRow.getCell('almId');
-            sAlmCell.font = { name: 'Consolas', size: 8.5, color: { argb: isDark ? 'FFA78BFA' : 'FF7C3AED' } };
+            sAlmCell.font = { name: 'Consolas', size: 8.5, bold: true, color: { argb: isDark ? 'FFA78BFA' : 'FF7C3AED' } };
             sAlmCell.alignment = { vertical: 'middle', horizontal: 'center' };
-
-            const sIdCell = screenChildRow.getCell('id');
-            sIdCell.font = { name: 'Consolas', size: 9, bold: true, color: { argb: isDark ? 'FFC4B5FD' : 'FF5B21B6' } };
-            sIdCell.alignment = { vertical: 'middle', horizontal: 'center' };
             if (scTask && scTask.id && taskRowMap[scTask.id.toLowerCase()]) {
-              sIdCell.value = { text: scId, hyperlink: `#'Tasks & Subtasks'!C${taskRowMap[scTask.id.toLowerCase()]}` };
+              sAlmCell.value = { text: `├─ ${scId}`, hyperlink: `#'Tasks & Subtasks'!C${taskRowMap[scTask.id.toLowerCase()]}` };
             }
 
             const sFeatCompCell = screenChildRow.getCell('featureCompletion');
             styleFeatureCompletionCell(sFeatCompCell, scWeightPct, false);
 
-            ['moduleType', 'releaseVersion', 'almStatus', 'signOffStatus', 'smokeTestStatus', 'targetDeliveryDate', 'actualDeliveryDate'].forEach(k => {
+            ['almStatus', 'linkedType'].forEach(k => {
               const c = screenChildRow.getCell(k);
               if (c) c.alignment = { vertical: 'middle', horizontal: 'center' };
             });
@@ -57707,130 +57468,67 @@ Earned Value Management measures project performance and progress by comparing p
           if (classifiedComps.length > 0) {
             currentRowIdx++;
             const manifestGroupRow = ws.addRow({
-              nodeType: 'Component Manifest',
               almId: '└─ MANIFEST',
-              id: `${delIdStr}-PKG`,
               name: `  🧩 Component Manifest — ${classifiedComps.length} Artifact${classifiedComps.length > 1 ? 's' : ''} (${layerBreakdownStr}) [+]`,
               pdn: '',
               pdnProcessingDate: '',
-              componentsSummary: `Layers: ${layerBreakdownStr}`,
-              componentsDelivered: S(d.componentsDelivered),
+              componentsDelivered: rawCompStr,
               category: 'Deployment Package',
               module: S(d.module),
-              moduleType: S(d.moduleType || 'Server'),
-              releaseVersion: S(d.releaseVersion || ''),
-              environment: S(d.environment || 'Production'),
               almStatus: S(d.almStatus || 'Delivered'),
-              signOffStatus: '—',
-              smokeTestStatus: '—',
-              linkedScopeSummary: `${classifiedComps.length} Deliverable File${classifiedComps.length > 1 ? 's' : ''} [+]`,
-              impactedFeature: primaryEntry ? `🎯 ${primaryEntry.feat.name}` : '',
-              featureCompletion: primaryEntry ? `${primaryEntry.feat.visualBar} ${primaryEntry.feat.completionPct}% Feature Package` : '',
-              linkedType: '',
-              linkedId: '',
-              linkedTasks: '',
-              linkedScreens: '',
-              approver: '',
               reportedBy: '',
               fixedBy: S(d.fixedBy || ''),
-              targetDeliveryDate: '',
-              actualDeliveryDate: actualD,
-              leadTimeDays: '',
-              variance: '',
-              rollbackPlan: S(d.rollbackPlan || ''),
-              notes: d.rollbackPlan ? `Rollback Plan: ${S(d.rollbackPlan)}` : `Expand [+] on left margin to inspect individual delivered files`,
-              createdAt: '',
-              updatedAt: ''
+              linkedType: '',
+              linkedId: '',
+              impactedFeature: primaryEntry ? `🎯 ${primaryEntry.feat.name}` : '',
+              featureCompletion: primaryEntry ? `${primaryEntry.feat.visualBar} ${primaryEntry.feat.completionPct}% Feature Package` : ''
             });
             manifestGroupRow.outlineLevel = 1;
             manifestGroupRow.hidden = true;
             styleHierarchyRow(manifestGroupRow, 1, 'manifest');
 
             const manifestAccent = blendArgb(themePrimary, 'FF6366F1', 0.5);
-            const mNtCell = manifestGroupRow.getCell('nodeType');
-            mNtCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: themeTint(manifestAccent, isDark ? 0.28 : 0.16) } };
-            mNtCell.font = { name: 'Segoe UI', size: 8.5, bold: true, color: { argb: readableAccentOnSurface(manifestAccent) } };
-            mNtCell.alignment = { vertical: 'middle', horizontal: 'center' };
-
             const mAlmCell = manifestGroupRow.getCell('almId');
-            mAlmCell.font = { name: 'Consolas', size: 8.5, color: { argb: readableAccentOnSurface(manifestAccent) } };
+            mAlmCell.font = { name: 'Consolas', size: 8.5, bold: true, color: { argb: readableAccentOnSurface(manifestAccent) } };
             mAlmCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
-            const mIdCell = manifestGroupRow.getCell('id');
-            mIdCell.font = { name: 'Consolas', size: 9, bold: true, color: { argb: readableAccentOnSurface(manifestAccent) } };
-            mIdCell.alignment = { vertical: 'middle', horizontal: 'center' };
-
-            ['moduleType', 'releaseVersion', 'environment', 'almStatus', 'signOffStatus', 'smokeTestStatus', 'actualDeliveryDate'].forEach(k => {
-              const c = manifestGroupRow.getCell(k);
-              if (c) c.alignment = { vertical: 'middle', horizontal: 'center' };
-            });
+            const mStatusCell = manifestGroupRow.getCell('almStatus');
+            if (mStatusCell) mStatusCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
             // Level 2 Individual Component Artifacts (collapsed inside the Component Manifest group)
             classifiedComps.forEach((comp, cIdx) => {
               currentRowIdx++;
               const compRow = ws.addRow({
-                nodeType: 'Component',
                 almId: `   • FILE #${String(cIdx + 1).padStart(2, '0')}`,
-                id: `${delIdStr}-C${cIdx + 1}`,
                 name: `      ${comp.icon} ${cIdx + 1}. ${comp.name}`,
                 pdn: '',
                 pdnProcessingDate: '',
-                componentsSummary: `${comp.icon} ${comp.layer}`,
                 componentsDelivered: comp.name,
                 category: comp.ext ? `Artifact (${comp.ext})` : comp.layer,
                 module: S(d.module),
-                moduleType: comp.shortType,
-                releaseVersion: '',
-                environment: '',
                 almStatus: 'Delivered',
-                signOffStatus: '—',
-                smokeTestStatus: '—',
-                linkedScopeSummary: `File ${cIdx + 1} of ${classifiedComps.length}`,
-                impactedFeature: '',
-                featureCompletion: '',
-                linkedType: '',
-                linkedId: '',
-                linkedTasks: '',
-                linkedScreens: '',
-                approver: '',
                 reportedBy: '',
                 fixedBy: S(d.fixedBy || ''),
-                targetDeliveryDate: '',
-                actualDeliveryDate: '',
-                leadTimeDays: '',
-                variance: '',
-                rollbackPlan: '',
-                notes: `${comp.layer} artifact (${comp.name}) delivered in ${delIdStr}`,
-                createdAt: '',
-                updatedAt: ''
+                linkedType: '',
+                linkedId: '',
+                impactedFeature: '',
+                featureCompletion: ''
               });
               compRow.outlineLevel = 2;
               compRow.hidden = true;
               styleHierarchyRow(compRow, 2, 'component');
 
-              const cNtCell = compRow.getCell('nodeType');
-              cNtCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: themeSurfaceAlt } };
-              cNtCell.font = { name: 'Segoe UI', size: 8, italic: true, color: { argb: themeMuted } };
-              cNtCell.alignment = { vertical: 'middle', horizontal: 'center' };
-
               const cAlmCell = compRow.getCell('almId');
               cAlmCell.font = { name: 'Consolas', size: 8, color: { argb: themeMuted } };
               cAlmCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
-              const cIdCell = compRow.getCell('id');
-              cIdCell.font = { name: 'Consolas', size: 8.5, color: { argb: blendArgb(themeText, themeMuted, 0.5) } };
-              cIdCell.alignment = { vertical: 'middle', horizontal: 'center' };
-
-              ['moduleType', 'almStatus', 'signOffStatus', 'smokeTestStatus'].forEach(k => {
-                const c = compRow.getCell(k);
-                if (c) c.alignment = { vertical: 'middle', horizontal: 'center' };
-              });
+              const cStatusCell = compRow.getCell('almStatus');
+              if (cStatusCell) cStatusCell.alignment = { vertical: 'middle', horizontal: 'center' };
             });
           }
         });
 
         this.applyDeliverySheetValidations(ws, wb, safeMode, deliveryRowIndices, currentRowIdx);
-        this.applyDeliverySheetHelperColumns(ws, wb, safeMode, baseCols.length, deliveryRowIndices, isDark, COLORS);
       },
 
       applyDeliverySheetValidations(ws, wb, safeMode, deliveryRowIndices, maxRowIdx) {
@@ -57840,14 +57538,8 @@ Earned Value Management measures project performance and progress by comparing p
         };
         const cCat = colLet('category');
         const cMod = colLet('module');
-        const cModType = colLet('moduleType');
-        const cRel = colLet('releaseVersion');
-        const cEnv = colLet('environment');
         const cAlmSt = colLet('almStatus');
-        const cSign = colLet('signOffStatus');
-        const cSmoke = colLet('smokeTestStatus');
         const cLinkType = colLet('linkedType');
-        const cApp = colLet('approver');
         const cRep = colLet('reportedBy');
         const cFix = colLet('fixedBy');
 
@@ -57859,60 +57551,16 @@ Earned Value Management measures project performance and progress by comparing p
 
         targetRows.forEach(r => {
           if (cCat) ws.getCell(`${cCat}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"GSP++ Delivery,Regression/NRT Defect,Hotfix,Patch Release"'] };
-          if (cModType) ws.getCell(`${cModType}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"Server,GUI,Database,Service"'] };
-          if (cEnv) ws.getCell(`${cEnv}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"Production,UAT,Staging,Pre-Prod,SIT,Dev"'] };
           if (cAlmSt) ws.getCell(`${cAlmSt}${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['"Closed,Ready for Test,Retest,Fixed,In Progress,Open,New,Rejected,Reopened"'], showErrorMessage: true, errorTitle: 'Invalid Status', error: 'Please select a valid ALM status.' };
-          if (cSign) ws.getCell(`${cSign}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"Approved,Pending,Rejected,Conditional"'] };
-          if (cSmoke) ws.getCell(`${cSmoke}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['"Passed,Failed,Running,Not Run"'] };
           if (cLinkType) ws.getCell(`${cLinkType}${r}`).dataValidation = { type: 'list', allowBlank: false, formulae: ['"Multi,Task,Screen,Defect,None"'] };
 
           try {
             if (wb.getWorksheet('ValidationLists') || wb.getWorksheet('Config_ValidationLists')) {
               if (cMod) ws.getCell(`${cMod}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Modules'] };
-              if (cRel) ws.getCell(`${cRel}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Releases'] };
-              if (cApp) ws.getCell(`${cApp}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Team'] };
               if (cRep) ws.getCell(`${cRep}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Team'] };
               if (cFix) ws.getCell(`${cFix}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: ['Val_Team'] };
             }
           } catch(e) {}
-        });
-      },
-
-      applyDeliverySheetHelperColumns(ws, wb, safeMode, totalCols, deliveryRowIndices, isDark, COLORS) {
-        const cHealth = ws.getColumn(totalCols - 3).letter;
-        const cRisk = ws.getColumn(totalCols - 2).letter;
-        const cStage = ws.getColumn(totalCols - 1).letter;
-        const cTrace = ws.getColumn(totalCols).letter;
-
-        const cAlmSt = ws.getColumn('almStatus').letter;
-        const cTarget = ws.getColumn('targetDeliveryDate').letter;
-        const cSmoke = ws.getColumn('smokeTestStatus').letter;
-        const cSign = ws.getColumn('signOffStatus').letter;
-        const cRollback = ws.getColumn('rollbackPlan').letter;
-        const cLinkType = ws.getColumn('linkedType').letter;
-        const cLinkId = ws.getColumn('linkedId').letter;
-
-        const themePrimary = (COLORS && COLORS.indigo) ? COLORS.indigo : (isDark ? 'FF10B981' : 'FF059669');
-        const helperBg = (COLORS && typeof COLORS.getThemeTint === 'function')
-          ? COLORS.getThemeTint(themePrimary, isDark ? 0.16 : 0.08)
-          : (isDark ? 'FF0B1F1A' : 'FFF0FDF4');
-        const helperFg = (COLORS && typeof COLORS.blendColors === 'function')
-          ? (isDark ? COLORS.blendColors(themePrimary, 'FFFFFFFF', 0.45) : COLORS.blendColors(themePrimary, 'FF0F172A', 0.35))
-          : (isDark ? 'FF6EE7B7' : 'FF065F46');
-
-        const rowsToProcess = Array.isArray(deliveryRowIndices) ? deliveryRowIndices : [];
-        rowsToProcess.forEach(r => {
-          ws.getCell(`${cHealth}${r}`).value = { formula: `IF(${cAlmSt}${r}="Closed","Verified Deployed",IF(AND(${cTarget}${r}<>"",${cTarget}${r}<TODAY(),${cAlmSt}${r}<>"Closed"),"Overdue Delivery",IF(${cSmoke}${r}="Failed","Smoke Test Failed",IF(${cSign}${r}="Pending","Pending Sign-off","In Pipeline"))))` };
-          ws.getCell(`${cRisk}${r}`).value = { formula: `IF(${cSmoke}${r}="Failed","Critical: Smoke test failed in validation",IF(${cSign}${r}="Rejected","Blocked: Sign-off rejected by QA lead",IF(AND(${cRollback}${r}="",${cAlmSt}${r}<>"Closed"),"Warning: Missing rollback procedure","Compliant")))` };
-          ws.getCell(`${cStage}${r}`).value = { formula: `IF(${cAlmSt}${r}="Closed","Production Live",IF(OR(${cAlmSt}${r}="Ready for Test",${cAlmSt}${r}="Retest"),"Verification & QA",IF(${cAlmSt}${r}="In Progress","Active Staging Pipeline",IF(${cAlmSt}${r}="Fixed","Staging Ready","Pre-Deployment Backlog"))))` };
-          ws.getCell(`${cTrace}${r}`).value = { formula: `IF(${cLinkType}${r}="None","Untraced",IF(${cLinkType}${r}="Multi","Full Multi-Trace",IF(${cLinkId}${r}<>"","Single Link Trace","Unlinked")))` };
-
-          [cHealth, cRisk, cStage, cTrace].forEach(col => {
-            const cell = ws.getCell(`${col}${r}`);
-            cell.font = { name: 'Segoe UI', size: 9, italic: true, bold: true, color: { argb: helperFg } };
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: helperBg } };
-            cell.alignment = { vertical: 'middle', horizontal: 'center' };
-          });
         });
       },
 
@@ -61358,12 +61006,19 @@ Earned Value Management measures project performance and progress by comparing p
           let headerRowIdx = 1;
           const isCockpitSheet = name === 'Tasks' || name === 'Defects' || name === 'Defects Registry' || name === 'Deliveries' || name === 'Deliveries Registry' || name === 'Deployments';
           if (isCockpitSheet) {
-            const r2Val = String(ws.getRow(2).getCell(1).value || '');
-            const r1Val = String(ws.getRow(1).getCell(1).value || '');
-            if (r2Val.includes('COCKPIT.TELEMETRY') || (ws.rowCount >= 7 && ws.getRow(7).getCell(1).value && !r1Val)) {
+            const extractText = (val) => {
+              if (!val) return '';
+              if (typeof val === 'object' && Array.isArray(val.richText)) return val.richText.map(rt => rt.text).join('');
+              if (typeof val === 'object' && val.text) return String(val.text);
+              return String(val);
+            };
+            const r2Val = extractText(ws.getRow(2).getCell(1).value || ws.getRow(2).getCell(2).value);
+            const r1Val = extractText(ws.getRow(1).getCell(1).value || ws.getRow(1).getCell(2).value);
+            const r7CellVal = extractText(ws.getRow(7).getCell(1).value || ws.getRow(7).getCell(2).value);
+            if (r2Val.includes('COCKPIT') || (ws.rowCount >= 7 && r7CellVal && !r1Val)) {
               headerRowIdx = 7;
-            } else if (ws.rowCount >= 7 && ws.getRow(7).getCell(1).value) {
-              const r7Raw = String(ws.getRow(7).getCell(1).value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            } else if (ws.rowCount >= 7 && r7CellVal) {
+              const r7Raw = r7CellVal.toLowerCase().replace(/[^a-z0-9]/g, '');
               if (r2Val.includes('COCKPIT') || !r1Val || r7Raw.includes('defect') || r7Raw.includes('task') || r7Raw.includes('delivery') || r7Raw.includes('alm')) {
                 headerRowIdx = 7;
               }
@@ -61408,34 +61063,20 @@ Earned Value Management measures project performance and progress by comparing p
               else if (raw === 'componentsdelivered' || raw === 'deliveredcomponents' || raw === 'components' || raw === 'artifacts') mapped = 'componentsDelivered';
               else if (raw === 'category' || raw === 'deliverycategory') mapped = 'category';
               else if (raw === 'module' || raw === 'deliverymodule') mapped = 'module';
-              else if (raw === 'moduletype' || raw === 'type') mapped = 'moduleType';
-              else if (raw === 'releaseversion' || raw === 'targetrelease' || raw === 'release' || raw === 'version') mapped = 'releaseVersion';
-              else if (raw === 'environment' || raw === 'env') mapped = 'environment';
-              else if (raw === 'almstatus') mapped = 'almStatus';
-              else if (raw === 'status' || raw === 'deliverystatus') mapped = 'status';
-              else if (raw === 'signoffstatus' || raw === 'signoff') mapped = 'signOffStatus';
-              else if (raw === 'smoketeststatus' || raw === 'smoketest') mapped = 'smokeTestStatus';
-              else if (raw === 'approverlead' || raw === 'approver' || raw === 'lead' || raw === 'approvedby') mapped = 'approver';
+              else if (raw === 'almstatus' || raw === 'status' || raw === 'deliverystatus') mapped = 'almStatus';
               else if (raw === 'reportedby' || raw === 'reporter') mapped = 'reportedBy';
               else if (raw === 'defectfixedby' || raw === 'fixedby' || raw === 'deliveredby' || raw === 'developer') mapped = 'fixedBy';
-              else if (raw === 'targetdeliverydate' || raw === 'targetdate' || raw === 'deliverydate') mapped = 'targetDeliveryDate';
-              else if (raw === 'actualdeliverydate' || raw === 'actualdate') mapped = 'actualDeliveryDate';
-              else if (raw === 'leadtimedays' || raw === 'leadtime') mapped = 'leadTimeDays';
-              else if (raw === 'variancedelay' || raw === 'variance' || raw === 'delay') mapped = 'variance';
               else if (raw === 'linkedtype') mapped = 'linkedType';
               else if (raw === 'linkedid') mapped = 'linkedId';
-              else if (raw === 'linkedtasks') mapped = 'linkedTasks';
-              else if (raw === 'linkedscreens' || raw === 'screensartifacts' || raw === 'screens') mapped = 'linkedScreens';
-              else if (raw === 'rollbackplan' || raw === 'rollback') mapped = 'rollbackPlan';
-              else if (raw === 'remarksnotes' || raw === 'remarks' || raw === 'notes' || raw === 'comments') mapped = 'notes';
-              else if (raw === 'createdat' || raw === 'created') mapped = 'createdAt';
-              else if (raw === 'updatedat' || raw === 'updated') mapped = 'updatedAt';
+              else if (raw === 'impactedfeature' || raw === 'featurecompletion' || raw === 'featurecompletionscreens') mapped = null;
             }
-            hdrs[colIdx] = mapped;
+            if (mapped) hdrs[colIdx] = mapped;
           });
 
           ws.eachRow((row, i) => {
-            if (i <= headerRowIdx) return; const obj = {};
+            if (i <= headerRowIdx) return;
+            if ((name === 'Deliveries' || name === 'Deliveries Registry' || name === 'Data_TaskDeliveries' || name === 'Deployments') && row.outlineLevel && row.outlineLevel > 0) return;
+            const obj = {};
             row.eachCell({ includeEmpty: true }, (c, colIdx) => {
               let v = c.value;
               let isNewFromCell = false;
@@ -61484,6 +61125,12 @@ Earned Value Management measures project performance and progress by comparing p
                 rawData.issues.push(`Sheet [Team] Row ${i}: Missing Member Name. Skipped.`); skip = true;
               } else if (name === 'Subtasks' && !obj.parentId) {
                 rawData.issues.push(`Sheet [Subtasks] Row ${i}: Missing Parent Task ID. Skipped.`); skip = true;
+              } else if (name === 'Deliveries' || name === 'Deliveries Registry' || name === 'Data_TaskDeliveries' || name === 'Deployments') {
+                const almTrim = String(obj.almId || '').trim();
+                const nameTrim = String(obj.name || '').trim();
+                if (/^[↳├└•]/.test(almTrim) || /^(📋|🖥️|🧩)/.test(nameTrim)) {
+                  skip = true;
+                }
               }
               if (!skip) data.push(obj);
             }
