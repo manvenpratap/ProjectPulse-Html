@@ -56687,8 +56687,8 @@ Earned Value Management measures project performance and progress by comparing p
           { header: 'Defect Fixed By', key: 'fixedBy', width: 22 },
           { header: 'Linked Type', key: 'linkedType', width: 16 },
           { header: 'Linked ID', key: 'linkedId', width: 30 },
-          { header: 'Impacted Feature', key: 'impactedFeature', width: 32 },
-          { header: 'Feature Completion (Screens)', key: 'featureCompletion', width: 66 }
+          { header: 'Impacted Feature', key: 'impactedFeature', width: 30 },
+          { header: 'Feature Completion (Traceability ↗)', key: 'featureCompletion', width: 34 }
         ];
 
         (P.delCustomFields || []).forEach(f => {
@@ -57222,13 +57222,31 @@ Earned Value Management measures project performance and progress by comparing p
         };
 
         // ── Hierarchical Data Rows (Row 8+) ──
+        // Compact badge formatter for Sheet 1 ('Deliveries') so Sheet 1 stays clean without repeating 3-screen breakdowns
+        const formatCompactFeatureBadge = (featObj) => {
+          if (!featObj) return '—';
+          const m = Math.max(1, featObj.totalScreens);
+          const delCnt = featObj.deliveredScreens;
+          const progCnt = featObj.inProgressScreens || 0;
+          const pct = featObj.completionPct;
+          if (delCnt === 0 && progCnt > 0) {
+            return `0% (0 of ${m} Screens · ${progCnt} Active) ↗`;
+          }
+          return `${pct}% (${delCnt} of ${m} Screens Delivered) ↗`;
+        };
+
+        // ── Sheet 1 ('Deliveries'): Clean Delivery -> Component Rows (Row 8+) ──
         let currentRowIdx = 8;
         const deliveryRowIndices = [];
+        const deliveryRowMap = new Map(); // almId -> rowIdx on 'Deliveries'
+        const pendingFeatureLinks = []; // { cell, text, featName }
+        const pendingScreenLinks = [];  // { cell, text, screenName, featName }
 
         parsedDeliveries.forEach((pd) => {
           const d = pd.raw;
           const parentRowIdx = currentRowIdx++;
           deliveryRowIndices.push(parentRowIdx);
+          deliveryRowMap.set(pd.delIdStr, parentRowIdx);
 
           const dIsNew = (PulseExcel && typeof PulseExcel.isNewWindowItem === 'function') ? PulseExcel.isNewWindowItem(d) : false;
 
@@ -57245,8 +57263,8 @@ Earned Value Management measures project performance and progress by comparing p
           });
 
           const primaryFeatureObj = Array.from(compFeatureSet.values())[0] || null;
-          const impactedFeatureDisplay = primaryFeatureObj ? primaryFeatureObj.name : '—';
-          const featureCompletionDisplay = primaryFeatureObj ? formatFeatureCompletionText(primaryFeatureObj) : '—';
+          const impactedFeatureDisplay = primaryFeatureObj ? `🎯 ${primaryFeatureObj.name}` : '—';
+          const featureCompletionDisplay = primaryFeatureObj ? formatCompactFeatureBadge(primaryFeatureObj) : '—';
 
           // Level 0: DELIVERY ROW
           const rowValues = {
@@ -57299,10 +57317,13 @@ Earned Value Management measures project performance and progress by comparing p
               name: 'Segoe UI',
               size: 9.5,
               bold: true,
-              color: { argb: isDark ? 'FFFFFFFF' : themeText }
+              underline: true,
+              color: { argb: isDark ? 'FFC4B5FD' : 'FF6D28D9' }
             };
             impFeatCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
             styleFeatureCompletionCell(featCompCell, primaryFeatureObj.completionPct, primaryFeatureObj.deliveredScreens > 0);
+            pendingFeatureLinks.push({ cell: impFeatCell, text: impactedFeatureDisplay, featName: primaryFeatureObj.name });
+            pendingFeatureLinks.push({ cell: featCompCell, text: featureCompletionDisplay, featName: primaryFeatureObj.name });
           }
 
           // ALM Status badge coloring
@@ -57326,7 +57347,8 @@ Earned Value Management measures project performance and progress by comparing p
           }
           statusCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
-          // ── LEVEL 1 (Direct Child of Delivery): COMPONENTS (Deliveries have Components) ──
+          // ── LEVEL 1 (Direct Child of Delivery): DELIVERED COMPONENTS (Deliveries have Components) ──
+          // Linked Tasks, Screens, and Features are consolidated without duplication on Sheet 2 ('Feature & Screen Traceability')!
           pd.components.forEach((comp, cIdx) => {
             const isLastComp = cIdx === pd.components.length - 1;
             const compBranch = isLastComp ? '└─' : '├─';
@@ -57340,6 +57362,9 @@ Earned Value Management measures project performance and progress by comparing p
 
             const compFeat = comp.linkedFeatureObj;
             const compTotalScr = compFeat ? Math.max(1, compFeat.totalScreens) : 1;
+            const compScreenBadgeText = compFeat
+              ? `🖥️ ${comp.linkedScreenName} (1 of ${compTotalScr} Screens) ↗`
+              : '—';
 
             currentRowIdx++;
             const compRow = ws.addRow({
@@ -57356,16 +57381,21 @@ Earned Value Management measures project performance and progress by comparing p
               linkedType: compLinkedType,
               linkedId: compLinkedId,
               impactedFeature: compFeat ? compFeat.name : '—',
-              featureCompletion: compFeat
-                ? `Screen: ${comp.linkedScreenName} (1/${compTotalScr})  |  ${compFeat.screensDetailStr}`
-                : '—'
+              featureCompletion: compScreenBadgeText
             });
             compRow.outlineLevel = 1;
             compRow.hidden = true;
             styleHierarchyRow(compRow, 1, 'component');
 
             if (compFeat) {
-              styleFeatureCompletionCell(compRow.getCell('featureCompletion'), compFeat.completionPct, compFeat.deliveredScreens > 0);
+              const cFeatCompCell = compRow.getCell('featureCompletion');
+              styleFeatureCompletionCell(cFeatCompCell, compFeat.completionPct, compFeat.deliveredScreens > 0);
+              pendingScreenLinks.push({
+                cell: cFeatCompCell,
+                text: compScreenBadgeText,
+                screenName: comp.linkedScreenName,
+                featName: compFeat.name
+              });
             }
 
             const compAccent = blendArgb(themePrimary, 'FF6366F1', 0.5);
@@ -57377,92 +57407,348 @@ Earned Value Management measures project performance and progress by comparing p
               const c = compRow.getCell(k);
               if (c) c.alignment = { vertical: 'middle', horizontal: 'center' };
             });
-
-            // ── LEVEL 2 (Child of Component): LINKED TASKS & LINKED SCREENS -> FEATURES ──
-            // 2A. Linked Task(s) for this Component
-            comp.linkedTasks.forEach((rt, tIdx) => {
-              const t = rt.taskObj;
-              const tId = S(t ? t.id : rt.rawId);
-              const tName = S(t ? t.name : rt.rawId);
-              const isLastChild = !hasScreen && (tIdx === comp.linkedTasks.length - 1);
-              const childPrefix = isLastChild ? '   └─ TASK' : '   ├─ TASK';
-
-              currentRowIdx++;
-              const taskChildRow = ws.addRow({
-                almId: childPrefix,
-                name: `      📋 Task: ${tId}${t && t.name ? ' — ' + tName : ''}`,
-                pdn: '',
-                pdnProcessingDate: '',
-                componentsDelivered: comp.name,
-                category: 'Component ➔ Task',
-                module: S((t && t.module) || d.module || ''),
-                almStatus: S((t && t.status) || pd.delStatus),
-                reportedBy: '',
-                fixedBy: S((t && t.assignee) || d.fixedBy || ''),
-                linkedType: 'Task',
-                linkedId: tId,
-                impactedFeature: compFeat ? compFeat.name : '',
-                featureCompletion: compFeat ? formatFeatureCompletionText(compFeat) : ''
-              });
-              taskChildRow.outlineLevel = 2;
-              taskChildRow.hidden = true;
-              styleHierarchyRow(taskChildRow, 2, 'task');
-
-              const tAlmCell = taskChildRow.getCell('almId');
-              tAlmCell.font = { name: 'Consolas', size: 8, bold: true, underline: !!taskRowMap[tId.toLowerCase()], color: { argb: isDark ? 'FF60A5FA' : 'FF2563EB' } };
-              tAlmCell.alignment = { vertical: 'middle', horizontal: 'center' };
-              if (taskRowMap[tId.toLowerCase()]) {
-                tAlmCell.value = { text: `${childPrefix}: ${tId}`, hyperlink: `#'Tasks & Subtasks'!C${taskRowMap[tId.toLowerCase()]}` };
-              }
-
-              ['almStatus', 'linkedType'].forEach(k => {
-                const c = taskChildRow.getCell(k);
-                if (c) c.alignment = { vertical: 'middle', horizontal: 'center' };
-              });
-            });
-
-            // 2B. Linked Screen -> Feature for this Component (Screens are linked to Features)
-            if (hasScreen) {
-              currentRowIdx++;
-              const screenChildRow = ws.addRow({
-                almId: '   └─ SCREEN',
-                name: compFeat
-                  ? `      🖥️ Screen: ${comp.linkedScreenName}  ➔  🎯 Feature: ${compFeat.name}  [${compFeat.screensDetailStr}]`
-                  : `      🖥️ Screen: ${comp.linkedScreenName}`,
-                pdn: '',
-                pdnProcessingDate: '',
-                componentsDelivered: comp.name,
-                category: 'Screen ➔ Feature',
-                module: S(d.module),
-                almStatus: pd.delStatus,
-                reportedBy: '',
-                fixedBy: S(d.fixedBy || ''),
-                linkedType: 'Screen',
-                linkedId: comp.linkedScreenName,
-                impactedFeature: compFeat ? compFeat.name : '—',
-                featureCompletion: compFeat ? formatFeatureCompletionText(compFeat) : '—'
-              });
-              screenChildRow.outlineLevel = 2;
-              screenChildRow.hidden = true;
-              styleHierarchyRow(screenChildRow, 2, 'screen');
-
-              if (compFeat) {
-                styleFeatureCompletionCell(screenChildRow.getCell('featureCompletion'), compFeat.completionPct, compFeat.deliveredScreens > 0);
-              }
-
-              const sAlmCell = screenChildRow.getCell('almId');
-              sAlmCell.font = { name: 'Consolas', size: 8, bold: true, color: { argb: isDark ? 'FFA78BFA' : 'FF7C3AED' } };
-              sAlmCell.alignment = { vertical: 'middle', horizontal: 'center' };
-
-              ['almStatus', 'linkedType'].forEach(k => {
-                const c = screenChildRow.getCell(k);
-                if (c) c.alignment = { vertical: 'middle', horizontal: 'center' };
-              });
-            }
           });
         });
 
         this.applyDeliverySheetValidations(ws, wb, safeMode, deliveryRowIndices, currentRowIdx);
+
+        // ══════════════════════════════════════════════════════════════════════════════════════════════
+        // SHEET 2: 'Feature & Screen Traceability' — DEDUPLICATED HIERARCHY
+        // (Features -> All 3 Canonical Screens -> Deduplicated Components & Linked Tasks -> Deliveries)
+        // Eliminates clumsy repetition when multiple deliveries share components, tasks, screens, or features!
+        // ══════════════════════════════════════════════════════════════════════════════════════════════
+        const traceSheetName = 'Feature & Screen Traceability';
+        const existingTraceWs = wb.getWorksheet(traceSheetName);
+        if (existingTraceWs) wb.removeWorksheet(existingTraceWs.id);
+
+        const traceWs = wb.addWorksheet(traceSheetName, { views: safeMode ? [] : [{ state: 'frozen', ySplit: 7, xSplit: 3 }] });
+        traceWs.properties.tabColor = { argb: blendArgb(themePrimary, 'FF8B5CF6', 0.55) };
+        traceWs.properties.outlineProperties = { summaryBelow: false, summaryRight: false };
+
+        const traceCols = [
+          { header: '', key: '_spacer', width: 3 },
+          { header: 'Traceability ID', key: 'traceId', width: 20 },
+          { header: 'Feature ➔ Screen ➔ Component', key: 'entityName', width: 44 },
+          { header: 'Hierarchy Level', key: 'entityType', width: 22 },
+          { header: 'Release / Module', key: 'moduleRelease', width: 24 },
+          { header: 'Completion / Status', key: 'statusBadge', width: 28 },
+          { header: 'Screen Breakdown / Share', key: 'screenSummary', width: 56 },
+          { header: 'Deduplicated Components', key: 'uniqueComps', width: 42 },
+          { header: 'Linked Tasks (Deduplicated)', key: 'linkedTasks', width: 34 },
+          { header: 'Contributing Deliveries (ALM IDs)', key: 'contributingDels', width: 36 }
+        ];
+        traceWs.columns = traceCols.map(c => ({ key: c.key, width: c.width }));
+
+        // Top Banner (Row 1) on Sheet 2
+        const tBannerRow = traceWs.getRow(1);
+        tBannerRow.height = 30;
+        traceWs.mergeCells(1, 2, 1, traceCols.length);
+        const tBannerCell = traceWs.getCell(1, 2);
+        tBannerCell.value = `🎯 FEATURE, SCREEN & COMPONENT TRACEABILITY MATRIX  —  DEDUPLICATED HIERARCHICAL ROLLUP  (THEME: ${activeThemeName})`;
+        tBannerCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: blendArgb(themePrimary, 'FF1E1B4B', 0.65) } };
+        tBannerCell.font = { name: 'Segoe UI', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+        tBannerCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+        traceWs.getRow(2).height = 8;
+
+        // Deduplicate Components, Tasks, and Deliveries per Screen and per Feature
+        const screenComponentMap = new Map(); // screenName -> Map<compNameLower, { compName, icon, layer, tasksMap, deliveriesMap }>
+        const globalUniqueComps = new Set();
+        const impactedFeatureNames = new Set();
+
+        parsedDeliveries.forEach(pd => {
+          const d = pd.raw;
+          pd.components.forEach(comp => {
+            const cKey = comp.name.toLowerCase();
+            globalUniqueComps.add(cKey);
+            const scName = comp.linkedScreenName;
+            if (!scName) return;
+            if (comp.linkedFeatureObj) impactedFeatureNames.add(comp.linkedFeatureObj.name);
+
+            if (!screenComponentMap.has(scName)) {
+              screenComponentMap.set(scName, new Map());
+            }
+            const compMap = screenComponentMap.get(scName);
+            if (!compMap.has(cKey)) {
+              compMap.set(cKey, {
+                compName: comp.name,
+                icon: comp.icon,
+                layer: comp.layer,
+                tasksMap: new Map(),      // rawId -> taskObj
+                deliveriesMap: new Map()  // delIdStr -> { delIdStr, pdn, status, module, fixedBy }
+              });
+            }
+            const entry = compMap.get(cKey);
+            comp.linkedTasks.forEach(rt => {
+              if (!entry.tasksMap.has(rt.rawId)) entry.tasksMap.set(rt.rawId, rt.taskObj);
+            });
+            entry.deliveriesMap.set(pd.delIdStr, {
+              delIdStr: pd.delIdStr,
+              pdn: S(d.pdn),
+              status: pd.delStatus,
+              module: S(d.module),
+              fixedBy: S(d.fixedBy || '')
+            });
+          });
+        });
+
+        // Select features to display on Sheet 2: all Impacted Features first + core named Features (excluding generic auto-padded Feature 11..50)
+        const traceFeatures = [];
+        const seenFeatNames = new Set();
+        featureStatsList.forEach(fs => {
+          if (impactedFeatureNames.has(fs.name) && !seenFeatNames.has(fs.name)) {
+            seenFeatNames.add(fs.name);
+            traceFeatures.push(fs);
+          }
+        });
+        featureStatsList.forEach(fs => {
+          if (!seenFeatNames.has(fs.name) && !/^Feature\s+\d+$/i.test(fs.name)) {
+            seenFeatNames.add(fs.name);
+            traceFeatures.push(fs);
+          }
+        });
+        if (traceFeatures.length === 0) {
+          featureStatsList.slice(0, 10).forEach(fs => traceFeatures.push(fs));
+        }
+
+        const traceTotalScreens = traceFeatures.reduce((acc, fs) => acc + fs.totalScreens, 0);
+        const traceDeliveredScreens = traceFeatures.reduce((acc, fs) => acc + fs.deliveredScreens, 0);
+        const traceActiveScreens = traceFeatures.reduce((acc, fs) => acc + (fs.inProgressScreens || 0), 0);
+        const tracePendingScreens = Math.max(0, traceTotalScreens - traceDeliveredScreens - traceActiveScreens);
+        const traceOverallPct = traceTotalScreens > 0 ? Math.round((traceDeliveredScreens / traceTotalScreens) * 100) : 0;
+
+        // Draw KPI Cards on Sheet 2 (Rows 3–5)
+        drawTopKpiCard(traceWs, 2, 3, 2, 3, 'Tracked Features', `${traceFeatures.length} Features`, `${impactedFeatureNames.size} Active in Deliveries · Deduplicated`, blendArgb(themePrimary, 'FF8B5CF6', 0.55));
+        drawTopKpiCard(traceWs, 4, 3, 2, 3, 'Feature Screens Breakdown', `${traceTotalScreens} Total Screens`, `${traceDeliveredScreens} Delivered ✓ · ${traceActiveScreens} Active ◐ · ${tracePendingScreens} Pending ○`, themePrimary);
+        drawTopKpiCard(traceWs, 6, 3, 2, 3, 'Feature Completion Rate', `${traceOverallPct}% Complete`, `${traceDeliveredScreens} of ${traceTotalScreens} Feature Screens Delivered`, COLORS.emerald || 'FF10B981');
+        drawTopKpiCard(traceWs, 8, 3, 3, 3, 'Deduplicated Components', `${globalUniqueComps.size} Unique Components`, `Consolidated across ${parsedDeliveries.length} ALM Deliveries`, themePrimaryHover);
+
+        // Instruction Banner on Row 6 of Sheet 2
+        const tGuideRow = traceWs.getRow(6);
+        tGuideRow.height = 22;
+        traceWs.mergeCells(6, 2, 6, traceCols.length);
+        const tGuideCell = traceWs.getCell(6, 2);
+        tGuideCell.value = '💡 DEDUPLICATED HIERARCHY:  Level 0 = Feature (100% = All 3 Screens Delivered)   ➔   Level 1 = All 3 Screens of the Feature (Visible by Default)   ➔   Level 2 [+] = Unique Components, Linked Tasks & Contributing ALM Deliveries';
+        tGuideCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: themeSurfaceAlt } };
+        tGuideCell.font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: readableAccentOnSurface(themePrimary) } };
+        tGuideCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+
+        // Table Headers on Row 7 of Sheet 2
+        const tHdrRow = traceWs.getRow(7);
+        tHdrRow.height = 30;
+        traceCols.forEach((col, cIdx) => {
+          if (col.key === '_spacer') return;
+          const cell = tHdrRow.getCell(cIdx + 1);
+          cell.value = S(col.header);
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: blendArgb(themePrimary, 'FF090D16', 0.64) } };
+          cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.border = {
+            top: { style: 'thin', color: { argb: themeDivider } },
+            bottom: { style: 'medium', color: { argb: blendArgb(themePrimary, 'FFA855F7', 0.5) } },
+            left: { style: 'thin', color: { argb: themeDivider } },
+            right: { style: 'thin', color: { argb: themeDivider } }
+          };
+          cell.alignment = { vertical: 'middle', horizontal: cIdx === 1 || cIdx === 3 || cIdx === 5 ? 'center' : 'left', indent: cIdx === 1 || cIdx === 3 || cIdx === 5 ? 0 : 1 };
+        });
+
+        let traceRowIdx = 8;
+        const featureTraceRowMap = new Map(); // featName -> rowIdx on Sheet 2
+        const screenTraceRowMap = new Map();  // screenName -> rowIdx on Sheet 2
+
+        traceFeatures.forEach((fs, fIdx) => {
+          const featRowNum = traceRowIdx++;
+          featureTraceRowMap.set(fs.name, featRowNum);
+
+          // Collect deduplicated components, tasks, and deliveries across all 3 screens of this Feature
+          const featCompsSet = new Set();
+          const featTasksSet = new Set();
+          const featDelsSet = new Set();
+          let primaryModule = '';
+
+          fs.canonicalScreens.forEach(scName => {
+            const cMap = screenComponentMap.get(scName);
+            if (cMap) {
+              cMap.forEach(cEntry => {
+                featCompsSet.add(cEntry.compName);
+                cEntry.tasksMap.forEach((_, tId) => featTasksSet.add(tId));
+                cEntry.deliveriesMap.forEach((dInfo, dId) => {
+                  featDelsSet.add(dId);
+                  if (!primaryModule && dInfo.module) primaryModule = dInfo.module;
+                });
+              });
+            }
+          });
+
+          const featRelease = S(fs.raw && fs.raw.release) || 'v1.0.0';
+          const featModRel = primaryModule ? `${featRelease} · ${primaryModule}` : featRelease;
+          const featStatusStr = (fs.deliveredScreens === 0 && fs.inProgressScreens > 0)
+            ? `0% (0/${fs.totalScreens} Delivered · ${fs.inProgressScreens} Active)`
+            : `${fs.completionPct}% (${fs.deliveredScreens} of ${fs.totalScreens} Screens Delivered)`;
+
+          // ── LEVEL 0 ON SHEET 2: FEATURE ROW (Deduplicated — appears ONCE per Feature) ──
+          const fRow = traceWs.addRow({
+            traceId: `🎯 FEAT-${String(fIdx + 1).padStart(2, '0')}`,
+            entityName: `🎯 ${fs.name}`,
+            entityType: `Feature (${fs.totalScreens} Screens)`,
+            moduleRelease: featModRel,
+            statusBadge: featStatusStr,
+            screenSummary: fs.screensDetailStr,
+            uniqueComps: featCompsSet.size > 0 ? Array.from(featCompsSet).join(', ') : '— No components delivered yet',
+            linkedTasks: featTasksSet.size > 0 ? Array.from(featTasksSet).join(', ') : '—',
+            contributingDels: featDelsSet.size > 0 ? Array.from(featDelsSet).join(', ') : '— Pending Delivery'
+          });
+          fRow.outlineLevel = 0;
+          styleHierarchyRow(fRow, 0, 'delivery');
+          fRow.height = 25;
+
+          const fIdCell = fRow.getCell('traceId');
+          fIdCell.font = { name: 'Consolas', size: 9.5, bold: true, color: { argb: readableAccentOnSurface(blendArgb(themePrimary, 'FF8B5CF6', 0.5)) } };
+          fIdCell.alignment = { vertical: 'middle', horizontal: 'center' };
+          fRow.getCell('entityType').alignment = { vertical: 'middle', horizontal: 'center' };
+          styleFeatureCompletionCell(fRow.getCell('statusBadge'), fs.completionPct, fs.deliveredScreens > 0);
+          fRow.getCell('statusBadge').alignment = { vertical: 'middle', horizontal: 'center' };
+
+          // ── LEVEL 1 ON SHEET 2: ALL 3 CANONICAL SCREENS OF THIS FEATURE (Visible by default!) ──
+          fs.screenEntries.forEach((se, sIdx) => {
+            const scRowNum = traceRowIdx++;
+            screenTraceRowMap.set(se.screenName, scRowNum);
+
+            const isLastScr = sIdx === fs.screenEntries.length - 1;
+            const scrBranch = isLastScr ? '└─' : '├─';
+            const cMap = screenComponentMap.get(se.screenName);
+            const uniqueCompList = cMap ? Array.from(cMap.values()) : [];
+
+            const scTasksMap = new Map();
+            const scDelsList = [];
+            uniqueCompList.forEach(cEntry => {
+              cEntry.tasksMap.forEach((tObj, tId) => scTasksMap.set(tId, tObj));
+              cEntry.deliveriesMap.forEach((dInfo) => {
+                if (!scDelsList.some(x => x.delIdStr === dInfo.delIdStr)) scDelsList.push(dInfo);
+              });
+            });
+
+            const scStatusLabel = se.isDelivered
+              ? '✓ Delivered'
+              : (se.isInProgress ? '◐ In Progress (Active)' : '○ Pending (0 Delivered)');
+            const scWeightShare = `Screen ${sIdx + 1} of ${fs.totalScreens} (${Math.round(100 / Math.max(1, fs.totalScreens))}% of Feature)`;
+            const scCompsStr = uniqueCompList.length > 0
+              ? uniqueCompList.map(c => c.compName).join(', ')
+              : '— Awaiting Component Delivery';
+            const scTasksStr = scTasksMap.size > 0
+              ? Array.from(scTasksMap.entries()).map(([id, tObj]) => tObj && tObj.name ? `${id} (${tObj.name})` : id).join(', ')
+              : '—';
+            const scDelsStr = scDelsList.length > 0
+              ? scDelsList.map(d => `${d.delIdStr} [${d.status}]`).join(', ')
+              : '— Not Yet in PDN';
+
+            const sRow = traceWs.addRow({
+              traceId: `${scrBranch} SCR-${String(sIdx + 1).padStart(2, '0')}`,
+              entityName: `  🖥️ ${se.screenName}`,
+              entityType: `Screen ➔ ${fs.name}`,
+              moduleRelease: featModRel,
+              statusBadge: scStatusLabel,
+              screenSummary: scWeightShare,
+              uniqueComps: scCompsStr,
+              linkedTasks: scTasksStr,
+              contributingDels: scDelsStr
+            });
+            sRow.outlineLevel = 1;
+            // Keep Level 1 (All 3 Screens) VISIBLE BY DEFAULT so the user sees all 3 screens immediately without hunting!
+            sRow.hidden = false;
+            styleHierarchyRow(sRow, 1, 'screen');
+            sRow.height = 21;
+
+            const sIdCell = sRow.getCell('traceId');
+            sIdCell.font = { name: 'Consolas', size: 9, bold: true, color: { argb: isDark ? 'FFA78BFA' : 'FF7C3AED' } };
+            sIdCell.alignment = { vertical: 'middle', horizontal: 'center' };
+            sRow.getCell('entityType').alignment = { vertical: 'middle', horizontal: 'center' };
+
+            const sBadgeCell = sRow.getCell('statusBadge');
+            styleFeatureCompletionCell(sBadgeCell, se.isDelivered ? 100 : (se.isInProgress ? 50 : 0), se.isDelivered);
+            sBadgeCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+            // Hyperlink Contributing Deliveries cell back to the primary Delivery row on Sheet 1 ('Deliveries')
+            if (scDelsList.length > 0) {
+              const firstDelId = scDelsList[0].delIdStr;
+              const delRowOnSheet1 = deliveryRowMap.get(firstDelId);
+              if (delRowOnSheet1) {
+                const delCell = sRow.getCell('contributingDels');
+                delCell.value = { text: `${scDelsStr} ↩`, hyperlink: `#'Deliveries'!B${delRowOnSheet1}` };
+                delCell.font = { name: 'Segoe UI', size: 8.5, bold: true, underline: true, color: { argb: isDark ? 'FF60A5FA' : 'FF2563EB' } };
+              }
+            }
+
+            // ── LEVEL 2 ON SHEET 2: DEDUPLICATED COMPONENTS UNDER THIS SCREEN (Collapsible [+]) ──
+            uniqueCompList.forEach((cEntry, cIdx) => {
+              traceRowIdx++;
+              const isLastComp = cIdx === uniqueCompList.length - 1;
+              const cPrefix = isLastComp ? '   └─ COMP' : '   ├─ COMP';
+              const cTasksArr = Array.from(cEntry.tasksMap.entries());
+              const cDelsArr = Array.from(cEntry.deliveriesMap.values());
+
+              const cTasksDisplay = cTasksArr.length > 0
+                ? cTasksArr.map(([id, tObj]) => tObj && tObj.name ? `${id} — ${tObj.name}` : id).join(', ')
+                : 'Direct GUI Screen Component';
+              const cDelsDisplay = cDelsArr.map(d => `${d.delIdStr} (${d.pdn || d.status})`).join(', ');
+              const anyDelivered = cDelsArr.some(d => isDeliveredStatus(d.status));
+
+              const cRow = traceWs.addRow({
+                traceId: `${cPrefix}-${String(cIdx + 1).padStart(2, '0')}`,
+                entityName: `      ${cEntry.icon} ${cEntry.compName}`,
+                entityType: `Component [${cEntry.layer}]`,
+                moduleRelease: cDelsArr[0] ? cDelsArr[0].module : featRelease,
+                statusBadge: anyDelivered ? '✓ Component Delivered' : '◐ In Progress',
+                screenSummary: `Linked to Screen: ${se.screenName} ➔ Feature: ${fs.name}`,
+                uniqueComps: cEntry.compName,
+                linkedTasks: cTasksDisplay,
+                contributingDels: cDelsDisplay
+              });
+              cRow.outlineLevel = 2;
+              cRow.hidden = true;
+              styleHierarchyRow(cRow, 2, 'component');
+              cRow.height = 19;
+
+              const cIdCell = cRow.getCell('traceId');
+              cIdCell.font = { name: 'Consolas', size: 8.5, bold: true, color: { argb: isDark ? 'FF93C5FD' : 'FF1D4ED8' } };
+              cIdCell.alignment = { vertical: 'middle', horizontal: 'center' };
+              cRow.getCell('entityType').alignment = { vertical: 'middle', horizontal: 'center' };
+              cRow.getCell('statusBadge').alignment = { vertical: 'middle', horizontal: 'center' };
+
+              // Hyperlink Linked Task to 'Tasks & Subtasks' sheet if available
+              if (cTasksArr.length > 0) {
+                const firstTaskId = cTasksArr[0][0].toLowerCase();
+                if (taskRowMap[firstTaskId]) {
+                  const tCell = cRow.getCell('linkedTasks');
+                  tCell.value = { text: `${cTasksDisplay} ↗`, hyperlink: `#'Tasks & Subtasks'!C${taskRowMap[firstTaskId]}` };
+                  tCell.font = { name: 'Segoe UI', size: 8.5, bold: true, underline: true, color: { argb: isDark ? 'FF60A5FA' : 'FF2563EB' } };
+                }
+              }
+
+              // Hyperlink Contributing Deliveries back to Sheet 1 ('Deliveries')
+              if (cDelsArr.length > 0) {
+                const firstDelRow = deliveryRowMap.get(cDelsArr[0].delIdStr);
+                if (firstDelRow) {
+                  const dCell = cRow.getCell('contributingDels');
+                  dCell.value = { text: `${cDelsDisplay} ↩`, hyperlink: `#'Deliveries'!B${firstDelRow}` };
+                  dCell.font = { name: 'Segoe UI', size: 8.5, bold: true, underline: true, color: { argb: isDark ? 'FF60A5FA' : 'FF2563EB' } };
+                }
+              }
+            });
+          });
+        });
+
+        // Attach cross-sheet hyperlinks on Sheet 1 ('Deliveries') pointing to the exact deduplicated Feature / Screen row on Sheet 2!
+        pendingFeatureLinks.forEach(item => {
+          const targetRow = featureTraceRowMap.get(item.featName);
+          if (targetRow && item.cell) {
+            item.cell.value = { text: item.text, hyperlink: `#'${traceSheetName}'!B${targetRow}` };
+          }
+        });
+        pendingScreenLinks.forEach(item => {
+          const targetRow = screenTraceRowMap.get(item.screenName) || featureTraceRowMap.get(item.featName);
+          if (targetRow && item.cell) {
+            item.cell.value = { text: item.text, hyperlink: `#'${traceSheetName}'!B${targetRow}` };
+          }
+        });
       },
 
       applyDeliverySheetValidations(ws, wb, safeMode, deliveryRowIndices, maxRowIdx) {
