@@ -56687,8 +56687,8 @@ Earned Value Management measures project performance and progress by comparing p
           { header: 'Defect Fixed By', key: 'fixedBy', width: 22 },
           { header: 'Linked Type', key: 'linkedType', width: 16 },
           { header: 'Linked ID', key: 'linkedId', width: 30 },
-          { header: 'Impacted Feature', key: 'impactedFeature', width: 30 },
-          { header: 'Feature Completion (Screens)', key: 'featureCompletion', width: 38 }
+          { header: 'Impacted Feature', key: 'impactedFeature', width: 32 },
+          { header: 'Feature Completion (Screens)', key: 'featureCompletion', width: 66 }
         ];
 
         (P.delCustomFields || []).forEach(f => {
@@ -56766,8 +56766,27 @@ Earned Value Management measures project performance and progress by comparing p
           });
         });
 
+        // Helper to match a Delivery / Component to a Feature when no exact screen keyword matches
+        const matchFallbackFeature = (modStr, descStr) => {
+          const combined = `${modStr || ''} ${descStr || ''}`.toLowerCase();
+          for (const fs of featureStatsList) {
+            const fLow = `${fs.name} ${fs.desc} ${fs.module}`.toLowerCase();
+            if (/market|ticker|orderbook|feed|quote|depth/.test(combined) && /market|feed|orderbook/.test(fLow)) return fs;
+            if (/auth|iam|mfa|login|profile|sso|session/.test(combined) && /identity|access|iam|auth|user/.test(fLow)) return fs;
+            if (/compliance|aml|sanction|audit|governance/.test(combined) && /governance|compliance|aml/.test(fLow)) return fs;
+            if (/risk|var|exposure|stress|limit/.test(combined) && /risk|var|exposure/.test(fLow)) return fs;
+            if (/portfolio|sunburst|attribution|performance|analytics/.test(combined) && /portfolio|performance|analytics|intelligence/.test(fLow)) return fs;
+            if (/order|execution|matching|trade|webhook|email|notification/.test(combined) && /order|execution|matching|trade/.test(fLow)) return fs;
+            if (/kyc|onboard|biometric|document|verif/.test(combined) && /onboard|kyc/.test(fLow)) return fs;
+            if (/payment|checkout|gateway|transaction|billing|cash/.test(combined) && /payment|gateway|user/.test(fLow)) return fs;
+            if (/infra|database|schema|partition|kubernetes|ingress|tls|cert/.test(combined) && /infrastructure|core/.test(fLow)) return fs;
+            if (fs.module && modStr && fs.module.toLowerCase() === String(modStr).trim().toLowerCase()) return fs;
+          }
+          return featureStatsList[0] || null;
+        };
+
         // Deterministic resolver: maps a Component (plus its parent Delivery context) to the Screen(s) it implements
-        const resolveComponentScreenPair = (compName, delObj) => {
+        const resolveComponentScreenPair = (compName, cIdx, delObj) => {
           const cLow = String(compName || '').toLowerCase();
           const dLinkedType = String(delObj.linkedType || '').trim();
           const dLinkedId = String(delObj.linkedId || '').trim();
@@ -56782,15 +56801,14 @@ Earned Value Management measures project performance and progress by comparing p
           if (/sanctions/.test(cLow)) return findPair(p => /sanctions checker/i.test(p.screenName));
           if (/partitioning|schema/.test(cLow)) return findPair(p => /database schema/i.test(p.screenName));
           if (/migration_runner|core_service/.test(cLow)) return findPair(p => /core services/i.test(p.screenName));
-          if (/ingress|cert-manager|helm|gateway/.test(cLow)) return findPair(p => /api gateway/i.test(p.screenName));
+          if (/marketdatagateway|socket-dispatcher|stream-config|ticker/.test(cLow)) return findPair(p => /ticker stream/i.test(p.screenName));
+          if (/ingress|cert-manager|helm|apigateway|api_gateway/.test(cLow)) return findPair(p => /api gateway/i.test(p.screenName));
           if (/sunburst|assethierarchy/.test(cLow)) return findPair(p => /sunburst chart/i.test(p.screenName));
           if (/mfasettings|totpqr|mfa/.test(cLow)) return findPair(p => /mfa settings|mfa verification/i.test(p.screenName));
           if (/depthcanvas|depth/.test(cLow)) return findPair(p => /depth chart/i.test(p.screenName));
           if (/level2_stream|orderbook_stream|level2/.test(cLow)) return findPair(p => /level-2 orderbook/i.test(p.screenName));
-          if (/marketdatagateway|socket-dispatcher|ticker/.test(cLow)) return findPair(p => /ticker stream/i.test(p.screenName));
-          if (/stream-config/.test(cLow)) return findPair(p => /market data feed/i.test(p.screenName));
           if (/orderbookengine|matching_lock|perf_benchmark/.test(cLow)) return findPair(p => /matching engine/i.test(p.screenName));
-          if (/trade_confirmation|emailrenderer|sendgrid/.test(cLow)) return findPair(p => /trade confirmation/i.test(p.screenName));
+          if (/trade_confirmation|emailrenderer|sendgrid|webhook|hmac/.test(cLow)) return findPair(p => /trade confirmation/i.test(p.screenName));
           if (/execdashboard|duckdb|kpi-cards/.test(cLow)) return findPair(p => /analytics dashboard/i.test(p.screenName));
           if (/varsimulation|monte_carlo|var_api/.test(cLow)) return findPair(p => /value-at-risk/i.test(p.screenName));
           if (/stresstest|covariance/.test(cLow)) return findPair(p => /stress testing/i.test(p.screenName));
@@ -56817,16 +56835,12 @@ Earned Value Management measures project performance and progress by comparing p
             if (byTok) return byTok;
           }
 
-          // D. Module / description fallback to canonical Screen
-          if (/compliance|aml/.test(dMod)) return findPair(p => /compliance audit|aml integration/i.test(p.screenName));
-          if (/market/.test(dMod)) return findPair(p => /ticker stream|depth chart/i.test(p.screenName));
-          if (/risk/.test(dMod)) return findPair(p => /value-at-risk|stress testing/i.test(p.screenName));
-          if (/infra/.test(dMod)) return findPair(p => /database schema|core services/i.test(p.screenName));
-          if (/auth/.test(dMod)) return findPair(p => /^authentication$|mfa settings/i.test(p.screenName));
-          if (/analytics/.test(dMod)) return findPair(p => /analytics dashboard|sunburst chart/i.test(p.screenName));
-          if (/core engine/.test(dMod)) return findPair(p => /matching engine/i.test(p.screenName));
-          if (/kyc|onboard/.test(`${dMod} ${dDesc}`)) return findPair(p => /document upload|biometric/i.test(p.screenName));
-          if (/payment|checkout/.test(`${dMod} ${dDesc}`)) return findPair(p => /payment methods|checkout/i.test(p.screenName));
+          // D. Fallback to the matched Feature's canonical screen so every Component links to a concrete Screen -> Feature
+          const fbFeat = matchFallbackFeature(dMod, `${compName} ${dDesc}`);
+          if (fbFeat && fbFeat.canonicalScreens.length > 0) {
+            const targetScr = fbFeat.canonicalScreens[cIdx % fbFeat.canonicalScreens.length];
+            return { screenName: targetScr, featureObj: fbFeat };
+          }
 
           return null;
         };
@@ -56876,7 +56890,7 @@ Earned Value Management measures project performance and progress by comparing p
 
           const components = compTokens.map((tok, cIdx) => {
             const classified = classifyComponent(tok);
-            const screenPair = resolveComponentScreenPair(tok, d);
+            const screenPair = resolveComponentScreenPair(tok, cIdx, d);
             const linkedScreenName = screenPair ? screenPair.screenName : (d.linkedType === 'Screen' ? S(d.linkedId) : '');
             const linkedFeatureObj = screenPair ? screenPair.featureObj : null;
 
@@ -56925,7 +56939,7 @@ Earned Value Management measures project performance and progress by comparing p
           };
         });
 
-        // 3. Compute Feature Completion strictly from Screen Delivery Status (Screens are linked to Features)
+        // 3. Compute Feature Completion strictly from Screen Delivery Status & build explicit Screen-by-Screen details string
         let projectTotalFeatureScreens = 0;
         let projectDeliveredFeatureScreens = 0;
 
@@ -56934,10 +56948,12 @@ Earned Value Management measures project performance and progress by comparing p
             const tracker = screenDeliveryTracker.get(canonScr);
             const isDelivered = tracker ? tracker.deliveredComps.length > 0 : false;
             const isInProgress = tracker ? (!isDelivered && tracker.activeComps.length > 0) : false;
+            const marker = isDelivered ? '✓' : (isInProgress ? '◐' : '○');
             return {
               screenName: canonScr,
               isDelivered,
               isInProgress,
+              marker,
               deliveredComps: tracker ? tracker.deliveredComps : [],
               activeComps: tracker ? tracker.activeComps : []
             };
@@ -56950,6 +56966,7 @@ Earned Value Management measures project performance and progress by comparing p
           fs.deliveredScreens = deliveredCnt;
           fs.inProgressScreens = inProgressCnt;
           fs.completionPct = m > 0 ? Math.round((deliveredCnt / m) * 100) : 0;
+          fs.screensDetailStr = fs.screenEntries.map(se => `${se.marker} ${se.screenName}`).join(' · ');
 
           projectTotalFeatureScreens += m;
           projectDeliveredFeatureScreens += deliveredCnt;
@@ -56959,16 +56976,18 @@ Earned Value Management measures project performance and progress by comparing p
           ? Math.round((projectDeliveredFeatureScreens / projectTotalFeatureScreens) * 100)
           : 0;
 
+        // Formats the Feature Completion cell to ALWAYS show both the count/percentage AND the names/status of all 3 screens!
         const formatFeatureCompletionText = (featObj) => {
           if (!featObj) return '—';
           const m = Math.max(1, featObj.totalScreens);
           const delCnt = featObj.deliveredScreens;
           const progCnt = featObj.inProgressScreens || 0;
           const pct = featObj.completionPct;
+          const details = featObj.screensDetailStr ? `  |  ${featObj.screensDetailStr}` : '';
           if (delCnt === 0 && progCnt > 0) {
-            return `0%  (0 of ${m} Delivered · ${progCnt} In Progress)`;
+            return `0% (0/${m} Delivered, ${progCnt} Active)${details}`;
           }
-          return `${pct}%  (${delCnt} of ${m} Screens Delivered)`;
+          return `${pct}% (${delCnt}/${m} Screens)${details}`;
         };
 
         // Build lookup map of Task/Screen ID -> row number on 'Tasks & Subtasks' worksheet if present
@@ -57337,11 +57356,17 @@ Earned Value Management measures project performance and progress by comparing p
               linkedType: compLinkedType,
               linkedId: compLinkedId,
               impactedFeature: compFeat ? compFeat.name : '—',
-              featureCompletion: compFeat ? `Screen: ${comp.linkedScreenName} (1 of ${compTotalScr} in Feature)` : '—'
+              featureCompletion: compFeat
+                ? `Screen: ${comp.linkedScreenName} (1/${compTotalScr})  |  ${compFeat.screensDetailStr}`
+                : '—'
             });
             compRow.outlineLevel = 1;
             compRow.hidden = true;
             styleHierarchyRow(compRow, 1, 'component');
+
+            if (compFeat) {
+              styleFeatureCompletionCell(compRow.getCell('featureCompletion'), compFeat.completionPct, compFeat.deliveredScreens > 0);
+            }
 
             const compAccent = blendArgb(themePrimary, 'FF6366F1', 0.5);
             const cAlmCell = compRow.getCell('almId');
@@ -57376,8 +57401,8 @@ Earned Value Management measures project performance and progress by comparing p
                 fixedBy: S((t && t.assignee) || d.fixedBy || ''),
                 linkedType: 'Task',
                 linkedId: tId,
-                impactedFeature: '',
-                featureCompletion: ''
+                impactedFeature: compFeat ? compFeat.name : '',
+                featureCompletion: compFeat ? formatFeatureCompletionText(compFeat) : ''
               });
               taskChildRow.outlineLevel = 2;
               taskChildRow.hidden = true;
@@ -57402,7 +57427,7 @@ Earned Value Management measures project performance and progress by comparing p
               const screenChildRow = ws.addRow({
                 almId: '   └─ SCREEN',
                 name: compFeat
-                  ? `      🖥️ Screen: ${comp.linkedScreenName}  ➔  🎯 Feature: ${compFeat.name}`
+                  ? `      🖥️ Screen: ${comp.linkedScreenName}  ➔  🎯 Feature: ${compFeat.name}  [${compFeat.screensDetailStr}]`
                   : `      🖥️ Screen: ${comp.linkedScreenName}`,
                 pdn: '',
                 pdnProcessingDate: '',
@@ -57420,6 +57445,10 @@ Earned Value Management measures project performance and progress by comparing p
               screenChildRow.outlineLevel = 2;
               screenChildRow.hidden = true;
               styleHierarchyRow(screenChildRow, 2, 'screen');
+
+              if (compFeat) {
+                styleFeatureCompletionCell(screenChildRow.getCell('featureCompletion'), compFeat.completionPct, compFeat.deliveredScreens > 0);
+              }
 
               const sAlmCell = screenChildRow.getCell('almId');
               sAlmCell.font = { name: 'Consolas', size: 8, bold: true, color: { argb: isDark ? 'FFA78BFA' : 'FF7C3AED' } };
