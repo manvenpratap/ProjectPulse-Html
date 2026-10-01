@@ -50438,63 +50438,66 @@ Earned Value Management measures project performance and progress by comparing p
       },
 
       async generateFeatureMatrixWorkbook() {
-    const wb = new ExcelJS.Workbook();
-        wb.creator = 'ProjectPulse'; wb.lastModifiedBy = 'ProjectPulse'; wb.created = new Date(); wb.modified = new Date();
+        const PObj = window.P || (typeof P !== "undefined" ? P : {});
+        const self = this;
 
-        const baseColors = (typeof this.getThemePalette === 'function') ? this.getThemePalette() : (typeof PulseExcel !== 'undefined' && typeof PulseExcel.getThemePalette === 'function' ? PulseExcel.getThemePalette() : null);
-        const COLORS = baseColors || {
-          navy: "FF0F172A",
-          indigo: "FF6366F1",
-          slate: "FF64748B",
-          emerald: "FF10B981",
-          rose: "FFF43F5E",
-          header: "FFF8FAFC",
-          input: "FF6366F1",
-          amber: "FFF59E0B",
-          blue: "FF3B82F6",
-          purple: "FF8B5CF6",
-          teal: "FF0D9488",
-          bg: "FFF8FAFC",
-          surface: "FFFFFFFF",
-          surfaceAlt: "FFF1F5F9",
-          divider: "FFE2E8F0",
-          muted: "FF64748B",
-          textDark: "FF0F172A",
-          isDark: false
-        };
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'ProjectPulse'; wb.lastModifiedBy = 'ProjectPulse'; wb.created = new Date(); wb.modified = new Date();
 
-        if (!COLORS.getThemeTint) {
-          COLORS.getThemeTint = (argb, factor) => {
-            if (!argb || argb.length < 6) return "FFFFFFFF";
-            let hex = argb.substring(argb.length - 6);
-            let r = parseInt(hex.substring(0, 2), 16) || 0;
-            let g = parseInt(hex.substring(2, 4), 16) || 0;
-            let b = parseInt(hex.substring(4, 6), 16) || 0;
-            r = Math.round(r * factor + 255 * (1 - factor));
-            g = Math.round(g * factor + 255 * (1 - factor));
-            b = Math.round(b * factor + 255 * (1 - factor));
-            return "FF" + r.toString(16).padStart(2, "0").toUpperCase() + g.toString(16).padStart(2, "0").toUpperCase() + b.toString(16).padStart(2, "0").toUpperCase();
-          };
+  const baseColors = (typeof PulseExcel.getThemePalette === 'function') ? PulseExcel.getThemePalette() : null;
+  const COLORS = baseColors || {
+    navy: "FF0F172A",
+    indigo: "FF6366F1",
+    slate: "FF64748B",
+    emerald: "FF10B981",
+    rose: "FFF43F5E",
+    header: "FFF8FAFC",
+    input: "FF6366F1",
+    amber: "FFF59E0B",
+    blue: "FF3B82F6",
+    purple: "FF8B5CF6",
+    teal: "FF0D9488",
+    bg: "FFF8FAFC",
+    surface: "FFFFFFFF",
+    surfaceAlt: "FFF1F5F9",
+    divider: "FFE2E8F0",
+    muted: "FF64748B",
+    textDark: "FF0F172A",
+    isDark: false
+  };
+
+  if (!COLORS.getThemeTint) {
+    COLORS.getThemeTint = (argb, factor) => {
+      if (!argb || argb.length < 6) return "FFFFFFFF";
+      let hex = argb.substring(argb.length - 6);
+      let r = parseInt(hex.substring(0, 2), 16) || 0;
+      let g = parseInt(hex.substring(2, 4), 16) || 0;
+      let b = parseInt(hex.substring(4, 6), 16) || 0;
+      r = Math.round(r * factor + 255 * (1 - factor));
+      g = Math.round(g * factor + 255 * (1 - factor));
+      b = Math.round(b * factor + 255 * (1 - factor));
+      return "FF" + r.toString(16).padStart(2, "0").toUpperCase() + g.toString(16).padStart(2, "0").toUpperCase() + b.toString(16).padStart(2, "0").toUpperCase();
+    };
+  }
+
+  if (!COLORS.styleRow) {
+    COLORS.styleRow = (row, i, maxDataCol = 7) => {
+      const bg = (i % 2 === 1)
+        ? COLORS.getThemeTint(COLORS.indigo, 0.14)
+        : COLORS.getThemeTint(COLORS.indigo, 0.06);
+      row.eachCell((c, colNum) => {
+        if (colNum <= maxDataCol) {
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+          c.font = Object.assign({}, c.font, { name: "Segoe UI", size: 10, color: { argb: "FF1E293B" } });
+        } else {
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+          c.font = Object.assign({}, c.font, { name: "Segoe UI", size: 9, color: { argb: "FFFFFFFF" } });
         }
+      });
+    };
+  }
 
-        if (!COLORS.styleRow) {
-          COLORS.styleRow = (row, i, maxDataCol = 7) => {
-            const bg = (i % 2 === 1)
-              ? COLORS.getThemeTint(COLORS.indigo, 0.14)
-              : COLORS.getThemeTint(COLORS.indigo, 0.06);
-            row.eachCell((c, colNum) => {
-              if (colNum <= maxDataCol) {
-                c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
-                c.font = Object.assign({}, c.font, { name: "Segoe UI", size: 10, color: { argb: "FF1E293B" } });
-              } else {
-                c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
-                c.font = Object.assign({}, c.font, { name: "Segoe UI", size: 9, color: { argb: "FFFFFFFF" } });
-              }
-            });
-          };
-        }
-
-        const hdrStyle = {
+  const hdrStyle = {
     fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } },
     font: { color: { argb: 'FFFFFFFF' }, bold: true, size: 10, name: 'Segoe UI' },
     alignment: { vertical: 'middle', horizontal: 'center' },
@@ -50519,9 +50522,48 @@ Earned Value Management measures project performance and progress by comparing p
     return `${mNames[dateVal.getMonth()]} ${dateVal.getFullYear()}`;
   };
 
-  const calculatedFeatures = (P.features || []).map((f, fIdx) => {
+  // Intelligent Domain Classification Helper:
+  // Categorizes features into standard professional architecture domains if not explicitly tagged
+  const inferFeatureDomain = (f) => {
+    if (f.category && f.category !== 'General' && f.category !== 'Unassigned') return f.category;
+    const text = ((f.name || '') + ' ' + (f.desc || '') + ' ' + ((f.screens || []).join(' '))).toLowerCase();
+    if (/(order|trade|trading|execution|matching|market data|algo|fx rate|currency)/i.test(text)) {
+      return 'Trading & Execution';
+    }
+    if (/(portfolio|analytics|risk|var|rebalanc|metric|performance|reporting|telemetry|fixed income|derivatives|yield|options|bonds)/i.test(text)) {
+      return 'Portfolio & Risk Analytics';
+    }
+    if (/(kyc|onboard|user|iam|identity|auth|mfa|profile|compliance|aml|sanction|audit|log|forensics|fraud)/i.test(text)) {
+      return 'Identity & Compliance';
+    }
+    if (/(payment|gateway|billing|invoice|tax|fee|commission|remittance|wire|settlement|reconcil|checkout)/i.test(text)) {
+      return 'Payments & Settlement';
+    }
+    if (/(crypto|wallet|blockchain|token|smart contract|liquidity pool|staking|web3|digital asset)/i.test(text)) {
+      return 'Digital Assets & Web3';
+    }
+    if (/(api|gateway|webhook|sdk|partner|mesh|route|graphql|federation)/i.test(text)) {
+      return 'API & Integration';
+    }
+    if (/(infrastructure|cache|redis|database|etl|data warehouse|service mesh|secret|vault|backup|disaster|health|config|flag|incident|runbook)/i.test(text)) {
+      return 'Core Platform & SRE';
+    }
+    if (/(support|community|forum|a\/b testing|experiment|session replay|ux analytics|notification|alert)/i.test(text)) {
+      return 'Client Experience & Growth';
+    }
+    return 'Core Platform & SRE';
+  };
+
+  const renderBarStr = (pct, len = 10) => {
+    const p = Math.max(0, Math.min(1, typeof pct === 'number' ? pct : 0));
+    const filled = Math.round(p * len);
+    const empty = Math.max(0, len - filled);
+    return '█'.repeat(filled) + '░'.repeat(empty) + ' ' + Math.round(p * 100) + '%';
+  };
+
+  const calculatedFeatures = (PObj.features || []).map((f, fIdx) => {
     const fScreens = f.screens || [];
-    const linkedTasks = (P.tasks || []).filter(t => {
+    const linkedTasks = (PObj.tasks || []).filter(t => {
       const hasGuiScreenMatch = (t.guiScreens || []).some(sc => {
         const scName = typeof sc === 'string' ? sc : (sc.name || sc.screen);
         return scName && fScreens.includes(scName);
@@ -50548,15 +50590,16 @@ Earned Value Management measures project performance and progress by comparing p
     if (!end) { end = new Date(); end.setDate(end.getDate() + 30); }
 
     const overdue = linkedTasks.filter(t => t.status !== 'Completed' && t.dueDate && new Date(t.dueDate) < new Date()).length;
+    const category = inferFeatureDomain(f);
 
     return {
       id: f.id || `FEAT-${String(fIdx + 1).padStart(3, '0')}`,
-      name: f.name,
-      category: f.category || 'General',
-      release: f.release || '',
+      name: f.name || 'Unnamed Feature',
+      category: category,
+      release: f.release || 'Unassigned',
       desc: f.desc || f.description || '',
-      screensCount: f.screens ? f.screens.length : 0,
-      screensList: f.screens ? f.screens.join(', ') : '',
+      screensCount: fScreens.length,
+      screensList: fScreens.join(', '),
       tasksCount: tot,
       tasksList: linkedTasks.map(t => `${t.id || ''}: ${t.name}`).filter(Boolean).join(', '),
       progress: avgP / 100,
@@ -50566,47 +50609,60 @@ Earned Value Management measures project performance and progress by comparing p
     };
   });
 
+  const releasesList = [...(PObj.releases || [])];
+  const allCategoriesList = Array.from(new Set([
+    ...calculatedFeatures.map(f => f.category),
+    ...((PObj.dropdowns && PObj.dropdowns.category) || [])
+  ])).filter(Boolean);
+  const categoriesList = allCategoriesList.filter(cat => calculatedFeatures.some(f => f.category === cat));
+
   const totalFeatCount = calculatedFeatures.length;
-  const completedFeatures = calculatedFeatures.filter(f => f.progress >= 1).length;
-  const inProgressFeatures = calculatedFeatures.filter(f => f.progress > 0 && f.progress < 1).length;
+  const totalScreensCount = calculatedFeatures.reduce((acc, f) => acc + f.screensCount, 0);
+  const totalTasksLinked = calculatedFeatures.reduce((acc, f) => acc + f.tasksCount, 0);
   const matureFeatures = calculatedFeatures.filter(f => f.progress >= 0.8).length;
+  const inProgressFeatures = calculatedFeatures.filter(f => f.progress > 0 && f.progress < 0.8).length;
+  const completedFeatures = calculatedFeatures.filter(f => f.progress >= 1).length;
   const atRiskFeatures = calculatedFeatures.filter(f => f.atRisk > 0).length;
-  const avgMaturity = totalFeatCount
-    ? Math.round(calculatedFeatures.reduce((sum, f) => sum + f.progress, 0) / totalFeatCount * 100)
-    : 0;
-  const totalScreensCount = calculatedFeatures.reduce((sum, f) => sum + f.screensCount, 0);
-  const totalTasksLinked = calculatedFeatures.reduce((sum, f) => sum + f.tasksCount, 0);
-  const releasesList = P.releases || [];
-  const categoriesList = Array.from(new Set(calculatedFeatures.map(f => f.category || 'General'))).sort();
+  const avgMaturity = totalFeatCount ? Math.round(calculatedFeatures.reduce((acc, f) => acc + f.progress, 0) / totalFeatCount * 100) : 0;
 
   const drawTopKpiCard = (sheet, col, row, w, h, label, value, subLabel, accentColor) => {
-    PulseExcel.drawTopKpiCard(sheet, col, row, w, h, label, value, subLabel, accentColor, { font: 'Segoe UI', cardBg: COLORS.surface, borderOuter: COLORS.divider, labelColor: COLORS.slate, subColor: COLORS.slate, valueColor: accentColor });
+    (self.drawTopKpiCard || PulseExcel.drawTopKpiCard)(sheet, col, row, w, h, label, value, subLabel, accentColor, {
+      font: 'Segoe UI',
+      cardBg: COLORS.surface,
+      borderOuter: COLORS.divider,
+      labelColor: COLORS.slate,
+      subColor: COLORS.slate,
+      valueColor: accentColor
+    });
   };
 
   // ══════════════════════════════════════════════════════
   // SHEET 1: Executive Overview & SmartArt
   // ══════════════════════════════════════════════════════
-  const wsOverview = wb.addWorksheet('Executive Overview & SmartArt', { views: [{ showGridLines: false }] });
-  wsOverview.properties.tabColor = { argb: COLORS.indigo };
+  const wsOverview = wb.addWorksheet('Executive Overview & SmartArt', {
+    views: [{ showGridLines: false }]
+  });
+  wsOverview.properties.tabColor = { argb: 'FF0F172A' };
 
   wsOverview.columns = [
-    { key: '_sp', width: 3 },
-    { key: 'c1', width: 15 },
-    { key: 'c2', width: 15 },
-    { key: 'c3', width: 15 },
-    { key: 'c4', width: 15 },
-    { key: 'c5', width: 15 },
-    { key: 'c6', width: 15 },
-    { key: 'c7', width: 15 },
-    { key: 'c8', width: 15 },
-    { key: 'c9', width: 15 },
-    { key: 'c10', width: 15 },
-    { key: 'c11', width: 15 },
-    { key: 'c12', width: 15 },
-    { key: 'c13', width: 15 }
+    { key: 'c0', width: 3 },
+    { key: 'c1', width: 22 },
+    { key: 'c2', width: 14 },
+    { key: 'c3', width: 18 },
+    { key: 'c4', width: 14 },
+    { key: 'c5', width: 3 },
+    { key: 'c6', width: 24 },
+    { key: 'c7', width: 14 },
+    { key: 'c8', width: 16 },
+    { key: 'c9', width: 14 },
+    { key: 'c10', width: 14 },
+    { key: 'c11', width: 14 },
+    { key: 'c12', width: 14 },
+    { key: 'c13', width: 14 }
   ];
 
-  for (let r = 1; r <= 32; r++) {
+  const overviewTotalRows = Math.max(34, 18 + categoriesList.length * 2);
+  for (let r = 1; r <= overviewTotalRows; r++) {
     wsOverview.getRow(r).height = 20;
     for (let c = 1; c <= 14; c++) {
       wsOverview.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.bg } };
@@ -50616,7 +50672,7 @@ Earned Value Management measures project performance and progress by comparing p
   // Hero Title Banner
   wsOverview.mergeCells('B2:N3');
   const oTitle = wsOverview.getCell('B2');
-  oTitle.value = `PROJECTPULSE ✦ FEATURE ARCHITECTURE & RELEASE MATRIX`;
+  oTitle.value = 'PROJECTPULSE ✦ FEATURE ARCHITECTURE & EXECUTIVE MATRIX';
   oTitle.font = { name: 'Segoe UI', size: 13, bold: true, color: { argb: 'FFFFFFFF' } };
   oTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
   oTitle.alignment = { vertical: 'middle', horizontal: 'center' };
@@ -50628,7 +50684,7 @@ Earned Value Management measures project performance and progress by comparing p
 
   wsOverview.mergeCells('B4:N4');
   const oSub = wsOverview.getCell('B4');
-  oSub.value = `📊 ${P.name || 'Portfolio'} | 📅 Generated: ${new Date().toISOString().split('T')[0]} | 🎯 ${totalFeatCount} Features | 👤 Executive PMO | 🔒 Enterprise Ready`;
+  oSub.value = `📊 ${PObj.name || 'Portfolio'} | 📅 Baselined: ${new Date().toISOString().split('T')[0]} | 🎯 ${totalFeatCount} Features | 🚀 ${releasesList.length} Releases | 👤 Executive PMO | 🔒 Enterprise Ready`;
   oSub.font = { name: 'Segoe UI', size: 9, italic: true, color: { argb: 'FF94A3B8' } };
   oSub.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
   oSub.alignment = { vertical: 'middle', horizontal: 'center' };
@@ -50638,13 +50694,13 @@ Earned Value Management measures project performance and progress by comparing p
     right: { style: 'medium', color: { argb: COLORS.indigo } }
   };
 
-  // 4 Top KPI Cockpit Cards
+  // 4 Top KPI Cockpit Cards (Rows 6–8)
   drawTopKpiCard(wsOverview, 2, 6, 3, 3, 'Feature Portfolio', `${totalFeatCount} Features`, `${completedFeatures} Completed · ${inProgressFeatures} In Progress`, COLORS.indigo);
   drawTopKpiCard(wsOverview, 5, 6, 3, 3, 'Overall Maturity', `${avgMaturity}%`, `${matureFeatures} Features ≥80% Complete`, COLORS.emerald);
   drawTopKpiCard(wsOverview, 8, 6, 3, 3, 'Screen & Asset Scope', `${totalScreensCount} Screens`, `${totalTasksLinked} Linked Tasks`, COLORS.blue);
   drawTopKpiCard(wsOverview, 11, 6, 3, 3, 'Governance & Risk', `${atRiskFeatures} At-Risk`, atRiskFeatures > 0 ? '⚠ Escalation Recommended' : '✓ Schedule Protected', atRiskFeatures > 0 ? COLORS.rose : COLORS.emerald);
 
-  // SmartArt 1: Stage-Gate Chevron Process Pipeline (Rows 10–13)
+  // SmartArt: 4-Stage Chevron Process Flow (Rows 10–13)
   wsOverview.mergeCells('B10:N10');
   const pipeHdr = wsOverview.getCell('B10');
   pipeHdr.value = '  ▶ FEATURE LIFECYCLE STAGE-GATE PIPELINE (SMART PROCESS FLOW)';
@@ -50652,120 +50708,205 @@ Earned Value Management measures project performance and progress by comparing p
   pipeHdr.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
   pipeHdr.border = { bottom: { style: 'medium', color: { argb: COLORS.indigo } } };
 
-  const drawPipelineStage = (sheet, col, row, w, h, stageNum, stageTitle, phaseName, metricText, statusBadge, accentColor) => {
-    for (let r = row; r < row + h; r++) {
-      for (let c = col; c < col + w; c++) {
-        sheet.getCell(r, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surface } };
-      }
+  const pipelineStages = [
+    {
+      colStart: 2, colEnd: 4,
+      title: 'STAGE 01 ➔ SCOPE & ARCHITECTURE',
+      sub: '[Specification Gate]',
+      desc: `${totalFeatCount} Features Baselined`,
+      metric: '● PHASE GATE 1 COMPLETE ✓',
+      color: COLORS.indigo,
+      bgTint: 'FFF5F3FF'
+    },
+    {
+      colStart: 5, colEnd: 7,
+      title: 'STAGE 02 ➔ SCREEN & UI/UX DESIGN',
+      sub: '[Asset Mapping]',
+      desc: `${totalScreensCount} UI Screens Cataloged`,
+      metric: `● ${avgMaturity}% Design Approved`,
+      color: COLORS.blue,
+      bgTint: 'FFEFF6FF'
+    },
+    {
+      colStart: 8, colEnd: 10,
+      title: 'STAGE 03 ➔ ENGINEERING SPRINT',
+      sub: '[Component Delivery]',
+      desc: `${totalTasksLinked} Tasks Linked`,
+      metric: `● ${avgMaturity}% Implementation Done`,
+      color: COLORS.purple,
+      bgTint: 'FFFDF4FF'
+    },
+    {
+      colStart: 11, colEnd: 13,
+      title: 'STAGE 04 ➔ RELEASE READINESS',
+      sub: '[Rollout & Validation]',
+      desc: `${releasesList.length} Milestones Scheduled`,
+      metric: atRiskFeatures > 0 ? '● ATTENTION REQUIRED ⚠' : '● ON TRACK FOR DEPLOY ✓',
+      color: atRiskFeatures > 0 ? COLORS.rose : COLORS.emerald,
+      bgTint: atRiskFeatures > 0 ? 'FFFFF1F2' : 'FFECFDF5'
     }
-    sheet.mergeCells(row, col, row + h - 1, col + w - 1);
-    const cell = sheet.getCell(row, col);
+  ];
+
+  pipelineStages.forEach(s => {
+    wsOverview.mergeCells(11, s.colStart, 13, s.colEnd);
+    const cell = wsOverview.getCell(11, s.colStart);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: s.bgTint } };
     cell.border = {
-      top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
-      left: { style: 'thick', color: { argb: accentColor } },
-      bottom: { style: 'medium', color: { argb: 'FFCBD5E1' } },
-      right: { style: 'medium', color: { argb: accentColor } }
+      top: { style: 'thin', color: { argb: COLORS.divider } },
+      left: { style: 'thick', color: { argb: s.color } },
+      bottom: { style: 'medium', color: { argb: s.color } },
+      right: { style: 'thin', color: { argb: COLORS.divider } }
     };
     cell.value = {
       richText: [
-        { text: `STAGE ${stageNum} ➔ ${stageTitle}\n`, font: { name: 'Segoe UI', size: 8, bold: true, color: { argb: accentColor } } },
-        { text: `[${phaseName}]\n`, font: { name: 'Segoe UI', size: 8.5, bold: true, color: { argb: COLORS.navy } } },
-        { text: `${metricText}\n`, font: { name: 'Segoe UI', size: 7.5, color: { argb: COLORS.slate } } },
-        { text: `● ${statusBadge}`, font: { name: 'Segoe UI', size: 8, bold: true, color: { argb: accentColor } } }
+        { text: `${s.title}\n`, font: { name: 'Segoe UI', size: 8.5, bold: true, color: { argb: s.color } } },
+        { text: `${s.sub}\n`, font: { name: 'Segoe UI', size: 7.5, italic: true, color: { argb: COLORS.slate } } },
+        { text: `${s.desc}\n`, font: { name: 'Segoe UI', size: 10.5, bold: true, color: { argb: COLORS.textDark } } },
+        { text: s.metric, font: { name: 'Segoe UI', size: 8, bold: true, color: { argb: s.color } } }
       ]
     };
-    cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
-  };
-
-  drawPipelineStage(wsOverview, 2, 11, 3, 3, '01', 'SCOPE & ARCHITECTURE', 'Specification Gate', `${totalFeatCount} Features Baselined`, 'PHASE GATE 1 COMPLETE ✓', COLORS.indigo);
-  drawPipelineStage(wsOverview, 5, 11, 3, 3, '02', 'SCREEN & UI/UX DESIGN', 'Asset Mapping', `${totalScreensCount} UI Screens Cataloged`, `${Math.min(100, Math.round(avgMaturity * 0.95))}% Design Approved`, COLORS.teal);
-  drawPipelineStage(wsOverview, 8, 11, 3, 3, '03', 'ENGINEERING SPRINT', 'Component Delivery', `${totalTasksLinked} Tasks Linked`, `${avgMaturity}% Implementation Done`, COLORS.blue);
-  drawPipelineStage(wsOverview, 11, 11, 3, 3, '04', 'RELEASE READINESS', 'Rollout & Validation', `${releasesList.length} Milestones Scheduled`, atRiskFeatures > 0 ? 'ATTENTION REQUIRED ⚠' : 'RELEASE READY ✓', atRiskFeatures > 0 ? COLORS.rose : COLORS.emerald);
-
-  // SmartArt 2: Workstream Category Portfolio (Rows 15–24, Cols B–G)
-  wsOverview.mergeCells('B15:G15');
-  const catHdr = wsOverview.getCell('B15');
-  catHdr.value = '  ▶ WORKSTREAM / DOMAIN PORTFOLIO DISTRIBUTION';
-  catHdr.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: COLORS.indigo } };
-  catHdr.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
-  catHdr.border = { bottom: { style: 'medium', color: { argb: COLORS.indigo } } };
-
-  categoriesList.slice(0, 8).forEach((cat, idx) => {
-    const rIdx = 16 + idx;
-    const count = calculatedFeatures.filter(f => (f.category || 'General') === cat).length;
-    const catDone = calculatedFeatures.filter(f => (f.category || 'General') === cat && f.progress >= 1).length;
-    const catPct = count > 0 ? Math.round((catDone / count) * 100) : 0;
-    
-    wsOverview.mergeCells(`B${rIdx}:C${rIdx}`);
-    const nameCell = wsOverview.getCell(`B${rIdx}`);
-    nameCell.value = `📂 ${cat}`;
-    nameCell.font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: COLORS.navy } };
-    nameCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surface } };
-    nameCell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
-
-    const countCell = wsOverview.getCell(`D${rIdx}`);
-    countCell.value = `${count} Features`;
-    countCell.font = { name: 'Segoe UI', size: 8.5, color: { argb: COLORS.slate } };
-    countCell.alignment = { vertical: 'middle', horizontal: 'center' };
-    countCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surface } };
-    countCell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
-
-    wsOverview.mergeCells(`E${rIdx}:F${rIdx}`);
-    const barCell = wsOverview.getCell(`E${rIdx}`);
-    const filledBars = Math.round(catPct / 10);
-    barCell.value = `${'█'.repeat(filledBars)}${'░'.repeat(10 - filledBars)} ${catPct}%`;
-    barCell.font = { name: 'Segoe UI', size: 8, bold: true, color: { argb: catPct >= 80 ? COLORS.emerald : catPct >= 40 ? COLORS.blue : COLORS.amber } };
-    barCell.alignment = { vertical: 'middle', horizontal: 'left' };
-    barCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surface } };
-    barCell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
-
-    const statusCell = wsOverview.getCell(`G${rIdx}`);
-    statusCell.value = catPct >= 80 ? '● Complete' : catPct >= 40 ? '◐ In Progress' : '○ Scheduled';
-    statusCell.font = { name: 'Segoe UI', size: 8, bold: true, color: { argb: catPct >= 80 ? COLORS.emerald : catPct >= 40 ? COLORS.blue : COLORS.slate } };
-    statusCell.alignment = { vertical: 'middle', horizontal: 'center' };
-    statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surface } };
-    statusCell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
   });
 
-  // SmartArt 3: Navigation Directory (Rows 15–24, Cols I–N)
-  wsOverview.mergeCells('I15:N15');
-  const navHdr = wsOverview.getCell('I15');
+  // Section Headers (Row 15)
+  wsOverview.mergeCells('B15:E15');
+  const distHdr = wsOverview.getCell('B15');
+  distHdr.value = '  ▶ WORKSTREAM / DOMAIN PORTFOLIO DISTRIBUTION';
+  distHdr.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: COLORS.indigo } };
+  distHdr.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+  distHdr.border = { bottom: { style: 'medium', color: { argb: COLORS.indigo } } };
+
+  wsOverview.mergeCells('G15:N15');
+  const navHdr = wsOverview.getCell('G15');
   navHdr.value = '  ▶ DIRECT WORKBOOK NAVIGATION DIRECTORY (CLICK TO JUMP)';
   navHdr.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: COLORS.indigo } };
   navHdr.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
   navHdr.border = { bottom: { style: 'medium', color: { argb: COLORS.indigo } } };
 
-  const navSheets = [
-    { name: 'Release Plan', label: '🚀 Release Roadmap & Horizons', desc: 'Target delivery dates, progress bars, milestone countdown', tab: "'Release Plan'!A1" },
-    { name: 'Feature Details', label: '📋 Feature Database & Specifications', desc: 'Core feature catalog, screen allocations, sprint tasks, in-cell bars', tab: "'Feature Details'!A1" },
-    { name: 'Traceability Matrix', label: '🔀 Cross-Functional Traceability Matrix', desc: '2D Workstream vs Feature coverage matrix with progress scoring', tab: "'Traceability Matrix'!A1" },
-    { name: 'Gantt Chart', label: '📅 Timeline Gantt Chart', desc: 'Weekly timeline scheduling, dynamic current week highlight, milestones', tab: "'Gantt Chart'!A1" },
-    { name: 'Swim Lane View', label: '🏊 Workstream Category Swimlane', desc: 'Domain-grouped bands with automatic feature status distribution', tab: "'Swim Lane View'!A1" }
+  // Left Table: Domain Distribution Rows (Row 16 onwards)
+  const DOMAIN_ICONS = {
+    'Trading & Execution': '📈',
+    'Portfolio & Risk Analytics': '📊',
+    'Identity & Compliance': '🛡️',
+    'Payments & Settlement': '💳',
+    'Digital Assets & Web3': '🪙',
+    'API & Integration': '🔌',
+    'Core Platform & SRE': '⚙️',
+    'Client Experience & Growth': '🌟',
+    'General': '📂'
+  };
+
+  categoriesList.forEach((cat, idx) => {
+    const r = 16 + idx;
+    const count = calculatedFeatures.filter(f => f.category === cat).length;
+    const catFeatures = calculatedFeatures.filter(f => f.category === cat);
+    const catAvgProg = count ? (catFeatures.reduce((acc, f) => acc + f.progress, 0) / count) : 0;
+    const icon = DOMAIN_ICONS[cat] || '📂';
+
+    wsOverview.getRow(r).height = 22;
+    const cName = wsOverview.getCell(r, 2);
+    cName.value = `${icon} ${cat}`;
+    cName.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: COLORS.textDark } };
+    cName.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surface } };
+    cName.border = { left: { style: 'medium', color: { argb: COLORS.indigo } }, bottom: { style: 'thin', color: { argb: COLORS.divider } } };
+    cName.alignment = { vertical: 'middle', indent: 1 };
+
+    const cCount = wsOverview.getCell(r, 3);
+    cCount.value = `${count} Features`;
+    cCount.font = { name: 'Segoe UI', size: 9, color: { argb: COLORS.slate } };
+    cCount.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surface } };
+    cCount.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
+    cCount.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    const cBar = wsOverview.getCell(r, 4);
+    cBar.value = {
+      formula: `=IFERROR(REPT("█", ROUND(${catAvgProg}*10, 0)) & REPT("░", 10 - ROUND(${catAvgProg}*10, 0)) & " " & TEXT(${catAvgProg}, "0%"), "—")`,
+      result: renderBarStr(catAvgProg, 10)
+    };
+    cBar.font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: catAvgProg >= 0.8 ? COLORS.emerald : (catAvgProg > 0 ? COLORS.indigo : COLORS.slate) } };
+    cBar.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surface } };
+    cBar.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
+    cBar.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    const cStatus = wsOverview.getCell(r, 5);
+    cStatus.value = catAvgProg >= 1 ? '✓ Complete' : (catAvgProg > 0 ? '● Active' : '○ Planned');
+    cStatus.font = { name: 'Segoe UI', size: 8.5, bold: true, color: { argb: catAvgProg > 0 ? COLORS.indigo : COLORS.slate } };
+    cStatus.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surface } };
+    cStatus.border = { right: { style: 'thin', color: { argb: COLORS.divider } }, bottom: { style: 'thin', color: { argb: COLORS.divider } } };
+    cStatus.alignment = { vertical: 'middle', horizontal: 'center' };
+  });
+
+  // Right Directory: 5 Interactive Sheet Jump Cards (Row 16 to 25, 2 rows per card)
+  const directoryItems = [
+    {
+      title: '🚀 Release Roadmap & Horizons',
+      sheet: 'Release Plan',
+      desc: 'Target delivery dates, countdowns, health scores, and progress bars',
+      color: COLORS.indigo,
+      cellRef: "#'Release Plan'!A1"
+    },
+    {
+      title: '📋 Feature Catalog & Specifications',
+      sheet: 'Feature Details',
+      desc: 'Core feature catalog, screen allocations, sprint tasks, and in-cell bars',
+      color: COLORS.blue,
+      cellRef: "#'Feature Details'!A1"
+    },
+    {
+      title: '🔀 Cross-Functional Traceability Matrix',
+      sheet: 'Traceability Matrix',
+      desc: '2D Workstream vs Feature coverage matrix with progress scoring',
+      color: COLORS.purple,
+      cellRef: "#'Traceability Matrix'!A1"
+    },
+    {
+      title: '📅 Feature Timeline Gantt Chart',
+      sheet: 'Gantt Chart',
+      desc: 'Weekly timeline scheduling, dynamic current week highlight, and milestones',
+      color: COLORS.emerald,
+      cellRef: "#'Gantt Chart'!A1"
+    },
+    {
+      title: '🏊 Workstream Category Swimlane',
+      sheet: 'Swim Lane View',
+      desc: 'Domain-grouped bands with automatic feature status distribution',
+      color: COLORS.amber,
+      cellRef: "#'Swim Lane View'!A1"
+    }
   ];
 
-  navSheets.forEach((ns, idx) => {
-    const rIdx = 16 + (idx * 2);
-    wsOverview.mergeCells(`I${rIdx}:K${rIdx}`);
-    const linkCell = wsOverview.getCell(`I${rIdx}`);
-    linkCell.value = { text: `${ns.label} ↗`, hyperlink: `#${ns.tab}` };
-    linkCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FF2563EB' }, underline: true };
-    linkCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surface } };
-    linkCell.border = { top: { style: 'thin', color: { argb: COLORS.divider } } };
+  directoryItems.forEach((item, idx) => {
+    const r1 = 16 + (idx * 2);
+    const r2 = r1 + 1;
 
-    wsOverview.mergeCells(`L${rIdx}:N${rIdx}`);
-    const jumpBtn = wsOverview.getCell(`L${rIdx}`);
-    jumpBtn.value = `[ OPEN SHEET ]`;
-    jumpBtn.font = { name: 'Segoe UI', size: 8, bold: true, color: { argb: COLORS.indigo } };
-    jumpBtn.alignment = { vertical: 'middle', horizontal: 'center' };
-    jumpBtn.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
-    jumpBtn.border = { top: { style: 'thin', color: { argb: COLORS.divider } } };
+    wsOverview.getRow(r1).height = 18;
+    wsOverview.getRow(r2).height = 16;
 
-    wsOverview.mergeCells(`I${rIdx + 1}:N${rIdx + 1}`);
-    const descCell = wsOverview.getCell(`I${rIdx + 1}`);
-    descCell.value = `   ${ns.desc}`;
-    descCell.font = { name: 'Segoe UI', size: 8, italic: true, color: { argb: COLORS.slate } };
-    descCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surface } };
-    descCell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
+    // Header Row: Title on G to L, Jump Button on M to N
+    wsOverview.mergeCells(`G${r1}:L${r1}`);
+    const tCell = wsOverview.getCell(`G${r1}`);
+    tCell.value = { text: item.title, hyperlink: item.cellRef };
+    tCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: item.color }, underline: true };
+    tCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surface } };
+    tCell.border = { top: { style: 'thin', color: { argb: COLORS.divider } }, left: { style: 'medium', color: { argb: item.color } } };
+    tCell.alignment = { vertical: 'middle', indent: 1 };
+
+    wsOverview.mergeCells(`M${r1}:N${r1}`);
+    const bCell = wsOverview.getCell(`M${r1}`);
+    bCell.value = { text: '[ OPEN ➔ ]', hyperlink: item.cellRef };
+    bCell.font = { name: 'Segoe UI', size: 8.5, bold: true, color: { argb: 'FF2563EB' } };
+    bCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEBF5FF' } };
+    bCell.border = { top: { style: 'thin', color: { argb: COLORS.divider } }, right: { style: 'thin', color: { argb: COLORS.divider } } };
+    bCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    // Description Row: G to N
+    wsOverview.mergeCells(`G${r2}:N${r2}`);
+    const dCell = wsOverview.getCell(`G${r2}`);
+    dCell.value = `   ${item.desc}`;
+    dCell.font = { name: 'Segoe UI', size: 8, italic: true, color: { argb: COLORS.slate } };
+    dCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surface } };
+    dCell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } }, left: { style: 'medium', color: { argb: item.color } }, right: { style: 'thin', color: { argb: COLORS.divider } } };
+    dCell.alignment = { vertical: 'middle', indent: 1 };
   });
 
   // ══════════════════════════════════════════════════════
@@ -50778,7 +50919,7 @@ Earned Value Management measures project performance and progress by comparing p
     { key: '_sp', width: 3 },
     { key: 'name', width: 24 },
     { key: 'date', width: 16 },
-    { key: 'countdown', width: 16 },
+    { key: 'countdown', width: 18 },
     { key: 'status', width: 15 },
     { key: 'featCount', width: 15 },
     { key: 'avgProg', width: 15 },
@@ -50815,75 +50956,142 @@ Earned Value Management measures project performance and progress by comparing p
     }
   });
 
+  const todayObj = new Date();
   releasesList.forEach((r, idx) => {
     const rowIdx = 8 + idx;
+    const rDate = cleanFmtDate(r.date);
+    const rDateObj = rDate instanceof Date ? rDate : null;
+
+    let countdownResult = '—';
+    if (rDateObj) {
+      const diffDays = Math.round((rDateObj - todayObj) / (24 * 60 * 60 * 1000));
+      countdownResult = diffDays < 0 ? `Past Due (${Math.abs(diffDays)}d)` : (diffDays === 0 ? 'Due Today' : `${diffDays} days left`);
+    }
+
+    const matchedFeats = calculatedFeatures.filter(f => f.release === r.name);
+    const rFeatCount = matchedFeats.length;
+    const rAvgProg = rFeatCount ? (matchedFeats.reduce((acc, f) => acc + f.progress, 0) / rFeatCount) : 0;
+    const rAtRisk = matchedFeats.filter(f => f.atRisk > 0).length;
+    const rScreens = matchedFeats.reduce((acc, f) => acc + f.screensCount, 0);
+    const rHealth = rAvgProg >= 1 ? '✓ Complete' : (rAtRisk > 0 ? '⚠ At Risk' : (rAvgProg > 0 ? '◐ In Progress' : '○ Planned'));
+
     const row = wsRel.addRow({
       name: r.name,
-      date: cleanFmtDate(r.date),
-      countdown: { formula: `=IF(C${rowIdx}="-","-",IF(C${rowIdx}<TODAY(),"Passed",TEXT(INT(C${rowIdx}-TODAY()),"#,##0") & " days"))` },
-      status: r.status,
-      featCount: { formula: `=COUNTIF('Feature Details'!$E$8:$E$1000, B${rowIdx})` },
-      avgProg: { formula: `=IFERROR(AVERAGEIF('Feature Details'!$E$8:$E$1000, B${rowIdx}, 'Feature Details'!$K$8:$K$1000), 0)` },
-      progBar: { formula: `=IFERROR(REPT("█", ROUND(G${rowIdx}*10, 0)) & REPT("░", 10 - ROUND(G${rowIdx}*10, 0)) & " " & TEXT(G${rowIdx}, "0%"), "—")` },
-      atRisk: { formula: `=COUNTIFS('Feature Details'!$E$8:$E$1000, B${rowIdx}, 'Feature Details'!$M$8:$M$1000, ">0")` },
-      screens: { formula: `=SUMIF('Feature Details'!$E$8:$E$1000, B${rowIdx}, 'Feature Details'!$G$8:$G$1000)` },
-      health: { formula: `=IF(G${rowIdx}>=1,"✓ Ready",IF(I${rowIdx}>0,"⚠ At Risk","◐ In Progress"))` }
+      date: rDate,
+      countdown: {
+        formula: `=IF(C${rowIdx}="-","-",IF(C${rowIdx}<TODAY(),"Past Due (" & ABS(INT(C${rowIdx}-TODAY())) & "d)",INT(C${rowIdx}-TODAY()) & " days left"))`,
+        result: countdownResult
+      },
+      status: r.status || (rAvgProg >= 1 ? 'Released' : 'Active'),
+      featCount: {
+        formula: `=COUNTIF('Feature Details'!$E$8:$E$1000, B${rowIdx})`,
+        result: rFeatCount
+      },
+      avgProg: {
+        formula: `=IFERROR(AVERAGEIF('Feature Details'!$E$8:$E$1000, B${rowIdx}, 'Feature Details'!$K$8:$K$1000), 0)`,
+        result: rAvgProg
+      },
+      progBar: {
+        formula: `=IFERROR(REPT("█", ROUND(G${rowIdx}*10, 0)) & REPT("░", 10 - ROUND(G${rowIdx}*10, 0)) & " " & TEXT(G${rowIdx}, "0%"), "—")`,
+        result: renderBarStr(rAvgProg, 10)
+      },
+      atRisk: {
+        formula: `=COUNTIFS('Feature Details'!$E$8:$E$1000, B${rowIdx}, 'Feature Details'!$M$8:$M$1000, ">0")`,
+        result: rAtRisk
+      },
+      screens: {
+        formula: `=SUMIF('Feature Details'!$E$8:$E$1000, B${rowIdx}, 'Feature Details'!$G$8:$G$1000)`,
+        result: rScreens
+      },
+      health: {
+        formula: `=IF(G${rowIdx}>=1,"✓ Complete",IF(I${rowIdx}>0,"⚠ At Risk",IF(G${rowIdx}>0,"◐ In Progress","○ Planned")))`,
+        result: rHealth
+      }
     });
+
     row.height = 22;
     row.getCell('avgProg').numFmt = '0%';
-    if (row.getCell('date').value instanceof Date) {
-      row.getCell('date').numFmt = 'dd-mmm-yyyy';
-    }
+    if (rDateObj) row.getCell('date').numFmt = 'dd-mmm-yyyy';
     row.getCell('progBar').font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: COLORS.indigo } };
     row.getCell('countdown').alignment = { vertical: 'middle', horizontal: 'center' };
     row.getCell('status').alignment = { vertical: 'middle', horizontal: 'center' };
     row.getCell('health').alignment = { vertical: 'middle', horizontal: 'center' };
+    row.getCell('health').font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: rAtRisk > 0 ? COLORS.rose : (rAvgProg >= 1 ? COLORS.emerald : COLORS.indigo) } };
     row.getCell('featCount').alignment = { vertical: 'middle', horizontal: 'center' };
     row.getCell('atRisk').alignment = { vertical: 'middle', horizontal: 'center' };
     row.getCell('screens').alignment = { vertical: 'middle', horizontal: 'center' };
   });
 
+  // Unassigned Release Row
   const unassignedRowIdx = 8 + releasesList.length;
+  const unassignedFeats = calculatedFeatures.filter(f => !f.release || f.release === 'Unassigned');
+  const unCount = unassignedFeats.length;
+  const unAvgProg = unCount ? (unassignedFeats.reduce((acc, f) => acc + f.progress, 0) / unCount) : 0;
+  const unAtRisk = unassignedFeats.filter(f => f.atRisk > 0).length;
+  const unScreens = unassignedFeats.reduce((acc, f) => acc + f.screensCount, 0);
+
   const unassignedRow = wsRel.addRow({
     name: 'Unassigned',
     date: '-',
     countdown: '-',
     status: 'Planned',
-    featCount: { formula: `=COUNTIFS('Feature Details'!$C$8:$C$1000,"?*", 'Feature Details'!$E$8:$E$1000,"")` },
-    avgProg:   { formula: `=IFERROR(AVERAGEIFS('Feature Details'!$K$8:$K$1000, 'Feature Details'!$C$8:$C$1000,"?*", 'Feature Details'!$E$8:$E$1000,""),0)` },
-    progBar:   { formula: `=IFERROR(REPT("█", ROUND(G${unassignedRowIdx}*10, 0)) & REPT("░", 10 - ROUND(G${unassignedRowIdx}*10, 0)) & " " & TEXT(G${unassignedRowIdx}, "0%"), "—")` },
-    atRisk:    { formula: `=COUNTIFS('Feature Details'!$C$8:$C$1000,"?*", 'Feature Details'!$E$8:$E$1000,"", 'Feature Details'!$M$8:$M$1000,">0")` },
-    screens:   { formula: `=SUMIFS('Feature Details'!$G$8:$G$1000, 'Feature Details'!$C$8:$C$1000,"?*", 'Feature Details'!$E$8:$E$1000,"")` },
-    health:    { formula: `=IF(G${unassignedRowIdx}>=1,"✓ Ready",IF(I${unassignedRowIdx}>0,"⚠ At Risk","◐ In Progress"))` }
+    featCount: {
+      formula: `=COUNTIFS('Feature Details'!$C$8:$C$1000,"?*", 'Feature Details'!$E$8:$E$1000,"Unassigned")`,
+      result: unCount
+    },
+    avgProg: {
+      formula: `=IFERROR(AVERAGEIFS('Feature Details'!$K$8:$K$1000, 'Feature Details'!$C$8:$C$1000,"?*", 'Feature Details'!$E$8:$E$1000,"Unassigned"),0)`,
+      result: unAvgProg
+    },
+    progBar: {
+      formula: `=IFERROR(REPT("█", ROUND(G${unassignedRowIdx}*10, 0)) & REPT("░", 10 - ROUND(G${unassignedRowIdx}*10, 0)) & " " & TEXT(G${unassignedRowIdx}, "0%"), "—")`,
+      result: renderBarStr(unAvgProg, 10)
+    },
+    atRisk: {
+      formula: `=COUNTIFS('Feature Details'!$C$8:$C$1000,"?*", 'Feature Details'!$E$8:$E$1000,"Unassigned", 'Feature Details'!$M$8:$M$1000,">0")`,
+      result: unAtRisk
+    },
+    screens: {
+      formula: `=SUMIFS('Feature Details'!$G$8:$G$1000, 'Feature Details'!$C$8:$C$1000,"?*", 'Feature Details'!$E$8:$E$1000,"Unassigned")`,
+      result: unScreens
+    },
+    health: {
+      formula: `=IF(G${unassignedRowIdx}>=1,"✓ Complete",IF(I${unassignedRowIdx}>0,"⚠ At Risk","○ Planned"))`,
+      result: '○ Planned'
+    }
   });
   unassignedRow.height = 22;
   unassignedRow.getCell('avgProg').numFmt = '0%';
   unassignedRow.getCell('progBar').font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: COLORS.indigo } };
+  unassignedRow.getCell('health').alignment = { vertical: 'middle', horizontal: 'center' };
+  unassignedRow.getCell('featCount').alignment = { vertical: 'middle', horizontal: 'center' };
+  unassignedRow.getCell('atRisk').alignment = { vertical: 'middle', horizontal: 'center' };
+  unassignedRow.getCell('screens').alignment = { vertical: 'middle', horizontal: 'center' };
 
   wsRel.autoFilter = `B7:K${unassignedRowIdx}`;
 
   // ══════════════════════════════════════════════════════
   // SHEET 3: Feature Details
   // ══════════════════════════════════════════════════════
-  const wsFeat = wb.addWorksheet('Feature Details', { views: [{ state: 'frozen', ySplit: 7, xSplit: 3 }] });
-  wsFeat.properties.tabColor = { argb: COLORS.indigo };
+  const wsFeat = wb.addWorksheet('Feature Details', { views: [{ state: 'frozen', ySplit: 7 }] });
+  wsFeat.properties.tabColor = { argb: COLORS.blue };
 
   wsFeat.columns = [
     { key: '_sp', width: 3 },
     { key: 'id', width: 14 },
-    { key: 'name', width: 26 },
-    { key: 'category', width: 18 },
-    { key: 'release', width: 18 },
-    { key: 'desc', width: 34 },
-    { key: 'screensCount', width: 14 },
-    { key: 'screensList', width: 28 },
+    { key: 'name', width: 28 },
+    { key: 'category', width: 24 },
+    { key: 'release', width: 16 },
+    { key: 'desc', width: 38 },
+    { key: 'screensCount', width: 15 },
+    { key: 'screensList', width: 32 },
     { key: 'tasksCount', width: 14 },
-    { key: 'tasksList', width: 28 },
+    { key: 'tasksList', width: 32 },
     { key: 'progress', width: 14 },
     { key: 'progBar', width: 22 },
     { key: 'atRisk', width: 14 },
-    { key: 'startDate', width: 15 },
-    { key: 'dueDate', width: 15 },
+    { key: 'startDate', width: 14 },
+    { key: 'dueDate', width: 14 },
     { key: 'status', width: 16 }
   ];
 
@@ -50901,12 +51109,12 @@ Earned Value Management measures project performance and progress by comparing p
   }
 
   wsFeat.mergeCells('B2:P5');
-  const infoCell = wsFeat.getCell('B2');
-  infoCell.value = ' >> FEATURE SPECIFICATION & ASSETS DATABASE\n\nEdit feature names, categories, target releases, dates, and progress directly on this sheet.\nGantt Chart and Swimlane sheets will reflect modifications automatically.';
-  infoCell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: COLORS.textDark } };
-  infoCell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
-  infoCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surface } };
-  infoCell.border = {
+  const featInfo = wsFeat.getCell('B2');
+  featInfo.value = ' >> FEATURE SPECIFICATION & ASSETS DATABASE\n\nEdit feature names, categories, target releases, dates, and progress directly on this sheet.\nGantt Chart and Swimlane sheets will reflect modifications automatically.';
+  featInfo.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: COLORS.textDark } };
+  featInfo.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
+  featInfo.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surface } };
+  featInfo.border = {
     top: { style: 'thin', color: { argb: COLORS.divider } },
     left: { style: 'thick', color: { argb: COLORS.indigo } },
     bottom: { style: 'medium', color: { argb: COLORS.divider } },
@@ -50915,7 +51123,7 @@ Earned Value Management measures project performance and progress by comparing p
 
   wsFeat.getRow(7).height = 28;
   const featHeaders = [
-    '', 'Feature ID', 'Feature Name', 'Category', 'Target Release', 'Description', 'Screens Count', 'Screens List',
+    '', 'Feature ID', 'Feature Name', 'Category / Domain', 'Target Release', 'Description', 'Screens Count', 'Screens List',
     'Tasks Count', 'Tasks List', 'Progress (%)', 'Visual Progress', 'At-Risk Tasks', 'Start Date', 'Due Date', 'Status'
   ];
   featHeaders.forEach((h, idx) => {
@@ -50928,6 +51136,8 @@ Earned Value Management measures project performance and progress by comparing p
 
   calculatedFeatures.forEach((f, idx) => {
     const rowIdx = 8 + idx;
+    const statusResult = f.progress >= 1 ? '● Completed' : (f.atRisk > 0 ? '▲ At Risk' : (f.progress > 0 ? '◐ In Progress' : '○ Not Started'));
+
     const row = wsFeat.addRow({
       id: f.id,
       name: f.name,
@@ -50939,59 +51149,86 @@ Earned Value Management measures project performance and progress by comparing p
       tasksCount: f.tasksCount,
       tasksList: f.tasksList,
       progress: f.progress,
-      progBar: { formula: `=IFERROR(REPT("█", ROUND(K${rowIdx}*12, 0)) & REPT("░", 12 - ROUND(K${rowIdx}*12, 0)) & " " & TEXT(K${rowIdx}, "0%"), "—")` },
+      progBar: {
+        formula: `=IFERROR(REPT("█", ROUND(K${rowIdx}*12, 0)) & REPT("░", 12 - ROUND(K${rowIdx}*12, 0)) & " " & TEXT(K${rowIdx}, "0%"), "—")`,
+        result: renderBarStr(f.progress, 12)
+      },
       atRisk: f.atRisk,
       startDate: f.startDate,
       dueDate: f.dueDate,
-      status: { formula: `=IF(C${rowIdx}="","",IF(K${rowIdx}>=1,"● Completed",IF(M${rowIdx}>0,"▲ At Risk",IF(K${rowIdx}>0,"◐ In Progress","○ Not Started"))))` }
+      status: {
+        formula: `=IF(C${rowIdx}="","",IF(K${rowIdx}>=1,"● Completed",IF(M${rowIdx}>0,"▲ At Risk",IF(K${rowIdx}>0,"◐ In Progress","○ Not Started"))))`,
+        result: statusResult
+      }
     });
+
     row.height = 22;
     row.getCell('progress').numFmt = '0%';
     row.getCell('progBar').font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: COLORS.indigo } };
     if (f.startDate) row.getCell('startDate').numFmt = 'dd-mmm-yyyy';
     if (f.dueDate) row.getCell('dueDate').numFmt = 'dd-mmm-yyyy';
-    row.getCell('id').font = { name: 'Consolas', size: 9, bold: true, color: { argb: COLORS.slate } };
+
+    row.getCell('id').font = { name: 'Consolas', size: 9.5, bold: true, color: { argb: COLORS.slate } };
     row.getCell('id').alignment = { vertical: 'middle', horizontal: 'center' };
-    row.getCell('status').alignment = { vertical: 'middle', horizontal: 'center' };
     row.getCell('screensCount').alignment = { vertical: 'middle', horizontal: 'center' };
     row.getCell('tasksCount').alignment = { vertical: 'middle', horizontal: 'center' };
     row.getCell('atRisk').alignment = { vertical: 'middle', horizontal: 'center' };
+    row.getCell('status').alignment = { vertical: 'middle', horizontal: 'center' };
+    row.getCell('status').font = {
+      name: 'Segoe UI',
+      size: 9,
+      bold: true,
+      color: { argb: f.progress >= 1 ? COLORS.emerald : (f.atRisk > 0 ? COLORS.rose : (f.progress > 0 ? COLORS.indigo : COLORS.slate)) }
+    };
+
+    // Zebra striping
+    if (idx % 2 === 1) {
+      row.eachCell((c, colNum) => {
+        if (colNum > 1) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
+      });
+    }
   });
 
   const featLastRow = 7 + calculatedFeatures.length;
   wsFeat.autoFilter = `B7:P${featLastRow}`;
 
-  for (let r = 8; r <= Math.max(100, featLastRow + 20); r++) {
-    wsFeat.getCell(`E${r}`).dataValidation = {
+  // Data Validation Dropdown for Category & Status
+  for (let r = 8; r <= featLastRow; r++) {
+    wsFeat.getCell(`D${r}`).dataValidation = {
       type: 'list',
       allowBlank: true,
-      formulae: [`'Release Plan'!$B$8:$B$` + (8 + releasesList.length)]
+      formulae: [`"${categoriesList.join(',')}"`]
+    };
+    wsFeat.getCell(`P${r}`).dataValidation = {
+      type: 'list',
+      allowBlank: true,
+      formulae: ['"● Completed,◐ In Progress,▲ At Risk,○ Not Started"']
     };
   }
 
   // ══════════════════════════════════════════════════════
-  // SHEET 4: Traceability Matrix (2D Cross-Functional Matrix)
+  // SHEET 4: Traceability Matrix
   // ══════════════════════════════════════════════════════
-  const wsTrace = wb.addWorksheet('Traceability Matrix', { views: [{ state: 'frozen', ySplit: 7, xSplit: 4, showGridLines: true }] });
+  const matrixCats = [...categoriesList];
+  const wsTrace = wb.addWorksheet('Traceability Matrix', { views: [{ state: 'frozen', ySplit: 7 }] });
   wsTrace.properties.tabColor = { argb: COLORS.purple };
+
+  const traceCols = [
+    { key: '_sp', width: 3 },
+    { key: 'id', width: 14 },
+    { key: 'name', width: 28 },
+    { key: 'release', width: 16 }
+  ];
+  matrixCats.forEach((cat, idx) => {
+    traceCols.push({ key: `cat_${idx}`, width: 22 });
+  });
+  wsTrace.columns = traceCols;
 
   wsTrace.mergeCells('B1:D1');
   const traceReturn = wsTrace.getCell('B1');
   traceReturn.value = { text: '↩ Back to Executive Overview', hyperlink: "#'Executive Overview & SmartArt'!A1" };
   traceReturn.font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: 'FF2563EB' }, underline: true };
   traceReturn.alignment = { vertical: 'middle', horizontal: 'left' };
-
-  const matrixCats = categoriesList.length ? categoriesList : ['Backend', 'Frontend', 'Security', 'DevOps', 'Core Engine', 'User Interface'];
-  const traceCols = [
-    { key: '_sp', width: 3 },
-    { key: 'id', width: 14 },
-    { key: 'name', width: 26 },
-    { key: 'release', width: 16 }
-  ];
-  matrixCats.forEach((mc, i) => {
-    traceCols.push({ key: `cat_${i}`, width: 18 });
-  });
-  wsTrace.columns = traceCols;
 
   for (let r = 2; r <= 6; r++) {
     wsTrace.getRow(r).height = 18;
@@ -51024,22 +51261,77 @@ Earned Value Management measures project performance and progress by comparing p
       name: f.name,
       release: f.release
     };
+
     matrixCats.forEach((cat, cIdx) => {
-      rowValues[`cat_${cIdx}`] = { formula: `=IF('Feature Details'!$D${sourceRow}="${cat.replace(/"/g, '""')}", IF('Feature Details'!$K${sourceRow}>=1, "● 100%", IF('Feature Details'!$K${sourceRow}>0, "◐ " & TEXT('Feature Details'!$K${sourceRow}, "0%"), "○ 0%")), "—")` };
+      const isMatch = f.category === cat;
+      let resStr = '—';
+      if (isMatch) {
+        resStr = f.progress >= 1 ? '● 100%' : (f.progress > 0 ? `◐ ${Math.round(f.progress * 100)}%` : '○ 0%');
+      }
+      rowValues[`cat_${cIdx}`] = {
+        formula: `=IF('Feature Details'!$D${sourceRow}="${cat.replace(/"/g, '""')}", IF('Feature Details'!$K${sourceRow}>=1, "● 100%", IF('Feature Details'!$K${sourceRow}>0, "◐ " & TEXT('Feature Details'!$K${sourceRow}, "0%"), "○ 0%")), "—")`,
+        result: resStr
+      };
     });
+
     const row = wsTrace.addRow(rowValues);
     row.height = 21;
     row.getCell('id').font = { name: 'Consolas', size: 9, bold: true, color: { argb: COLORS.slate } };
     row.getCell('id').alignment = { vertical: 'middle', horizontal: 'center' };
     row.getCell('release').alignment = { vertical: 'middle', horizontal: 'center' };
+
     matrixCats.forEach((cat, cIdx) => {
       const cCell = row.getCell(5 + cIdx);
       cCell.alignment = { vertical: 'middle', horizontal: 'center' };
-      cCell.font = { name: 'Segoe UI', size: 9, bold: true };
+      const isMatch = f.category === cat;
+      if (isMatch) {
+        if (f.progress >= 1) {
+          cCell.font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: 'FF065F46' } };
+          cCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDEF7EC' } };
+        } else if (f.progress > 0) {
+          cCell.font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: 'FF1E40AF' } };
+          cCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E7FF' } };
+        } else {
+          cCell.font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: 'FF475569' } };
+          cCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+        }
+      } else {
+        cCell.font = { name: 'Segoe UI', size: 9, color: { argb: 'FF94A3B8' } };
+      }
     });
   });
 
   const traceLastRow = 7 + calculatedFeatures.length;
+
+  // Add Summary Row at bottom
+  const summaryRow = wsTrace.addRow({
+    id: "TOTAL",
+    name: "TOTAL FEATURES PER WORKSTREAM",
+    release: ""
+  });
+  summaryRow.height = 24;
+  summaryRow.getCell("id").font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: "FFFFFFFF" } };
+  summaryRow.getCell("id").fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.indigo } };
+  summaryRow.getCell("id").alignment = { vertical: "middle", horizontal: "center" };
+
+  summaryRow.getCell("name").font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: "FFFFFFFF" } };
+  summaryRow.getCell("name").fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.indigo } };
+  summaryRow.getCell("name").alignment = { vertical: "middle", indent: 1 };
+
+  summaryRow.getCell("release").fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.indigo } };
+
+  matrixCats.forEach((cat, cIdx) => {
+    const catFeats = calculatedFeatures.filter(f => f.category === cat);
+    const cCell = summaryRow.getCell(5 + cIdx);
+    cCell.value = {
+      formula: `=COUNTIF('Feature Details'!$D$8:$D${featLastRow}, "${cat.replace(/"/g, '""')}")`,
+      result: `${catFeats.length} Features`
+    };
+    cCell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: "FFFFFFFF" } };
+    cCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.indigo } };
+    cCell.alignment = { vertical: "middle", horizontal: "center" };
+  });
+
   wsTrace.autoFilter = `B7:${wsTrace.getColumn(4 + matrixCats.length).letter}${traceLastRow}`;
 
   // ══════════════════════════════════════════════════════
@@ -51073,7 +51365,7 @@ Earned Value Management measures project performance and progress by comparing p
   minTimelineDate.setDate(minTimelineDate.getDate() - minTimelineDate.getDay() + 1);
   maxTimelineDate.setDate(maxTimelineDate.getDate() + (7 - maxTimelineDate.getDay()));
 
-  const numWeeksVal = Math.max(2, Math.min(150, Math.ceil((maxTimelineDate - minTimelineDate) / (7 * 24 * 60 * 60 * 1000)) + 1));
+  const numWeeksVal = Math.max(2, Math.min(100, Math.ceil((maxTimelineDate - minTimelineDate) / (7 * 24 * 60 * 60 * 1000)) + 1));
 
   const getReleasePeriodColor = (date) => {
     if (!date) return 'FFFFFFFF';
@@ -51092,9 +51384,11 @@ Earned Value Management measures project performance and progress by comparing p
   };
 
   const colColors = [];
+  const weekDates = [];
   for (let w = 0; w < numWeeksVal; w++) {
     const cellDate = new Date(minTimelineDate);
     cellDate.setDate(cellDate.getDate() + w * 7);
+    weekDates.push(cellDate);
     colColors.push(getReleasePeriodColor(cellDate));
   }
 
@@ -51103,8 +51397,8 @@ Earned Value Management measures project performance and progress by comparing p
 
   const ganttCols = [
     { key: '_spacer', width: 3 },
-    { key: 'name', width: 25 },
-    { key: 'category', width: 16 },
+    { key: 'name', width: 28 },
+    { key: 'category', width: 22 },
     { key: 'release', width: 16 },
     { key: 'startDate', width: 14 },
     { key: 'dueDate', width: 14 },
@@ -51112,7 +51406,7 @@ Earned Value Management measures project performance and progress by comparing p
   ];
 
   for (let w = 0; w < numWeeksVal; w++) {
-    ganttCols.push({ key: `w_${w}`, width: 7.16 });
+    ganttCols.push({ key: `w_${w}`, width: 7.5 });
   }
   wsGantt.columns = ganttCols.map(c => ({ key: c.key, width: c.width }));
 
@@ -51142,8 +51436,8 @@ Earned Value Management measures project performance and progress by comparing p
     right: { style: 'thin', color: { argb: COLORS.divider } }
   };
 
-  wsGantt.getRow(6).height = 24;
   const ganttHeaders = ['', 'Feature Name', 'Category', 'Target Release', 'Start Date', 'Due Date', 'Progress'];
+  wsGantt.getRow(6).height = 24;
   ganttHeaders.forEach((h, idx) => {
     if (idx > 0) {
       const cell = wsGantt.getCell(6, idx + 1);
@@ -51152,27 +51446,27 @@ Earned Value Management measures project performance and progress by comparing p
     }
   });
 
-  let tempDate = new Date(minTimelineDate);
+  // Set week date headers on row 6 for EVERY week
   for (let w = 0; w < numWeeksVal; w++) {
     const colIdx = 8 + w;
     const cell = wsGantt.getCell(6, colIdx);
+    const wDate = weekDates[w];
     if (w === 0) {
-      cell.value = new Date(tempDate);
+      cell.value = new Date(wDate);
     } else {
       const prevColLetter = wsGantt.getColumn(colIdx - 1).letter;
-      cell.value = { formula: `=${prevColLetter}6+7` };
+      cell.value = { formula: `=${prevColLetter}6+7`, result: new Date(wDate) };
     }
     cell.style = hdrStyle;
     cell.numFmt = 'dd-mmm';
-    tempDate.setDate(tempDate.getDate() + 7);
   }
 
+  // Month Header Pills on Row 5
   let monthStartCol = 8;
   let currentMonthName = '';
-  let tempDateHeader = new Date(minTimelineDate);
   for (let w = 0; w < numWeeksVal; w++) {
     const colIdx = 8 + w;
-    const monthStr = getMonthYearStr(tempDateHeader);
+    const monthStr = getMonthYearStr(weekDates[w]);
     if (w === 0) {
       currentMonthName = monthStr;
     } else if (monthStr !== currentMonthName || w === numWeeksVal - 1) {
@@ -51184,51 +51478,64 @@ Earned Value Management measures project performance and progress by comparing p
       mCell.alignment = { vertical: 'middle', horizontal: 'center' };
       mCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
       mCell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
-      
       monthStartCol = colIdx;
       currentMonthName = monthStr;
     }
-    tempDateHeader.setDate(tempDateHeader.getDate() + 7);
   }
 
-  const totalGanttRows = Math.max(calculatedFeatures.length + 20, 60);
-  for (let i = 0; i < totalGanttRows; i++) {
+  calculatedFeatures.forEach((f, i) => {
     const rowIdx = 8 + i;
     const sourceRowIdx = 8 + i;
 
     wsGantt.getRow(rowIdx).height = 20;
-    wsGantt.getCell(`B${rowIdx}`).value = { formula: `=IF('Feature Details'!C${sourceRowIdx}="","", 'Feature Details'!C${sourceRowIdx})` };
-    wsGantt.getCell(`C${rowIdx}`).value = { formula: `=IF('Feature Details'!C${sourceRowIdx}="","", 'Feature Details'!D${sourceRowIdx})` };
-    wsGantt.getCell(`D${rowIdx}`).value = { formula: `=IF('Feature Details'!C${sourceRowIdx}="","", 'Feature Details'!E${sourceRowIdx})` };
-    wsGantt.getCell(`E${rowIdx}`).value = { formula: `=IF('Feature Details'!C${sourceRowIdx}="","", 'Feature Details'!N${sourceRowIdx})` };
-    wsGantt.getCell(`F${rowIdx}`).value = { formula: `=IF('Feature Details'!C${sourceRowIdx}="","", 'Feature Details'!O${sourceRowIdx})` };
-    wsGantt.getCell(`G${rowIdx}`).value = { formula: `=IF('Feature Details'!C${sourceRowIdx}="","", 'Feature Details'!K${sourceRowIdx})` };
+    wsGantt.getCell(`B${rowIdx}`).value = { formula: `=IF('Feature Details'!C${sourceRowIdx}="","", 'Feature Details'!C${sourceRowIdx})`, result: f.name };
+    wsGantt.getCell(`C${rowIdx}`).value = { formula: `=IF('Feature Details'!C${sourceRowIdx}="","", 'Feature Details'!D${sourceRowIdx})`, result: f.category };
+    wsGantt.getCell(`D${rowIdx}`).value = { formula: `=IF('Feature Details'!C${sourceRowIdx}="","", 'Feature Details'!E${sourceRowIdx})`, result: f.release };
+    wsGantt.getCell(`E${rowIdx}`).value = { formula: `=IF('Feature Details'!C${sourceRowIdx}="","", 'Feature Details'!N${sourceRowIdx})`, result: f.startDate };
+    wsGantt.getCell(`F${rowIdx}`).value = { formula: `=IF('Feature Details'!C${sourceRowIdx}="","", 'Feature Details'!O${sourceRowIdx})`, result: f.dueDate };
+    wsGantt.getCell(`G${rowIdx}`).value = { formula: `=IF('Feature Details'!C${sourceRowIdx}="","", 'Feature Details'!K${sourceRowIdx})`, result: f.progress };
     wsGantt.getCell(`G${rowIdx}`).numFmt = '0%';
-    wsGantt.getCell(`E${rowIdx}`).numFmt = 'dd-mmm-yyyy';
-    wsGantt.getCell(`F${rowIdx}`).numFmt = 'dd-mmm-yyyy';
+    if (f.startDate) wsGantt.getCell(`E${rowIdx}`).numFmt = 'dd-mmm-yyyy';
+    if (f.dueDate) wsGantt.getCell(`F${rowIdx}`).numFmt = 'dd-mmm-yyyy';
 
-    const isRealFeature = i < calculatedFeatures.length;
+    const row = wsGantt.getRow(rowIdx);
+    row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
+    COLORS.styleRow(row, i);
 
-    if (isRealFeature) {
-      const row = wsGantt.getRow(rowIdx);
-      row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
-      COLORS.styleRow(row, i);
-    }
+    const fStart = f.startDate instanceof Date ? f.startDate : new Date(f.startDate);
+    const fEnd = f.dueDate instanceof Date ? f.dueDate : new Date(f.dueDate);
 
     for (let w = 0; w < numWeeksVal; w++) {
       const colIdx = 8 + w;
       const cell = wsGantt.getCell(rowIdx, colIdx);
       const colLetter = wsGantt.getColumn(colIdx).letter;
-      cell.value = { formula: `=IF($B${rowIdx}="","",IF(AND(${colLetter}$6<=$F${rowIdx}, ${colLetter}$6+6>=$E${rowIdx}), IF($G${rowIdx}>=0.8, 5, IF($G${rowIdx}>=0.4, 4, 2)), 0))` };
-      
-      if (isRealFeature) {
+      const wStart = weekDates[w];
+      const wEnd = new Date(wStart);
+      wEnd.setDate(wEnd.getDate() + 6);
+
+      const isActive = (wStart <= fEnd && wEnd >= fStart);
+      let code = 0;
+      if (isActive) {
+        code = f.progress >= 0.8 ? 5 : (f.progress >= 0.4 ? 4 : 2);
+      }
+
+      cell.value = {
+        formula: `=IF($B${rowIdx}="","",IF(AND(${colLetter}$6<=$F${rowIdx}, ${colLetter}$6+6>=$E${rowIdx}), IF($G${rowIdx}>=0.8, 5, IF($G${rowIdx}>=0.4, 4, 2)), 0))`,
+        result: code
+      };
+
+      if (isActive) {
+        const barColor = code === 5 ? 'FF10B981' : (code === 4 ? 'FF3B82F6' : 'FFF59E0B');
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: barColor } };
+        cell.font = { name: 'Segoe UI', size: 9, color: { argb: barColor } };
+      } else {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colColors[w] } };
         cell.font = { name: 'Segoe UI', size: 9, color: { argb: colColors[w] } };
       }
     }
-  }
+  });
 
-  const ganttLastRow = 7 + totalGanttRows;
+  const ganttLastRow = 7 + calculatedFeatures.length;
   wsGantt.addConditionalFormatting({
     ref: `H8:${wsGantt.getColumn(8 + numWeeksVal - 1).letter}${ganttLastRow}`,
     rules: [
@@ -51293,8 +51600,8 @@ Earned Value Management measures project performance and progress by comparing p
 
   wsSwim.mergeCells('B2:G5');
   const swimInfo = wsSwim.getCell('B2');
-  swimInfo.value = ' >> FEATURE SWIM LANE CHART (BY WORKSTREAM)\n\nCategorized view. All dates and progress are linked back to the master sheets.\nFormulas dynamically paint Gantt cells under each swimlane band.';
-  swimInfo.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: COLORS.textDark } };
+  swimInfo.value = ' >> FEATURE SWIM LANE CHART (BY WORKSTREAM)\n\nCategorized view. All dates and progress are linked directly back to master feature definitions.\nFormulas dynamically paint Gantt cells under each swimlane band.';
+  swimInfo.font = { name: 'Segoe UI', size: 9, bold: true, color: { argb: COLORS.textDark } };
   swimInfo.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
   swimInfo.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surface } };
   swimInfo.border = {
@@ -51313,20 +51620,21 @@ Earned Value Management measures project performance and progress by comparing p
     }
   });
 
+  // Set week dates on row 6
   for (let w = 0; w < numWeeksVal; w++) {
     const colIdx = 8 + w;
     const colLetter = wsSwim.getColumn(colIdx).letter;
-    wsSwim.getCell(6, colIdx).value = { formula: `='Gantt Chart'!${colLetter}6` };
+    wsSwim.getCell(6, colIdx).value = { formula: `='Gantt Chart'!${colLetter}6`, result: new Date(weekDates[w]) };
     wsSwim.getCell(6, colIdx).style = hdrStyle;
     wsSwim.getCell(6, colIdx).numFmt = 'dd-mmm';
   }
 
+  // Month Header Pills on Row 5
   let swimMonthStartCol = 8;
   let swimCurrentMonthName = '';
-  let swimTempDateHeader = new Date(minTimelineDate);
   for (let w = 0; w < numWeeksVal; w++) {
     const colIdx = 8 + w;
-    const monthStr = getMonthYearStr(swimTempDateHeader);
+    const monthStr = getMonthYearStr(weekDates[w]);
     if (w === 0) {
       swimCurrentMonthName = monthStr;
     } else if (monthStr !== swimCurrentMonthName || w === numWeeksVal - 1) {
@@ -51338,11 +51646,9 @@ Earned Value Management measures project performance and progress by comparing p
       mCell.alignment = { vertical: 'middle', horizontal: 'center' };
       mCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.surfaceAlt } };
       mCell.border = { bottom: { style: 'thin', color: { argb: COLORS.divider } } };
-      
       swimMonthStartCol = colIdx;
       swimCurrentMonthName = monthStr;
     }
-    swimTempDateHeader.setDate(swimTempDateHeader.getDate() + 7);
   }
 
   let swimRowIdx = 8;
@@ -51351,19 +51657,22 @@ Earned Value Management measures project performance and progress by comparing p
     'FF0D9488', // Teal
     'FF0284C7', // Sky Blue
     COLORS.purple,
-    'FFEC4899', // Pink
-    'FFF59E0B', // Amber
-    'FF10B981', // Emerald
-    'FF3B82F6', // Blue
-    'FF8B5CF6', // Violet
+    'FFD97706', // Amber Dark
+    'FF059669', // Emerald Dark
+    'FFDC2626', // Red
+    'FF4F46E5', // Indigo Dark
     'FF64748B'  // Muted Slate
   ];
 
   categoriesList.forEach((cat, catIdx) => {
+    const domainFeatures = calculatedFeatures.filter(f => f.category === cat);
+    if (domainFeatures.length === 0) return;
+
     wsSwim.getRow(swimRowIdx).height = 26;
     wsSwim.mergeCells(`B${swimRowIdx}:G${swimRowIdx}`);
     const catCell = wsSwim.getCell(`B${swimRowIdx}`);
-    catCell.value = ` :: WORKSTREAM SWIMLANE: ${cat.toUpperCase()}`;
+    const icon = DOMAIN_ICONS[cat] || '📂';
+    catCell.value = ` ${icon} WORKSTREAM SWIMLANE: ${cat.toUpperCase()} (${domainFeatures.length} Features)`;
     catCell.font = { name: 'Segoe UI', size: 10.5, bold: true, color: { argb: 'FFFFFFFF' } };
     catCell.alignment = { vertical: 'middle', indent: 1 };
 
@@ -51373,44 +51682,59 @@ Earned Value Management measures project performance and progress by comparing p
     }
     swimRowIdx++;
 
-    const count = calculatedFeatures.filter(f => (f.category || 'General') === cat).length;
-    const totalSlots = count + 10;
-    const escapedCatName = cat.replace(/"/g, '""');
+    domainFeatures.forEach((f, fIdx) => {
+      const sourceIndex = calculatedFeatures.findIndex(feat => feat.id === f.id);
+      const sourceRow = 8 + (sourceIndex >= 0 ? sourceIndex : 0);
 
-    for (let n = 1; n <= totalSlots; n++) {
-      wsSwim.getCell(`B${swimRowIdx}`).value = { formula: `=IFERROR(INDEX(_xlfn._xlws.FILTER('Feature Details'!$C$8:$C$1000, 'Feature Details'!$D$8:$D$1000 = "${escapedCatName}"), ${n}), "")` };
-      wsSwim.getCell(`C${swimRowIdx}`).value = { formula: `=IFERROR(INDEX(_xlfn._xlws.FILTER('Feature Details'!$D$8:$D$1000, 'Feature Details'!$D$8:$D$1000 = "${escapedCatName}"), ${n}), "")` };
-      wsSwim.getCell(`D${swimRowIdx}`).value = { formula: `=IFERROR(INDEX(_xlfn._xlws.FILTER('Feature Details'!$E$8:$E$1000, 'Feature Details'!$D$8:$D$1000 = "${escapedCatName}"), ${n}), "")` };
-      wsSwim.getCell(`E${swimRowIdx}`).value = { formula: `=IFERROR(INDEX(_xlfn._xlws.FILTER('Feature Details'!$N$8:$N$1000, 'Feature Details'!$D$8:$D$1000 = "${escapedCatName}"), ${n}), "")` };
-      wsSwim.getCell(`F${swimRowIdx}`).value = { formula: `=IFERROR(INDEX(_xlfn._xlws.FILTER('Feature Details'!$O$8:$O$1000, 'Feature Details'!$D$8:$D$1000 = "${escapedCatName}"), ${n}), "")` };
-      wsSwim.getCell(`G${swimRowIdx}`).value = { formula: `=IFERROR(INDEX(_xlfn._xlws.FILTER('Feature Details'!$K$8:$K$1000, 'Feature Details'!$D$8:$D$1000 = "${escapedCatName}"), ${n}), "")` };
+      wsSwim.getRow(swimRowIdx).height = 20;
+      wsSwim.getCell(`B${swimRowIdx}`).value = { formula: `='Feature Details'!C${sourceRow}`, result: f.name };
+      wsSwim.getCell(`C${swimRowIdx}`).value = { formula: `='Feature Details'!D${sourceRow}`, result: f.category };
+      wsSwim.getCell(`D${swimRowIdx}`).value = { formula: `='Feature Details'!E${sourceRow}`, result: f.release };
+      wsSwim.getCell(`E${swimRowIdx}`).value = { formula: `='Feature Details'!N${sourceRow}`, result: f.startDate };
+      wsSwim.getCell(`F${swimRowIdx}`).value = { formula: `='Feature Details'!O${sourceRow}`, result: f.dueDate };
+      wsSwim.getCell(`G${swimRowIdx}`).value = { formula: `='Feature Details'!K${sourceRow}`, result: f.progress };
       wsSwim.getCell(`G${swimRowIdx}`).numFmt = '0%';
-      wsSwim.getCell(`E${swimRowIdx}`).numFmt = 'dd-mmm-yyyy';
-      wsSwim.getCell(`F${swimRowIdx}`).numFmt = 'dd-mmm-yyyy';
+      if (f.startDate) wsSwim.getCell(`E${swimRowIdx}`).numFmt = 'dd-mmm-yyyy';
+      if (f.dueDate) wsSwim.getCell(`F${swimRowIdx}`).numFmt = 'dd-mmm-yyyy';
 
-      const isRealSwimSlot = n <= count;
-      if (isRealSwimSlot) {
-        const row = wsSwim.getRow(swimRowIdx);
-        row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
-        COLORS.styleRow(row, n - 1);
-      }
+      const row = wsSwim.getRow(swimRowIdx);
+      row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
+      COLORS.styleRow(row, fIdx);
+
+      const fStart = f.startDate instanceof Date ? f.startDate : new Date(f.startDate);
+      const fEnd = f.dueDate instanceof Date ? f.dueDate : new Date(f.dueDate);
 
       for (let w = 0; w < numWeeksVal; w++) {
         const colIdx = 8 + w;
         const cell = wsSwim.getCell(swimRowIdx, colIdx);
         const colLetter = wsSwim.getColumn(colIdx).letter;
-        cell.value = { formula: `=IF($B${swimRowIdx}="","",IF(AND(${colLetter}$6<=$F${swimRowIdx}, ${colLetter}$6+6>=$E${swimRowIdx}), IF($G${swimRowIdx}>=0.8, 5, IF($G${swimRowIdx}>=0.4, 4, 2)), 0))` };
-        
-        if (isRealSwimSlot) {
+        const wStart = weekDates[w];
+        const wEnd = new Date(wStart);
+        wEnd.setDate(wEnd.getDate() + 6);
+
+        const isActive = (wStart <= fEnd && wEnd >= fStart);
+        let code = 0;
+        if (isActive) {
+          code = f.progress >= 0.8 ? 5 : (f.progress >= 0.4 ? 4 : 2);
+        }
+
+        cell.value = {
+          formula: `=IF($B${swimRowIdx}="","",IF(AND(${colLetter}$6<=$F${swimRowIdx}, ${colLetter}$6+6>=$E${swimRowIdx}), IF($G${swimRowIdx}>=0.8, 5, IF($G${swimRowIdx}>=0.4, 4, 2)), 0))`,
+          result: code
+        };
+
+        if (isActive) {
+          const barColor = code === 5 ? 'FF10B981' : (code === 4 ? 'FF3B82F6' : 'FFF59E0B');
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: barColor } };
+          cell.font = { name: 'Segoe UI', size: 9, color: { argb: barColor } };
+        } else {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colColors[w] } };
           cell.font = { name: 'Segoe UI', size: 9, color: { argb: colColors[w] } };
         }
       }
-      swimRowIdx++;
-    }
 
-    wsSwim.getRow(swimRowIdx).height = 12;
-    swimRowIdx++;
+      swimRowIdx++;
+    });
   });
 
   const swimLastRow = swimRowIdx - 1;
@@ -51456,7 +51780,8 @@ Earned Value Management measures project performance and progress by comparing p
   });
 
   return wb;
-},
+
+      },
 
 
       // ══════ EXCEL BUILDERS (SMART WORKBOOK) ══════
