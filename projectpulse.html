@@ -49497,7 +49497,7 @@ Earned Value Management measures project performance and progress by comparing p
 
         if (window.PulseExcel) {
           if (typeof window.PulseExcel.buildValidationListsSheet === 'function') {
-            window.PulseExcel.buildValidationListsSheet(wb, false, COLORS, hdrStyle);
+            window.PulseExcel.buildValidationListsSheet(wb, false, COLORS, hdrStyle, S);
             if (typeof window.PulseExcel.registerNamedRanges === 'function') {
               window.PulseExcel.registerNamedRanges(wb, false);
             }
@@ -50059,6 +50059,68 @@ Earned Value Management measures project performance and progress by comparing p
 
     // ══════ EXCEL & CSV ══════
     const PulseExcel = {
+      isColorDark(argb) {
+        if (!argb || argb.length < 8) return false;
+        const hex = argb.substring(argb.length - 6);
+        const r = parseInt(hex.substring(0, 2), 16) || 0;
+        const g = parseInt(hex.substring(2, 4), 16) || 0;
+        const b = parseInt(hex.substring(4, 6), 16) || 0;
+        const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        return lum < 140;
+      },
+
+      applyHdrStyle(cell, hs) {
+        if (!cell) return;
+        const font = (hs && hs.font) || {};
+        const fill = (hs && hs.fill) || {};
+        const alignment = (hs && hs.alignment) || {};
+        const border = (hs && hs.border) || {};
+        const fgArgb = (fill.fgColor && fill.fgColor.argb) ? fill.fgColor.argb : 'FF4338CA';
+        const isDarkFg = PulseExcel.isColorDark(fgArgb);
+        const textArgb = (font.color && font.color.argb) ? font.color.argb : (isDarkFg ? 'FFFFFFFF' : 'FF0F172A');
+        const bdrArgb = (border.bottom && border.bottom.color && border.bottom.color.argb) || 'FF0F172A';
+
+        cell.fill = {
+          type: fill.type || 'pattern',
+          pattern: fill.pattern || 'solid',
+          fgColor: { argb: fgArgb }
+        };
+        cell.font = {
+          name: font.name || 'Segoe UI',
+          size: font.size || 10,
+          bold: font.bold !== undefined ? font.bold : true,
+          color: { argb: textArgb }
+        };
+        cell.alignment = {
+          vertical: alignment.vertical || 'middle',
+          horizontal: alignment.horizontal || 'center',
+          wrapText: alignment.wrapText !== undefined ? alignment.wrapText : true
+        };
+        cell.border = {
+          bottom: { style: (border.bottom && border.bottom.style) || 'medium', color: { argb: bdrArgb } },
+          top: border.top ? { style: border.top.style || 'thin', color: { argb: (border.top.color && border.top.color.argb) || bdrArgb } } : undefined,
+          left: border.left ? { style: border.left.style || 'hair', color: { argb: (border.left.color && border.left.color.argb) || bdrArgb } } : undefined,
+          right: border.right ? { style: border.right.style || 'hair', color: { argb: (border.right.color && border.right.color.argb) || bdrArgb } } : undefined
+        };
+      },
+
+      applyRowHdr(row, hs) {
+        if (!row) return;
+        const wsRef = row.worksheet || row._worksheet;
+        const maxCols = Math.max(
+          row.cellCount || 0,
+          (wsRef && wsRef.columns ? wsRef.columns.length : 0),
+          (row.actualCellCount || 0)
+        );
+        if (maxCols > 0) {
+          for (let c = 1; c <= maxCols; c++) {
+            PulseExcel.applyHdrStyle(row.getCell(c), hs);
+          }
+        } else {
+          row.eachCell({ includeEmpty: true }, c => PulseExcel.applyHdrStyle(c, hs));
+        }
+      },
+
       isNewWindowItem(item) {
         if (!item) return false;
         if (item.isNewWindow === true) return true;
@@ -50142,24 +50204,29 @@ Earned Value Management measures project performance and progress by comparing p
       },
 
       getThemePalette() {
-        const style = window.getComputedStyle(document.documentElement);
+        const themeName = (typeof P !== 'undefined' && P && P.theme) || (typeof document !== 'undefined' && document.documentElement && document.documentElement.getAttribute('data-theme')) || 'nexus';
+        const colorMode = (typeof P !== 'undefined' && P && P.colorMode) || (typeof document !== 'undefined' && document.documentElement && document.documentElement.getAttribute('data-color-mode')) || 'default';
+        const themeDef = (typeof PulseConstants !== 'undefined' && PulseConstants.THEMES && PulseConstants.THEMES[themeName]) || (typeof THEMES !== 'undefined' && THEMES && THEMES[themeName]) || null;
+        const isModeDark = (colorMode === 'dark') || (colorMode !== 'light' && (themeDef ? Boolean(themeDef.isDark) : false));
 
         const parseCssColorToArgb = (cssVal, defaultColor) => {
           if (!cssVal) return defaultColor;
-          let clean = cssVal.trim();
+          let clean = String(cssVal).trim();
           if (clean.startsWith('#')) {
             let hex = clean.substring(1);
             if (hex.length === 3) {
               hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+            } else if (hex.length === 8) {
+              hex = hex.substring(0, 6);
             }
             return 'FF' + hex.toUpperCase();
           }
           if (clean.startsWith('rgb')) {
             let match = clean.match(/\d+/g);
             if (match && match.length >= 3) {
-              let r = parseInt(match[0]).toString(16).padStart(2, '0');
-              let g = parseInt(match[1]).toString(16).padStart(2, '0');
-              let b = parseInt(match[2]).toString(16).padStart(2, '0');
+              let r = parseInt(match[0], 10).toString(16).padStart(2, '0');
+              let g = parseInt(match[1], 10).toString(16).padStart(2, '0');
+              let b = parseInt(match[2], 10).toString(16).padStart(2, '0');
               return 'FF' + (r + g + b).toUpperCase();
             }
           }
@@ -50169,33 +50236,48 @@ Earned Value Management measures project performance and progress by comparing p
         const isColorDark = (argb) => {
           if (!argb || argb.length < 8) return false;
           let hex = argb.substring(argb.length - 6);
-          let r = parseInt(hex.substring(0, 2), 16);
-          let g = parseInt(hex.substring(2, 4), 16);
-          let b = parseInt(hex.substring(4, 6), 16);
+          let r = parseInt(hex.substring(0, 2), 16) || 0;
+          let g = parseInt(hex.substring(2, 4), 16) || 0;
+          let b = parseInt(hex.substring(4, 6), 16) || 0;
           let luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b);
           return luminance < 140;
         };
 
-        const cssBg = style.getPropertyValue('--color-bg') || '';
-        const cssSurface = style.getPropertyValue('--color-surface') || '';
-        const cssSurface2 = style.getPropertyValue('--color-surface-2') || '';
-        const cssText = style.getPropertyValue('--color-text') || '';
-        const cssPrimary = style.getPropertyValue('--color-primary') || '';
-        const cssPrimaryHover = style.getPropertyValue('--color-primary-hover') || '';
-        const cssDivider = style.getPropertyValue('--color-divider') || '';
-        const cssBorder = style.getPropertyValue('--color-border') || '';
-        const cssTextMuted = style.getPropertyValue('--color-text-muted') || '';
+        let style = null;
+        try {
+          if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function' && document && document.documentElement) {
+            style = window.getComputedStyle(document.documentElement);
+          }
+        } catch (e) {}
 
-        const resolvedBg = parseCssColorToArgb(cssBg, 'FFF8FAFC');
-        const resolvedSurface = parseCssColorToArgb(cssSurface, 'FFFFFFFF');
-        const isThemeDark = isColorDark(resolvedBg);
-        const resolvedSurface2 = parseCssColorToArgb(cssSurface2, isThemeDark ? 'FF111827' : 'FFF1F5F9');
-        const resolvedText = parseCssColorToArgb(cssText, isThemeDark ? 'FFFFFFFF' : 'FF0F172A');
-        const resolvedPrimary = parseCssColorToArgb(cssPrimary, 'FF4338CA');
+        const defPrimary = themeDef ? (isModeDark && themeDef.ac2 ? themeDef.ac2 : themeDef.ac) : '#4338CA';
+        const defBg = themeDef ? (isModeDark && themeDef.bg2 ? themeDef.bg2 : themeDef.bg) : (isModeDark ? '#0F172A' : '#F8FAFC');
+        const defSurface = isModeDark ? '#0F172A' : '#FFFFFF';
+        const defSurface2 = isModeDark ? '#1E293B' : '#F1F5F9';
+        const defText = isModeDark ? '#FFFFFF' : '#0F172A';
+        const defMuted = isModeDark ? '#94A3B8' : '#64748B';
+        const defDivider = isModeDark ? '#334155' : '#E2E8F0';
+
+        const cssBg = style ? (style.getPropertyValue('--color-bg') || '') : '';
+        const cssSurface = style ? (style.getPropertyValue('--color-surface') || '') : '';
+        const cssSurface2 = style ? (style.getPropertyValue('--color-surface-2') || '') : '';
+        const cssText = style ? (style.getPropertyValue('--color-text') || '') : '';
+        const cssPrimary = style ? (style.getPropertyValue('--color-primary') || '') : '';
+        const cssPrimaryHover = style ? (style.getPropertyValue('--color-primary-hover') || '') : '';
+        const cssDivider = style ? (style.getPropertyValue('--color-divider') || '') : '';
+        const cssBorder = style ? (style.getPropertyValue('--color-border') || '') : '';
+        const cssTextMuted = style ? (style.getPropertyValue('--color-text-muted') || '') : '';
+
+        const resolvedPrimary = parseCssColorToArgb(cssPrimary, parseCssColorToArgb(defPrimary, 'FF4338CA'));
+        const resolvedBg = parseCssColorToArgb(cssBg, parseCssColorToArgb(defBg, isModeDark ? 'FF0F172A' : 'FFF8FAFC'));
+        const isThemeDark = isModeDark || isColorDark(resolvedBg);
+        const resolvedSurface = parseCssColorToArgb(cssSurface, parseCssColorToArgb(defSurface, isThemeDark ? 'FF0F172A' : 'FFFFFFFF'));
+        const resolvedSurface2 = parseCssColorToArgb(cssSurface2, parseCssColorToArgb(defSurface2, isThemeDark ? 'FF1E293B' : 'FFF1F5F9'));
+        const resolvedText = parseCssColorToArgb(cssText, parseCssColorToArgb(defText, isThemeDark ? 'FFFFFFFF' : 'FF0F172A'));
         const resolvedPrimaryHover = parseCssColorToArgb(cssPrimaryHover, resolvedPrimary);
-        const resolvedDivider = parseCssColorToArgb(cssDivider, isThemeDark ? 'FF1E293B' : 'FFE2E8F0');
+        const resolvedDivider = parseCssColorToArgb(cssDivider, parseCssColorToArgb(defDivider, isThemeDark ? 'FF334155' : 'FFE2E8F0'));
         const resolvedBorder = parseCssColorToArgb(cssBorder, resolvedDivider);
-        const resolvedMuted = parseCssColorToArgb(cssTextMuted, isThemeDark ? 'FF94A3B8' : 'FF64748B');
+        const resolvedMuted = parseCssColorToArgb(cssTextMuted, parseCssColorToArgb(defMuted, isThemeDark ? 'FF94A3B8' : 'FF64748B'));
 
         const blendColors = (argbA, argbB, weightA = 0.5) => {
           const hexA = (argbA && argbA.length >= 6) ? argbA.substring(argbA.length - 6) : '4338CA';
@@ -50222,8 +50304,9 @@ Earned Value Management measures project performance and progress by comparing p
           header: isThemeDark ? 'FF1E293B' : 'FFF8FAFC',
           input: resolvedPrimary,
           amber: 'FFF59E0B',
-          blue: 'FF3B82F6',
+          blue: isThemeDark ? 'FF38BDF8' : 'FF3B82F6',
           purple: 'FF8B5CF6',
+          teal: 'FF0D9488',
           bg: resolvedBg,
           surface: resolvedSurface,
           surfaceAlt: resolvedSurface2,
@@ -50232,8 +50315,8 @@ Earned Value Management measures project performance and progress by comparing p
           muted: resolvedMuted,
           textDark: resolvedText,
           isDark: isThemeDark,
-          themeName: (typeof P !== 'undefined' && P && P.theme) || document.documentElement.getAttribute('data-theme') || 'nexus',
-          colorMode: (typeof P !== 'undefined' && P && P.colorMode) || document.documentElement.getAttribute('data-color-mode') || 'default',
+          themeName,
+          colorMode,
           blendColors,
           getReadableText: (bgArgb, lightArgb = 'FFFFFFFF', darkArgb = 'FF0F172A') => isColorDark(bgArgb) ? lightArgb : darkArgb
         };
@@ -50245,8 +50328,8 @@ Earned Value Management measures project performance and progress by comparing p
 
         COLORS.styleRow = (row, i, maxDataCol = 100) => {
           const bg = (i % 2 === 1)
-            ? COLORS.getThemeTint(COLORS.indigo, 0.08)
-            : COLORS.getThemeTint(COLORS.indigo, 0.02);
+            ? COLORS.getThemeTint(COLORS.indigo, isThemeDark ? 0.14 : 0.08)
+            : COLORS.getThemeTint(COLORS.indigo, isThemeDark ? 0.05 : 0.02);
           row.eachCell((c, colNum) => {
             if (colNum <= maxDataCol) {
               c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
@@ -50261,19 +50344,24 @@ Earned Value Management measures project performance and progress by comparing p
         const isHeaderDark = isColorDark(COLORS.indigo);
         const hdrStyle = {
           fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } },
-          font: { color: { argb: isHeaderDark ? 'FFFFFFFF' : 'FF0F172A' }, bold: true, size: 10 },
-          alignment: { vertical: 'middle', horizontal: 'center' },
-          border: { bottom: { style: 'medium', color: { argb: COLORS.navy } } }
+          font: { color: { argb: isHeaderDark ? 'FFFFFFFF' : 'FF0F172A' }, bold: true, size: 10, name: 'Segoe UI' },
+          alignment: { vertical: 'middle', horizontal: 'center', wrapText: true },
+          border: {
+            top: { style: 'thin', color: { argb: COLORS.divider } },
+            bottom: { style: 'medium', color: { argb: COLORS.navy } },
+            left: { style: 'hair', color: { argb: COLORS.divider } },
+            right: { style: 'hair', color: { argb: COLORS.divider } }
+          }
         };
 
         const STATUS_COLORS = {
           'Completed': COLORS.emerald,
           'In Progress': COLORS.indigo,
-          'Under Review': 'FF0284C7',
+          'Under Review': isThemeDark ? 'FF38BDF8' : 'FF0284C7',
           'On Hold': COLORS.amber,
           'Blocked': COLORS.rose,
           'Not Started': COLORS.muted,
-          'Cancelled': 'FF94A3B8'
+          'Cancelled': isThemeDark ? 'FF64748B' : 'FF94A3B8'
         };
 
         return { COLORS, hdrStyle, STATUS_COLORS, isThemeDark, parseCssColorToArgb, isColorDark };
@@ -50444,15 +50532,15 @@ Earned Value Management measures project performance and progress by comparing p
   const wb = new ExcelJS.Workbook();
   wb.creator = 'ProjectPulse'; wb.lastModifiedBy = 'ProjectPulse'; wb.created = new Date(); wb.modified = new Date();
 
-  const baseColors = (typeof PulseExcel.getThemePalette === 'function') ? PulseExcel.getThemePalette() : null;
-  const COLORS = baseColors || {
+  const themePalette = (typeof PulseExcel.getThemePalette === 'function') ? PulseExcel.getThemePalette() : null;
+  const COLORS = (themePalette && themePalette.COLORS) ? themePalette.COLORS : {
     navy: "FF0F172A",
-    indigo: "FF6366F1",
+    indigo: "FF4338CA",
     slate: "FF64748B",
     emerald: "FF10B981",
     rose: "FFF43F5E",
     header: "FFF8FAFC",
-    input: "FF6366F1",
+    input: "FF4338CA",
     amber: "FFF59E0B",
     blue: "FF3B82F6",
     purple: "FF8B5CF6",
@@ -50494,25 +50582,26 @@ Earned Value Management measures project performance and progress by comparing p
     blueLight: blendArgb(COLORS.blue, COLORS.surface, 0.10),
     purpleLight: blendArgb(COLORS.purple, COLORS.surface, 0.10),
     amberLight: blendArgb(COLORS.amber, COLORS.surface, 0.10),
-    zebraOdd: blendArgb(COLORS.indigo, COLORS.surface, 0.05),
+    zebraOdd: blendArgb(COLORS.indigo, COLORS.surface, COLORS.isDark ? 0.08 : 0.04),
     zebraEven: COLORS.surface,
     headerBg: COLORS.isDark ? blendArgb(COLORS.indigo, COLORS.bg, 0.85) : COLORS.indigo,
     headerBorder: COLORS.isDark ? blendArgb(COLORS.indigo, 'FF000000', 0.7) : blendArgb(COLORS.indigo, 'FF000000', 0.6),
-    bannerBg: COLORS.isDark ? blendArgb(COLORS.textDark, COLORS.bg, 0.9) : 'FF0F172A',
-    bannerSubBg: COLORS.isDark ? blendArgb(COLORS.textDark, COLORS.bg, 0.7) : 'FF1E293B',
+    bannerBg: COLORS.isDark ? blendArgb(COLORS.textDark, COLORS.bg, 0.9) : blendArgb(COLORS.indigo, 'FF000000', 0.85),
+    bannerSubBg: COLORS.isDark ? blendArgb(COLORS.textDark, COLORS.bg, 0.7) : blendArgb(COLORS.indigo, 'FF000000', 0.65),
     cardBorder: COLORS.divider,
   };
 
-  const hdrStyle = {
-    fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: T.headerBg } },
-    font: { color: { argb: getReadableText(T.headerBg) }, bold: true, size: 10, name: 'Segoe UI' },
-    alignment: { vertical: 'middle', horizontal: 'center', wrapText: true },
-    border: {
+  // Apply header style individually to avoid ExcelJS serialization issues with compound style objects
+  const applyHdrStyle = (cell) => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: T.headerBg } };
+    cell.font = { color: { argb: getReadableText(T.headerBg) }, bold: true, size: 10, name: 'Segoe UI' };
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    cell.border = {
       top: { style: 'thin', color: { argb: T.headerBorder } },
       bottom: { style: 'medium', color: { argb: T.headerBorder } },
       left: { style: 'hair', color: { argb: T.headerBorder } },
       right: { style: 'hair', color: { argb: T.headerBorder } }
-    }
+    };
   };
 
   const thinBorder = {
@@ -50906,7 +50995,7 @@ Earned Value Management measures project performance and progress by comparing p
 
   const relHeaders = ['', 'Release Name', 'Target Date', 'Countdown', 'Status', 'Feature Count', 'Avg Progress', 'Visual Progress', 'At-Risk Features', 'Screens Covered', 'Release Health'];
   wsRel.getRow(7).height = 28;
-  relHeaders.forEach((h, idx) => { if (idx > 0) { const cell = wsRel.getCell(7, idx + 1); cell.value = h; cell.style = hdrStyle; } });
+  relHeaders.forEach((h, idx) => { if (idx > 0) { const cell = wsRel.getCell(7, idx + 1); cell.value = h; applyHdrStyle(cell); } });
 
   const todayObj = new Date();
   releasesList.forEach((r, idx) => {
@@ -51050,7 +51139,7 @@ Earned Value Management measures project performance and progress by comparing p
 
   wsFeat.getRow(7).height = 30;
   const featHeaders = ['', 'Feature ID', 'Feature Name', 'Category / Domain', 'Target Release', 'Description', 'Screens', 'Screens List', 'Tasks', 'Tasks List', 'Progress', 'Completion', 'At-Risk', 'Start Date', 'Due Date', 'Status'];
-  featHeaders.forEach((h, idx) => { if (idx > 0) { const cell = wsFeat.getCell(7, idx + 1); cell.value = h; cell.style = hdrStyle; } });
+  featHeaders.forEach((h, idx) => { if (idx > 0) { const cell = wsFeat.getCell(7, idx + 1); cell.value = h; applyHdrStyle(cell); } });
 
   calculatedFeatures.forEach((f, idx) => {
     const rowIdx = 8 + idx;
@@ -51155,16 +51244,16 @@ Earned Value Management measures project performance and progress by comparing p
   drawTopKpiCard(wsTrace, 8, 2, 4, 4, 'Cross-Domain Coverage', `${totalScreensCount} Screens`, 'Component Alignment', COLORS.emerald);
 
   wsTrace.getRow(7).height = 30;
-  wsTrace.getCell('B7').value = 'Feature ID'; wsTrace.getCell('B7').style = hdrStyle;
-  wsTrace.getCell('C7').value = 'Feature Name'; wsTrace.getCell('C7').style = hdrStyle;
-  wsTrace.getCell('D7').value = 'Target Release'; wsTrace.getCell('D7').style = hdrStyle;
+  wsTrace.getCell('B7').value = 'Feature ID'; applyHdrStyle(wsTrace.getCell('B7'));
+  wsTrace.getCell('C7').value = 'Feature Name'; applyHdrStyle(wsTrace.getCell('C7'));
+  wsTrace.getCell('D7').value = 'Target Release'; applyHdrStyle(wsTrace.getCell('D7'));
 
   matrixCats.forEach((cat, idx) => {
     const cell = wsTrace.getCell(7, 5 + idx);
     cell.value = `📂 ${cat}`;
-    cell.style = hdrStyle;
+    applyHdrStyle(cell);
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.purple } };
-    cell.font = { ...hdrStyle.font, color: { argb: getReadableText(COLORS.purple) } };
+    cell.font = { color: { argb: getReadableText(COLORS.purple) }, bold: true, size: 10, name: 'Segoe UI' };
   });
 
   calculatedFeatures.forEach((f, idx) => {
@@ -51217,16 +51306,20 @@ Earned Value Management measures project performance and progress by comparing p
   // Summary Footer Row
   const summaryRow = wsTrace.addRow({ id: "TOTAL", name: "TOTAL FEATURES PER WORKSTREAM", release: "" });
   summaryRow.height = 26;
-  const sumFooterStyle = { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: T.headerBg } }, font: { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: getReadableText(T.headerBg) } }, alignment: { vertical: 'middle', horizontal: 'center' } };
-  summaryRow.getCell("id").style = sumFooterStyle;
-  summaryRow.getCell("name").style = { ...sumFooterStyle, alignment: { vertical: 'middle', indent: 1 } };
-  summaryRow.getCell("release").style = sumFooterStyle;
+  const applySumFooterStyle = (cell, overrideAlign) => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: T.headerBg } };
+    cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: getReadableText(T.headerBg) } };
+    cell.alignment = overrideAlign || { vertical: 'middle', horizontal: 'center' };
+  };
+  applySumFooterStyle(summaryRow.getCell("id"));
+  applySumFooterStyle(summaryRow.getCell("name"), { vertical: 'middle', indent: 1 });
+  applySumFooterStyle(summaryRow.getCell("release"));
 
   matrixCats.forEach((cat, cIdx) => {
     const catFeats = calculatedFeatures.filter(f => f.category === cat);
     const cCell = summaryRow.getCell(5 + cIdx);
     cCell.value = { formula: `=COUNTIF('Feature Details'!$D$8:$D${featLastRow}, "${cat.replace(/"/g, '""')}")`, result: catFeats.length };
-    cCell.style = sumFooterStyle;
+    applySumFooterStyle(cCell);
   });
 
   wsTrace.autoFilter = `B7:${wsTrace.getColumn(4 + matrixCats.length).letter}${traceLastRow}`;
@@ -51263,12 +51356,12 @@ Earned Value Management measures project performance and progress by comparing p
   const numWeeksVal = Math.max(2, Math.min(100, Math.ceil((maxTimelineDate - minTimelineDate) / (7 * 24 * 60 * 60 * 1000)) + 1));
 
   // Theme-aware Gantt bar colors
-  const GANTT_GREEN = COLORS.emerald;
-  const GANTT_BLUE = COLORS.blue;
-  const GANTT_AMBER = COLORS.amber;
-  const GANTT_GREEN_LIGHT = blendArgb(COLORS.emerald, COLORS.surface, 0.25);
-  const GANTT_BLUE_LIGHT = blendArgb(COLORS.blue, COLORS.surface, 0.25);
-  const GANTT_AMBER_LIGHT = blendArgb(COLORS.amber, COLORS.surface, 0.25);
+  const GANTT_GREEN = COLORS.emerald || 'FF10B981';
+  const GANTT_BLUE = COLORS.indigo || COLORS.blue || 'FF3B82F6';
+  const GANTT_AMBER = COLORS.amber || 'FFF59E0B';
+  const GANTT_GREEN_LIGHT = blendArgb(GANTT_GREEN, COLORS.surface, 0.25);
+  const GANTT_BLUE_LIGHT = blendArgb(GANTT_BLUE, COLORS.surface, 0.25);
+  const GANTT_AMBER_LIGHT = blendArgb(GANTT_AMBER, COLORS.surface, 0.25);
   const GANTT_EMPTY = COLORS.surfaceAlt;
   const GANTT_TODAY_BG = blendArgb(COLORS.rose, COLORS.surface, 0.10);
 
@@ -51346,7 +51439,7 @@ Earned Value Management measures project performance and progress by comparing p
 
   const ganttHeaders = ['', 'Feature Name', 'Category', 'Release', 'Start', 'Due', 'Progress'];
   wsGantt.getRow(6).height = 26;
-  ganttHeaders.forEach((h, idx) => { if (idx > 0) { const cell = wsGantt.getCell(6, idx + 1); cell.value = h; cell.style = hdrStyle; } });
+  ganttHeaders.forEach((h, idx) => { if (idx > 0) { const cell = wsGantt.getCell(6, idx + 1); cell.value = h; applyHdrStyle(cell); } });
 
   // Week date headers
   for (let w = 0; w < numWeeksVal; w++) {
@@ -51355,9 +51448,9 @@ Earned Value Management measures project performance and progress by comparing p
     const wDate = weekDates[w];
     if (w === 0) { cell.value = new Date(wDate); }
     else { const prevColLetter = wsGantt.getColumn(colIdx - 1).letter; cell.value = { formula: `=${prevColLetter}6+7`, result: new Date(wDate) }; }
-    cell.style = hdrStyle;
+    applyHdrStyle(cell);
     cell.numFmt = 'dd-mmm';
-    cell.font = { ...hdrStyle.font, size: 8 };
+    cell.font = { color: { argb: getReadableText(T.headerBg) }, bold: true, size: 8, name: 'Segoe UI' };
   }
 
   // Month Header Pills on Row 5
@@ -51423,22 +51516,20 @@ Earned Value Management measures project performance and progress by comparing p
       let code = 0;
       if (isActive) { code = f.progress >= 0.8 ? 5 : (f.progress >= 0.4 ? 4 : 2); }
 
-      cell.value = {
-        formula: `=IF($B${rowIdx}="","",IF(AND(${colLetter}$6<=$F${rowIdx}, ${colLetter}$6+6>=$E${rowIdx}), IF($G${rowIdx}>=0.8, 5, IF($G${rowIdx}>=0.4, 4, 2)), 0))`,
-        result: code
-      };
+      // Suppress number rendering with ';;;' so cells show solid colored bars without numbers
+      cell.numFmt = ';;;';
 
       if (isActive) {
         const isFirstWeek = (w === 0 || !(weekDates[w - 1] <= fEnd && new Date(weekDates[w - 1].getTime() + 6 * 86400000) >= fStart));
         const isLastWeek = (w === numWeeksVal - 1 || !(weekDates[w + 1] <= fEnd && wEnd.getTime() + 86400000 >= fStart.getTime()));
         const barColor = code === 5 ? GANTT_GREEN : (code === 4 ? GANTT_BLUE : GANTT_AMBER);
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: barColor } };
-        cell.font = { name: 'Segoe UI', size: 8, bold: true, color: { argb: getReadableText(barColor) } };
-        // Show percentage on first bar cell only
-        if (isFirstWeek) {
-          cell.value = { formula: cell.value.formula, result: code };
-        }
-        // Thin border around bar
+        cell.font = { name: 'Segoe UI', size: 8, bold: true, color: { argb: barColor } };
+        cell.value = {
+          formula: `=IF($B${rowIdx}="","",IF(AND(${colLetter}$6<=$F${rowIdx}, ${colLetter}$6+6>=$E${rowIdx}), IF($G${rowIdx}>=0.8, 5, IF($G${rowIdx}>=0.4, 4, 2)), ""))`,
+          result: code
+        };
+        // Border around bar
         cell.border = {
           top: { style: 'thin', color: { argb: barColor } },
           bottom: { style: 'thin', color: { argb: barColor } },
@@ -51448,6 +51539,11 @@ Earned Value Management measures project performance and progress by comparing p
       } else {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colColors[w] } };
         cell.font = { name: 'Segoe UI', size: 8, color: { argb: colColors[w] } };
+        cell.value = {
+          formula: `=IF($B${rowIdx}="","",IF(AND(${colLetter}$6<=$F${rowIdx}, ${colLetter}$6+6>=$E${rowIdx}), IF($G${rowIdx}>=0.8, 5, IF($G${rowIdx}>=0.4, 4, 2)), ""))`,
+          result: ''
+        };
+        cell.border = thinBorder;
       }
     }
   });
@@ -51486,9 +51582,9 @@ Earned Value Management measures project performance and progress by comparing p
   wsGantt.addConditionalFormatting({
     ref: `H8:${wsGantt.getColumn(8 + numWeeksVal - 1).letter}${ganttLastRow}`,
     rules: [
-      { type: 'cellIs', operator: 'equal', formulae: ['5'], style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: GANTT_GREEN }, fgColor: { argb: GANTT_GREEN } }, font: { color: { argb: GANTT_GREEN } } } },
-      { type: 'cellIs', operator: 'equal', formulae: ['4'], style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: GANTT_BLUE }, fgColor: { argb: GANTT_BLUE } }, font: { color: { argb: GANTT_BLUE } } } },
-      { type: 'cellIs', operator: 'equal', formulae: ['2'], style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: GANTT_AMBER }, fgColor: { argb: GANTT_AMBER } }, font: { color: { argb: GANTT_AMBER } } } }
+      { type: 'cellIs', operator: 'equal', formulae: ['5'], style: { numFmt: ';;;', fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: GANTT_GREEN }, fgColor: { argb: GANTT_GREEN } }, font: { color: { argb: GANTT_GREEN } } } },
+      { type: 'cellIs', operator: 'equal', formulae: ['4'], style: { numFmt: ';;;', fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: GANTT_BLUE }, fgColor: { argb: GANTT_BLUE } }, font: { color: { argb: GANTT_BLUE } } } },
+      { type: 'cellIs', operator: 'equal', formulae: ['2'], style: { numFmt: ';;;', fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: GANTT_AMBER }, fgColor: { argb: GANTT_AMBER } }, font: { color: { argb: GANTT_AMBER } } } }
     ]
   });
 
@@ -51525,16 +51621,17 @@ Earned Value Management measures project performance and progress by comparing p
   swimInfo.border = { top: { style: 'thin', color: { argb: COLORS.divider } }, left: { style: 'thick', color: { argb: COLORS.blue } }, bottom: { style: 'medium', color: { argb: COLORS.divider } }, right: { style: 'thin', color: { argb: COLORS.divider } } };
 
   wsSwim.getRow(6).height = 26;
-  ganttHeaders.forEach((h, idx) => { if (idx > 0) { const cell = wsSwim.getCell(6, idx + 1); cell.value = h; cell.style = hdrStyle; } });
+  ganttHeaders.forEach((h, idx) => { if (idx > 0) { const cell = wsSwim.getCell(6, idx + 1); cell.value = h; applyHdrStyle(cell); } });
 
   // Week date headers
   for (let w = 0; w < numWeeksVal; w++) {
     const colIdx = 8 + w;
     const colLetter = wsSwim.getColumn(colIdx).letter;
-    wsSwim.getCell(6, colIdx).value = { formula: `='Gantt Chart'!${colLetter}6`, result: new Date(weekDates[w]) };
-    wsSwim.getCell(6, colIdx).style = hdrStyle;
-    wsSwim.getCell(6, colIdx).numFmt = 'dd-mmm';
-    wsSwim.getCell(6, colIdx).font = { ...hdrStyle.font, size: 8 };
+    const cell = wsSwim.getCell(6, colIdx);
+    cell.value = { formula: `='Gantt Chart'!${colLetter}6`, result: new Date(weekDates[w]) };
+    applyHdrStyle(cell);
+    cell.numFmt = 'dd-mmm';
+    cell.font = { color: { argb: getReadableText(T.headerBg) }, bold: true, size: 8, name: 'Segoe UI' };
   }
 
   // Month Headers Row 5
@@ -51624,17 +51721,19 @@ Earned Value Management measures project performance and progress by comparing p
         let code = 0;
         if (isActive) { code = f.progress >= 0.8 ? 5 : (f.progress >= 0.4 ? 4 : 2); }
 
-        cell.value = {
-          formula: `=IF($B${swimRowIdx}="","",IF(AND(${colLetter}$6<=$F${swimRowIdx}, ${colLetter}$6+6>=$E${swimRowIdx}), IF($G${swimRowIdx}>=0.8, 5, IF($G${swimRowIdx}>=0.4, 4, 2)), 0))`,
-          result: code
-        };
+        // Suppress number rendering with ';;;' so cells show solid colored bars without numbers
+        cell.numFmt = ';;;';
 
         if (isActive) {
           const barColor = code === 5 ? GANTT_GREEN : (code === 4 ? GANTT_BLUE : GANTT_AMBER);
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: barColor } };
-          cell.font = { name: 'Segoe UI', size: 8, color: { argb: getReadableText(barColor) } };
+          cell.font = { name: 'Segoe UI', size: 8, color: { argb: barColor } };
           const isFirstWeek = (w === 0 || !(weekDates[w - 1] <= fEnd && new Date(weekDates[w - 1].getTime() + 6 * 86400000) >= fStart));
           const isLastWeek = (w === numWeeksVal - 1 || !(weekDates[w + 1] <= fEnd && wEnd.getTime() + 86400000 >= fStart.getTime()));
+          cell.value = {
+            formula: `=IF($B${swimRowIdx}="","",IF(AND(${colLetter}$6<=$F${swimRowIdx}, ${colLetter}$6+6>=$E${swimRowIdx}), IF($G${swimRowIdx}>=0.8, 5, IF($G${swimRowIdx}>=0.4, 4, 2)), ""))`,
+            result: code
+          };
           cell.border = {
             top: { style: 'thin', color: { argb: barColor } },
             bottom: { style: 'thin', color: { argb: barColor } },
@@ -51644,6 +51743,11 @@ Earned Value Management measures project performance and progress by comparing p
         } else {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colColors[w] } };
           cell.font = { name: 'Segoe UI', size: 8, color: { argb: colColors[w] } };
+          cell.value = {
+            formula: `=IF($B${swimRowIdx}="","",IF(AND(${colLetter}$6<=$F${swimRowIdx}, ${colLetter}$6+6>=$E${swimRowIdx}), IF($G${swimRowIdx}>=0.8, 5, IF($G${swimRowIdx}>=0.4, 4, 2)), ""))`,
+            result: ''
+          };
+          cell.border = thinBorder;
         }
       }
       swimRowIdx++;
@@ -51654,9 +51758,9 @@ Earned Value Management measures project performance and progress by comparing p
   wsSwim.addConditionalFormatting({
     ref: `H8:${wsSwim.getColumn(8 + numWeeksVal - 1).letter}${swimLastRow}`,
     rules: [
-      { type: 'cellIs', operator: 'equal', formulae: ['5'], style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: GANTT_GREEN }, fgColor: { argb: GANTT_GREEN } }, font: { color: { argb: GANTT_GREEN } } } },
-      { type: 'cellIs', operator: 'equal', formulae: ['4'], style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: GANTT_BLUE }, fgColor: { argb: GANTT_BLUE } }, font: { color: { argb: GANTT_BLUE } } } },
-      { type: 'cellIs', operator: 'equal', formulae: ['2'], style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: GANTT_AMBER }, fgColor: { argb: GANTT_AMBER } }, font: { color: { argb: GANTT_AMBER } } } }
+      { type: 'cellIs', operator: 'equal', formulae: ['5'], style: { numFmt: ';;;', fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: GANTT_GREEN }, fgColor: { argb: GANTT_GREEN } }, font: { color: { argb: GANTT_GREEN } } } },
+      { type: 'cellIs', operator: 'equal', formulae: ['4'], style: { numFmt: ';;;', fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: GANTT_BLUE }, fgColor: { argb: GANTT_BLUE } }, font: { color: { argb: GANTT_BLUE } } } },
+      { type: 'cellIs', operator: 'equal', formulae: ['2'], style: { numFmt: ';;;', fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: GANTT_AMBER }, fgColor: { argb: GANTT_AMBER } }, font: { color: { argb: GANTT_AMBER } } } }
     ]
   });
 
@@ -51751,7 +51855,7 @@ Earned Value Management measures project performance and progress by comparing p
           { header: 'Data Type', key: 'type', width: 18 }, { header: 'Required', key: 'req', width: 12 },
           { header: 'Validation Rule / Source', key: 'val', width: 30 }, { header: 'Description', key: 'desc', width: 50 }
         ];
-        ws.columns = cols; ws.getRow(1).height = 28; ws.getRow(1).eachCell(c => c.style = hdrStyle);
+        ws.columns = cols; ws.getRow(1).height = 28; PulseExcel.applyRowHdr(ws.getRow(1), hdrStyle);
 
         const dict = [
           { name: 'id', label: 'ID', type: 'String', req: 'Yes', val: 'Unique Identifier (TSK-XXX)', desc: 'Canonical task identifier.' },
@@ -51774,7 +51878,8 @@ Earned Value Management measures project performance and progress by comparing p
         });
       },
 
-      buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle) {
+      buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle, S) {
+        const safeS = (typeof S === 'function') ? S : ((typeof window !== 'undefined' && typeof window.S === 'function') ? window.S : (v => (v == null ? '' : String(v))));
         const ws = wb.addWorksheet('ValidationLists', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
         ws.properties.tabColor = { argb: COLORS.slate };
 
@@ -51795,12 +51900,12 @@ Earned Value Management measures project performance and progress by comparing p
           { header: 'ModuleTypes', key: 'modTypes', width: 18 }, { header: 'Releases', key: 'releases', width: 18 },
           { header: 'TeamMembers', key: 'team', width: 25 }
         ];
-        ws.getRow(1).height = 28; ws.getRow(1).eachCell(c => c.style = hdrStyle);
+        ws.getRow(1).height = 28; PulseExcel.applyRowHdr(ws.getRow(1), hdrStyle);
 
         for (let i = 0; i < maxLen; i++) {
           const rowValues = {
-            statuses: S(statuses[i] || ''), priorities: S(priorities[i] || ''), categories: S(categories[i] || ''),
-            modules: S(modules[i] || ''), modTypes: S(modTypes[i] || ''), releases: S(releases[i] || ''), team: S(team[i] || '')
+            statuses: safeS(statuses[i] || ''), priorities: safeS(priorities[i] || ''), categories: safeS(categories[i] || ''),
+            modules: safeS(modules[i] || ''), modTypes: safeS(modTypes[i] || ''), releases: safeS(releases[i] || ''), team: safeS(team[i] || '')
           };
           const row = ws.addRow(rowValues); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
           COLORS.styleRow(row, i);
@@ -51827,7 +51932,7 @@ Earned Value Management measures project performance and progress by comparing p
           { header: 'Lookup Key', key: 'key', width: 22 }, { header: 'Mapped Value', key: 'val', width: 22 },
           { header: 'Weight / Score', key: 'score', width: 18 }, { header: 'Description', key: 'desc', width: 40 }
         ];
-        ws.getRow(1).height = 28; ws.getRow(1).eachCell(c => c.style = hdrStyle);
+        ws.getRow(1).height = 28; PulseExcel.applyRowHdr(ws.getRow(1), hdrStyle);
 
         const maps = [
           { key: 'Completed', val: 'Excellent', score: 100, desc: 'Fully finalized task' },
@@ -51917,15 +52022,15 @@ Earned Value Management measures project performance and progress by comparing p
           gradient: 'angle',
           degree: 90,
           stops: [
-            { position: 0, color: { argb: 'FF4F46E5' } },
-            { position: 1, color: { argb: 'FF3730A3' } }
+            { position: 0, color: { argb: COLORS.indigo || 'FF4F46E5' } },
+            { position: 1, color: { argb: (COLORS.blendColors ? COLORS.blendColors(COLORS.indigo, 'FF000000', 0.75) : 'FF3730A3') } }
           ]
         };
 
         for (let c = 2; c <= 18; c++) {
           const cell = ws.getCell(2, c);
           cell.fill = bannerGradFill;
-          cell.border = { bottom: { style: 'medium', color: { argb: 'FF312E81' } } };
+          cell.border = { bottom: { style: 'medium', color: { argb: COLORS.navy } } };
         }
 
         drawTopKpiCard(ws, 2, 3, 4, 3, 'Delivery Progress', `${done} / ${total}`, `${progress}% complete`, COLORS.indigo || 'FF6366F1');
@@ -51941,12 +52046,12 @@ Earned Value Management measures project performance and progress by comparing p
           if (colIdx === 0) return;
           const cell = headerRow.getCell(colIdx + 1);
           cell.value = S(col.header);
-          cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FFFFFFFF' } };
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF312E81' } };
+          cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: (COLORS.isDark || PulseExcel.isColorDark(COLORS.indigo)) ? 'FFFFFFFF' : 'FF0F172A' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } };
           cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
           cell.border = {
-            bottom: { style: 'medium', color: { argb: 'FF1E1B4B' } },
-            right: { style: 'thin', color: { argb: 'FF4338CA' } }
+            bottom: { style: 'medium', color: { argb: COLORS.navy } },
+            right: { style: 'thin', color: { argb: COLORS.divider } }
           };
         });
 
@@ -52351,15 +52456,15 @@ Earned Value Management measures project performance and progress by comparing p
           gradient: 'angle',
           degree: 90,
           stops: [
-            { position: 0, color: { argb: 'FF4F46E5' } },
-            { position: 1, color: { argb: 'FF3730A3' } }
+            { position: 0, color: { argb: COLORS.indigo || 'FF4F46E5' } },
+            { position: 1, color: { argb: (COLORS.blendColors ? COLORS.blendColors(COLORS.indigo, 'FF000000', 0.75) : 'FF3730A3') } }
           ]
         };
 
         for (let c = 2; c <= 11; c++) {
           const cell = ws.getCell(2, c);
           cell.fill = bannerGradFill;
-          cell.border = { bottom: { style: 'medium', color: { argb: 'FF312E81' } } };
+          cell.border = { bottom: { style: 'medium', color: { argb: COLORS.navy } } };
         }
 
         drawTopKpiCard(ws, 2, 3, 3, 3, 'Releases Mapped', `${releaseCount}`, `${backlogCount} in backlog`, COLORS.indigo || 'FF6366F1');
@@ -52374,12 +52479,12 @@ Earned Value Management measures project performance and progress by comparing p
           if (colIdx === 0) return;
           const cell = headerRow.getCell(colIdx + 1);
           cell.value = col.header;
-          cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FFFFFFFF' } };
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF312E81' } };
+          cell.font = { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: (COLORS.isDark || PulseExcel.isColorDark(COLORS.indigo)) ? 'FFFFFFFF' : 'FF0F172A' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } };
           cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
           cell.border = {
-            bottom: { style: 'medium', color: { argb: 'FF1E1B4B' } },
-            right: { style: 'thin', color: { argb: 'FF4338CA' } }
+            bottom: { style: 'medium', color: { argb: COLORS.navy } },
+            right: { style: 'thin', color: { argb: COLORS.divider } }
           };
         });
 
@@ -53032,7 +53137,7 @@ Earned Value Management measures project performance and progress by comparing p
           { header: 'Actual Completion Date', key: 'actCompletionDate', width: 22 }, { header: `Estimated ${effortUnitLabel('col')}`, key: 'estEffort', width: 18 },
           { header: `Actual ${effortUnitLabel('col')}`, key: 'actEffort', width: 15 }, { header: 'Notes', key: 'notes', width: 35 }
         ];
-        ws.columns = cols; ws.getRow(1).height = 30; ws.getRow(1).eachCell(c => c.style = hdrStyle);
+        ws.columns = cols; ws.getRow(1).height = 30; PulseExcel.applyRowHdr(ws.getRow(1), hdrStyle);
 
         subs.forEach((s, i) => {
           const sIsNew = PulseExcel.isNewWindowItem(s);
@@ -53103,7 +53208,7 @@ Earned Value Management measures project performance and progress by comparing p
           { header: 'Reports To', key: 'reportsTo', width: 22 },
           { header: 'Birthday', key: 'birthday', width: 15 }
         ];
-        ws.columns = cols; ws.getRow(1).height = 30; ws.getRow(1).eachCell(c => c.style = hdrStyle);
+        ws.columns = cols; ws.getRow(1).height = 30; PulseExcel.applyRowHdr(ws.getRow(1), hdrStyle);
 
         (P.members || []).forEach((m, i) => {
           const rowValues = {
@@ -53319,7 +53424,7 @@ Earned Value Management measures project performance and progress by comparing p
           { header: 'Due Date', key: 'dueDate', width: 15 }, { header: 'Created At', key: 'createdAt', width: 15 },
           { header: 'Updated At', key: 'updatedAt', width: 15 }
         ];
-        ws.columns = cols; ws.getRow(1).height = 30; ws.getRow(1).eachCell(c => c.style = hdrStyle);
+        ws.columns = cols; ws.getRow(1).height = 30; PulseExcel.applyRowHdr(ws.getRow(1), hdrStyle);
 
         (P.raids || []).forEach((r, i) => {
           const rowValues = {
@@ -53373,7 +53478,7 @@ Earned Value Management measures project performance and progress by comparing p
           { header: 'Due Date', key: 'dueDate', width: 15 }, { header: 'Created At', key: 'createdAt', width: 15 },
           { header: 'Updated At', key: 'updatedAt', width: 15 }
         ];
-        ws.columns = cols; ws.getRow(1).height = 30; ws.getRow(1).eachCell(c => c.style = hdrStyle);
+        ws.columns = cols; ws.getRow(1).height = 30; PulseExcel.applyRowHdr(ws.getRow(1), hdrStyle);
 
         (P.decisions || []).forEach((d, i) => {
           const rowValues = {
@@ -53399,7 +53504,7 @@ Earned Value Management measures project performance and progress by comparing p
           { header: `Actual ${effortUnitLabel('col')}`, key: 'actEffort', width: 15 }, { header: 'Variance Days', key: 'varianceDays', width: 15 },
           { header: 'Slippage Reason', key: 'slippageReason', width: 40 }, { header: 'Snapshot Date', key: 'snapshotDate', width: 18 }
         ];
-        ws.columns = cols; ws.getRow(1).height = 30; ws.getRow(1).eachCell(c => c.style = hdrStyle);
+        ws.columns = cols; ws.getRow(1).height = 30; PulseExcel.applyRowHdr(ws.getRow(1), hdrStyle);
 
         (P.baselines || []).forEach((b, i) => {
           const rowValues = {
@@ -53417,7 +53522,7 @@ Earned Value Management measures project performance and progress by comparing p
         const ws = wb.addWorksheet('Features', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
         ws.properties.tabColor = { argb: COLORS.indigo };
         ws.columns = [{ header: 'Feature Name', key: 'name', width: 30 }, { header: 'Description', key: 'desc', width: 60 }, { header: 'Target Release', key: 'release', width: 25 }];
-        ws.getRow(1).height = 30; ws.getRow(1).eachCell(c => c.style = hdrStyle);
+        ws.getRow(1).height = 30; PulseExcel.applyRowHdr(ws.getRow(1), hdrStyle);
 
         (P.features || []).forEach((f, i) => {
           const rowValues = { name: S(f.name), desc: S(f.desc || f.description), release: S(f.release) };
@@ -54569,7 +54674,7 @@ Earned Value Management measures project performance and progress by comparing p
         const ws = wb.addWorksheet('Config_Dropdowns', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
         ws.properties.tabColor = { argb: COLORS.slate };
         ws.columns = [{ header: 'Category', key: 'cat', width: 25 }, { header: 'Value', key: 'val', width: 30 }];
-        ws.getRow(1).height = 30; ws.getRow(1).eachCell(c => c.style = hdrStyle);
+        ws.getRow(1).height = 30; PulseExcel.applyRowHdr(ws.getRow(1), hdrStyle);
 
         let idx = 0;
         Object.entries(P.dropdowns || {}).forEach(([cat, vals]) => {
@@ -54584,7 +54689,7 @@ Earned Value Management measures project performance and progress by comparing p
         const wsTpl = wb.addWorksheet('Config_Templates', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
         wsTpl.properties.tabColor = { argb: COLORS.slate };
         wsTpl.columns = [{ header: 'Category', key: 'cat', width: 25 }, { header: 'Blueprint Name', key: 'bname', width: 25 }, { header: 'Step Name', key: 'step', width: 35 }, { header: 'Effort', key: 'effort', width: 15 }];
-        wsTpl.getRow(1).height = 30; wsTpl.getRow(1).eachCell(c => c.style = hdrStyle);
+        wsTpl.getRow(1).height = 30; PulseExcel.applyRowHdr(wsTpl.getRow(1), hdrStyle);
         let idx1 = 0;
         (P.stepTemplates || []).forEach(t => t.steps.forEach(s => {
           const row = wsTpl.addRow({ cat: S(t.category), bname: S(t.name), step: S(s.name), effort: s.effort }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
@@ -54594,7 +54699,7 @@ Earned Value Management measures project performance and progress by comparing p
         const wsCF = wb.addWorksheet('Config_CustomFields', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
         wsCF.properties.tabColor = { argb: COLORS.slate };
         wsCF.columns = [{ header: 'Category', key: 'cat', width: 18 }, { header: 'Field Name', key: 'name', width: 25 }, { header: 'Type', key: 'type', width: 18 }, { header: 'Source', key: 'src', width: 15 }, { header: 'Global Key', key: 'gk', width: 22 }];
-        wsCF.getRow(1).height = 30; wsCF.getRow(1).eachCell(c => c.style = hdrStyle);
+        wsCF.getRow(1).height = 30; PulseExcel.applyRowHdr(wsCF.getRow(1), hdrStyle);
         let idx2 = 0;
         const addCF = (cat, fields) => (fields || []).forEach(f => {
           const row = wsCF.addRow({ cat, name: S(f.name), type: S(f.type), src: S(f.source || 'local'), gk: S(f.globalKey || '') }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
@@ -54605,7 +54710,7 @@ Earned Value Management measures project performance and progress by comparing p
         const wsCFO = wb.addWorksheet('Config_CustomFieldOptions', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
         wsCFO.properties.tabColor = { argb: COLORS.slate };
         wsCFO.columns = [{ header: 'Category', key: 'cat', width: 18 }, { header: 'Field Name', key: 'field', width: 25 }, { header: 'Option', key: 'opt', width: 30 }];
-        wsCFO.getRow(1).height = 30; wsCFO.getRow(1).eachCell(c => c.style = hdrStyle);
+        wsCFO.getRow(1).height = 30; PulseExcel.applyRowHdr(wsCFO.getRow(1), hdrStyle);
         let idx3 = 0;
         const addCFO = (cat, fields) => (fields || []).forEach(f => (f.options || []).forEach(o => {
           const row = wsCFO.addRow({ cat, field: S(f.name), opt: S(o) }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
@@ -54635,7 +54740,7 @@ Earned Value Management measures project performance and progress by comparing p
 
           const keys = Array.from(new Set(rows.flatMap(r => Object.keys(r))));
           ws.columns = keys.map(k => ({ header: String(S((window.PROJECT_SCHEMA && window.PROJECT_SCHEMA.labels[k]) || cap(k))), key: k, width: 25 }));
-          ws.getRow(1).height = 30; ws.getRow(1).eachCell(c => c.style = hdrStyle);
+          ws.getRow(1).height = 30; PulseExcel.applyRowHdr(ws.getRow(1), hdrStyle);
           rows.forEach((r, i) => {
             const rowValues = {}; keys.forEach(k => rowValues[k] = S(r[k], k));
             const row = ws.addRow(rowValues); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
@@ -54648,7 +54753,7 @@ Earned Value Management measures project performance and progress by comparing p
         const wsProj = wb.addWorksheet('System State', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
         wsProj.properties.tabColor = { argb: COLORS.indigo };
         wsProj.columns = [{ header: 'Property', key: 'key', width: 25 }, { header: 'Value', key: 'val', width: 50 }];
-        wsProj.getRow(1).height = 30; wsProj.getRow(1).eachCell(c => c.style = hdrStyle);
+        wsProj.getRow(1).height = 30; PulseExcel.applyRowHdr(wsProj.getRow(1), hdrStyle);
         const projMeta = [
           { key: 'Project Name', val: P.name }, { key: 'Description', val: P.desc },
           { key: 'Active Theme', val: P.theme }, { key: 'Color Mode', val: P.colorMode || 'default' },
@@ -54696,7 +54801,7 @@ Earned Value Management measures project performance and progress by comparing p
         const wsSet = wb.addWorksheet('Config_Settings', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
         wsSet.properties.tabColor = { argb: COLORS.slate };
         wsSet.columns = [{ header: 'Setting Key', key: 'key', width: 25 }, { header: 'Value', key: 'val', width: 35 }];
-        wsSet.getRow(1).height = 30; wsSet.getRow(1).eachCell(c => c.style = hdrStyle);
+        wsSet.getRow(1).height = 30; PulseExcel.applyRowHdr(wsSet.getRow(1), hdrStyle);
         const setMeta = [
           { key: 'effortUnit', val: P.settings.effortUnit },
           { key: 'hoursPerDay', val: P.settings.hoursPerDay },
@@ -54730,7 +54835,7 @@ Earned Value Management measures project performance and progress by comparing p
           { header: 'H', key: 'h', width: 10 },
           { header: 'On', key: 'on', width: 10 }
         ];
-        wsLay.getRow(1).height = 30; wsLay.getRow(1).eachCell(c => c.style = hdrStyle);
+        wsLay.getRow(1).height = 30; PulseExcel.applyRowHdr(wsLay.getRow(1), hdrStyle);
         let idxL = 0;
         const addLay = (v, lays) => (lays || []).forEach(l => {
           const wid = l.id || l.i || '';
@@ -54804,7 +54909,7 @@ Earned Value Management measures project performance and progress by comparing p
         const wsFilt = wb.addWorksheet('State_Filters', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
         wsFilt.properties.tabColor = { argb: COLORS.slate };
         wsFilt.columns = [{ header: 'Category', key: 'cat', width: 22 }, { header: 'Filter Value', key: 'val', width: 35 }];
-        wsFilt.getRow(1).height = 30; wsFilt.getRow(1).eachCell(c => c.style = hdrStyle);
+        wsFilt.getRow(1).height = 30; PulseExcel.applyRowHdr(wsFilt.getRow(1), hdrStyle);
         let idxF = 0;
         Object.entries(P.filters || {}).forEach(([cat, set]) => {
           if (set === undefined || set === null) return;
@@ -54822,7 +54927,7 @@ Earned Value Management measures project performance and progress by comparing p
         const wsSets = wb.addWorksheet('State_Sets', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
         wsSets.properties.tabColor = { argb: COLORS.slate };
         wsSets.columns = [{ header: 'Type', key: 'type', width: 22 }, { header: 'Value', key: 'value', width: 35 }];
-        wsSets.getRow(1).height = 30; wsSets.getRow(1).eachCell(c => c.style = hdrStyle);
+        wsSets.getRow(1).height = 30; PulseExcel.applyRowHdr(wsSets.getRow(1), hdrStyle);
         let idxS = 0;
         (P.dismissedAlerts || new Set()).forEach(v => {
           const row = wsSets.addRow({ type: 'DismissedAlert', value: S(v) }); row.font = { name: 'Segoe UI', size: 10, color: { argb: COLORS.textDark } };
@@ -54843,7 +54948,7 @@ Earned Value Management measures project performance and progress by comparing p
           ws.properties.tabColor = { argb: COLORS.slate };
           const keys = Array.from(new Set(data.flatMap(r => Object.keys(r))));
           ws.columns = keys.map(k => ({ header: String(S((window.PROJECT_SCHEMA && window.PROJECT_SCHEMA.labels[k]) || cap(k))), key: k, width: 22 }));
-          ws.getRow(1).height = 30; ws.getRow(1).eachCell(c => c.style = hdrStyle);
+          ws.getRow(1).height = 30; PulseExcel.applyRowHdr(ws.getRow(1), hdrStyle);
           data.forEach((r, i) => {
             const rowValues = {}; keys.forEach(k => rowValues[k] = S(r[k], k));
             const row = ws.addRow(rowValues); row.font = { size: 10, color: { argb: COLORS.textDark } };
@@ -54856,7 +54961,7 @@ Earned Value Management measures project performance and progress by comparing p
         const wsGridState = wb.addWorksheet('Config_GridState', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
         wsGridState.properties.tabColor = { argb: COLORS.slate };
         wsGridState.columns = [{ header: 'Workshop', key: 'workshop', width: 15 }, { header: 'Order', key: 'order', width: 50 }, { header: 'Hidden', key: 'hidden', width: 50 }, { header: 'Widths', key: 'widths', width: 50 }, { header: 'Filters', key: 'filters', width: 50 }];
-        wsGridState.getRow(1).height = 30; wsGridState.getRow(1).eachCell(c => c.style = hdrStyle);
+        wsGridState.getRow(1).height = 30; PulseExcel.applyRowHdr(wsGridState.getRow(1), hdrStyle);
         const gsData = [
           { workshop: 'Task', order: (P.colOrder || []).join(','), hidden: (P.hiddenCols || []).join(','), widths: JSON.stringify(P.colWidths || {}), filters: JSON.stringify(P.colFilters || {}) },
           { workshop: 'Defect', order: (P.defColOrder || []).join(','), hidden: (P.defHiddenCols || []).join(','), widths: JSON.stringify(P.defColWidths || {}), filters: JSON.stringify(P.defColFilters || {}) }
@@ -54874,7 +54979,7 @@ Earned Value Management measures project performance and progress by comparing p
         const wsGridCols = wb.addWorksheet('Config_GridColumns', { views: safeMode ? [] : [{ state: 'frozen', ySplit: 1 }] });
         wsGridCols.properties.tabColor = { argb: COLORS.slate };
         wsGridCols.columns = [{ header: 'Workshop', key: 'workshop', width: 15 }, { header: 'Key', key: 'key', width: 20 }, { header: 'Label', key: 'label', width: 30 }, { header: 'Width', key: 'w', width: 10 }, { header: 'Type', key: 'type', width: 15 }, { header: 'Editable', key: 'edit', width: 10 }];
-        wsGridCols.getRow(1).height = 30; wsGridCols.getRow(1).eachCell(c => c.style = hdrStyle);
+        wsGridCols.getRow(1).height = 30; PulseExcel.applyRowHdr(wsGridCols.getRow(1), hdrStyle);
         let gcIdx = 0;
         const addGridCols = (wsName, cols) => {
           (cols || []).forEach(c => {
@@ -56953,111 +57058,41 @@ Earned Value Management measures project performance and progress by comparing p
         const wb = new ExcelJS.Workbook();
         wb.creator = 'ProjectPulse'; wb.lastModifiedBy = 'ProjectPulse'; wb.created = new Date(); wb.modified = new Date();
 
-        const style = window.getComputedStyle(document.documentElement);
+        const themePalette = (typeof PulseExcel !== 'undefined' && typeof PulseExcel.getThemePalette === 'function')
+          ? PulseExcel.getThemePalette()
+          : (typeof this.getThemePalette === 'function' ? this.getThemePalette() : null);
 
-        const parseCssColorToArgb = (cssVal, defaultColor) => {
-          if (!cssVal) return defaultColor;
-          let clean = cssVal.trim();
-          if (clean.startsWith('#')) {
-            let hex = clean.substring(1);
-            if (hex.length === 3) {
-              hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
-            }
-            return 'FF' + hex.toUpperCase();
-          }
-          if (clean.startsWith('rgb')) {
-            let match = clean.match(/\d+/g);
-            if (match && match.length >= 3) {
-              let r = parseInt(match[0]).toString(16).padStart(2, '0');
-              let g = parseInt(match[1]).toString(16).padStart(2, '0');
-              let b = parseInt(match[2]).toString(16).padStart(2, '0');
-              return 'FF' + (r + g + b).toUpperCase();
-            }
-          }
-          return defaultColor;
-        };
-
-        const isColorDark = (argb) => {
-          if (!argb || argb.length < 8) return false;
-          let hex = argb.substring(argb.length - 6);
-          let r = parseInt(hex.substring(0, 2), 16);
-          let g = parseInt(hex.substring(2, 4), 16);
-          let b = parseInt(hex.substring(4, 6), 16);
-          let luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b);
-          return luminance < 140;
-        };
-
-        const cssBg = style.getPropertyValue('--color-bg') || '';
-        const cssSurface = style.getPropertyValue('--color-surface') || '';
-        const cssText = style.getPropertyValue('--color-text') || '';
-        const cssPrimary = style.getPropertyValue('--color-primary') || '';
-        const cssDivider = style.getPropertyValue('--color-divider') || '';
-        const cssTextMuted = style.getPropertyValue('--color-text-muted') || '';
-
-        const resolvedBg = parseCssColorToArgb(cssBg, 'FFF8FAFC');
-        const resolvedSurface = parseCssColorToArgb(cssSurface, 'FFFFFFFF');
-        const resolvedText = parseCssColorToArgb(cssText, 'FF0F172A');
-        const resolvedPrimary = parseCssColorToArgb(cssPrimary, 'FF4338CA');
-        const resolvedDivider = parseCssColorToArgb(cssDivider, 'FFE2E8F0');
-        const resolvedMuted = parseCssColorToArgb(cssTextMuted, 'FF64748B');
-
-        const isThemeDark = isColorDark(resolvedBg);
-
-        const COLORS = {
-          navy: resolvedText,
-          indigo: resolvedPrimary,
-          slate: resolvedMuted,
+        const COLORS = (themePalette && themePalette.COLORS) ? themePalette.COLORS : {
+          navy: 'FF0F172A',
+          indigo: 'FF4338CA',
+          slate: 'FF64748B',
           emerald: 'FF10B981',
           rose: 'FFF43F5E',
-          header: isThemeDark ? 'FF1E293B' : 'FFF8FAFC',
-          input: resolvedPrimary,
+          header: 'FFF8FAFC',
+          input: 'FF4338CA',
           amber: 'FFF59E0B',
           blue: 'FF3B82F6',
-          bg: resolvedBg,
-          surface: resolvedSurface,
-          divider: resolvedDivider,
-          muted: resolvedMuted,
-          textDark: resolvedText,
-          surfaceAlt: isThemeDark ? 'FF111827' : 'FFF1F5F9',
-          isDark: isThemeDark
+          purple: 'FF8B5CF6',
+          teal: 'FF0D9488',
+          bg: 'FFF8FAFC',
+          surface: 'FFFFFFFF',
+          surfaceAlt: 'FFF1F5F9',
+          divider: 'FFE2E8F0',
+          muted: 'FF64748B',
+          textDark: 'FF0F172A',
+          isDark: false
         };
 
-        COLORS.getThemeTint = (argb, factor) => {
-          if (!argb || argb.length < 6) return 'FFFFFFFF';
-          let hex = argb.substring(argb.length - 6);
-          let r = parseInt(hex.substring(0, 2), 16) || 0;
-          let g = parseInt(hex.substring(2, 4), 16) || 0;
-          let b = parseInt(hex.substring(4, 6), 16) || 0;
+        const isThemeDark = themePalette ? themePalette.isThemeDark : false;
 
-          let bgHex = (resolvedBg && resolvedBg.length >= 6) ? resolvedBg.substring(resolvedBg.length - 6) : 'FFFFFF';
-          let bgR = parseInt(bgHex.substring(0, 2), 16) || 255;
-          let bgG = parseInt(bgHex.substring(2, 4), 16) || 255;
-          let bgB = parseInt(bgHex.substring(4, 6), 16) || 255;
-
-          r = Math.round(r * factor + bgR * (1 - factor));
-          g = Math.round(g * factor + bgG * (1 - factor));
-          b = Math.round(b * factor + bgB * (1 - factor));
-
-          return 'FF' + r.toString(16).padStart(2, '0').toUpperCase() + g.toString(16).padStart(2, '0').toUpperCase() + b.toString(16).padStart(2, '0').toUpperCase();
-        };
-
-        COLORS.styleRow = (row, i) => {
-          const bg = (i % 2 === 1)
-            ? COLORS.getThemeTint(COLORS.indigo, 0.09)
-            : COLORS.getThemeTint(COLORS.indigo, 0.03);
-          row.eachCell(c => {
-            c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-          });
-        };
-
-        const hdrStyle = {
+        const hdrStyle = (themePalette && themePalette.hdrStyle) ? themePalette.hdrStyle : {
           fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.indigo } },
-          font: { color: { argb: 'FFFFFFFF' }, bold: true, size: 10 },
-          alignment: { vertical: 'middle', horizontal: 'center' },
+          font: { color: { argb: 'FFFFFFFF' }, bold: true, size: 10, name: 'Segoe UI' },
+          alignment: { vertical: 'middle', horizontal: 'center', wrapText: true },
           border: { bottom: { style: 'medium', color: { argb: COLORS.navy } } }
         };
 
-        const STATUS_COLORS = {
+        const STATUS_COLORS = (themePalette && themePalette.STATUS_COLORS) ? themePalette.STATUS_COLORS : {
           'Completed': COLORS.emerald,
           'In Progress': COLORS.indigo,
           'Under Review': 'FF0284C7',
@@ -57110,7 +57145,7 @@ Earned Value Management measures project performance and progress by comparing p
           buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S);
 
           // Group E: Technical Reference Metadata & Setup
-          buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle);
+          buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle, S);
           registerNamedRanges(wb, safeMode);
           buildDataDictionarySheet(wb, safeMode, COLORS, hdrStyle);
           buildHelperMapsSheet(wb, safeMode, COLORS, hdrStyle);
@@ -57126,7 +57161,7 @@ Earned Value Management measures project performance and progress by comparing p
             buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S);
             const sysWs = wb.getWorksheet('System State');
             if (sysWs) sysWs.state = 'hidden';
-            buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle);
+            buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle, S);
             registerNamedRanges(wb, safeMode);
           } else if (P.view === 'defects') {
             // Group A: Overview & Insights (Interactive / Readme)
@@ -57137,7 +57172,7 @@ Earned Value Management measures project performance and progress by comparing p
             buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S);
             const sysWs = wb.getWorksheet('System State');
             if (sysWs) sysWs.state = 'hidden';
-            buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle);
+            buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle, S);
             registerNamedRanges(wb, safeMode);
           } else if (P.view === 'deliveries') {
             // Group A: Overview & Insights (Interactive / Readme)
@@ -57148,7 +57183,7 @@ Earned Value Management measures project performance and progress by comparing p
             buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S);
             const sysWs = wb.getWorksheet('System State');
             if (sysWs) sysWs.state = 'hidden';
-            buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle);
+            buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle, S);
             registerNamedRanges(wb, safeMode);
           } else {
             // Group A: Overview & Insights (Interactive / Readme)
@@ -57173,7 +57208,7 @@ Earned Value Management measures project performance and progress by comparing p
             buildAppStateSheets(wb, safeMode, COLORS, hdrStyle, S);
 
             // Group E: Technical Reference Metadata & Setup
-            buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle);
+            buildValidationListsSheet(wb, safeMode, COLORS, hdrStyle, S);
             registerNamedRanges(wb, safeMode);
             buildDataDictionarySheet(wb, safeMode, COLORS, hdrStyle);
             buildHelperMapsSheet(wb, safeMode, COLORS, hdrStyle);

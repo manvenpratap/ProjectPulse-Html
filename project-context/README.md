@@ -42,6 +42,18 @@ ProjectPulse/
     └── manifest.json            # Graph metadata manifest
 ```
 
+#### 🧭 Compiled Archify Interactive Diagrams & Architecture Specs
+
+ProjectPulse architecture, delivery workflows, synchronization sequences, and lifecycles are formally modeled and compiled via [Archify](https://github.com/tt-a1i/archify):
+
+* 📐 **System Architecture**: [Interactive HTML View](../docs/diagrams/architecture.html) | [Spec](../docs/diagrams/architecture.json)
+* 🔄 **Governance Workflow**: [Interactive HTML View](../docs/diagrams/workflow.html) | [Spec](../docs/diagrams/workflow.json)
+* ⚡ **Excel Sync Sequence**: [Interactive HTML View](../docs/diagrams/sequence.html) | [Spec](../docs/diagrams/sequence.json)
+* 🌊 **Data Flow Pipeline**: [Interactive HTML View](../docs/diagrams/dataflow.html) | [Spec](../docs/diagrams/dataflow.json)
+* ⏱️ **Workstation Lifecycle**: [Interactive HTML View](../docs/diagrams/lifecycle.html) | [Spec](../docs/diagrams/lifecycle.json)
+
+See [**`PROJECT_CONTEXT.md`**](../PROJECT_CONTEXT.md) for full architectural blueprints, sequence traces, and state machines.
+
 ---
 
 ## 2. Global State Schema (`P` Object)

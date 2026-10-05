@@ -4,11 +4,25 @@ ProjectPulse is a monolithic, local-first project management workstation built e
 
 ---
 
+## 🏛️ System Architecture & Compiled Diagrams
+
+ProjectPulse architecture, delivery workflows, synchronization sequences, and lifecycles are formally modeled and compiled via [Archify](https://github.com/tt-a1i/archify):
+
+* 📐 **System Architecture**: [Interactive HTML View](./docs/diagrams/architecture.html) | [Spec](./docs/diagrams/architecture.json)
+* 🔄 **Governance Workflow**: [Interactive HTML View](./docs/diagrams/workflow.html) | [Spec](./docs/diagrams/workflow.json)
+* ⚡ **Excel Sync Sequence**: [Interactive HTML View](./docs/diagrams/sequence.html) | [Spec](./docs/diagrams/sequence.json)
+* 🌊 **Data Flow Pipeline**: [Interactive HTML View](./docs/diagrams/dataflow.html) | [Spec](./docs/diagrams/dataflow.json)
+* ⏱️ **Workstation Lifecycle**: [Interactive HTML View](./docs/diagrams/lifecycle.html) | [Spec](./docs/diagrams/lifecycle.json)
+
+For detailed blueprints and Mermaid specifications, see [**`PROJECT_CONTEXT.md`**](./PROJECT_CONTEXT.md).
+
+---
+
 ## 🚀 Quick Start
 
 Since ProjectPulse is a self-contained single-page application, you can run it in multiple ways:
 
-1. **Direct Execution**: Simply double-click and open [projectpulse.html](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/projectpulse.html) in any modern web browser.
+1. **Direct Execution**: Simply double-click and open [projectpulse.html](./projectpulse.html) in any modern web browser.
 2. **Local HTTP Server**:
    ```bash
    # Using Node.js
@@ -109,4 +123,4 @@ ProjectPulse compiles its documentation suite directly from the source code conf
   graphify update .
   ```
 
-For full details on the `P` state object, entity schemas, and core function registry, please read the [Developer Context Pack](file:///Users/manvenpratapsingh/Downloads/ProjectPulse/project-context/README.md).
+For full details on the `P` state object, entity schemas, and core function registry, please read the [Developer Context Pack](./project-context/README.md).
